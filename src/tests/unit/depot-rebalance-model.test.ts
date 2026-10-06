@@ -43,8 +43,22 @@ const BALANCES: readonly DepotBalance[] = [
 
 const PLAN: TransferPlan = {
   transfers: [
-    { id: 'agra>kanpur', fromDepotId: 'agra', toDepotId: 'kanpur', buses: 8, distanceKm: 310.2, busKm: 2481.6 },
-    { id: 'agra>banda', fromDepotId: 'agra', toDepotId: 'banda', buses: 2, distanceKm: 330.5, busKm: 661 },
+    {
+      id: 'agra>kanpur',
+      fromDepotId: 'agra',
+      toDepotId: 'kanpur',
+      buses: 8,
+      distanceKm: 310.2,
+      busKm: 2481.6,
+    },
+    {
+      id: 'agra>banda',
+      fromDepotId: 'agra',
+      toDepotId: 'banda',
+      buses: 2,
+      distanceKm: 330.5,
+      busKm: 661,
+    },
   ],
   before: { depotsInDeficit: 3, depotsInSurplus: 1, totalDeficit: 18, totalSurplus: 10 },
   after: { depotsInDeficit: 2, depotsInSurplus: 0, totalDeficit: 8, totalSurplus: 0 },

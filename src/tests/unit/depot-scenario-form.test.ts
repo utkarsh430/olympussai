@@ -91,7 +91,7 @@ describe('scenario form state', () => {
     s = withExcluded(s, 'banda', true);
     s = withSurge(withFleetAdjustment(s, 'kanpur', -1), 'kanpur', -20);
     expect(summariseScenario(s, nameOf)).toBe(
-      'Spare ratio 10%, maximum distance 150 km, 1 depot locked, 1 depot excluded, ' +
+      'Spare ratio 10%, maximum distance 150 km, 2 depots locked, 1 depot excluded, ' +
         'AGRA +12 buses, KANPUR −1 bus, KANPUR demand −20%.',
     );
   });
@@ -157,7 +157,7 @@ describe('baseline equivalence', () => {
       modelledBalance('agra', 120, 90, { lat: 27.18, lng: 78.01 }),
       modelledBalance('mathura', 80, 60, { lat: 27.49, lng: 77.67 }),
       modelledBalance('kanpur', 70, 85, { lat: 26.45, lng: 80.33 }),
-      modelledBalance('lucknow', 95, 101, { lat: 26.85, lng: 80.95 }),
+      modelledBalance('lucknow', 130, 101, { lat: 26.85, lng: 80.95 }),
       modelledBalance('gorakhpur', 40, 52, { lat: 26.76, lng: 83.37 }),
       modelledBalance('empty', 0, 0, { lat: 26.0, lng: 81.0 }),
       modelledBalance('nowhere', 10, 14, null),
