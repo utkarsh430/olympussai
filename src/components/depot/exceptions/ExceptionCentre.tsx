@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useDepotNetworkContext } from '@/components/depot/data/DepotNetworkProvider';
 import { useDepotExceptions, DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/useDepotExceptions';
 import { ErrorPanel, LoadingBlock, StaleStrip } from '@/components/depot/shell/DataStates';
@@ -39,20 +40,20 @@ function isBusKind(kind: ExceptionKind | null): kind is BusExceptionKind {
   return BUS_EXCEPTION_KINDS.some((k) => k === kind);
 }
 
-function initialEntry(): ExceptionEntry {
-  if (typeof window === 'undefined') return { kind: null, depotId: null };
-  return entryParams(window.location.search);
-}
-
 /** Depots and buses that need attention on this snapshot, in plain sentences. */
 export function ExceptionCentre() {
-  // `?kind=` and `?depot=` (the overview and the depot cockpit link here) set the first
-  // filters. Read before the first fetch, so no unfiltered request goes out. On the server
-  // there is no URL; the loading markup is the same either way, so hydration agrees.
-  const [entry] = useState<ExceptionEntry>(initialEntry);
-  const [kind, setKind] = useState<ExceptionKind | null>(entry.kind);
-  const [depotId, setDepotId] = useState<string | null>(entry.depotId);
-  const [offset, setOffset] = useState(0);
+  // `?kind=` and `?depot=` (the overview and the depot cockpit link here) are the filters.
+  // They are read from the router's search parameters, never from the address bar: on a
+  // client navigation the router renders the new page before the address bar changes, and
+  // a link to the bare page does not remount this one. Read before the first fetch, so no
+  // unfiltered request goes out.
+  const search = useSearchParams().toString();
+  const { kind, depotId } = useMemo(() => entryParams(search), [search]);
+  // The bus page offset belongs to one pair of filters: a new pair starts at the first page.
+  const filterKey = `${kind ?? ''}|${depotId ?? ''}`;
+  const [paging, setPaging] = useState({ filterKey, offset: 0 });
+  const offset = paging.filterKey === filterKey ? paging.offset : 0;
+  const setOffset = (next: number): void => setPaging({ filterKey, offset: next });
   const busKind = isBusKind(kind) ? kind : null;
   const depotKind: DepotExceptionKind | null = kind !== null && !isBusKind(kind) ? kind : null;
   const query = useMemo(
@@ -83,32 +84,17 @@ export function ExceptionCentre() {
   const sections = useMemo(() => severitySections(groups), [groups]);
   const scopeLine = depotScopeLine(groups);
 
-  useEffect(() => {
-    const onPop = (): void => {
-      const next = initialEntry();
-      setKind(next.kind);
-      setDepotId(next.depotId);
-      setOffset(0);
-    };
-    window.addEventListener('popstate', onPop);
-    return () => window.removeEventListener('popstate', onPop);
-  }, []);
-
-  // The filters are written to the URL, so a filtered view can be shared and the back
-  // button steps through them.
+  // The filters live in the URL alone, so a filtered view can be shared and the back
+  // button steps through them. The router keeps its search parameters in step with
+  // pushState, so writing the URL is what changes the filters.
   const pushFilters = (next: ExceptionEntry): void => {
-    const search = exceptionSearch(window.location.search, next);
-    window.history.pushState(null, '', `${window.location.pathname}${search}`);
+    const query = exceptionSearch(search, next);
+    window.history.pushState(null, '', `${window.location.pathname}${query}`);
   };
   const toggleKind = (next: ExceptionKind): void => {
-    const target = kind === next ? null : next;
-    setKind(target);
-    setOffset(0);
-    pushFilters({ kind: target, depotId });
+    pushFilters({ kind: kind === next ? null : next, depotId });
   };
   const chooseDepot = (next: string | null): void => {
-    setDepotId(next);
-    setOffset(0);
     pushFilters({ kind, depotId: next });
   };
 
