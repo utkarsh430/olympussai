@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  baysMissingSentence,
   blockedSentence,
+  capacityViewOf,
   capacitySentence,
   dutyText,
   droppedRowsSentence,
@@ -12,6 +14,7 @@ import {
   PLAN_NOTICE,
   visitingSentence,
 } from '@/lib/depot/yard/parkingModel';
+import type { DepotDetailResponse } from '@/lib/depot/api';
 import type { ParkingLane } from '@/lib/depot/yard/parkingApi';
 
 const lane = (slots: number, depth = 8): ParkingLane => ({
@@ -164,5 +167,36 @@ describe('droppedRowsSentence', () => {
     expect(droppedRowsSentence(0)).toBe('');
     expect(droppedRowsSentence(1)).toMatch(/^1 in-yard row with a blank or repeated/);
     expect(droppedRowsSentence(3)).toMatch(/^3 in-yard rows with a blank or repeated/);
+  });
+});
+
+describe('capacity from the depot detail', () => {
+  const detail = (yard: unknown, inYard: number, visitors: number): DepotDetailResponse =>
+    ({
+      depot: { fleet: 70 },
+      yard: { value: yard },
+      locationMix: { in_yard: inYard },
+      visitors: new Array(visitors).fill({}),
+    }) as unknown as DepotDetailResponse;
+
+  it('takes the live counts from the detail and the bays from the caller', () => {
+    expect(capacityViewOf(detail({}, 55, 10), 60)).toEqual({
+      inYard: 55,
+      visiting: 10,
+      fleet: 70,
+      bays: 60,
+    });
+    expect(capacityViewOf(detail(null, 0, 0), null).inYard).toBeNull();
+  });
+
+  it('states the live counts and that the bay count is unavailable or loading', () => {
+    const view = capacityViewOf(detail({}, 55, 10), null);
+    expect(baysMissingSentence(view, false)).toBe(
+      '55 buses in the yard, 10 visiting. The modelled bay count is unavailable, so use is not set against capacity.',
+    );
+    expect(baysMissingSentence(view, true)).toMatch(/modelled bay count is loading/);
+    expect(baysMissingSentence(capacityViewOf(detail(null, 0, 0), null), false)).toMatch(
+      /^No yard is established; 70 buses in the fleet\./,
+    );
   });
 });

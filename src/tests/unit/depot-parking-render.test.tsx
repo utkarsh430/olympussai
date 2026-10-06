@@ -8,9 +8,20 @@ import type {
   ParkingOrder,
   ParkingResponse,
 } from '@/lib/depot/yard/parkingApi';
-import { PLAN_NOTICE } from '@/lib/depot/yard/parkingModel';
+import { capacityViewOf, PLAN_NOTICE } from '@/lib/depot/yard/parkingModel';
+import type { DepotDetailResponse } from '@/lib/depot/api';
 
-const hook = vi.hoisted(() => ({ value: null as unknown }));
+const hook = vi.hoisted(() => ({ value: null as unknown, detail: null as unknown }));
+
+vi.mock('@/components/depot/data/DepotDetailProvider', () => ({
+  useDepotDetailContext: (): unknown => ({
+    depotId: '20',
+    data: hook.detail,
+    error: null,
+    loading: false,
+    refresh: () => {},
+  }),
+}));
 
 vi.mock('@/hooks/useDepotParking', () => ({ useDepotParking: (): unknown => hook.value }));
 
@@ -20,6 +31,15 @@ const CAPACITY: ParkingCapacity = {
   visiting: { value: 2, provenance: 'derived' },
   fleet: { value: 50, provenance: 'live' },
 };
+
+/** The depot detail the yard page already holds: only what the capacity panel reads. */
+const detailOf = (yard: unknown, inYard: number, visitors: number): DepotDetailResponse =>
+  ({
+    depot: { fleet: 50 },
+    yard: { value: yard },
+    locationMix: { in_yard: inYard },
+    visitors: new Array(visitors).fill({}),
+  }) as unknown as DepotDetailResponse;
 
 const ORDER: ParkingOrder = {
   provenance: 'modelled',
@@ -58,11 +78,16 @@ function setHook(partial: Record<string, unknown>): void {
   hook.value = { data: null, error: null, loading: false, refresh: () => {}, ...partial };
 }
 
-beforeEach(() => setHook({}));
+beforeEach(() => {
+  setHook({});
+  hook.detail = detailOf({}, 38, 2);
+});
 
 describe('YardCapacity', () => {
   it('says bays in use against modelled capacity and tags each source', () => {
-    const html = renderToStaticMarkup(<YardCapacity capacity={CAPACITY} />);
+    const html = renderToStaticMarkup(
+      <YardCapacity capacity={capacityViewOf(detailOf({}, 38, 2), 60)} />,
+    );
     expect(text(html)).toContain('40 of 60 modelled bays in use; 20 free.');
     expect(text(html)).toContain('2 buses from other depots');
     expect(html).toContain('data-provenance="derived"');
@@ -70,11 +95,21 @@ describe('YardCapacity', () => {
   });
 
   it('sets only the fleet against the bays when no yard is established', () => {
-    const none: ParkingCapacity = { ...CAPACITY, inYard: { value: null, provenance: 'derived' } };
-    const t = text(renderToStaticMarkup(<YardCapacity capacity={none} />));
+    const t = text(
+      renderToStaticMarkup(<YardCapacity capacity={capacityViewOf(detailOf(null, 0, 0), 60)} />),
+    );
     expect(t).toContain('No yard is established');
     expect(t).toContain('50 buses in the fleet, 60 modelled bays');
     expect(t).not.toMatch(/in use/);
+  });
+
+  it('shows the live counts and no modelled tag when the bay count is missing', () => {
+    const html = renderToStaticMarkup(
+      <YardCapacity capacity={capacityViewOf(detailOf({}, 38, 2), null)} />,
+    );
+    expect(text(html)).toContain('38 buses in the yard, 2 visiting.');
+    expect(text(html)).toContain('modelled bay count is unavailable');
+    expect(html).not.toContain('data-provenance="modelled"');
   });
 });
 
@@ -133,6 +168,23 @@ describe('ParkingPlanSection', () => {
     expect(text(html)).toContain('Retry');
   });
 
+  it('keeps the live capacity counts on screen when the parking endpoint fails', () => {
+    setHook({ error: 'Depot data unavailable' });
+    const html = renderToStaticMarkup(<ParkingPlanSection depotId="20" />);
+    expect(html).toContain('yard-capacity');
+    expect(text(html)).toContain('38 buses in the yard, 2 visiting.');
+    expect(text(html)).toContain('modelled bay count is unavailable');
+    expect(html).toContain('depot-error');
+    expect(html).not.toContain('parking-plan"');
+  });
+
+  it('takes the counts from the depot detail and only the bays from the parking response', () => {
+    hook.detail = detailOf({}, 55, 10);
+    setHook({ data: { ...BASE, capacity: { ...CAPACITY, inYard: { value: 1, provenance: 'derived' } } } });
+    const t = text(renderToStaticMarkup(<ParkingPlanSection depotId="20" />));
+    expect(t).toContain('65 of 60 modelled bays in use; 5 over.');
+  });
+
   it('shows capacity and the order, with a stale strip on last-good data', () => {
     setHook({ data: { ...BASE, stale: true } });
     const html = renderToStaticMarkup(<ParkingPlanSection depotId="20" />);
@@ -150,6 +202,7 @@ describe('ParkingPlanSection', () => {
         capacity: { ...CAPACITY, inYard: { value: null, provenance: 'derived' } },
       },
     });
+    hook.detail = detailOf(null, 0, 0);
     const html = renderToStaticMarkup(<ParkingPlanSection depotId="20" />);
     expect(html).toContain('depot-empty');
     expect(text(html)).toContain('No yard is established for this depot');

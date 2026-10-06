@@ -1,4 +1,5 @@
 import { formatMinute } from '../duties/dutyBoardModel';
+import type { DepotDetailResponse } from '../api';
 import { formatCount } from '../format';
 import type { ParkingLane, ParkingOverflowReason, ParkingState } from './parkingApi';
 
@@ -25,6 +26,41 @@ export function capacitySentence({ bays, inYard, visiting }: CapacityInput): str
   if (free > 0) return `${head}; ${formatCount(free)} free.`;
   if (free === 0) return `${head}; none free.`;
   return `${head}; ${formatCount(-free)} over.`;
+}
+
+/**
+ * What the capacity panel shows. The counts come from the depot detail the yard
+ * page already holds; only `bays` (modelled) comes from the parking endpoint, so
+ * a failed parking request leaves the live counts standing and `bays` null.
+ */
+export interface CapacityView {
+  /** Own buses the feed places in the yard; null when no yard is established. */
+  readonly inYard: number | null;
+  readonly visiting: number;
+  readonly fleet: number;
+  /** Modelled bays; null until the parking endpoint has answered. */
+  readonly bays: number | null;
+}
+
+export function capacityViewOf(detail: DepotDetailResponse, bays: number | null): CapacityView {
+  return {
+    inYard: detail.yard.value === null ? null : detail.locationMix.in_yard,
+    visiting: detail.visitors.length,
+    fleet: detail.depot.fleet,
+    bays,
+  };
+}
+
+/** The live counts on their own, when the modelled bay count is missing. */
+export function baysMissingSentence(view: CapacityView, pending: boolean): string {
+  const why = pending
+    ? 'The modelled bay count is loading.'
+    : 'The modelled bay count is unavailable, so use is not set against capacity.';
+  const counts =
+    view.inYard === null
+      ? `No yard is established; ${formatCount(view.fleet)} ${plural(view.fleet, 'bus', 'buses')} in the fleet.`
+      : `${formatCount(view.inYard)} ${plural(view.inYard, 'bus', 'buses')} in the yard, ${formatCount(view.visiting)} visiting.`;
+  return `${counts} ${why}`;
 }
 
 export function visitingSentence(visiting: number): string {
