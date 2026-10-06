@@ -89,7 +89,7 @@ export function RationaleToggle({
         type="button"
         onClick={onToggle}
         aria-expanded={expanded}
-        aria-controls={panelId}
+        aria-controls={expanded ? panelId : undefined}
         aria-label={`Why? ${label}`}
         className="hud-button px-2 py-0.5"
       >

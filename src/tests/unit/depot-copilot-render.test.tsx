@@ -181,8 +181,12 @@ describe('rationale parts', () => {
     const toggle = container.querySelector('button') as HTMLButtonElement;
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
     expect(toggle.getAttribute('aria-label')).toBe('Why? Kurla to Panvel');
+    // The panel is not rendered while collapsed, so nothing is controlled.
+    expect(toggle.hasAttribute('aria-controls')).toBe(false);
     await click(toggle);
     expect(fn).toHaveBeenCalledTimes(1);
+    const panel = container.querySelector('[data-testid="rationale-panel"]');
+    expect(toggle.getAttribute('aria-controls')).toBe(panel?.id);
     expect(container.querySelector('[data-testid="rationale-status"]')?.textContent).toBe(
       'Explanation ready',
     );
@@ -191,6 +195,7 @@ describe('rationale parts', () => {
     );
     await click(toggle);
     expect(container.querySelector('[data-testid="rationale-panel"]')).toBeNull();
+    expect(toggle.hasAttribute('aria-controls')).toBe(false);
     await click(toggle);
     expect(fn).toHaveBeenCalledTimes(1);
     expect(container.querySelector('[data-testid="rationale-panel"]')?.textContent).toContain(
