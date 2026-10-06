@@ -4,7 +4,7 @@ import { words } from '@/lib/depot/copilot/vocabulary/function';
  * Common verbs as base forms; the regular endings in index.ts supply
  * "-s", "-ed", "-ing". Irregular and consonant-doubling forms are listed.
  */
-export const VERBS: readonly string[] = words(`
+export const BASE_VERBS: readonly string[] = words(`
 accept account achieve act add address adjust advise affect agree aim allow amount answer
 appear apply approach arise arrive ask assess assign assume attend avoid await
 balance base bear become begin behave belong bring build call carry catch cause change
@@ -40,8 +40,16 @@ relocate remind renew reorganise request reserve resist restrict revise rotate s
 secure select separate shape shorten signal simplify smooth specify spread stabilise strain
 strengthen stress stretch struggle submit substitute succeed suffer summarise suspend sustain
 switch target tighten tolerate trace trigger underline undermine undertake unfold uphold
-validate verify view warn welcome withdraw wonder
-configure inferred hardest harder worth yet nearer preferable preferably healthy
+validate verify view warn welcome withdraw wonder configure
+`);
+
+/**
+ * Inflected and irregular forms, and the few non-verbs kept with them. Kept apart
+ * from the base forms because a sentence may open with "Flagged" or "Left", but
+ * one that opens with a base form is an instruction (sentenceRules.ts).
+ */
+export const VERB_FORMS: readonly string[] = words(`
+inferred hardest harder worth yet nearer preferable preferably healthy
 arose arisen became began begun bore borne brought built came caught chose chosen dealt drew
 drawn drove driven fell fallen fed felt found gave given went gone grew grown held kept knew
 known laid lain led left lent lost made meant met paid ran rose risen said saw seen sent
@@ -51,3 +59,5 @@ planned planning putting referred referring running setting sitting slipped slip
 stopping occurred occurring controlled controlling transferred transferring travelled
 travelling lagged lagging lying tied tying
 `);
+
+export const VERBS: readonly string[] = [...BASE_VERBS, ...VERB_FORMS];
