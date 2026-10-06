@@ -139,8 +139,9 @@ describe('reasons in words', () => {
 
 describe('planHeadline', () => {
   it('is one sentence: what would move and on how many routes', () => {
-    expect(planHeadline(response())).toMatch(
-      /^(No route would move\.|[\d,]+ routes? would move to another depot.*\.) Based on 412 of 1,204 routes with a known profile\.$/,
+    // M11: the exact sentence the fixture produces, not either of two wordings.
+    expect(planHeadline(response())).toBe(
+      'No route would move. Based on 412 of 1,204 routes with a known profile.',
     );
   });
 });

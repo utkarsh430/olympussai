@@ -1,6 +1,8 @@
+import { Suspense } from 'react';
 import { requireProjectSession } from '@/lib/auth/server';
 import { RoutesPage } from '@/components/depot/routes/RoutesPage';
 import { PageHeader } from '@/components/depot/shell/PageHeader';
+import { StatePanel } from '@/components/depot/shell/StatePanel';
 
 const ROUTES_PATH = '/project/depots/routes';
 
@@ -16,12 +18,18 @@ export default async function DepotRoutesPage() {
         description="Every route in the feed, and which depot should run each one."
         provenanceLine={{
           default: 'mixed',
-          live: 'Routes and buses',
-          derived: 'stops and terminals from the route-details feed, and inferred depot positions',
-          modelled: 'trips and the dead kilometres built on them',
+          live: 'Routes and the buses on them',
+          // Dead km a trip is measured (depot position to terminals), so DERIVED, as the
+          // column and the drawer say; only what is multiplied by modelled trips is MODELLED.
+          derived:
+            'stops, terminals and dead kilometres a trip, from the route-details feed and inferred depot positions,',
+          modelled: 'trips a day and the daily dead kilometres built on them',
         }}
       />
-      <RoutesPage />
+      {/* RoutesPage reads the ?depot= scope (useSearchParams), so it sits in a boundary. */}
+      <Suspense fallback={<StatePanel kind="loading" rows={10} sentence="Loading the routes" />}>
+        <RoutesPage />
+      </Suspense>
     </>
   );
 }

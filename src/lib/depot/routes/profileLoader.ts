@@ -151,6 +151,7 @@ export function routesToLoad(
     .map((r) => r.routeName);
 }
 
-export function loadButtonLabel(depotName: string, routes: number): string {
-  return `Load route details for ${depotName} (${plural(routes, 'route', 'routes')})`;
+/** The button's words; the depot is the select beside it, the cost is in its `title`. */
+export function loadButtonLabel(routes: number): string {
+  return `Load route details (${plural(routes, 'route', 'routes')})`;
 }

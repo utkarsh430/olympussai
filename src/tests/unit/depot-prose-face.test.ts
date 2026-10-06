@@ -33,8 +33,6 @@ const EXEMPT: readonly string[] = [
   'src/components/depot/exceptions/BusExceptionSection.tsx',
   'src/components/depot/exceptions/ExceptionCentre.tsx',
   'src/components/depot/network/DepotMapPanel.tsx',
-  'src/components/depot/routes/ProfileLoader.tsx',
-  'src/components/depot/routes/RoutesMethod.tsx',
   'src/components/depot/sources/SourcesRegistry.tsx',
 ];
 

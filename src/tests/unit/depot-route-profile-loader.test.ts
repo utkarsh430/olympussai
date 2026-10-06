@@ -90,7 +90,7 @@ describe('what a press loads', () => {
   });
 
   it('names the depot and the count on the button', () => {
-    expect(loadButtonLabel('Bhaisali', 23)).toBe('Load route details for Bhaisali (23 routes)');
-    expect(loadButtonLabel('Agra', 1)).toBe('Load route details for Agra (1 route)');
+    expect(loadButtonLabel(23)).toBe('Load route details (23 routes)');
+    expect(loadButtonLabel(1)).toBe('Load route details (1 route)');
   });
 });

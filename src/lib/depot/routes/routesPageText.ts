@@ -11,8 +11,6 @@ export const ROUTES_TEXT = {
   afterLabel: 'After the moves',
   kmADay: 'km a day',
   unmovedTitle: 'Routes that would not move',
-  unmovedHint: 'Open a reason to list its routes.',
-  unmovedNone: 'No route is left in place for any reason other than a missing profile.',
   stayTitle: 'Would stay',
   outsideTitle: 'Outside the plan',
   noSingleDepot: 'no single depot',

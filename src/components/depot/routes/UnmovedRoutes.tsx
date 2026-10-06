@@ -13,7 +13,7 @@ import {
 } from '@/lib/depot/routes/allocationGroups';
 import { ROUTE_LIST_DEFAULT_LIMIT } from '@/lib/depot/routes/routeQuery';
 import { offsetOf, serverPage } from '@/lib/depot/routes/routesPageModel';
-import { ListPager } from './ListPager';
+import { Pager } from '@/components/depot/shell/LongLists';
 import { ROUTES_TEXT, disclosureWord } from '@/lib/depot/routes/routesPageText';
 import { DepotLink } from './RouteCells';
 
@@ -51,14 +51,7 @@ function GroupPage({
     <>
       <GroupTable group={group} items={items} />
       {current.pageCount > 1 ? (
-        <div className="mt-2">
-          <ListPager
-            label={`Pages of: ${group.heading}`}
-            page={current.page}
-            pageCount={current.pageCount}
-            onPageChange={setPage}
-          />
-        </div>
+        <Pager page={current.page} total={total} pageSize={list.data.limit} onPage={setPage} />
       ) : null}
     </>
   );

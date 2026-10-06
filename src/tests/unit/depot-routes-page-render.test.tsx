@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { RoutesPage } from '@/components/depot/routes/RoutesPage';
 import { RECOMMENDATION_ONLY } from '@/lib/depot/routes/allocationWording';
 import type { DepotAllocationResponse, DepotRoutesResponse, RouteListItem } from '@/lib/depot/routes/api';
+import { EMPTY_PLAN_FIXTURE } from './depot-routes.fixtures';
 
 interface Slot<T> {
   data: T | null;
@@ -17,8 +18,15 @@ const state = vi.hoisted(() => ({
   allocation: null as unknown,
 }));
 
-vi.mock('@/hooks/useDepotRoutes', () => ({ useDepotRoutes: (): unknown => state.routes }));
+vi.mock('@/hooks/useDepotRoutes', async (original) => ({
+  ...(await original<typeof import('@/hooks/useDepotRoutes')>()),
+  useDepotRoutes: (): unknown => state.routes,
+}));
 vi.mock('@/hooks/useDepotAllocation', () => ({ useDepotAllocation: (): unknown => state.allocation }));
+vi.mock('next/navigation', () => ({ useSearchParams: (): URLSearchParams => new URLSearchParams() }));
+vi.mock('@/components/depot/data/DepotNetworkProvider', () => ({
+  useDepotNetworkContext: (): unknown => ({ data: { depots: [{ id: '1', assigned: 3 }] }, error: null }),
+}));
 
 function slot<T>(partial: Partial<Slot<T>>): Slot<T> {
   return { data: null, error: null, loading: false, refresh: () => {}, ...partial };
@@ -156,17 +164,45 @@ describe('RoutesPage plan panel', () => {
     state.allocation = slot({ data: PLAN });
     const markup = renderToStaticMarkup(<RoutesPage />);
     expect(markup).toContain('depot-table depot-table-fixed');
-    expect(textOf(markup)).toContain('Median delay, min');
+    expect(textOf(markup)).toContain('Delay min');
+    expect(markup).toContain('title="Median delay of the buses with a usable delay, in minutes"');
     expect(textOf(markup)).not.toMatch(/\d min</);
+    // the basis is the delay cells' title, not a column of sentences
+    expect(markup).toContain('title="based on 5 of 5 buses"');
   });
 
-  it('is one state panel with the loader when nothing can be planned', () => {
-    const none = { ...PLAN, coverage: { ...PLAN.coverage, planned: { n: 0, of: 2 } }, moves: [] };
-    state.allocation = slot({ data: none });
+  it('has one pager, under the table, and no range sentence or top pager', () => {
+    state.allocation = slot({ data: PLAN });
+    const many = { ...ROUTES, total: 1271, inFeed: 1271 };
+    state.routes = slot({ data: many });
     const markup = renderToStaticMarkup(<RoutesPage />);
-    expect(textOf(markup)).toContain('No route can be planned yet');
-    expect(markup).not.toContain('data-testid="depot-figure-band"');
-    expect(markup).toContain('data-testid="route-profile-loader"');
-    expect(textOf(markup)).toContain('Each route is one lookup on the route-details service.');
+    expect(textOf(markup)).toContain('Rows 1 to 25 of 1,271');
+    expect(markup.indexOf('data-testid="depot-pager"')).toBeGreaterThan(markup.indexOf('</table>'));
+    expect(textOf(markup)).not.toMatch(/Showing \d|Page \d+ of/);
+    expect(markup).toContain('data-testid="depot-filter-row"');
+  });
+
+  it('hides the pager at 25 rows or fewer', () => {
+    state.allocation = slot({ data: PLAN });
+    expect(renderToStaticMarkup(<RoutesPage />)).not.toContain('data-testid="depot-pager"');
+  });
+
+  it('is one row, the sentence and the loader on its default depot, when nothing can be planned', () => {
+    state.allocation = slot({ data: EMPTY_PLAN_FIXTURE });
+    const markup = renderToStaticMarkup(<RoutesPage />);
+    const section = markup.slice(markup.indexOf('id="allocation-title"'), markup.indexOf('route-table-title'));
+    expect(textOf(section)).toContain("No route can be planned yet: no route&#x27;s details have been loaded.");
+    expect(section).toContain('data-testid="route-profile-loader"');
+    expect(section).not.toContain('data-testid="depot-figure-band"');
+    expect(section).not.toContain('data-testid="depot-state-panel"');
+    // the explanations live in the closing disclosure, not in the row
+    expect(textOf(section)).not.toContain(TRIP_DEFINITION);
+    expect(textOf(section)).not.toContain('Each route is one lookup');
+    expect(textOf(section)).toContain('One lookup on the route-details service per route, one at a time');
+    expect(section).toMatch(/<option value="1" selected="">AGRA · 3 on routes<\/option>/);
+    const method = markup.slice(markup.indexOf('data-testid="routes-method"'));
+    expect(textOf(method)).toContain(TRIP_DEFINITION);
+    expect(textOf(method)).toContain('Each route is one lookup on the route-details service.');
+    expect(textOf(method)).toContain('at most 40 a press and never by itself');
   });
 });

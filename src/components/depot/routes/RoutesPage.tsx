@@ -1,6 +1,8 @@
 'use client';
 
 import { useCallback, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { useDepotNetworkContext } from '@/components/depot/data/DepotNetworkProvider';
 import {
   EmptyState,
   ErrorPanel,
@@ -11,6 +13,7 @@ import { useDepotAllocation } from '@/hooks/useDepotAllocation';
 import { useDepotRoutes } from '@/hooks/useDepotRoutes';
 import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/usePolledJson';
 import { unmovedGroups } from '@/lib/depot/routes/allocationGroups';
+import { defaultLoaderDepot, loaderDepots, planRowSentence } from '@/lib/depot/routes/loaderRow';
 import type { RouteListItem } from '@/lib/depot/routes/api';
 import { DEFAULT_ROUTES_QUERY, type RoutesQuery } from '@/lib/depot/routes/routeQuery';
 import { ROUTES_TEXT } from '@/lib/depot/routes/routesPageText';
@@ -34,8 +37,9 @@ function RoutesLoading() {
 }
 
 /**
- * Route intelligence for the whole network: the plan as one compact panel (with
- * the route-details loader), then the route table, the page's hero, and the closing
+ * Route intelligence for the whole network: the plan section (one row with the
+ * route-details loader until something can be planned), then the route table, the
+ * page's hero, and the closing
  * disclosure. Both endpoints are network-wide; the table's depot filter
  * narrows only the table, so no network total is passed off as one depot's.
  */
@@ -47,6 +51,12 @@ export function RoutesPage() {
   const allocation = useDepotAllocation();
   const routeData = routes.data;
   const plan = allocation.data;
+  const network = useDepotNetworkContext().data;
+  const scopeDepotId = useSearchParams().get('depot');
+  const depots = useMemo(
+    () => loaderDepots(routeData?.depotOptions ?? [], network?.depots ?? []),
+    [routeData?.depotOptions, network?.depots],
+  );
 
   const groups = useMemo(() => (plan === null ? null : unmovedGroups(plan)), [plan]);
   const openRoute = useCallback((route: RouteListItem, opener: HTMLButtonElement): void => {
@@ -78,7 +88,16 @@ export function RoutesPage() {
     );
   }
 
-  const loader = <ProfileLoader depots={routeData?.depotOptions ?? []} onFinished={onProfiled} />;
+  // Nothing can be planned: the loader's row says why, in place of a panel.
+  const lead = plan !== null && plan.coverage.planned.n === 0 ? planRowSentence(plan) : undefined;
+  const loader = (
+    <ProfileLoader
+      depots={depots}
+      defaultDepotId={defaultLoaderDepot(depots, scopeDepotId)}
+      lead={lead}
+      onFinished={onProfiled}
+    />
+  );
 
   return (
     <>

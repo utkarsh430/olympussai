@@ -1,7 +1,7 @@
-import { formatCount } from '../format';
+import { formatCount, formatDurationMinutes } from '../format';
 import { formatKm } from './allocationWording';
 import type { AllocationMoveItem, RouteListItem } from './api';
-import type { RouteProfileResult } from './types';
+import type { RouteProfileResponse, RouteProfileResult } from './types';
 
 /**
  * Everything the route drawer says, built from one route's profile (the
@@ -52,6 +52,8 @@ const UNAVAILABLE: Readonly<Record<Unavailable, string>> = {
 const plural = (n: number, one: string, many: string): string =>
   `${formatCount(n)} ${n === 1 ? one : many}`;
 
+const NO_STOPS = 'No stops in the feed for this route.';
+
 /** The time of a stop the profile gives no schedule for. */
 export const NO_TIME = 'No time';
 
@@ -62,11 +64,7 @@ function durationLine(minutes: number | null): string {
   if (minutes === null || !Number.isFinite(minutes) || minutes <= 0) {
     return 'The schedule gives no trip duration.';
   }
-  const whole = Math.round(minutes);
-  const hours = Math.floor(whole / 60);
-  const rest = whole % 60;
-  const parts = [...(hours > 0 ? [`${hours} h`] : []), ...(rest > 0 || hours === 0 ? [`${rest} min`] : [])];
-  return `Scheduled trip duration: ${parts.join(' ')}.`;
+  return `Scheduled trip duration: ${formatDurationMinutes(Math.round(minutes))}.`;
 }
 
 function unlocatedLine(unlocated: number, total: number): string {
@@ -101,6 +99,7 @@ export function drawerView(
 ): DrawerView {
   if (result.status !== 'ok') return { status: 'unavailable', sentence: UNAVAILABLE[result.reason] };
   const { profile } = result;
+  if (profile.stops.length === 0) return { status: 'unavailable', sentence: NO_STOPS };
   const stops = [...profile.stops]
     .sort((a, b) => a.sequence - b.sequence)
     .map((s) => ({ sequence: s.sequence, name: s.name, time: timeOf(s.scheduled) }));
@@ -124,4 +123,34 @@ export function rateLimitSentence(retryAfter: string | null): string {
   const seconds = retryAfter !== null && /^\d{1,5}$/.test(retryAfter.trim()) ? Number(retryAfter) : null;
   if (seconds === null) return `${LIMITED} Try again shortly.`;
   return `${LIMITED} Try again in ${plural(seconds, 'second', 'seconds')}.`;
+}
+
+/** What the drawer's hook reports; the optional parts are absent in older callers. */
+export interface DrawerFetchState {
+  readonly data: RouteProfileResponse | null;
+  readonly error: string | null;
+  readonly loading: boolean;
+  /** Seconds the throttle asked to wait, on a 429. */
+  readonly retryAfterSeconds?: number | null;
+  /** True once the lookup has taken longer than the hook's slow threshold. */
+  readonly slow?: boolean;
+}
+
+/** Each way the drawer can be before it has stops to show: each has its own words. */
+export type DrawerPhase =
+  | { readonly kind: 'loading' | 'slow' | 'limited' | 'failed'; readonly sentence: string }
+  | { readonly kind: 'ready' };
+
+const LOADING = "Loading this route's stops from the route-details service.";
+const SLOW = 'Still waiting for the route-details service; one lookup can take a while.';
+const FAILED = 'Route details are unavailable right now.';
+
+/** A slow lookup, a rate-limit wait and a failure each get their own state. */
+export function drawerPhase(state: DrawerFetchState): DrawerPhase {
+  if (state.loading) return state.slow ? { kind: 'slow', sentence: SLOW } : { kind: 'loading', sentence: LOADING };
+  if (state.data !== null) return { kind: 'ready' };
+  const sentence = state.error ?? FAILED;
+  return typeof state.retryAfterSeconds === 'number' || sentence.startsWith(LIMITED)
+    ? { kind: 'limited', sentence }
+    : { kind: 'failed', sentence };
 }

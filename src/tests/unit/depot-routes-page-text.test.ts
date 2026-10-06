@@ -6,14 +6,11 @@ describe('routes page text', () => {
     for (const text of Object.values(ROUTES_TEXT)) {
       expect(text.toLowerCase()).not.toContain('simulated');
     }
-    for (const sentence of [ROUTES_TEXT.unmovedHint, ROUTES_TEXT.unmovedNone, ROUTES_TEXT.noRoutes]) {
-      expect(sentence.endsWith('.')).toBe(true);
-    }
+    expect(ROUTES_TEXT.noRoutes.endsWith('.')).toBe(true);
   });
 
-  it('says why the route list is empty, and that only a missing profile can leave nothing unmoved', () => {
+  it('says why the route list is empty', () => {
     expect(ROUTES_TEXT.noRoutes).toContain('no bus carrying a route name');
-    expect(ROUTES_TEXT.unmovedNone).toContain('missing profile');
   });
 
   it('words a disclosure state rather than relying on an arrow', () => {

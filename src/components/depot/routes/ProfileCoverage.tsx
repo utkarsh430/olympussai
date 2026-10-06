@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { formatCount } from '@/lib/depot/format';
-import { notProfiledSentence, PROFILES_GROW_WITH_USE } from '@/lib/depot/routes/allocationWording';
+import { notProfiledSentence } from '@/lib/depot/routes/allocationWording';
 import { disclosureWord, ROUTES_TEXT } from '@/lib/depot/routes/routesPageText';
 import type { Coverage } from '@/lib/depot/types';
 
@@ -13,7 +13,7 @@ export interface ProfileCoverageProps {
 
 /**
  * The routes the plan cannot measure for want of a profile, as one collapsed row with its
- * count (the pattern of the unmoved groups); the two sentences open beneath it.
+ * count (the pattern of the unmoved groups); its sentence opens beneath it.
  */
 export function ProfileCoverage({ profiled }: ProfileCoverageProps) {
   const [open, setOpen] = useState(false);
@@ -32,10 +32,8 @@ export function ProfileCoverage({ profiled }: ProfileCoverageProps) {
         </span>
         <span className="ml-auto">{disclosureWord(open)}</span>
       </summary>
-      <div className="mt-2 max-w-3xl space-y-1.5">
-        <p className="depot-prose">{notProfiledSentence(missing, profiled.of)}</p>
-        <p className="depot-prose">{PROFILES_GROW_WITH_USE}</p>
-      </div>
+      {/* How details are fetched is said once, in the closing disclosure. */}
+      <p className="depot-prose mt-2 max-w-3xl">{notProfiledSentence(missing, profiled.of)}</p>
     </details>
   );
 }
