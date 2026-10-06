@@ -179,8 +179,8 @@ describe('uncoveredRows', () => {
     };
     const rows = uncoveredRows(plan, BALANCES, 250);
     expect(rows.map((r) => r.sentence)).toEqual([
-      'BANDA stays 4 buses short: depots within 250 km had spare buses, but not enough for every depot in range.',
-      'KANPUR stays 1 bus short: no depot with spare buses lies within the maximum transfer distance of 250 km.',
+      'BANDA stays 4 buses short: depots within 250 km had surplus buses, but not enough for every depot in range.',
+      'KANPUR stays 1 bus short: no depot with surplus buses lies within the maximum transfer distance of 250 km.',
       'NOIDA stays 4 buses short: it has no known position, so no transfer can be routed to it.',
       'LUCKNOW stays 3 buses short: it is excluded from this plan, so it neither gives nor receives.',
     ]);

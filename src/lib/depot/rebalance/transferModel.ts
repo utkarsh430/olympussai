@@ -80,9 +80,9 @@ export function uncoveredSentence(
   const head = `${depotName} stays ${busesWord(buses)} short`;
   switch (reason) {
     case 'no_surplus_in_range':
-      return `${head}: no depot with spare buses lies within the maximum transfer distance of ${maxTransferKm} km.`;
+      return `${head}: no depot with surplus buses lies within the maximum transfer distance of ${maxTransferKm} km.`;
     case 'insufficient_surplus':
-      return `${head}: depots within ${maxTransferKm} km had spare buses, but not enough for every depot in range.`;
+      return `${head}: depots within ${maxTransferKm} km had surplus buses, but not enough for every depot in range.`;
     case 'no_position':
       return `${head}: it has no known position, so no transfer can be routed to it.`;
     case 'excluded':
