@@ -24,7 +24,7 @@ export interface FeedEntry {
   readonly unlocks: string;
 }
 
-/** On-screen wording; the interface never uses the word "simulated". */
+/** On-screen wording for each status. */
 export const FEED_STATUS_LABEL: Readonly<Record<FeedStatus, string>> = {
   live: 'LIVE',
   modelled: 'MODELLED',
