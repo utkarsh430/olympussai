@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  ageWords,
-  feedChip,
-  headerProvenanceNote,
-  type FeedChipData,
-} from '@/lib/depot/feedChip';
+import { ageWords, feedChip, headerProvenanceNote, type FeedChipData } from '@/lib/depot/feedChip';
 
 const FETCHED = '2026-10-06T07:06:00.000Z';
 const FETCHED_MS = Date.parse(FETCHED);
@@ -38,7 +33,12 @@ describe('ageWords', () => {
 
 describe('feedChip', () => {
   it('says LIVE with the feed clock when the server answered from the feed', () => {
-    const chip = feedChip({ data: data(), error: null, loading: false, nowMs: FETCHED_MS + 38_000 });
+    const chip = feedChip({
+      data: data(),
+      error: null,
+      loading: false,
+      nowMs: FETCHED_MS + 38_000,
+    });
     expect(chip.text).toBe('LIVE · 12:36');
     expect(chip.tone).toBe('live');
     expect(chip.title).toBe('Live feed, data received 38 s ago (feed time 12:36)');
@@ -84,7 +84,12 @@ describe('feedChip', () => {
   });
 
   it('keeps the sample-data wording for the fixture', () => {
-    const fresh = feedChip({ data: data({ source: 'fixture' }), error: null, loading: false, nowMs: FETCHED_MS });
+    const fresh = feedChip({
+      data: data({ source: 'fixture' }),
+      error: null,
+      loading: false,
+      nowMs: FETCHED_MS,
+    });
     expect(fresh.text).toBe('FIXTURE · 12:36');
     expect(fresh.tone).toBe('fixture');
     expect(fresh.title).toBe('Sample data, not the live feed');
@@ -111,27 +116,68 @@ describe('feedChip', () => {
     const connecting = feedChip({ data: null, error: null, loading: true, nowMs: 0 });
     expect(connecting.text).toBe('Feed connecting');
     expect(connecting.tone).toBe('neutral');
-    const failed = feedChip({ data: null, error: 'Depot data unavailable', loading: false, nowMs: 0 });
+    const failed = feedChip({
+      data: null,
+      error: 'Depot data unavailable',
+      loading: false,
+      nowMs: 0,
+    });
     expect(failed.text).toBe('Feed unavailable');
     expect(failed.title).toBe('The depot feed has not answered yet');
   });
 });
 
 describe('headerProvenanceNote', () => {
-  it('says where the page figures come from and the feed time', () => {
-    expect(headerProvenanceNote(data(), null)).toBe('from the live feed at 12:36');
-    expect(headerProvenanceNote(data({ source: 'cache' }), null)).toBe(
-      'from the live feed at 12:36',
+  it('says live, derived and modelled figures apart, with the feed time', () => {
+    expect(headerProvenanceNote(data(), null, 'live')).toBe('Live from the feed at 12:36');
+    expect(headerProvenanceNote(data(), null, 'derived')).toBe(
+      'Derived from the live feed at 12:36',
     );
-    expect(headerProvenanceNote(data({ stale: true }), null)).toBe(
-      'from the last good data, feed time 12:36',
+    expect(headerProvenanceNote(data(), null, 'modelled')).toBe(
+      'Modelled: generated figures, anchored on the live feed at 12:36',
     );
-    expect(headerProvenanceNote(data(), 'Depot data unavailable')).toBe(
-      'from the last good data, feed time 12:36',
+  });
+
+  it('never calls a modelled page live', () => {
+    for (const d of [data(), data({ source: 'cache' })]) {
+      expect(headerProvenanceNote(d, null, 'modelled')).not.toMatch(/^live|from the live feed at/i);
+    }
+  });
+
+  it('calls reference data curated, whatever the feed is doing', () => {
+    expect(headerProvenanceNote(data(), null, 'reference')).toBe('Reference data, curated');
+    expect(headerProvenanceNote(null, null, 'reference')).toBe('Reference data, curated');
+    expect(headerProvenanceNote(data({ stale: true }), 'x', 'reference')).toBe(
+      'Reference data, curated',
     );
-    expect(headerProvenanceNote(data({ source: 'fixture' }), null)).toBe(
-      'from sample data, feed time 12:36',
+  });
+
+  it('treats a cached answer as the live feed', () => {
+    expect(headerProvenanceNote(data({ source: 'cache' }), null, 'live')).toBe(
+      'Live from the feed at 12:36',
     );
-    expect(headerProvenanceNote(null, null)).toBe('waiting for the feed');
+  });
+
+  it('says stale, sample and waiting states for each tag', () => {
+    expect(headerProvenanceNote(data({ stale: true }), null, 'derived')).toBe(
+      'Derived from the last good data, feed time 12:36',
+    );
+    expect(headerProvenanceNote(data(), 'Depot data unavailable', 'modelled')).toBe(
+      'Modelled: generated figures, anchored on the last good data, feed time 12:36',
+    );
+    expect(headerProvenanceNote(data({ stale: true }), null, 'live')).toBe(
+      'From the last good data, feed time 12:36',
+    );
+    expect(headerProvenanceNote(data({ source: 'fixture' }), null, 'derived')).toBe(
+      'Derived from sample data, feed time 12:36',
+    );
+    expect(headerProvenanceNote(data({ source: 'fixture' }), null, 'modelled')).toBe(
+      'Modelled: generated figures, anchored on sample data, feed time 12:36',
+    );
+    expect(headerProvenanceNote(null, null, 'derived')).toBe('Waiting for the feed');
+  });
+
+  it('keeps an omitted tag working as the derived wording', () => {
+    expect(headerProvenanceNote(data(), null)).toBe('Derived from the live feed at 12:36');
   });
 });
