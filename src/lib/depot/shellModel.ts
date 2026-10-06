@@ -35,11 +35,15 @@ export function shellNav(pathname: string, depots: readonly ScopeDepot[] | null)
 
 /**
  * The prototype disclaimer as the depot shell prints it: the shared sentence without its
- * leading "Prototype.", because the PROTOTYPE pill directly before it already says so.
- * The shared constant, and every other surface that prints it, stay unchanged.
+ * leading "Prototype.", because the PROTOTYPE pill directly before it already says so, and
+ * without calling the data live, because a depot page can be showing the saved sample or
+ * last-good data (the feed chip says which). The shared constant, and every other surface
+ * that prints it, stay unchanged.
  */
 export function depotDisclaimerText(sentence: string): string {
-  return sentence.replace(/^Prototype\.\s+/, '');
+  return sentence
+    .replace(/^Prototype\.\s+/, '')
+    .replace(/\bare live UPSRTC data\b/, 'are UPSRTC data');
 }
 
 /** The rail's groups from 1280px: the depot first when there is one, then the network. */
