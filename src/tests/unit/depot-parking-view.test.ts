@@ -5,6 +5,7 @@ import { fromMetres } from '@/lib/depot/infer/geo';
 import { analyseSnapshot, resetAnalysisForTests } from '@/lib/depot/live/analysis';
 import { laterDayPlanFor } from '@/lib/depot/live/operatingDayView';
 import { buildDepotDetail } from '@/lib/depot/live/depotView';
+import { buildDutyBoard } from '@/lib/depot/live/dutyView';
 import { buildParkingResponse, nextOperatingDate } from '@/lib/depot/live/parkingView';
 import type { FleetSnapshotView } from '@/lib/depot/repositories/types';
 import { modelDepotMaster } from '@/lib/depot/sim/depotMaster';
@@ -273,9 +274,13 @@ describe('buildParkingResponse', () => {
     const next = nextOperatingDate('2026-10-06');
     const tomorrow = laterDayPlanFor(analyseSnapshot(view(rows)), '1', next);
     expect(tomorrow?.duties.length ?? 0).toBeGreaterThanOrEqual(12);
-    const slots = parking(rows).order!.lanes.flatMap((l) => l.slots);
+    const v = view(rows);
+    const boardBefore = buildDutyBoard(v, '1');
+    const slots = parking(rows, v).order!.lanes.flatMap((l) => l.slots);
     expect(slots).toHaveLength(12);
     for (const s of slots) expect(s.firstDutyStartMin).not.toBeNull();
+    // Today's board is untouched by tomorrow's plan.
+    expect(buildDutyBoard(v, '1')).toEqual(boardBefore);
   });
 
   it('gives a duty time to a bus the matching assigned and null to one with no duty', () => {
