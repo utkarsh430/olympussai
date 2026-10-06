@@ -193,7 +193,7 @@ export function YardMap({ model }: YardMapProps) {
         <div
           aria-hidden
           data-testid="yard-map-hover"
-          className="pointer-events-none absolute left-3 top-3 z-20 rounded-[3px] border border-depot-line bg-depot-surface px-3 py-2"
+          className="pointer-events-none absolute left-3 top-3 z-20 depot-lit rounded-[3px] border border-depot-line bg-depot-surface px-3 py-2"
         >
           <span className="block font-mono text-[13px] text-depot-ink">{hovered.registration}</span>
           <span className="mt-0.5 block font-mono text-[11px] text-depot-muted">

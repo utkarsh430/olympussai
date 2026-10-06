@@ -120,7 +120,7 @@ export function Figure(props: FigureProps) {
       </Row>
       <Row
         className={`mt-1.5 block break-words ${
-          hero ? 'depot-hero-numeral' : `font-mono tabular-nums text-depot-ink ${BAND_VALUE_SIZE}`
+          hero ? 'depot-hero-numeral' : `font-mono tabular-nums text-holo-glow ${BAND_VALUE_SIZE}`
         }`}
       >
         {value}
@@ -158,7 +158,7 @@ export function Figure(props: FigureProps) {
           type="button"
           aria-pressed={pressed ?? false}
           onClick={onPress}
-          className={`${INTERACTIVE} ${FIGURE_ROWS_CLASSES} w-[calc(100%+1rem)] ${pressed ? 'bg-depot-raised' : ''}`}
+          className={`${INTERACTIVE} ${FIGURE_ROWS_CLASSES} w-[calc(100%+1rem)] ${pressed ? 'bg-depot-selected' : ''}`}
         >
           {body}
         </button>

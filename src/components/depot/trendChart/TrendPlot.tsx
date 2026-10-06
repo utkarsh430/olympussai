@@ -42,7 +42,7 @@ interface TooltipBodyProps {
 function TooltipBody({ point, unit }: TooltipBodyProps) {
   if (!point) return null;
   return (
-    <div className="rounded-[3px] border border-depot-line bg-depot-surface px-2.5 py-1.5 font-mono text-[11px] text-depot-muted">
+    <div className="depot-lit rounded-[3px] border border-depot-line bg-depot-surface px-2.5 py-1.5 font-mono text-[11px] text-depot-muted">
       <div>{formatDate(point.date, true)}</div>
       <div className="text-[13px] tabular-nums text-depot-ink">
         {formatValue(point.value, unit)}

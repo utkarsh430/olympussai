@@ -25,7 +25,7 @@ export function DepotTopBar() {
   return (
     <header
       data-testid="depot-top-bar"
-      className="relative z-40 flex h-[3.25rem] shrink-0 items-center gap-2 border-b border-depot-line bg-depot-page px-4 sm:sticky sm:top-0 sm:h-[var(--depot-bar-h)] sm:gap-4 sm:px-6"
+      className="relative z-40 flex h-[3.25rem] shrink-0 items-center gap-2 border-b border-depot-line bg-depot-bar px-4 sm:sticky sm:top-0 sm:h-[var(--depot-bar-h)] sm:gap-4 sm:px-6"
     >
       <div
         data-testid="depot-top-bar-scope"

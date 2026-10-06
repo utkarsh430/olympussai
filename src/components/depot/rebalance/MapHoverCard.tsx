@@ -23,7 +23,7 @@ export function MapHoverCard({
   return (
     <div
       aria-hidden
-      className="pointer-events-none absolute left-3 top-3 z-20 rounded-[3px] border border-depot-line bg-depot-surface px-3 py-2"
+      className="pointer-events-none absolute left-3 top-3 z-20 depot-lit rounded-[3px] border border-depot-line bg-depot-surface px-3 py-2"
     >
       <div className="text-[13px] text-depot-ink">{title}</div>
       <p className="depot-note mt-0.5">

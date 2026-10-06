@@ -251,7 +251,7 @@ export function DepotMap({ rows, maxFleet, selectedId, onSelect, onStatusChange 
         <div
           aria-hidden
           data-testid="depot-map-hover"
-          className="pointer-events-none absolute left-3 top-3 z-20 max-w-[calc(100%-24px)] rounded-[3px] border border-depot-line bg-depot-surface px-3 py-2"
+          className="pointer-events-none absolute left-3 top-3 z-20 max-w-[calc(100%-24px)] depot-lit rounded-[3px] border border-depot-line bg-depot-surface px-3 py-2"
         >
           <div className="truncate text-[13px] text-depot-ink">{hovered.depot.name}</div>
           <div className="mt-0.5 text-[11px] text-depot-muted">
