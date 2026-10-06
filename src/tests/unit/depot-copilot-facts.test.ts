@@ -941,9 +941,34 @@ describe('pinned scripted phrasing', () => {
     expect(paragraphsOf(buildAnswer({ kind: 'transfersFor', depotId: '103' }, data))).toContain(
       'Left uncovered in the current plan: 3 buses. No surplus lies within range.',
     );
-    expect(paragraphsOf(buildAnswer({ kind: 'outshedStatus', depotId: '101' }, data))[1]).toContain(
-      '5 buses whose scheduled window is already over',
+    expect(paragraphsOf(buildAnswer({ kind: 'outshedStatus', depotId: '101' }, data))).toContain(
+      'For 5 buses the scheduled window is already over.',
     );
+  });
+
+  it('renders the departures answer for every mix of counts, ended beside overdue included', () => {
+    // "…already over and 2 buses overdue…" put the word "over" right before a figure, which
+    // the draft rules refuse, so the answer fell back to "no summary" whenever some
+    // departures had ended, some were overdue and none was unknown.
+    const mixes = [
+      { upcoming: 0, due: 0, departed: 40, overdue: 2, ended: 5, unknown: 0 },
+      { upcoming: 3, due: 1, departed: 40, overdue: 2, ended: 5, unknown: 0 },
+      { upcoming: 0, due: 0, departed: 40, overdue: 0, ended: 5, unknown: 0 },
+      { upcoming: 0, due: 0, departed: 40, overdue: 2, ended: 5, unknown: 4 },
+      { upcoming: 0, due: 0, departed: 0, overdue: 0, ended: 5, unknown: 0 },
+      { upcoming: 0, due: 0, departed: 40, overdue: 2, ended: 0, unknown: 0 },
+    ];
+    for (const counts of mixes) {
+      const mixed: AnswerData = {
+        ...data,
+        details: {
+          ...data.details,
+          '101': makeDetail({ outshed: { ...SCHEDULED_OUTSHED, counts } }),
+        },
+      };
+      const request = buildAnswer({ kind: 'outshedStatus', depotId: '101' }, mixed);
+      expect(renderDraft(request.scriptedDraft, request.facts)).toMatchObject({ ok: true });
+    }
   });
 
   it('makes the transfer closing paragraph depend on the modelled balances', () => {
