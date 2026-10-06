@@ -165,12 +165,20 @@ describe('GET /api/upsrtc/depot/network', () => {
   });
 
   it('answers 503 without leaking the underlying error', async () => {
-    vi.mocked(getRepositories).mockReturnValueOnce(reposWith(leakyFailure));
-    const res = await GET(request());
-    expect(res.status).toBe(503);
-    const text = await res.text();
-    expect(JSON.parse(text)).toEqual({ error: 'Depot data unavailable' });
-    expect(text).not.toMatch(/ECONNREFUSED|token|10\.0\.0\.7/);
+    // Silenced, then restored: the 503 must still leave a server-side trace.
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      vi.mocked(getRepositories).mockReturnValueOnce(reposWith(leakyFailure));
+      const res = await GET(request());
+      expect(res.status).toBe(503);
+      expect(errorLog).toHaveBeenCalledTimes(1);
+      expect(errorLog).toHaveBeenCalledWith(expect.stringMatching(/^\[depot:network-api\] /));
+      const text = await res.text();
+      expect(JSON.parse(text)).toEqual({ error: 'Depot data unavailable' });
+      expect(text).not.toMatch(/ECONNREFUSED|token|10\.0\.0\.7/);
+    } finally {
+      errorLog.mockRestore();
+    }
   });
 
   it('serves the network view of the repository snapshot', async () => {

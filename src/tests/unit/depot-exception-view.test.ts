@@ -89,14 +89,22 @@ describe('GET /api/upsrtc/depot/exceptions', () => {
   });
 
   it('answers 503 without leaking the underlying error', async () => {
-    vi.mocked(getRepositories).mockReturnValueOnce(
-      reposWith(() => Promise.reject(new Error('upstream 10.1.2.3 said secret-xyz'))),
-    );
-    const res = await GET(request());
-    expect(res.status).toBe(503);
-    const text = await res.text();
-    expect(JSON.parse(text)).toEqual({ error: 'Depot data unavailable' });
-    expect(text).not.toMatch(/secret|10\.1\.2\.3|upstream/);
+    // Silenced, then restored: the 503 must still leave a server-side trace.
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      vi.mocked(getRepositories).mockReturnValueOnce(
+        reposWith(() => Promise.reject(new Error('upstream 10.1.2.3 said secret-xyz'))),
+      );
+      const res = await GET(request());
+      expect(res.status).toBe(503);
+      expect(errorLog).toHaveBeenCalledTimes(1);
+      expect(errorLog).toHaveBeenCalledWith(expect.stringMatching(/^\[depot:exceptions-api\] /));
+      const text = await res.text();
+      expect(JSON.parse(text)).toEqual({ error: 'Depot data unavailable' });
+      expect(text).not.toMatch(/secret|10\.1\.2\.3|upstream/);
+    } finally {
+      errorLog.mockRestore();
+    }
   });
 
   it('serves the report', async () => {

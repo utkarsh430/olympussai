@@ -2,6 +2,7 @@ import type { NextRequest } from 'next/server';
 import { jsonResponse } from '@/lib/upsrtc/respond';
 import { requireUpsrtcAccess, unauthorizedResponse } from '@/lib/auth/authorize';
 import { getRepositories } from '@/lib/depot/repositories';
+import { logDepotError } from '@/lib/depot/log';
 import { buildExceptionsResponse } from '@/lib/depot/live/exceptionView';
 
 export const runtime = 'nodejs';
@@ -17,8 +18,10 @@ export async function GET(request: NextRequest): Promise<Response> {
   try {
     const view = await getRepositories().fleet.snapshot();
     return jsonResponse(buildExceptionsResponse(view), { acceptEncoding });
-  } catch {
-    // The upstream message can name hosts or carry tokens; it never leaves the server.
+  } catch (error) {
+    // Logged so a bug here is visible; the message can name hosts or carry
+    // tokens, so it never leaves the server.
+    logDepotError('exceptions-api', error);
     return jsonResponse({ error: 'Depot data unavailable' }, { status: 503 });
   }
 }
