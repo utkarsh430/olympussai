@@ -100,7 +100,7 @@ export function CollapsedSection(props: CollapsedSectionProps) {
   }
   return (
     <section aria-labelledby={headingId} data-testid={testId} className="min-w-0">
-      <div className="mb-3 flex min-w-0 flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-t border-depot-line pt-3">
+      <div className="mb-3 flex min-w-0 flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-t border-depot-line pt-4">
         <h2
           id={headingId}
           ref={headingRef}

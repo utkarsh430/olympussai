@@ -43,7 +43,7 @@ export function HowProduced(props: HowProducedProps) {
     <details
       ref={ref}
       id={id}
-      className={`group min-w-0 scroll-mt-[var(--depot-anchor-mt)] border-t border-depot-line pt-3 ${className}`}
+      className={`group min-w-0 scroll-mt-[var(--depot-anchor-mt)] border-t border-depot-line pt-4 ${className}`}
       data-testid={testId ?? 'depot-how-produced'}
     >
       <summary className="flex cursor-pointer list-none items-baseline gap-2 py-1 font-mono text-[11px] uppercase tracking-[0.16em] text-depot-muted hover:text-depot-ink [&::-webkit-details-marker]:hidden">

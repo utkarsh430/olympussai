@@ -273,13 +273,23 @@
 
   /* The mono label above a page title (the depot's name on a depot page). */
   .depot-eyebrow {
-    @apply mb-1 truncate font-mono text-[11px] uppercase tracking-[0.16em] text-depot-muted;
+    @apply mb-1 truncate font-mono text-[11px] uppercase leading-4 tracking-[0.16em] text-depot-muted;
   }
 
   /* Prose is never in the mono face (the shell inherits mono, right for data). Every
      sentence carries one of these three; a source-scan test holds every <p> to it. */
   .depot-prose {
     @apply font-sans text-sm leading-5 text-depot-muted;
+  }
+
+  /* Between a page's sections: 40px above each section's hairline, 28px under 640px.
+     A page puts its hero and sections in one depot-stack instead of picking margins. */
+  .depot-stack {
+    @apply flex min-w-0 flex-col;
+  }
+
+  .depot-stack > * + * {
+    @apply mt-7 sm:mt-10;
   }
 
   .depot-note {
@@ -343,12 +353,14 @@
   }
 
   .depot-table th {
-    @apply sticky top-0 z-10 whitespace-nowrap border-b border-depot-line bg-depot-surface px-3
-      py-2 font-mono text-[11px] font-normal uppercase tracking-[0.12em] text-depot-muted;
+    @apply sticky top-0 z-10 h-8 whitespace-nowrap border-b border-depot-line bg-depot-surface px-3
+      py-1.5 font-mono text-[11px] font-normal uppercase leading-4 tracking-[0.12em]
+      text-depot-muted;
   }
 
+  /* Rows a constant 36px at the least (a cell's height is its row's minimum). */
   .depot-table td {
-    @apply border-b border-depot-line px-3 py-2 align-middle;
+    @apply h-9 border-b border-depot-line px-3 py-1.5 align-middle leading-5;
   }
 
   .depot-table tbody tr:last-child td {
