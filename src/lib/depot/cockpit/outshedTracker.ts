@@ -1,4 +1,4 @@
-import { formatCount } from '@/lib/depot/format';
+import { formatCount, formatDurationMinutes, formatPlainDate } from '@/lib/depot/format';
 import type { OutshedRow, OutshedState } from '@/lib/depot/infer/types';
 import type { Coverage } from '@/lib/depot/types';
 import type { TrackerRow } from './cockpitTypes';
@@ -36,7 +36,9 @@ function departedText(row: OutshedRow): string {
     return row.evidence === 'left_yard' ? 'Left the yard; no departure time' : DASH;
   }
   if (row.minutesLate === 0) return 'On time';
-  return row.minutesLate > 0 ? `${row.minutesLate} min late` : `${-row.minutesLate} min early`;
+  return row.minutesLate > 0
+    ? `${formatDurationMinutes(row.minutesLate)} late`
+    : `${formatDurationMinutes(-row.minutesLate)} early`;
 }
 
 function minutesFor(
@@ -48,15 +50,15 @@ function minutesFor(
     case 'overdue':
       return row.minutesOverdue === null
         ? { minutes: null, minutesText: DASH }
-        : { minutes: row.minutesOverdue, minutesText: `${row.minutesOverdue} min overdue` };
+        : { minutes: row.minutesOverdue, minutesText: `${formatDurationMinutes(row.minutesOverdue)} overdue` };
     case 'due':
       return until === null
         ? { minutes: null, minutesText: 'Within grace' }
-        : { minutes: -until, minutesText: `${-until} min since schedule` };
+        : { minutes: -until, minutesText: `${formatDurationMinutes(-until)} since schedule` };
     case 'upcoming':
       return until === null
         ? { minutes: null, minutesText: DASH }
-        : { minutes: until, minutesText: `in ${until} min` };
+        : { minutes: until, minutesText: `in ${formatDurationMinutes(until)}` };
     case 'departed':
       return { minutes: row.minutesLate, minutesText: departedText(row) };
     case 'ended':
@@ -109,11 +111,11 @@ export function feedDateOf(feedNow: string | null): string | null {
 }
 
 function forFeedDate(feedDate: string | null): string {
-  return feedDate === null ? 'for the feed date' : `for the feed date, ${feedDate}`;
+  return feedDate === null ? 'for the feed date' : `for the feed date, ${formatPlainDate(feedDate)}`;
 }
 
 /**
- * "31 of 142 buses carry a schedule for the feed date, 2026-10-06." When few do,
+ * "31 of 142 buses carry a schedule for the feed date, 6 Oct 2026." When few do,
  * a second sentence says the rest are invisible here, so a short list is never
  * read as all of the depot's departures.
  */

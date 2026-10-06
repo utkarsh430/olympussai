@@ -14,15 +14,25 @@ const DECISIONS: readonly { readonly kind: TransferDecisionKind; readonly label:
 
 export interface TransferDecisionControlsProps {
   readonly row: TransferRow;
+  /** The decision in force, in words ("Approved for 5 buses", "None yet"). */
+  readonly status: string;
   /** Records a decision; it changes nothing but the record. */
   readonly onDecide: (row: TransferRow, decision: TransferDecisionKind, note: string) => void;
+  /** Withdraws the decision in force; null when there is none to undo. */
+  readonly onUndo: (() => void) | null;
 }
 
 /**
- * An optional note and Approve, Reject and Defer, in the transfer's "Why?" row (the table
- * keeps only columns that fit uncut at 1440). Each only adds to the local record.
+ * The decision in force, an optional note, Approve, Reject and Defer as toggles (pressed for
+ * the decision recorded for the count shown) and Undo, in one block of the transfer's
+ * expanded row, with its rationale and figures. Each only adds to the local record.
  */
-export function TransferDecisionControls({ row, onDecide }: TransferDecisionControlsProps) {
+export function TransferDecisionControls({
+  row,
+  status,
+  onDecide,
+  onUndo,
+}: TransferDecisionControlsProps) {
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
   const noteId = `transfer-note-${row.id}`;
@@ -36,8 +46,11 @@ export function TransferDecisionControls({ row, onDecide }: TransferDecisionCont
   }
 
   return (
-    <div className="mt-3 flex min-w-0 flex-col gap-1.5">
-      <div className="depot-label">Record a decision</div>
+    <div className="flex min-w-0 flex-col gap-1.5" data-testid="transfer-decision">
+      <p className="depot-prose text-[13px]">
+        <span className="depot-label mr-2">Decision</span>
+        {status}
+      </p>
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <label htmlFor={noteId} className="sr-only">
           Note for {row.fromName} to {row.toName}, optional, up to {NOTE_MAX_CHARS} characters
@@ -62,6 +75,11 @@ export function TransferDecisionControls({ row, onDecide }: TransferDecisionCont
             {d.label}
           </button>
         ))}
+        {onUndo ? (
+          <button type="button" onClick={onUndo} className="depot-filter-button shrink-0">
+            Undo
+          </button>
+        ) : null}
       </div>
       {error ? (
         <p role="alert" className="depot-note text-alert-amber">

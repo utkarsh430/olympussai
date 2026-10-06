@@ -290,8 +290,21 @@ export function buildBoardRows(duties: readonly BoardDuty[]): readonly BoardRow[
 /** Space one character of the bar text needs, and the padding around it, in pixels. */
 const TEXT_CHAR_PX = 7;
 const TEXT_PAD_PX = 12;
-/** The track is never narrower than this (the chart's minimum width less its label column). */
-const MIN_TRACK_PX = 700;
+/**
+ * The narrowest track the bar text is measured against. From 640 px the chart fits its
+ * frame (04:00 to 24:00, nothing cut): 640 less two 16 px gutters, the 160 px duty column
+ * and the track's two 16 px insets. Below 640 the chart keeps a 900 px minimum and scrolls
+ * inside its frame, so its track is wider than this.
+ */
+export const MIN_TRACK_PX = 640 - 32 - 160 - 32;
+
+/** Below 640 px the board opens as the table; the chart stays one press away. */
+export const TABLE_FIRST_QUERY = '(max-width: 639px)';
+
+/** The view the board opens in until the reader picks one (critique Duties Must 1). */
+export function defaultBoardView(narrow: boolean): BoardView {
+  return narrow ? 'table' : 'chart';
+}
 
 export type TextPlacement = 'inside' | 'right' | 'left';
 

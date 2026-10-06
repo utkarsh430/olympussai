@@ -2,13 +2,13 @@
 
 import { Fragment, useId, useMemo, useRef, useState } from 'react';
 import { sortRows, type SortDirection, type SortValue } from '@/lib/depot/tableSort';
-import { ExpandToggle, expandedRowId, useExpandedRows } from './RowExpander';
+import { useExpandedRows } from './RowExpander';
+import { cellLayout, DataTableRow, EXPAND_KEY, type FrozenColumns } from './DataTableRow';
+import { EXPANDER_WIDTH_PX, frozenColumnCount, frozenLefts } from './tableLayout';
 import { TableOverflowCue, useColumnsToTheRight } from './TableOverflowCue';
 import type { Provenance } from '@/lib/depot/types';
 import { ProvenanceBadge } from './ProvenanceBadge';
 import { groupCounts, groupLabel, groupRows, type TableGrouping } from './tableGroups';
-
-const EXPAND_KEY = '__expand';
 
 export interface Column<T> {
   readonly key: string;
@@ -42,8 +42,16 @@ export interface DataTableProps<T> {
   /** Screen-reader name for the table and its scroll region. */
   readonly caption: string;
   readonly initialSort?: TableSort;
-  /** Makes rows selectable by click and by Enter / Space. */
+  /**
+   * Makes rows selectable by click and by Enter / Space; each such row ends in one muted
+   * chevron on hover and focus, so no boxed per-row button is needed.
+   */
   readonly onRowSelect?: (row: T) => void;
+  /**
+   * What a row that is its own control is called ("Bus UP13CT7020"); the accessible name
+   * adds what Enter does. The first column's text, or the row key, by default.
+   */
+  readonly rowLabel?: (row: T) => string;
   readonly selectedKey?: string;
   /** Shown inside the table frame, under the header, when there are no rows. */
   readonly emptyMessage?: string;
@@ -58,15 +66,17 @@ export interface DataTableProps<T> {
   readonly tableSort?: TableSortState;
   /** Rulings table rows: a constant 36px, cells never wrap (truncated, full text in `title`). */
   readonly fixedRows?: boolean;
-  /** Freeze the first column while the frame scrolls sideways (a wide table). */
+  /**
+   * Freeze the first column while the frame scrolls sideways (a wide table); with an
+   * expander, the 24px chevron column and the first data column both stay.
+   */
   readonly freezeFirstColumn?: boolean;
   /** Fade the right edge and say "more columns" while columns are hidden to the right. */
   readonly overflowCue?: boolean;
   /**
-   * A row expander: a disclosure button in its own narrow column (after the first, so a
-   * frozen first column still names the row) opens this content in a full-width row
-   * beneath. Return null for a row with nothing to show. One row open at a time unless
-   * `multipleExpanded`.
+   * A row expander: a chevron in a 24px FIRST column, and the whole row as the control
+   * (click, Enter or Space), opens this content in a full-width row beneath. Return null
+   * for a row with nothing to show. One row open at a time unless `multipleExpanded`.
    */
   readonly renderExpanded?: (row: T) => React.ReactNode | null;
   /** The expander button's accessible name for a row; "Show details" by default. */
@@ -92,6 +102,12 @@ export interface TableSortState {
 
 const ARIA_SORT = { asc: 'ascending', desc: 'descending' } as const;
 
+/** A group row's words: the page's own label, or "<group> · <count>" and the optional aside. */
+function groupRowText<T>(group: TableGrouping<T>, key: string, count: number): string {
+  if (group.label) return group.label(key, count);
+  return groupLabel(key, count, group.aside?.(key, count));
+}
+
 /** A header's label, then its unit ("EARNINGS ₹/KM") in the faint tone. */
 function HeaderText<T>({ column }: { readonly column: Column<T> }) {
   if (!column.unit) return <>{column.header}</>;
@@ -101,8 +117,6 @@ function HeaderText<T>({ column }: { readonly column: Column<T> }) {
     </>
   );
 }
-const SELECT_KEYS: ReadonlySet<string> = new Set(['Enter', ' ']);
-
 function nextSort(current: TableSort | null, key: string): TableSort {
   if (current?.key === key) {
     return { key, direction: current.direction === 'asc' ? 'desc' : 'asc' };
@@ -158,31 +172,26 @@ export function DataTable<T>({
   multipleExpanded = false,
   initialExpandedKey,
   group,
+  rowLabel,
 }: DataTableProps<T>) {
   const autoId = useId();
   const expanded = useExpandedRows(multipleExpanded, initialExpandedKey);
   const tableKey = id ?? autoId;
   const shownColumns = useMemo<readonly Column<T>[]>(() => {
     if (!renderExpanded) return columns;
+    // Its cell is drawn by DataTableRow; this entry gives the header and the column count.
     const expander: Column<T> = {
       key: EXPAND_KEY,
       header: 'Details',
-      width: '2.25rem',
-      render: (row) => {
-        if (renderExpanded(row) === null) return null;
-        const key = rowKey(row);
-        return (
-          <ExpandToggle
-            open={expanded.isOpen(key)}
-            controls={expandedRowId(tableKey, key)}
-            label={expandLabel?.(row) ?? 'Show details'}
-            onToggle={() => expanded.toggle(key)}
-          />
-        );
-      },
+      width: EXPANDER_WIDTH_PX,
+      render: () => null,
     };
-    return [...columns.slice(0, 1), expander, ...columns.slice(1)];
-  }, [columns, renderExpanded, expandLabel, expanded, rowKey, tableKey]);
+    return [expander, ...columns];
+  }, [columns, renderExpanded]);
+  const hasExpander = renderExpanded !== undefined;
+  const frozen: FrozenColumns = freezeFirstColumn
+    ? { count: frozenColumnCount(hasExpander), lefts: frozenLefts(hasExpander) }
+    : { count: 0, lefts: [] };
   const frame = useRef<HTMLDivElement>(null);
   const moreColumns = useColumnsToTheRight(frame, overflowCue);
   const own = useTableSort(columns, initialSort);
@@ -207,57 +216,22 @@ export function DataTable<T>({
 
   const renderRow = (row: T) => {
     const key = rowKey(row);
-    const selected = selectable ? key === selectedKey : undefined;
-    const detail = renderExpanded && expanded.isOpen(key) ? renderExpanded(row) : null;
     return (
-      <Fragment key={key}>
-        <tr
-          aria-selected={selected}
-          tabIndex={selectable ? 0 : undefined}
-          onClick={selectable ? () => onRowSelect(row) : undefined}
-          onKeyDown={
-            selectable
-              ? (event) => {
-                  // Ignore keys that bubble up from a link or button inside the row.
-                  if (event.target !== event.currentTarget) return;
-                  if (!SELECT_KEYS.has(event.key)) return;
-                  event.preventDefault();
-                  onRowSelect(row);
-                }
-              : undefined
-          }
-          className={
-            selectable ? `depot-row-selectable ${selected ? 'depot-row-selected' : ''}` : undefined
-          }
-        >
-          {shownColumns.map((column) => {
-            const content = column.render(row);
-            const title = fixedRows
-              ? (column.title?.(row) ?? (typeof content === 'string' ? content : undefined))
-              : undefined;
-            return (
-              <td
-                key={column.key}
-                title={title}
-                className={column.align === 'right' ? 'depot-align-right' : undefined}
-              >
-                {content}
-              </td>
-            );
-          })}
-        </tr>
-        {detail === null ? null : (
-          <tr data-testid="depot-table-expanded">
-            <td
-              id={expandedRowId(tableKey, key)}
-              colSpan={shownColumns.length}
-              className="!h-auto !max-w-none !whitespace-normal !py-3"
-            >
-              <div className="depot-prose max-w-[62ch]">{detail}</div>
-            </td>
-          </tr>
-        )}
-      </Fragment>
+      <DataTableRow
+        key={key}
+        row={row}
+        rowKey={key}
+        tableKey={tableKey}
+        columns={shownColumns}
+        frozen={frozen}
+        fixedRows={fixedRows}
+        onRowSelect={onRowSelect}
+        selected={selectable ? key === selectedKey : undefined}
+        expanded={expanded}
+        renderExpanded={renderExpanded}
+        expandLabel={expandLabel}
+        rowLabel={rowLabel}
+      />
     );
   };
 
@@ -280,8 +254,10 @@ export function DataTable<T>({
         <caption className="sr-only">{caption}</caption>
         <thead>
           <tr>
-            {shownColumns.map((column) => {
+            {shownColumns.map((column, index) => {
               const active = column.sortValue && sort?.key === column.key ? sort : null;
+              const layout = cellLayout(column, index, frozen);
+              const width = column.width;
               return (
                 <th
                   key={column.key}
@@ -289,8 +265,8 @@ export function DataTable<T>({
                   aria-sort={
                     column.sortValue ? (active ? ARIA_SORT[active.direction] : 'none') : undefined
                   }
-                  className={column.align === 'right' ? 'depot-align-right' : undefined}
-                  style={column.width !== undefined ? { width: column.width } : undefined}
+                  className={layout.className}
+                  style={width === undefined && !layout.style ? undefined : { ...layout.style, width }}
                 >
                   {column.sortValue ? (
                     <button
@@ -309,7 +285,7 @@ export function DataTable<T>({
                     <HeaderText column={column} />
                   )}
                   {column.tag ? (
-                    <span className="ml-1.5 inline-block align-middle">
+                    <span className="depot-tag-row ml-1.5 inline-flex align-top">
                       <ProvenanceBadge provenance={column.tag} pill />
                     </span>
                   ) : null}
@@ -331,7 +307,7 @@ export function DataTable<T>({
                 <Fragment key={`group-${g.key}`}>
                   <tr data-testid="depot-table-group">
                     <th scope="colgroup" colSpan={shownColumns.length} className="depot-table-group">
-                      {(group.label ?? groupLabel)(g.key, counts.get(g.key) ?? g.rows.length)}
+                      {groupRowText(group, g.key, counts.get(g.key) ?? g.rows.length)}
                     </th>
                   </tr>
                   {g.rows.map(renderRow)}

@@ -5,7 +5,7 @@ import { DepotNav } from './DepotNav';
 import { DepotTopBar } from './DepotTopBar';
 
 /**
- * Frame for every depot page: top bar, the navigation (a left rail from 900px, one
+ * Frame for every depot page: top bar, the navigation (a left rail from 1280px, one
  * strip under the bar below it), a scrolling main region, and the prototype
  * disclaimer. The disclaimer is in the page flow after the content (the last child of
  * a min-height column), never fixed or sticky, so the shell reserves no space for it.
@@ -27,7 +27,7 @@ export function DepotShell({ children }: { readonly children: React.ReactNode })
           Skip to depot content
         </a>
         <DepotTopBar />
-        <div className="flex min-w-0 flex-1 flex-col min-[900px]:flex-row">
+        <div className="flex min-w-0 flex-1 flex-col xl:flex-row">
           <DepotNav />
           <main
             id="depot-main"

@@ -89,9 +89,10 @@ const TABLE_MAX_W = 'max-w-[760px]';
 
 /**
  * Scheduled departures for the feed date against the feed clock, most urgent first. The
- * coverage line is shown whenever schedules exist, because a short list can mean few
- * schedules in the feed rather than few departures. With none, the label's "· 0" and one
- * muted line; when every window has ended, one line and the table behind "Show all".
+ * section leads with its status (the table, or the one line when every window has
+ * ended, with the table behind "Show all"); the coverage sentence is the label's note
+ * whenever schedules exist, because a short list can mean few schedules in the feed
+ * rather than few departures. With none, the label's "· 0" and one muted line.
  */
 export function OutshedTracker({
   depotId,
@@ -109,14 +110,16 @@ export function OutshedTracker({
 
   return (
     <section aria-labelledby="depot-outshed" data-testid="depot-outshed-tracker" className="min-w-0">
-      <SectionLabel id="depot-outshed" label="Outshedding" count={rows.length} note="Most urgent first" />
+      <SectionLabel
+        id="depot-outshed"
+        label="Outshedding"
+        count={rows.length}
+        note={hasSchedules ? coverageSentence : undefined}
+      />
       {!hasSchedules ? (
         <StatePanel kind="no-data" compact sentence={noSchedulesSentence} />
       ) : (
         <>
-          <p className="depot-note mb-2" data-testid="depot-outshed-coverage">
-            {coverageSentence}
-          </p>
           {ended !== null ? (
             <p className="depot-prose mb-2" data-testid="depot-outshed-ended">
               {ended}

@@ -90,10 +90,18 @@ function button(name: string): HTMLButtonElement {
   return found;
 }
 
-/** Approve sits in the transfer's "Why?" row: open it once, then press Approve. */
+/** The first transfer's name: the keyboard way into its row (the row's click opens it). */
+function rowOpener(): HTMLButtonElement {
+  const found = container.querySelector<HTMLButtonElement>('tbody button[aria-expanded]');
+  if (!found) throw new Error('no row opener');
+  return found;
+}
+
+/** Approve sits in the transfer's expanded row: open it once, then press Approve. */
 async function approve(): Promise<void> {
-  const why = container.querySelector<HTMLButtonElement>('button[aria-label^="Why?"]');
-  if (why?.getAttribute('aria-expanded') === 'false') await act(async () => why.click());
+  if (rowOpener().getAttribute('aria-expanded') === 'false') {
+    await act(async () => rowOpener().click());
+  }
   await act(async () => button('Approve').click());
 }
 
@@ -119,6 +127,12 @@ describe('fleet distribution page', () => {
       'Approved 5 buses Agra to Kanpur. Recorded only; nothing dispatched.',
     );
     expect(container.textContent).toContain('Approved for 5 buses');
+    // Approve is a toggle: pressed for the recorded decision (capture round 5, item 12).
+    expect(button('Approve').getAttribute('aria-pressed')).toBe('true');
+    expect(button('Reject').getAttribute('aria-pressed')).toBe('false');
+    expect(container.querySelector('[data-testid="transfer-decision-word"]')?.textContent).toBe(
+      'Approved',
+    );
     await approve();
     const stored = JSON.parse(window.localStorage.getItem('depot-transfer-decisions-v1') ?? '{}');
     expect(stored.events).toHaveLength(1);
@@ -217,27 +231,58 @@ describe('undo announcement', () => {
   });
 });
 
-describe('transfer rationale row', () => {
-  it('opens a full-width detail row that shows its own error when the request fails', async () => {
+describe('transfer expanded row', () => {
+  it('opens on a click anywhere on the row: rationale, figures and decision in one block', async () => {
     globalThis.fetch = vi.fn().mockRejectedValue(new TypeError('offline')) as typeof fetch;
     const props = { rows: [ROW], selectedId: null, onSelect: () => {}, onDecide: () => {} };
     await render(<TransferTable {...props} serverPlan />);
     expect(container.querySelector('[data-testid="transfer-detail-agra>kanpur"]')).toBeNull();
-    const toggle = container.querySelector<HTMLButtonElement>('button[aria-expanded]');
-    await act(async () => toggle?.click());
+    const cell = container.querySelector<HTMLTableCellElement>('tbody tr td:nth-child(3)');
+    await act(async () => cell?.click());
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
     const detail = container.querySelector('[data-testid="transfer-detail-agra>kanpur"] td');
     expect(detail?.getAttribute('colspan')).toBe('6');
-    expect(detail?.textContent).toContain('Try again');
-    expect(detail?.textContent).toContain(
-      'Agra has 5 spare before this transfer and 0 after; Kanpur is 5 short before and 0 after.',
+    const block = detail?.querySelector('[data-testid="transfer-block"]');
+    expect(block?.querySelector('[data-testid="rationale-panel"]')?.textContent).toContain(
+      'Try again',
     );
-    expect(detail?.querySelectorAll('button[aria-pressed]')).toHaveLength(3);
+    expect(block?.textContent).toContain(
+      'Agra has 5 surplus buses before this transfer and 0 after; Kanpur is 5 buses short before and 0 after.',
+    );
+    expect(block?.querySelectorAll('button[aria-pressed]')).toHaveLength(3);
+    expect(block?.querySelector('input')).not.toBeNull();
+    expect(rowOpener().getAttribute('aria-expanded')).toBe('true');
   });
 
-  it('keeps Approve, Reject and Defer out of the 36px row: they are in the "Why?" row', async () => {
+  it('has no boxed "Why?" on the row, only a muted chevron at its end', async () => {
+    const props = { rows: [ROW], selectedId: null, onSelect: () => {}, onDecide: () => {} };
+    await render(<TransferTable {...props} serverPlan />);
+    const dataRow = container.querySelector('tbody tr');
+    expect(dataRow?.textContent).not.toMatch(/Why\?/);
+    expect(dataRow?.querySelectorAll('button')).toHaveLength(1);
+    const last = dataRow?.querySelector('td:last-child');
+    expect(last?.querySelector('[data-testid="depot-disclosure-chevron"]')).not.toBeNull();
+  });
+
+  it('opens the row a transfer picked on the map names', async () => {
+    const props = { rows: [ROW], selectedId: 'agra>kanpur', onSelect: () => {}, onDecide: () => {} };
+    await render(<TransferTable {...props} serverPlan={false} />);
+    expect(container.querySelector('[data-testid="transfer-detail-agra>kanpur"]')).not.toBeNull();
+  });
+
+  it('offers Undo inside the same block when the row has a decision in force', async () => {
+    const undo = vi.fn();
+    const props = { rows: [ROW], selectedId: 'agra>kanpur', onSelect: () => {}, onDecide: () => {} };
+    await render(<TransferTable {...props} undoFor={() => undo} serverPlan={false} />);
+    const block = container.querySelector('[data-testid="transfer-block"]');
+    const undoButton = [...(block?.querySelectorAll('button') ?? [])].find((b) => b.textContent === 'Undo');
+    await act(async () => undoButton?.click());
+    expect(undo).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps Approve, Reject and Defer out of the data row: they are in the expanded row', async () => {
     const props = { rows: [ROW], selectedId: null, onSelect: () => {}, onDecide: () => {} };
     await render(<TransferTable {...props} serverPlan={false} />);
     const dataRow = container.querySelector('tbody tr');
@@ -251,9 +296,9 @@ describe('transfer rationale row', () => {
     await render(<TransferTable {...props} serverPlan={false} />);
     const said = 'A written rationale is available for the server plan only.';
     expect(container.textContent?.split(said)).toHaveLength(2);
-    await act(async () => button('Why?').click());
+    await act(async () => rowOpener().click());
     const detail = container.querySelector('[data-testid="transfer-detail-agra>kanpur"] td');
-    expect(detail?.textContent).toContain('Agra has 5 spare before this transfer');
+    expect(detail?.textContent).toContain('Agra has 5 surplus buses before this transfer');
     expect(detail?.textContent).not.toContain('Try again');
     expect(detail?.querySelectorAll('button[aria-pressed]')).toHaveLength(3);
     expect(container.textContent?.split(said)).toHaveLength(2);
@@ -348,16 +393,14 @@ describe('page layout', () => {
 });
 
 describe('provenance tags on the visible page (ruling S51)', () => {
-  it('tags every figure of the generated before-and-after band MODELLED', async () => {
+  it('tags the generated before-and-after band once, on its label line, and no figure (R2-m17)', async () => {
     await render(<Distribution data={response()} state={{ error: null }} />);
     const band = container.querySelector('[data-testid="rebalance-summary"]');
     const figures = band?.querySelectorAll('li') ?? [];
     expect(figures).toHaveLength(5);
-    for (const figure of figures) {
-      expect(figure.querySelector('[data-provenance="modelled"]')?.textContent).toMatch(
-        /modelled/i,
-      );
-    }
+    const tags = band?.querySelectorAll('[data-provenance="modelled"]') ?? [];
+    expect(tags).toHaveLength(1);
+    for (const figure of figures) expect(figure.querySelector('[data-provenance]')).toBeNull();
   });
 
   it('tags the generated columns of the every-depot table in their header cells only', async () => {
@@ -412,7 +455,7 @@ describe('decision trail', () => {
     await render(<Distribution data={response()} state={{ error: null }} />);
     const trail = container.querySelector('[data-testid="rebalance-trail"]');
     expect(trail?.querySelector('h2')?.textContent).toBe(
-      'Decision trail · 2026-10-06: none recorded in this browser',
+      'Decision trail · 6 Oct 2026: none recorded in this browser',
     );
     expect(trail?.querySelector('h3')).toBeNull();
     expect(trail?.querySelector('ol')).toBeNull();
@@ -426,7 +469,7 @@ describe('decision trail', () => {
     await render(<Distribution data={response()} state={{ error: null }} />);
     await approve();
     const trail = container.querySelector('[data-testid="rebalance-trail"]');
-    expect(trail?.querySelector('h2')?.textContent).toBe('Decision trail · 2026-10-06');
+    expect(trail?.querySelector('h2')?.textContent).toBe('Decision trail · 6 Oct 2026');
     expect([...(trail?.querySelectorAll('h3') ?? [])].map((h) => h.textContent)).toEqual([
       'On the modelled plan',
     ]);
@@ -463,5 +506,20 @@ describe('transfer table preview', () => {
     expect(container.querySelector('tbody tr')?.getAttribute('title')).toBe(
       'Meerut and Bhaisali stand at the same place by their inferred positions (0.2 km apart).',
     );
+  });
+});
+
+describe('dates on the fleet distribution page', () => {
+  it('never puts an ISO date in its text or attributes, with a decision recorded', async () => {
+    await render(<Distribution data={response()} state={{ error: null }} />);
+    await approve();
+    const iso = /\d{4}-\d{2}-\d{2}/;
+    expect(container.textContent).not.toMatch(iso);
+    for (const el of container.querySelectorAll('*')) {
+      for (const attr of el.getAttributeNames()) {
+        if (attr === 'data-testid' || attr === 'id') continue;
+        expect(`${attr}=${el.getAttribute(attr)}`).not.toMatch(iso);
+      }
+    }
   });
 });

@@ -145,6 +145,34 @@ describe('RoutesPage content', () => {
   });
 });
 
+describe('RoutesPage recommended moves', () => {
+  beforeEach(() => {
+    state.routes = slot({ data: ROUTES });
+    state.allocation = slot({ data: PLAN });
+  });
+
+  it('carries one MODELLED tag on the moves label, none in its headers, SAVING KM/DAY in full', () => {
+    const markup = renderToStaticMarkup(<RoutesPage />);
+    const label = markup.slice(
+      markup.indexOf('data-testid="moves-label"'),
+      markup.indexOf('aria-label="Recommended moves"'),
+    );
+    expect(label).toContain('data-provenance="modelled"');
+    const table = markup.slice(markup.indexOf('aria-label="Recommended moves"'));
+    const head = table.slice(0, table.indexOf('</thead>'));
+    expect(head).not.toContain('data-provenance="modelled"');
+    expect(textOf(head)).toContain('Saving km/day');
+  });
+
+  it('says the trip definition only in the closing disclosure, not between band and moves', () => {
+    const markup = renderToStaticMarkup(<RoutesPage />);
+    const section = markup.slice(markup.indexOf('id="allocation-title"'), markup.indexOf('route-table-title'));
+    expect(textOf(section)).not.toContain(TRIP_DEFINITION);
+    const method = markup.slice(markup.indexOf('data-testid="routes-method"'));
+    expect(textOf(method)).toContain(TRIP_DEFINITION);
+  });
+});
+
 describe('RoutesPage plan panel', () => {
   beforeEach(() => {
     state.routes = slot({ data: ROUTES });
@@ -198,10 +226,11 @@ describe('RoutesPage plan panel', () => {
     // the explanations live in the closing disclosure, not in the row
     expect(textOf(section)).not.toContain(TRIP_DEFINITION);
     expect(textOf(section)).not.toContain('Each route is one lookup');
-    expect(textOf(section)).toContain('One lookup on the route-details service per route, one at a time');
-    expect(section).toMatch(/<option value="1" selected="">AGRA · 3 on routes<\/option>/);
+    expect(textOf(section)).not.toContain('One lookup on the route-details service');
+    expect(section).toMatch(/<option value="1" selected="">AGRA · 3 buses on routes<\/option>/);
     const method = markup.slice(markup.indexOf('data-testid="routes-method"'));
     expect(textOf(method)).toContain(TRIP_DEFINITION);
+    expect(textOf(method)).toContain('Lookups run one at a time, at most 40 a press.');
     expect(textOf(method)).toContain('Each route is one lookup on the route-details service.');
     expect(textOf(method)).toContain('at most 40 a press and never by itself');
   });

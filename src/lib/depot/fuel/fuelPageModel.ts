@@ -1,6 +1,6 @@
 import { formatCount } from '../format';
 import type { ModelledDaySummary } from '../sim/operatingDayTypes';
-import { NO_DUTIES_REASON } from '../sim/operatingDayWording';
+import { noDutiesReason } from '../sim/operatingDayWording';
 import { formatRupees } from './format';
 import type { FuelGroupRow, FuelTotals } from './types';
 
@@ -243,17 +243,16 @@ export function notRunNote(count: number): string | null {
     : `${formatCount(count)} buses have no duty in the modelled day; they have no distance and are in no figure here.`;
 }
 
-/** The shortfall, stated: duties that had no bus because too few were available. */
-export function shortfallNote(dutiesWithoutBus: number): string | null {
-  if (dutiesWithoutBus <= 0) return null;
-  return `${formatCount(dutiesWithoutBus)} of the day’s duties have no bus: fewer buses are available than duties.`;
-}
-
-export function emptyText(day?: ModelledDaySummary): string {
+/**
+ * The empty day's one sentence. With the plain date ("6 Oct 2026") it names the day, so
+ * the header carries no modelled-day line of zeros (fuel C).
+ */
+export function emptyText(day?: ModelledDaySummary, plainDate?: string): string {
   if (!day || day.duties === 0) {
-    return `${NO_DUTIES_REASON}, so no bus runs a duty and there is no distance or fuel to show.`;
+    return `${noDutiesReason(plainDate)}, so no bus runs a duty and there is no distance or fuel to show.`;
   }
-  return 'No fuel figures to show: no bus is available to run a duty in the modelled day.';
+  const dayName = plainDate === undefined ? 'the modelled day' : `the modelled day for ${plainDate}`;
+  return `No fuel figures to show: no bus is available to run a duty in ${dayName}.`;
 }
 
 /** What is modelled, that it is not the corporation's figures, and what replaces it. */

@@ -4,12 +4,20 @@ import { useMemo } from 'react';
 import { DataTable, type Column } from '@/components/depot/shell/DataTable';
 import { SectionLabel } from '@/components/depot/shell/SectionLabel';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
+import { useTableTier } from '@/components/depot/revenue/useTableTier';
 import { formatCount } from '@/lib/depot/format';
+import {
+  ROUTE_WIDTHS,
+  routeColumnKeys,
+  routeRateHeaders,
+  type RouteKey,
+} from '@/lib/depot/fuel/fuelColumns';
 import type { FuelOtherRoutes } from '@/lib/depot/fuel/api';
 import { routeCell, routeRows, type RouteRow } from '@/lib/depot/fuel/fuelPageModel';
 import type { FuelGroupRow } from '@/lib/depot/fuel/types';
+import type { TableTier } from '@/lib/depot/revenue/tableTier';
 
-const COLUMNS: readonly Column<RouteRow>[] = [
+const ALL_COLUMNS: readonly Column<RouteRow>[] = [
   { key: 'route', header: 'Route', sortValue: (r) => r.label, render: (r) => r.label },
   {
     key: 'buses',
@@ -51,6 +59,16 @@ const COLUMNS: readonly Column<RouteRow>[] = [
   },
 ];
 
+/** The tier's column set, with its widths and (at 800) the short rate headers. */
+function columnsFor(tier: TableTier): readonly Column<RouteRow>[] {
+  const rates = routeRateHeaders(tier);
+  return routeColumnKeys(tier).map((key: RouteKey) => {
+    const column = ALL_COLUMNS.find((c) => c.key === key) as Column<RouteRow>;
+    const header = key === 'kmpl' || key === 'cpk' ? { unit: undefined, ...rates[key] } : {};
+    return { ...column, ...header, width: ROUTE_WIDTHS[key] };
+  });
+}
+
 export interface RouteTableProps {
   readonly rows: readonly FuelGroupRow[];
   readonly total: number;
@@ -60,6 +78,8 @@ export interface RouteTableProps {
 /** Routes with their figures; capped by the server, with the true count beside it. */
 export function RouteTable({ rows, total, other }: RouteTableProps) {
   const shaped = useMemo(() => routeRows(rows, other), [rows, other]);
+  const tier = useTableTier();
+  const columns = useMemo(() => columnsFor(tier), [tier]);
   const note =
     total > rows.length
       ? `Highest fuel cost first: ${formatCount(rows.length)} of ${formatCount(total)} routes, the rest summed in one row`
@@ -77,7 +97,7 @@ export function RouteTable({ rows, total, other }: RouteTableProps) {
         <StatePanel kind="empty" sentence="No route has fuel figures in the modelled day." />
       ) : (
         <DataTable
-          columns={COLUMNS}
+          columns={columns}
           rows={shaped}
           rowKey={(r) => r.rowKey}
           caption="Fuel and fuel cost by route"

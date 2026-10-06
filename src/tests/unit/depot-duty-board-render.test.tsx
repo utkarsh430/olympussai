@@ -188,13 +188,15 @@ describe('DutyBoard', () => {
     expect(body[0]).toContain('UP32A0001');
     expect(body[0]).toContain('Ordinary · Express bus');
     expect(body[0]).toContain('On the road');
-    const tagged = [...(table?.querySelectorAll('th') ?? [])].filter((th) =>
-      th.textContent?.includes('MODELLED'),
-    );
-    expect(tagged.map((th) => th.textContent?.replace('MODELLED', '').trim())).toEqual([
-      'State',
-      'Bus',
-    ]);
+    // Round 3 (R2-m2, S51): the section label's MODELLED covers the board, so no header
+    // repeats it; the one column that is not modelled, how the bus stands now, says so
+    // in its own header (DERIVED from the live feed). One MODELLED in the whole section.
+    const ths = [...(table?.querySelectorAll('th') ?? [])];
+    expect(ths.filter((th) => th.textContent?.includes('MODELLED'))).toHaveLength(0);
+    const derived = ths.filter((th) => th.textContent?.includes('DERIVED'));
+    expect(derived.map((th) => th.textContent?.replace('DERIVED', '').trim())).toEqual(['Bus now']);
+    expect(container.textContent?.match(/MODELLED/g)).toHaveLength(1);
+    expect(table?.querySelector('tbody')?.textContent).not.toMatch(/MODELLED|DERIVED/);
     expect(body[1]).toContain('Unmatched');
     expect(body[2]).toContain('23:00');
     expect(body[2]).toContain('02:00 next day');
@@ -287,5 +289,57 @@ describe('DutyBoard', () => {
     const texts = [...container.querySelectorAll<HTMLElement>('[data-testid="duty-bar-text"]')];
     expect(texts[0]?.dataset.placement).toBe('inside');
     expect(texts[1]?.dataset.placement).not.toBe('inside');
+  });
+});
+
+describe('DutyBoard by width (round 3, Duties Must 1)', () => {
+  const realMatchMedia = window.matchMedia;
+  const phone = (matches: boolean): void => {
+    window.matchMedia = ((query: string) => ({
+      matches: matches && query === '(max-width: 639px)',
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    })) as unknown as typeof window.matchMedia;
+  };
+  afterEach(() => {
+    window.matchMedia = realMatchMedia;
+  });
+
+  it('opens as the table under 640 px, with the chart one press away', () => {
+    phone(true);
+    render();
+    expect(container.querySelector('table')).not.toBeNull();
+    // The phone column set: the expander's chevron column first (the shared table puts it
+    // there), then route, start and bus; the rest is in the expander.
+    const headers = [...container.querySelectorAll('th')].map((th) => th.textContent?.trim());
+    expect(headers).toEqual(['Details', 'Route', 'Start', 'Bus']);
+    expect(button('Table').getAttribute('aria-pressed')).toBe('true');
+    act(() => button('Chart').click());
+    expect(container.querySelector('table')).toBeNull();
+    expect(container.querySelectorAll('[data-testid="duty-row"]')).toHaveLength(3);
+  });
+
+  it('opens on the chart from 640 px, its canvas fitted to the frame (no fixed width)', () => {
+    phone(false);
+    render();
+    expect(container.querySelector('table')).toBeNull();
+    const canvas = container.querySelector('[data-testid="duty-timeline-canvas"]');
+    expect(canvas?.className).toContain('sm:min-w-0');
+  });
+
+  // R2-m6: the matched bar's visible word is its registration; every bar keeps its state
+  // word for a screen reader, and the legend names each style in words.
+  it('keeps a state word per bar and a legend word per style', () => {
+    phone(false);
+    render();
+    const rows = [...container.querySelectorAll('[data-testid="duty-row"]')];
+    for (const row of rows) {
+      expect(row.querySelector('.sr-only')?.textContent).toMatch(/\b(Matched|Unmatched)\b/);
+    }
+    const legend = container.querySelector('[aria-label="Legend"]')?.textContent ?? '';
+    expect(legend).toContain('Solid bar: matched');
+    expect(legend).toContain('Dashed outline: unmatched, no bus');
+    expect(legend).toContain('Thick left edge: its bus is on the road now');
   });
 });

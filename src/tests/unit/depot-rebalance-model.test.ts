@@ -135,6 +135,30 @@ describe('transferRows', () => {
     expect(rows[1]?.decision).toBeNull();
   });
 
+  it('gives each transfer the balance immediately before it, in the order the table lists them', () => {
+    // Meerut gives in two transfers; Bhaisali receives in two (review R2-I1).
+    const twice: TransferPlan = {
+      ...PLAN,
+      transfers: [
+        { id: 'meerut>bhaisali', fromDepotId: 'meerut', toDepotId: 'bhaisali', buses: 9, distanceKm: 1, busKm: 9 },
+        { id: 'meerut>gonda', fromDepotId: 'meerut', toDepotId: 'gonda', buses: 6, distanceKm: 1, busKm: 6 },
+        { id: 'orai>bhaisali', fromDepotId: 'orai', toDepotId: 'bhaisali', buses: 3, distanceKm: 1, busKm: 3 },
+      ],
+    };
+    const balances = [
+      balance('meerut', 40, 20, null),
+      balance('orai', 13, 10, null),
+      balance('bhaisali', 10, 22, null),
+      balance('gonda', 4, 10, null),
+    ];
+    const rows = transferRows(twice, balances, new Map());
+    expect(rows.map((r) => [r.giverSurplusBefore, r.receiverDeficitBefore])).toEqual([
+      [20, 12],
+      [11, 6],
+      [3, 3],
+    ]);
+  });
+
   it('falls back to the depot id when a balance is missing', () => {
     const rows = transferRows(PLAN, [], new Map());
     expect(rows[0]?.fromName).toBe('agra');
@@ -155,8 +179,8 @@ describe('uncoveredRows', () => {
     };
     const rows = uncoveredRows(plan, BALANCES, 250);
     expect(rows.map((r) => r.sentence)).toEqual([
-      'BANDA stays 4 buses short: depots within 250 km had spare buses, but not enough for every depot in range.',
-      'KANPUR stays 1 bus short: no depot with spare buses lies within the maximum transfer distance of 250 km.',
+      'BANDA stays 4 buses short: depots within 250 km had surplus buses, but not enough for every depot in range.',
+      'KANPUR stays 1 bus short: no depot with surplus buses lies within the maximum transfer distance of 250 km.',
       'NOIDA stays 4 buses short: it has no known position, so no transfer can be routed to it.',
       'LUCKNOW stays 3 buses short: it is excluded from this plan, so it neither gives nor receives.',
     ]);

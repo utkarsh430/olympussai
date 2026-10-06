@@ -1,3 +1,4 @@
+import { formatCount, formatPlainDate } from '../format';
 import type { TrailItem } from './decisionEvents';
 import { busesWord, type RowDecision, type TransferDecisionKind } from './rebalanceModel';
 
@@ -20,6 +21,17 @@ export function decisionStatusText(decision: RowDecision | null, planBuses: numb
   if (decision === null) return 'None yet';
   const made = `${DECISION_WORD[decision.kind]} for ${busesWord(decision.buses)}`;
   return decision.buses === planBuses ? made : `${made}; the plan now recommends ${planBuses}`;
+}
+
+/**
+ * The decision as the transfer row shows it: one word, with the count it was made for when
+ * the plan now recommends a different one. The full status is in the row's `title` and in
+ * its expanded row.
+ */
+export function decisionRowWord(decision: RowDecision | null, planBuses: number): string {
+  if (decision === null) return 'None yet';
+  const word = DECISION_WORD[decision.kind];
+  return decision.buses === planBuses ? word : `${word} for ${formatCount(decision.buses)}`;
 }
 
 /** Whether a decision button reads as pressed: same verdict, made for the bus count shown. */
@@ -77,6 +89,6 @@ export const TRAIL_NOTE =
 
 /** The trail's heading: one line that also says when nothing is recorded yet. */
 export function trailHeading(operatingDate: string, entries: number): string {
-  const base = `Decision trail · ${operatingDate}`;
+  const base = `Decision trail · ${formatPlainDate(operatingDate)}`;
   return entries === 0 ? `${base}: none recorded in this browser` : base;
 }

@@ -122,12 +122,14 @@ export interface WorkshopRow {
 
 /**
  * The workshop block's rows. The section label carries the one MODELLED tag, so no row
- * does; the off-road row is the live count, the same as the band's.
+ * does; the off-road row is the live count, the same as the band's, and its label says
+ * so in words ("now (feed)"), so it never reads as modelled beside the two rows that are
+ * (guard M17).
  */
 export function workshopRows(load: WorkshopLoad): readonly WorkshopRow[] {
   return [
     { label: 'Bays', value: formatCount(load.bays) },
-    { label: 'Off the road', value: formatCount(load.offRoad) },
+    { label: 'Off the road now (feed)', value: formatCount(load.offRoad) },
     { label: 'Would wait for a bay', value: formatCount(load.queue) },
   ];
 }

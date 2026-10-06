@@ -20,7 +20,8 @@ interface Entry {
 }
 
 const LOAD_TIMEOUT_MS = 15_000;
-const FIT_PADDING_PX = 24;
+/** The circle is fitted with 32px of map around it (critique, yard Must 3), at any width. */
+const FIT_PADDING_PX = 32;
 const FALLBACK_ZOOM = 17;
 const YARD_STROKE = '#6b84a0';
 const YARD_FILL_OPACITY = 0.06;
@@ -108,6 +109,8 @@ export function YardMap({ model }: YardMapProps) {
           gestureHandling: 'cooperative',
           backgroundColor: '#02040a',
           clickableIcons: false,
+          // A whole zoom level can leave the circle at half the frame: fit it exactly.
+          isFractionalZoomEnabled: true,
         });
         setStatus('ready');
       })

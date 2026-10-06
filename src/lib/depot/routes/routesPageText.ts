@@ -5,7 +5,8 @@
  */
 export const ROUTES_TEXT = {
   allocationTitle: 'Which depot should run each route',
-  movesTitle: 'Recommended moves, largest saving first',
+  movesTitle: 'Recommended moves',
+  movesNote: 'Largest saving first',
   savedLabel: 'Dead km saved',
   nowLabel: 'Dead km now',
   afterLabel: 'After the moves',

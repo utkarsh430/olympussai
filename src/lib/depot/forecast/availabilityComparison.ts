@@ -25,7 +25,7 @@ export type AvailabilityComparison =
   | { readonly status: 'no_forecast' | 'no_requirement'; readonly sentence: string };
 
 export const BOTH_MODELLED_NOTE =
-  'Both sides are MODELLED: the forecast rests on a generated history, and the requirement ' +
+  'The forecast rests on a generated history, and the requirement ' +
   'stands in for a network timetable that has not been supplied.';
 
 const NO_REQUIREMENT =

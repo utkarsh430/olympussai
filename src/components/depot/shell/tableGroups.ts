@@ -8,8 +8,13 @@ import { formatCount } from '@/lib/depot/format';
 export interface TableGrouping<T> {
   /** The value the rows share ("Small fleets"). */
   readonly key: (row: T) => string;
-  /** The group row's words; "<key> · <count>" by default. */
+  /** The group row's words; "<key> · <count>" by default (with `aside`, a third part). */
   readonly label?: (key: string, count: number) => string;
+  /**
+   * An optional third part of the default label ("STANDING · 52 · 5 LISTED"), in the same
+   * mono capitals; null for a group with nothing to add.
+   */
+  readonly aside?: (key: string, count: number) => string | null;
 }
 
 export interface RowGroup<T> {
@@ -46,7 +51,11 @@ export function groupCounts<T>(rows: readonly T[], keyOf: (row: T) => string): R
   );
 }
 
-/** "SMALL FLEETS · 35" once the header style uppercases it. */
-export function groupLabel(key: string, count: number): string {
-  return `${key} · ${formatCount(count)}`;
+/**
+ * "SMALL FLEETS · 35" once the group row's mono capitals set it; with a third part,
+ * "STANDING · 52 · 5 LISTED". One separator, one face, for every group row.
+ */
+export function groupLabel(key: string, count: number, aside?: string | null): string {
+  const base = `${key} · ${formatCount(count)}`;
+  return aside ? `${base} · ${aside}` : base;
 }

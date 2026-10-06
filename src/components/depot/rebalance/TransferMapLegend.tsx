@@ -49,7 +49,7 @@ export function TransferMapLegend({ maxBuses }: TransferMapLegendProps) {
         <ul className="flex flex-wrap gap-x-4 gap-y-1.5">
           <li className="flex items-center gap-1.5">
             <Mark shape="square" />
-            Spare buses
+            Surplus buses
           </li>
           <li className="flex items-center gap-1.5">
             <Mark shape="triangle" />

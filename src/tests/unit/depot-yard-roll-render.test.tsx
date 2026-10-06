@@ -98,11 +98,11 @@ describe('YardRoll', () => {
     expect(roll?.querySelector('[data-testid="depot-section-label"]')?.textContent).toContain('10');
     expect(group('standing')?.textContent).toContain('Standing');
     expect(group('standing')?.textContent).toContain('3');
-    expect(group('standing')?.textContent).toContain('1 listed');
+    expect(group('standing')?.textContent).toContain('STANDING · 3 · 1 LISTED');
     expect(group('standing')?.textContent).toContain('A3');
     expect(group('standing')?.textContent).not.toContain('A1');
     expect(group('standing')?.textContent).toContain('not heard recently');
-    expect(group('dark')?.textContent).toContain('all listed');
+    expect(group('dark')?.textContent).toContain('ALL LISTED');
   });
 
   it('puts the listing rule in the section label note and never a modelled parking reason', () => {

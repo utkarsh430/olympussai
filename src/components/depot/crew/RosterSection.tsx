@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { CollapsedSection } from '@/components/depot/shell/CollapsedSection';
+import { DisclosureChevron } from '@/components/depot/shell/DisclosureChevron';
 import { DataTable, type Column } from '@/components/depot/shell/DataTable';
 import { Pager } from '@/components/depot/shell/LongLists';
 import { SectionLabel } from '@/components/depot/shell/SectionLabel';
@@ -32,14 +32,45 @@ export interface RosterSectionProps {
   readonly total: number;
 }
 
-/** The suggested roster behind a closed disclosure, a page of 25 at a time. */
+const BODY_ID = 'depot-crew-roster-body';
+
+/** "SHOW ›" in the section label's controls slot (as the duty board's toggle). */
+function RosterToggle({ open, onToggle }: { readonly open: boolean; readonly onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      aria-expanded={open}
+      aria-controls={BODY_ID}
+      aria-label={open ? 'Hide the suggested roster' : 'Show the suggested roster'}
+      onClick={onToggle}
+      className="depot-show-all"
+    >
+      {open ? 'Hide' : 'Show'}
+      <DisclosureChevron open={open} />
+    </button>
+  );
+}
+
+/**
+ * The suggested roster, closed until "SHOW ›" in its label opens it, a page of 25 at a
+ * time. Generated shifts and slots beside real routes, so the label carries the
+ * MODELLED tag (ruling S51, review R2-I3): a cropped table still says what it is.
+ */
 export function RosterSection({ roster, total }: RosterSectionProps) {
   const [requested, setRequested] = useState(0);
+  const [open, setOpen] = useState(false);
   const range = pageRange(requested, roster.length, PAGE_ROWS);
   return (
     <section aria-labelledby="depot-crew-roster-heading" className="min-w-0 animate-rise">
-      <SectionLabel id="depot-crew-roster-heading" label="Suggested roster" count={total} />
-      <CollapsedSection variant="row" label="Show the suggested roster" keepMounted>
+      <SectionLabel
+        id="depot-crew-roster-heading"
+        label="Suggested roster"
+        count={total}
+        tag="modelled"
+        controls={<RosterToggle open={open} onToggle={() => setOpen((was) => !was)} />}
+      />
+      {/* Mounted while closed (plain block, no display class), so `hidden` holds. */}
+      <div id={BODY_ID} data-testid="crew-roster-body" hidden={!open}>
         <p className="depot-prose my-2">{ROSTER_NOTE}</p>
         <DataTable
           columns={COLUMNS}
@@ -54,7 +85,7 @@ export function RosterSection({ roster, total }: RosterSectionProps) {
         <p className="depot-prose mt-2">{SLOT_NOTE}</p>
         <p className="depot-prose mt-1">{rosterCountSentence(roster.length, total)}</p>
         <Pager page={range.page} total={roster.length} onPage={setRequested} />
-      </CollapsedSection>
+      </div>
     </section>
   );
 }

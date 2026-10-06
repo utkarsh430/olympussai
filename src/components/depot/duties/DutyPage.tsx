@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useMemo } from 'react';
+import { useDepotDetailContext } from '@/components/depot/data/DepotDetailProvider';
 import { ErrorPanel, LoadingBlock, StaleStrip } from '@/components/depot/shell/DataStates';
 import { HowProduced as ClosingDisclosure } from '@/components/depot/shell/HowProduced';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
@@ -14,12 +15,17 @@ import {
   ELIGIBILITY_SENTENCE,
   MODEL_NOTICE,
   buildBoardRows,
-  crossReferenceSentence,
   emptyDutiesSentence,
   routesWithoutDutySentence,
   spareSentence,
 } from '@/lib/depot/duties/dutyBoardModel';
-import { duplicateRowsSentence, dutyFigures, matchingNotes } from '@/lib/depot/duties/dutyPageModel';
+import {
+  duplicateRowsSentence,
+  dutiesModelledDay,
+  dutyFigures,
+  emptyBoardSentence,
+  matchingNotes,
+} from '@/lib/depot/duties/dutyPageModel';
 import { DEPOTS_ROOT } from '@/lib/depot/nav';
 import { DutiesHeader } from './DutiesHeader';
 import { DutyBoard } from './DutyBoard';
@@ -80,19 +86,22 @@ function useDutyBody(depotId: string): {
   readonly body: React.ReactNode;
 } {
   const { data, error, loading, refresh } = useDepotDuties(depotId);
+  const scheduled = useDepotDetailContext().data?.outshed.coverage ?? null;
   const rows = useMemo(() => (data ? buildBoardRows(data.duties) : []), [data]);
   if (!data) {
     if (error === DEPOT_NOT_FOUND_MESSAGE) return { body: <UnknownDepot depotId={depotId} /> };
     if (loading || !error) return { body: <DutiesLoading /> };
     const message = error || DEPOT_UNAVAILABLE_MESSAGE;
-    return { body: <ErrorPanel title="Could not load duties" message={message} onRetry={refresh} /> };
+    return {
+      body: (
+        <ErrorPanel title="Could not load duties" message={message} onRetry={refresh}>
+          <Link href={DEPOTS_ROOT} className="depot-link">
+            Back to the network overview
+          </Link>
+        </ErrorPanel>
+      ),
+    };
   }
-  const modelledDay = crossReferenceSentence({
-    scheduled: null,
-    duties: data.duties.length,
-    routes: new Set(data.duties.map((duty) => duty.routeName)).size,
-    operatingDate: data.operatingDate,
-  });
   const stale = data.stale || error ? <StaleStrip since={data.feedNow} /> : null;
   if (rows.length === 0) {
     // One "no duties" sentence: the shared one, in the panel, not also in the line.
@@ -100,7 +109,7 @@ function useDutyBody(depotId: string): {
       <StatePanel
         kind="empty"
         testId="depot-empty"
-        sentence={modelledDay}
+        sentence={emptyBoardSentence(data.operatingDate)}
         remedy={emptyDutiesSentence(data)}
         action={<Link href={`${DEPOTS_ROOT}/sources`} className="depot-link">Data sources</Link>}
       />
@@ -117,7 +126,11 @@ function useDutyBody(depotId: string): {
     />
   );
   return {
-    modelledDay,
+    modelledDay: dutiesModelledDay({
+      operatingDate: data.operatingDate,
+      duties: data.duties,
+      scheduled,
+    }),
     body: <>{stale}<div className="depot-stack">{board}<HowProduced data={data} /></div></>,
   };
 }

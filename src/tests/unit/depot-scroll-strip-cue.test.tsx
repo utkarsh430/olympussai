@@ -37,6 +37,28 @@ describe('navigation strip scroll cue', () => {
     expect(screen.getByTestId('depot-strip-cue-before')).toBeTruthy();
   });
 
+  it('fades 24px inside the end that has more links, and only that end', () => {
+    render(<DepotNav />);
+    const strip = screen.getByTestId('depot-scroll-strip');
+    expect(strip.getAttribute('data-fade')).toBe('before');
+    act(() => {
+      strip.scrollLeft = 200;
+      fireEvent.scroll(strip);
+    });
+    expect(strip.getAttribute('data-fade')).toBe('both');
+    expect(screen.getByTestId('depot-strip-cue-before')).toBeTruthy();
+    expect(screen.getByTestId('depot-strip-cue-after')).toBeTruthy();
+  });
+
+  it('shows no cap and no fade when the links fit', () => {
+    widths.scroll = 400;
+    render(<DepotNav />);
+    expect(screen.getByTestId('depot-scroll-strip').hasAttribute('data-fade')).toBe(false);
+    expect(screen.queryByTestId('depot-strip-cue-before')).toBeNull();
+    expect(screen.queryByTestId('depot-strip-cue-after')).toBeNull();
+    widths.scroll = 900;
+  });
+
   it('shows the trailing cue when the strip is scrolled back to the start', () => {
     render(<DepotNav />);
     const strip = screen.getByTestId('depot-scroll-strip');

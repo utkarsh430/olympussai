@@ -194,14 +194,22 @@ describe('the crew page', () => {
     expectClean(text(await renderPage()));
   });
 
-  it('puts the coverage line in a mono callout and the people sentence under the provenance line', async () => {
+  // Rewritten for round 3 (crew Must 1): the people sentence is the description's second
+  // sentence, so it comes before the provenance line and the coverage line.
+  it('puts the coverage line under the header, whose description carries the people sentence', async () => {
     setHook({ data: { ...BASE, summary: { ...BASE.summary, shiftsUncovered: 1 } } });
     const markup = await renderPage();
     const page = text(markup);
     expect(markup).toContain('data-testid="crew-coverage-line"');
     expect(page).toContain('1 of 2 shifts covered; 1 uncovered; conductors: 1 all already rostered at the time.');
-    expect(markup.indexOf('crew-people-sentence')).toBeLessThan(markup.indexOf('crew-coverage-line'));
-    expect(markup.indexOf('MODELLED')).toBeLessThan(markup.indexOf('crew-people-sentence'));
+    const people = markup.indexOf('No individual is assessed.');
+    expect(people).toBeGreaterThan(-1);
+    expect(people).toBeLessThan(markup.indexOf('depot-provenance-line'));
+    expect(markup.indexOf('depot-provenance-line')).toBeLessThan(markup.indexOf('crew-coverage-line'));
+    // Each role bar has one mono label (critique section 6), not a sans label and a mono count.
+    const labels = [...markup.matchAll(/<h3 class="depot-label[^"]*" data-testid="crew-role-label">([^<]*)<\/h3>/g)];
+    expect(labels.map((m) => m[1]?.replace(/ · .*/, ''))).toEqual(['Drivers', 'Conductors']);
+    expect(labels.every((m) => / · \d[\d,]* slots?$/.test(m[1] ?? ''))).toBe(true);
   });
 
   it('says "no relief needed" in one line when every shift is covered and shows no shortfall explanation', async () => {
@@ -218,9 +226,9 @@ describe('the crew page', () => {
     setHook({ data: BASE });
     const markup = await renderPage();
     expect(markup).toContain('crew-shortfall-explanation');
-    expect(text(markup)).toContain(
-      'This page is built on the modelled day for 2026-10-06, rebuilt from the live fleet as of the feed time: 2 duties on 1 route.',
-    );
+    // Round 3: the shared formula with the plain date (no coverage before the detail loads).
+    expect(text(markup)).toContain('Built on the modelled day for 6 Oct 2026.');
+    expect(text(markup)).not.toMatch(/\d{4}-\d{2}-\d{2}/);
   });
 
   it('has no tiles, no tags in cells and no "About this page" panel; the roster is behind a closed disclosure', async () => {
@@ -228,10 +236,24 @@ describe('the crew page', () => {
     const markup = await renderPage();
     expect(markup).not.toContain('About this page');
     expect(markup).not.toContain('Shifts required');
-    // the provenance line is the only tag before the closing disclosure
-    const beforeDisclosure = markup.slice(0, markup.indexOf('data-testid="depot-disclosure"'));
-    expect(beforeDisclosure.match(/MODELLED/g)).toHaveLength(1);
-    expect(text(markup)).toContain('Show the suggested roster');
+    // Rewritten for round 3 (review R2-I3, ruling S51): one tag per labelled surface, the
+    // provenance line, "Uncovered shifts" and "Suggested roster", each on its section
+    // label; none in a header cell or a cell.
+    const page = new DOMParser().parseFromString(markup, 'text/html');
+    const tags = [...page.querySelectorAll('.depot-tag')].filter((el) => el.textContent === 'MODELLED');
+    expect(tags).toHaveLength(3);
+    expect(tags[0]?.closest('[data-testid="depot-provenance-line"]')).not.toBeNull();
+    const labelled = tags.slice(1).map((tag) => tag.closest('section')?.getAttribute('aria-labelledby'));
+    expect(labelled).toEqual(['depot-crew-uncovered-heading', 'depot-crew-roster-heading']);
+    for (const cell of page.querySelectorAll('th, td')) {
+      expect(cell.textContent).not.toMatch(/MODELLED/);
+    }
+    // The roster opens from "SHOW ›" in its label's controls slot, closed at first.
+    const toggle = page.querySelector('[aria-controls="depot-crew-roster-body"]');
+    expect(toggle?.textContent).toBe('Show›');
+    expect(toggle?.getAttribute('aria-expanded')).toBe('false');
+    expect(toggle?.closest('[data-testid="depot-section-controls"]')).not.toBeNull();
+    expect(page.querySelector('[data-testid="crew-roster-body"]')?.hasAttribute('hidden')).toBe(true);
     expect(markup).not.toContain('<details open');
     expect(text(markup)).toContain('How these figures are produced');
   });

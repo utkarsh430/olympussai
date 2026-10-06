@@ -20,11 +20,10 @@ import {
   type RosterFilters as Filters,
 } from '@/lib/depot/roster/rosterModel';
 import { parseRosterQuery, ROSTER_QUERY, rosterQueryString } from '@/lib/depot/roster/rosterQuery';
-import { showRunningColumn } from '@/lib/depot/roster/rosterCells';
 import { BusDrawer } from './BusDrawer';
 import { RosterFilters } from './RosterFilters';
 import { RosterTable } from './RosterTable';
-import { usePhone } from './usePhone';
+import { useRosterTier } from './useRosterTier';
 
 /**
  * Every bus homed at the depot, with filters, paged at 25 (the list is the page's
@@ -45,14 +44,13 @@ export function RosterPage() {
   const [searchDraft, setSearchDraft] = useState(urlFilters.search);
   const filters = useMemo(() => ({ ...urlFilters, search: searchDraft }), [urlFilters, searchDraft]);
   const [page, setPage] = useState(0);
-  const phone = usePhone();
+  const tier = useRosterTier();
   const openerRef = useRef<HTMLElement | null>(null);
   const regionRef = useRef<HTMLDivElement>(null);
 
   const allRows = useMemo(() => (data ? buildRosterRows(data.buses) : []), [data]);
   const counts = useMemo(() => countByState(data?.buses ?? []), [data]);
   const rows = useMemo(() => filterRosterRows(allRows, filters), [allRows, filters]);
-  const showRunning = useMemo(() => showRunningColumn(rows), [rows]);
 
   const open = useCallback(
     (registration: string, opener: HTMLElement): void => {
@@ -133,8 +131,7 @@ export function RosterPage() {
               feedNow={data.feedNow}
               selectedRegistration={openBus}
               onOpen={open}
-              phone={phone}
-              showRunning={showRunning}
+              tier={tier}
             />
             {rows.length > PAGE_ROWS ? (
               <Pager page={range.page} total={rows.length} onPage={setPage} />

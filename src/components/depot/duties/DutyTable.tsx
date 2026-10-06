@@ -7,7 +7,15 @@ import { Pager } from '@/components/depot/shell/LongLists';
 import { PAGE_ROWS, pageRange } from '@/lib/depot/listPaging';
 import { rosterBusHref } from '@/lib/depot/depotNav';
 import { formatMinute, type BoardRow } from '@/lib/depot/duties/dutyBoardModel';
+import {
+  DUTY_COLUMN_WIDTH_PX,
+  dutyColumnKeys,
+  dutyTableTier,
+  type DutyColumnKey,
+} from '@/lib/depot/duties/dutyTableLayout';
+import { useBelowDesktop } from '@/components/depot/maintenance/useBelowDesktop';
 import { DutyDetail } from './DutyDetail';
+import { useTableFirst } from './useTableFirst';
 
 export interface DutyTableProps {
   readonly depotId: string;
@@ -15,10 +23,14 @@ export interface DutyTableProps {
 }
 
 const DASH = '—';
+/** Cyan, underlined on hover and focus (the shared `depot-table-link`, spelled out until the shell has it). */
+const TABLE_LINK =
+  'depot-table-link text-holo-glow underline-offset-2 hover:underline focus-visible:underline';
 
 /**
- * State and Bus are the matching, a model beside a real registration on a MIXED page,
- * so their headers carry the MODELLED tag (ruling S51). Bus now is the bus's live state.
+ * The section label's MODELLED tag covers the board (ruling S51), so no header repeats
+ * it; Bus now, how the bus stands in the live feed, is the one column that is not
+ * modelled, and its header says so (DERIVED, review R2-m2).
  * The class cell names the bus's class only where it differs ("Ordinary · Express bus").
  */
 function buildColumns(depotId: string): readonly Column<BoardRow>[] {
@@ -35,25 +47,16 @@ function buildColumns(depotId: string): readonly Column<BoardRow>[] {
       render: (r) => formatMinute(r.startMin),
     },
     { key: 'end', header: 'End', render: (r) => formatMinute(r.endMin) },
-    {
-      key: 'state',
-      header: 'State',
-      tag: 'modelled',
-      render: (r) => r.stateWord,
-    },
+    { key: 'state', header: 'State', render: (r) => r.stateWord },
     {
       key: 'bus',
       header: 'Bus',
-      tag: 'modelled',
       title: (r) => (r.registrationNumber === null ? 'No bus is matched to this duty' : undefined),
       render: (r) =>
         r.registrationNumber === null ? (
           DASH
         ) : (
-          <Link
-            href={rosterBusHref(depotId, r.registrationNumber)}
-            className="text-holo-glow underline-offset-2 hover:underline"
-          >
+          <Link href={rosterBusHref(depotId, r.registrationNumber)} className={TABLE_LINK}>
             {r.registrationNumber}
           </Link>
         ),
@@ -61,6 +64,7 @@ function buildColumns(depotId: string): readonly Column<BoardRow>[] {
     {
       key: 'now',
       header: 'Bus now',
+      tag: 'derived',
       title: (r) => (r.standingWord === null ? 'No bus is matched to this duty' : undefined),
       render: (r) => r.standingWord ?? DASH,
     },
@@ -75,7 +79,13 @@ const rowDetail = (row: BoardRow): React.ReactNode => <DutyDetail row={row} />;
  * expander opens the duty in full beneath it.
  */
 export function DutyTable({ depotId, rows }: DutyTableProps) {
-  const columns = useMemo(() => buildColumns(depotId), [depotId]);
+  const tier = dutyTableTier(useBelowDesktop(), useTableFirst());
+  const columns = useMemo(() => {
+    const keys = new Set<string>(dutyColumnKeys(tier));
+    return buildColumns(depotId)
+      .filter((column) => keys.has(column.key))
+      .map((column) => ({ ...column, width: DUTY_COLUMN_WIDTH_PX[column.key as DutyColumnKey] }));
+  }, [depotId, tier]);
   const [requested, setRequested] = useState(0);
   const range = pageRange(requested, rows.length, PAGE_ROWS);
   return (

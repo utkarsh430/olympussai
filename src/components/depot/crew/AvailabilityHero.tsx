@@ -5,6 +5,7 @@ import {
   availabilitySegments,
   availabilityText,
   coverageLine,
+  roleBarLabel,
   totalSlots,
   type CoverageInput,
   type SegmentPattern,
@@ -65,9 +66,9 @@ function RoleBar({
   const segments = availabilitySegments(counts);
   return (
     <div className="min-w-0">
-      <h3 className="mb-2 font-mono text-[13px] text-depot-ink">
-        {title}{' '}
-        <span className="tabular-nums text-depot-muted">{formatCount(totalSlots(counts))} slots</span>
+      {/* One mono label, as a group row reads (critique round 5, section 6). */}
+      <h3 className="depot-label mb-2 tabular-nums" data-testid="crew-role-label">
+        {roleBarLabel(title, totalSlots(counts))}
       </h3>
       <div
         role="img"

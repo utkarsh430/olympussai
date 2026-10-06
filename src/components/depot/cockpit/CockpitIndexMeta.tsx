@@ -15,12 +15,14 @@ export function CockpitIndexMeta() {
   const meta = useMemo(() => (data ? cockpitIndexMeta(data) : null), [data]);
   if (meta === null) return null;
   return (
-    <div className="min-w-0 text-right" data-testid="depot-cockpit-index">
+    <div className="min-w-0 sm:text-right" data-testid="depot-cockpit-index">
       <Link
         href={meta.href}
         className="font-mono text-[12px] uppercase tracking-[0.08em] tabular-nums text-depot-muted hover:text-depot-ink hover:underline"
       >
-        {meta.label}
+        {/* Under 640px the index and rank alone, so the line never wraps mid-phrase. */}
+        <span className="hidden sm:inline">{meta.label}</span>
+        <span className="sm:hidden">{meta.shortLabel}</span>
         <span aria-hidden> ›</span>
       </Link>
       {meta.reason ? <p className="depot-note">{meta.reason}</p> : null}

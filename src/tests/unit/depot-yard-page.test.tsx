@@ -156,6 +156,65 @@ describe('the yard page', () => {
     expect(text(visible)).toContain('Nothing is instructed or dispatched.');
   });
 
+  it.each(STATES)('has no raw ISO date in its text or attributes in the %s state', async (_n, state) => {
+    hooks.detail = state;
+    expect(await renderPage()).not.toMatch(/\d{4}-\d{2}-\d{2}/);
+  });
+
+  it('gives a yard B the "Yard map" label and a panel sized to its text, the state lists after', async () => {
+    hooks.detail = { ...base, data: detail([bus('UP32AA0001')], false), error: null, loading: false };
+    const markup = await renderPage();
+    const start = markup.indexOf('data-testid="yard-not-established"');
+    const panel = markup.slice(markup.indexOf('>', start) + 1, markup.indexOf('</section>', start));
+    expect(text(panel)).toMatch(/^Yard map/);
+    expect(panel).not.toMatch(/min-height/);
+    expect(markup.indexOf('id="yard-roll-in"')).toBeGreaterThan(start);
+  });
+
+  it('keeps the yard rule sentence in the closing disclosure (R2-m14)', async () => {
+    hooks.detail = { ...base, data: detail([bus('UP32AA0001')], false), error: null, loading: false };
+    const markup = await renderPage();
+    const how = markup.slice(markup.indexOf('data-testid="yard-how"'));
+    expect(text(how)).toMatch(/at least 6 parked buses/);
+  });
+
+  it('captions "In the yard" as this depot\'s buses, visitors counted apart (R2-m13)', async () => {
+    hooks.detail = { ...base, data: DATA, error: null, loading: false };
+    const t = text(await renderPage());
+    expect(t).toContain("this depot's buses inside the circle");
+    expect(t).toContain('Buses from other depots inside it are counted under Visiting.');
+    expect(t).not.toContain('inside the yard circle, any state');
+  });
+
+  it('sets the capacity tag inside the label line and the bar at the head of the caption', async () => {
+    hooks.detail = { ...base, data: DATA, error: null, loading: false };
+    const doc = new DOMParser().parseFromString(await renderPage(), 'text/html');
+    const capacity = Array.from(doc.querySelectorAll('[data-testid="yard-figure"]')).find((li) =>
+      (li.textContent ?? '').startsWith('Capacity'),
+    );
+    const labelLine = capacity?.querySelector('[data-provenance="modelled"]')?.parentElement;
+    expect(labelLine?.className).toContain('h-4');
+    const bar = capacity?.querySelector('[data-testid="depot-figure-share"]');
+    expect(bar?.closest('p')?.className).toContain('depot-caption');
+  });
+
+  it('keeps the map key in sans, bottom-left in a relative frame, clear of the zoom control', async () => {
+    hooks.detail = { ...base, data: DATA, error: null, loading: false };
+    const doc = new DOMParser().parseFromString(await renderPage(), 'text/html');
+    const key = doc.querySelector('[data-testid="yard-map-key"]');
+    const classes = (key?.className ?? '').split(/\s+/);
+    expect(classes).toEqual(expect.arrayContaining(['font-sans', 'sm:absolute', 'sm:bottom-8', 'sm:left-2']));
+    expect(classes).toContain('sm:max-w-[calc(100%-4.5rem)]');
+    expect(classes.some((c) => c.includes('font-mono'))).toBe(false);
+    expect(key?.parentElement?.className).toContain('relative');
+  });
+
+  it('drops the band\'s own bottom margin so the stack sets the 40px gap to the map', async () => {
+    hooks.detail = { ...base, data: DATA, error: null, loading: false };
+    const doc = new DOMParser().parseFromString(await renderPage(), 'text/html');
+    expect(doc.querySelector('[data-testid="yard-summary"]')?.className).toContain('[&>div]:!mb-0');
+  });
+
   it('says how many snapshots it has decided the yard on when no yard is placed after one', async () => {
     hooks.detail = { ...base, data: { ...detail([], false), yardSnapshotsSeen: 1 }, error: null, loading: false };
     expect(text(await renderPage())).toContain("This server has decided this depot's yard on 1 snapshot so far");

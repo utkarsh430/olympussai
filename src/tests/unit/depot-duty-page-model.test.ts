@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import type { BoardDuty, DutyBoardCounts } from '@/lib/depot/duties/api';
 import {
   duplicateRowsSentence,
+  dutiesModelledDay,
   dutyFigures,
+  emptyBoardSentence,
   locationIgnoredSentence,
   matchingNotes,
   unmatchedLine,
@@ -107,5 +109,25 @@ describe('server context sentences', () => {
     expect(duplicateRowsSentence(2)).toBe('2 feed rows repeated a registration and were left out.');
     expect(duplicateRowsSentence(1)).toBe('1 feed row repeated a registration and was left out.');
     expect(duplicateRowsSentence(0)).toBeNull();
+  });
+});
+
+describe('the modelled day on the duty page (round 3: one formula, plain dates)', () => {
+  it('prints the shared modelledDayLine formula with the feed schedule coverage', () => {
+    expect(
+      dutiesModelledDay({
+        operatingDate: '2026-10-06',
+        duties: [{ routeName: 'A' }, { routeName: 'B' }, { routeName: 'A' }],
+        scheduled: { n: 8, of: 200 },
+      }),
+    ).toBe(
+      'Built on the modelled day for 6 Oct 2026: 3 duties on 2 routes; the feed schedules 8 of 200 buses.',
+    );
+  });
+
+  it('names the plain date in the empty board sentence, never the raw one', () => {
+    const sentence = emptyBoardSentence('2026-10-06');
+    expect(sentence).toContain('No duties are modelled for this depot for 6 Oct 2026');
+    expect(sentence).not.toMatch(/\d{4}-\d{2}-\d{2}/);
   });
 });

@@ -1,6 +1,6 @@
 import { formatCount } from '../format';
 import type { FuelFlaggedBus, FuelResponse } from './api';
-import { noComparisonNote, noDistanceNote, peersDifferNote, shortfallNote } from './fuelPageModel';
+import { noComparisonNote, noDistanceNote, peersDifferNote } from './fuelPageModel';
 
 /*
  * "Buses that stand out": the variance is FUEL USED PER KILOMETRE against the peers'
@@ -81,7 +81,6 @@ export function standOutFooter(data: FuelResponse): string | null {
     peersDifferNote(data.peersDifferCount, data.rule.thresholdPct),
     noComparisonNote(data.noComparisonCount),
     noDistanceNote(data.noDistanceCount),
-    shortfallNote(data.day.dutiesWithoutBus),
   ].filter((p): p is string => p !== null);
   return parts.length === 0 ? null : parts.join(' ');
 }

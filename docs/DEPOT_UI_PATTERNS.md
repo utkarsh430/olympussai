@@ -54,7 +54,15 @@ provenance 12/20, then 24px to the hero. A section: 40px above its hairline (28p
 
 `depot-stack` is the one spacing utility between sections: each direct child is one section
 (a `<section>` holding its label and content) and sits 40px (28px on a phone) below the one
-before; a child's own bottom margin is dropped. The closing disclosure is the stack's last child.
+before; a child's own bottom margin is dropped, and so is the margin of a `FigureBand` that ends
+a wrapped child (`<div><FigureBand/></div>`). The closing disclosure is the stack's last child.
+
+Do not space sections with `flex flex-col gap-N` or `space-y-N`: a band keeps its own 24px
+margin outside a stack, so `gap-6` plus the band gives 48px, and a band followed by a section
+with no stack gives 24px. Round 5 measured 23, 35, 42, 50 and 62px; the causes per page are in
+the round-5 shell report. The rhythm is one number: 40px from a band's (or section's) bottom
+rule to the next section's rule, 16px from that rule to the label, 12px from the label to the
+content.
 
 ```tsx
 <div className="depot-stack">
@@ -182,10 +190,11 @@ control over the label row with absolute positioning).
 ## FigureBand and Figure
 
 `FigureBand { label, children }` holds up to five `Figure { label, value, caption?, tag?,
-share?, hero?, title? }`. Figures are a fixed width and left-packed: 232px from 1280px, 200px
-from 1024px (wrapping when the column is narrower), two equal columns below 1024px. Every
+share?, hero?, title? }`. Figures are a fixed width and left-packed: 232px from 1440px, 200px
+from 1280px, 192px from 1024px (five fit one row at each) (wrapping when the column is narrower), two equal columns below 1024px. Every
 figure is mono 24px (`hero`: display 32px, one per page). Label and caption truncate with the
-full text in `title`. 88px tall. `tag` only for a generated figure on a MIXED or DERIVED page.
+full text in `title`. 88px tall. A figure's label row is a fixed 16px line box
+(`depot-tag-row`): a tag beside the label is drawn 16px tall and never lowers the figure. `tag` only for a generated figure on a MIXED or DERIVED page.
 No `compact` (16px) form: no page needs one; the two hand-rolled 16px bands (exceptions,
 economics) become ordinary bands. From 640px to 1023px the band is three columns, so five
 figures read 3 + 2.
@@ -208,13 +217,42 @@ hand-made link or button.
 
 Header 32px, rows 36px (every table). Opt-ins: `fixedRows` (no wrapping, truncated with the
 full text in `title`), `freezeFirstColumn`, `overflowCue`, `renderExpanded` / `expandLabel` /
-`multipleExpanded` (row expander with the muted chevron), `initialExpandedKey` (one row open
-on first render, for a link that lands on a row's detail), `maxRows`, `onRowSelect`.
+`multipleExpanded` (row expander), `initialExpandedKey` (one row open on first render, for a
+link that lands on a row's detail), `maxRows`, `onRowSelect`, `rowLabel`.
 Column extras: `unit` (shown after the header, "EARNINGS ₹/KM", so cells carry bare numbers);
-`tag` (a pill in the header cell, only when the column differs from the page default).
-`group: { key: (row) => string, label?: (key, count) => string }` prints a repeated column once
-as a group row ("SMALL FLEETS · 35", counting the whole group even when capped); drop that
-column. Groups follow the sort order.
+`tag` (a pill in the header cell, only when the column differs from the page default; it keeps
+the header's 16px line box).
+
+**One row treatment (round 5).** A row that opens something is the control; no page draws a
+boxed per-row button ("SELECT", "WHY?", an index cell button).
+
+- *Opens elsewhere* (`onRowSelect`): the whole row is the click target, Enter and Space on the
+  focused row do the same, and ONE muted chevron shows at the row's end on hover and keyboard
+  focus (in the last cell's right padding: it adds no column). The row's accessible name is
+  "<name>, open" (`rowActionName`); the name is `rowLabel(row)`, else the first column's text,
+  else the row key.
+- *Opens beneath* (`renderExpanded`): the chevron is the FIRST column, 24px wide, and shows the
+  state. With no `onRowSelect` the whole row is the control (click, Enter, Space; one tab stop,
+  named "<name>, show details" / "hide details", `aria-expanded` on the row); a click on a link
+  inside the row stays the link's. With both, the row selects and the chevron toggles.
+- `freezeFirstColumn` with an expander freezes the chevron column and the first data column
+  (the second sticks at 24px, `frozenLefts` in `shell/tableLayout.ts`); both keep solid
+  backgrounds, and the last frozen cell draws the hairline.
+
+To adopt: delete the per-row button column, pass its handler as `onRowSelect` (or keep
+`renderExpanded`), give `rowLabel` when the first column is not plain text, and drop any
+"details" column a page drew itself. Pages that pinned header order for an expander table now
+read the chevron column first.
+
+**Links in tables** use `depot-table-link`: cyan, no underline at rest, underlined on hover and
+keyboard focus. A link inside `depot-prose` or `depot-note` is underlined (a class on the link
+still wins). `depot-link` stays for a stand-alone link.
+
+`group: { key: (row) => string, label?: (key, count) => string, aside?: (key, count) => string
+| null }` prints a repeated column once as a group row in mono capitals with "·" separators
+("SMALL FLEETS · 35"; with `aside`, "STANDING · 52 · 5 LISTED"), counting the whole group even
+when capped; drop that column. Groups follow the sort order. Use `aside` rather than a
+hand-made label with a sans aside.
 
 ```tsx
 const COLUMNS: Column<Row>[] = [
@@ -347,16 +385,20 @@ since; write again." and offers the one "Write again".
 Pages do nothing here; for reference.
 
 - **Top bar.** One row at every width: the mark, the scope switcher (it takes the free width
-  and truncates), the feed chip, then the actions. Below 900px Operations and Sign out sit
-  behind one Menu button; from 900px they are in the row as quiet 32px buttons
-  (`depot-bar-button-quiet`: no outline at rest, never heavier than the chip). Below 640px the
+  and truncates), the feed chip, then the actions. Below 1280px Operations and Sign out sit
+  behind one Menu button, which in depot scope also lists every network page; from 1280px
+  they are in the row as quiet 32px buttons (`depot-bar-button-quiet`: no outline, faint text
+  at rest, full ink on hover or keyboard focus, never heavier than the chip). Below 640px the
   mark is a 20px glyph with the name read to screen readers (the 13px wordmark leaves no room
   for the scope at 360px); from 640px it is the "DEPOT MANAGEMENT" wordmark. Never initials.
-- **Navigation.** From 900px the rail leads with the depot's name and its pages in depot
+- **Navigation.** From 1280px (Tailwind `xl`) the 232px rail leads with the depot's name and its pages in depot
   scope, then the network groups. The rail's surface and right hairline run the full height
   of the page (the `<nav>` is stretched by the row); its links sit in a sticky column under
-  the bar that scrolls inside itself on a short viewport. Below 900px one strip shows the
-  depot's pages with a "Network" disclosure (network links in network scope).
+  the bar that scrolls inside itself on a short viewport. Below 1280px one strip shows the
+  depot's pages only (the network links in network scope): no fixed item, so its end caps sit
+  at its two outer ends, only while it overflows, with a 24px fade just inside a cap; the
+  active link is centred on load and on route change. From a depot page the network is the
+  scope switcher's first option, or the Menu and one link.
 - **Sticky layers.** Read the `--depot-*` properties in `globals.css`, never a literal height
   (`--depot-sticky-top` is where a page's first sticky layer sticks; `--depot-anchor-mt` the
   scroll margin for a heading).
@@ -364,8 +406,25 @@ Pages do nothing here; for reference.
   | Width | `--depot-bar-h` | `--depot-strip-h` | `--depot-sticky-top` |
   | --- | --- | --- | --- |
   | below 640px (bar and strip scroll away) | 0 | 0 | 0 |
-  | 640 to 899px (bar row, then the strip) | 3.25rem | 2.5rem | 5.75rem |
-  | from 900px (bar row, rail beside) | 3.5rem | 0 | 3.5rem |
+  | 640 to 1279px (bar row, then the strip) | 3.25rem | 2.5rem | 5.75rem |
+  | from 1280px (bar row, rail beside) | 3.5rem | 0 | 3.5rem |
+
+  `--depot-nav-h` is 2.5rem below 1280px and `auto` from 1280px; `--depot-anchor-mt` is
+  `--depot-sticky-top` + 0.5rem (0.5rem, 6.25rem, 4rem); `--depot-panel-top` is
+  `--depot-sticky-top` + 1.5rem.
+
+- **Content width.** The main column's gutters are 16px each side below 640px and 24px from
+  640px; the rail is 232px from 1280px. Viewport less rail less gutters (a classic scrollbar
+  takes about 15px more):
+
+  | Viewport | Rail | Gutters | Content |
+  | --- | --- | --- | --- |
+  | 1440 | 232 | 48 | 1,160px |
+  | 1280 | 232 | 48 | 1,000px |
+  | 1024 | none | 48 | 976px |
+  | 800 | none | 48 | 752px |
+  | 390 | none | 32 | 358px |
+  | 360 | none | 32 | 328px |
 
 - **Stale feed, said once.** While a response is stale, a page renders
   `<StaleStrip since={data.feedNow} />` as before. For the first `STALE_NOTICE_AFTER_MS`
@@ -377,6 +436,8 @@ Pages do nothing here; for reference.
   endpoint reads the same snapshot); a page may pass `fetchedAt` to use its own.
 - **Skip link and footer.** "Skip to depot content" is the first focusable element on every
   depot page and moves focus to `<main>`. The prototype disclaimer is in the page flow after
-  the content, in the footer's `depot` variant: the sentence wraps at 11px, never cut off.
+  the content, in the footer's `depot` variant: after the PROTOTYPE pill the sentence starts at
+  "Vehicle positions…" (the leading "Prototype." is dropped there only, `depotDisclaimerText`),
+  wraps in sans 11/16 at most 90 characters wide, never cut off.
 
 Rule: Rulings §4 and §3 (footer).

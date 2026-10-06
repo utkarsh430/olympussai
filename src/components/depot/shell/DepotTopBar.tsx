@@ -15,10 +15,10 @@ import { ScopeSwitcher } from './ScopeSwitcher';
  * - Below 640px the mark is a 20px glyph and the name is read to screen readers only:
  *   the 13px wordmark beside the chip and the Menu leaves no room for the scope at 360px.
  *   From 640px the wordmark is shown.
- * - Below 900px Operations and Sign out sit behind one Menu button, so nothing in the
+ * - Below 1280px (the rail's breakpoint) Operations and Sign out sit behind one Menu button, so nothing in the
  *   bar can push the page sideways at 360px. Below 640px the bar scrolls away; from
- *   640px it sticks at 3.25rem, the same row as on a phone.
- * - From 900px it sticks at 3.5rem, with Operations and Sign out in the row as quiet
+ *   640px to 1279px it sticks at 3.25rem, the same row as on a phone.
+ * - From 1280px it sticks at 3.5rem, with Operations and Sign out in the row as quiet
  *   32px buttons (`depot-bar-button-quiet`), no heavier than the chip.
  */
 export function DepotTopBar() {
@@ -47,12 +47,12 @@ export function DepotTopBar() {
         <Link
           href="/project/upsrtc"
           data-testid="depot-back-to-operations"
-          className="depot-bar-button depot-bar-button-quiet hidden min-[900px]:inline-flex"
+          className="depot-bar-button depot-bar-button-quiet hidden xl:inline-flex"
         >
           <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
           Operations
         </Link>
-        <span className="hidden min-[900px]:contents">
+        <span className="hidden xl:contents">
           <DepotSignOut quiet />
         </span>
         <DepotBarMenu />

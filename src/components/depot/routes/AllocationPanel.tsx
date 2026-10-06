@@ -26,17 +26,16 @@ export interface AllocationPanelProps {
   readonly groups: readonly UnmovedGroup[];
 }
 
-/** The trip definition and the pending-profiles sentence, beside the plan's figures. */
+/**
+ * The pending-profiles sentence, when there is one. The trip definition is said once, in
+ * the closing disclosure (critique round 5, routes Must 3), not between the band and moves.
+ */
 function PlanBasis({ allocation }: { readonly allocation: DepotAllocationResponse }) {
+  if (allocation.profilesPendingNote === null) return null;
   return (
-    <div className="mb-3 max-w-3xl space-y-1">
-      <p className="depot-prose text-[13px]">{allocation.tripDefinition}</p>
-      {allocation.profilesPendingNote !== null ? (
-        <p className="depot-prose text-[13px]" role="status">
-          {allocation.profilesPendingNote}
-        </p>
-      ) : null}
-    </div>
+    <p className="depot-prose mb-3 max-w-3xl text-[13px]" role="status">
+      {allocation.profilesPendingNote}
+    </p>
   );
 }
 
@@ -68,7 +67,14 @@ export function AllocationPanel({ allocation, groups }: AllocationPanelProps) {
       <PlanBasis allocation={allocation} />
       {rows.length > 0 ? (
         <>
-          <h3 className="depot-label mb-2 mt-5">{ROUTES_TEXT.movesTitle}</h3>
+          <div className="mt-5" data-testid="moves-label">
+            <SectionLabel
+              level={3}
+              label={ROUTES_TEXT.movesTitle}
+              tag="modelled"
+              note={ROUTES_TEXT.movesNote}
+            />
+          </div>
           <MovesTable rows={rows} />
         </>
       ) : null}

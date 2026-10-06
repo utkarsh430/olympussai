@@ -11,13 +11,14 @@ export interface TransferSectionProps {
   readonly selectedId: string | null;
   readonly onSelect: (transferId: string | null) => void;
   readonly onDecide: (row: TransferRow, decision: TransferDecisionKind, note: string) => void;
+  readonly undoFor: (row: TransferRow) => (() => void) | null;
 }
 
 export const ALL_COVERED = 'Every modelled shortfall is covered';
 const NONE_SHORT =
   'No transfers are recommended: no depot is short of buses on the modelled requirement.';
 const NONE_REACHABLE =
-  'No transfers are possible: no depot short of buses can be reached from one with spare buses.';
+  'No transfers are possible: no depot short of buses can be reached from one with surplus buses.';
 const REACH_REMEDY = 'A longer maximum transfer distance in the what-if may reach one.';
 
 /**
@@ -25,7 +26,13 @@ const REACH_REMEDY = 'A longer maximum transfer distance in the what-if may reac
  * plan cannot cover: a full list only when there is something to list, otherwise one
  * compact status line with its square.
  */
-export function TransferSection({ view, selectedId, onSelect, onDecide }: TransferSectionProps) {
+export function TransferSection({
+  view,
+  selectedId,
+  onSelect,
+  onDecide,
+  undoFor,
+}: TransferSectionProps) {
   const nobodyShort = view.summary.before.totalDeficit === 0;
   return (
     <div className="min-w-0">
@@ -35,6 +42,7 @@ export function TransferSection({ view, selectedId, onSelect, onDecide }: Transf
           selectedId={selectedId}
           onSelect={onSelect}
           onDecide={onDecide}
+          undoFor={undoFor}
           serverPlan={view.key === null}
         />
       ) : (

@@ -35,17 +35,27 @@ export interface BandFigure {
   readonly caption: string;
 }
 
+/**
+ * The "Buses running duties" caption: the buses with no duty, and the duties with no bus
+ * when there are any ("97 with no duty · 57 duties without a bus").
+ */
+export function ranCaption(notRunCount: number, dutiesWithoutBus: number): string {
+  const notRun =
+    notRunCount > 0 ? `${formatCount(notRunCount)} with no duty` : 'every bus has a duty';
+  if (dutiesWithoutBus <= 0) return notRun;
+  const duties = dutiesWithoutBus === 1 ? 'duty' : 'duties';
+  return `${notRun} · ${formatCount(dutiesWithoutBus)} ${duties} without a bus`;
+}
+
 /** The depot's modelled day as five figures; "N of M buses running duties" is the first. */
 export function fuelBand(data: FuelResponse): readonly BandFigure[] {
   const { totals, day } = data;
-  const notRun =
-    data.notRunCount > 0 ? `${formatCount(data.notRunCount)} with no duty` : 'every bus has a duty';
   return [
     {
       key: 'ran',
       label: 'Buses running duties',
       value: `${formatCount(totals.busCount)} of ${formatCount(day.buses)}`,
-      caption: notRun,
+      caption: ranCaption(data.notRunCount, day.dutiesWithoutBus),
     },
     {
       key: 'distance',

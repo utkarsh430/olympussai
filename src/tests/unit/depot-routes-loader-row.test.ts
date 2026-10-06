@@ -25,7 +25,23 @@ describe('the loader row', () => {
     const depots = loaderDepots(OPTIONS, SUMMARIES);
     expect(depots.map((d) => d.label)).toEqual(['BIJNOR', 'AGRA', 'CHANDPUR']);
     expect(defaultLoaderDepot(depots, null)).toBe('2');
-    expect(loaderDepotLabel(depots[0]!)).toBe('BIJNOR · 84 on routes');
+    expect(loaderDepotLabel(depots[0]!)).toBe('BIJNOR · 84 buses on routes');
+  });
+
+  it('shows and orders by each depot\'s number of routes when the response carries it', () => {
+    const withRoutes = [
+      { value: '1', label: 'AGRA', routes: 19 },
+      { value: '2', label: 'BIJNOR', routes: 7 },
+      { value: '3', label: 'CHANDPUR', routes: 1 },
+    ];
+    const depots = loaderDepots(withRoutes, SUMMARIES);
+    expect(depots.map((d) => d.label)).toEqual(['AGRA', 'BIJNOR', 'CHANDPUR']);
+    expect(defaultLoaderDepot(depots, null)).toBe('1');
+    expect(depots.map(loaderDepotLabel)).toEqual([
+      'AGRA · 19 routes',
+      'BIJNOR · 7 routes',
+      'CHANDPUR · 1 route',
+    ]);
   });
 
   it('defaults to the depot scope from the URL when that depot runs a route', () => {

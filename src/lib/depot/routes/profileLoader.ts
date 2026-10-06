@@ -153,5 +153,5 @@ export function routesToLoad(
 
 /** The button's words; the depot is the select beside it, the cost is in its `title`. */
 export function loadButtonLabel(routes: number): string {
-  return `Load route details (${plural(routes, 'route', 'routes')})`;
+  return `Load route details: ${plural(routes, 'lookup', 'lookups')}`;
 }

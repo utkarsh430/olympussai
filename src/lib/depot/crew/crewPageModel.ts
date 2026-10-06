@@ -1,4 +1,4 @@
-import { formatCount } from '../format';
+import { formatCount, formatPlainDate } from '../format';
 import {
   modelledDaySentence,
   noDutiesReason,
@@ -91,6 +91,11 @@ export function totalSlots(counts: AvailabilityCounts): number {
   return AVAILABILITY_ORDER.reduce((sum, key) => sum + counts[key], 0);
 }
 
+/** A role bar's one mono label: "Drivers · 234 slots" (shown in capitals). */
+export function roleBarLabel(title: string, slots: number): string {
+  return `${title} · ${formatCount(slots)} ${slots === 1 ? 'slot' : 'slots'}`;
+}
+
 export function availabilitySegments(counts: AvailabilityCounts): readonly AvailabilitySegment[] {
   const total = totalSlots(counts);
   return AVAILABILITY_ORDER.map((key) => ({
@@ -123,7 +128,7 @@ export function availabilityText(role: CrewRole, counts: AvailabilityCounts): st
 export function modelledDayPhrase(operatingDate?: string): string {
   return operatingDate === undefined
     ? 'in the modelled day'
-    : `in the modelled day for ${operatingDate}`;
+    : `in the modelled day for ${formatPlainDate(operatingDate)}`;
 }
 
 /*
@@ -192,7 +197,8 @@ export function reliefSentence(count: number): string {
 
 /** Crew C: the one sentence of the state panel; the remedy line and link are separate. */
 export function emptyCrewSentence(operatingDate?: string): string {
-  return `${noDutiesReason(operatingDate)}, so there are no crew shifts to cover.`;
+  const date = operatingDate === undefined ? undefined : formatPlainDate(operatingDate);
+  return `${noDutiesReason(date)}, so there are no crew shifts to cover.`;
 }
 
 /** What would change the empty state, as the panel's one muted line. */

@@ -40,11 +40,14 @@ describe('plan figures', () => {
     const figures = planFigures(SUMMARY);
     expect(figures.map((f) => f.label)).toEqual([
       'Short depots',
-      'Spare buses',
+      'Surplus buses',
       'Buses moved',
       'Empty running',
-      'Deficit covered',
+      'Deficit met',
     ]);
+    // No label is ellipsised in its 232px figure: mono 11px with 0.12em tracking is about
+    // 8.6px a character, so a label stays within 24 characters.
+    for (const f of figures) expect(f.label.length).toBeLessThanOrEqual(24);
     expect(figures[0]?.value).toBe('9 → 0');
     expect(figures[1]?.value).toBe('40 → 40');
     expect(figures[1]?.caption).toBe('network, before → after');
@@ -116,15 +119,19 @@ describe('every-depot table', () => {
 });
 
 describe('transfer table columns at 1440', () => {
-  it('keeps transfer, buses, road km and bus-km, and every column fits the frame uncut', () => {
-    expect(TRANSFER_COLUMNS.map((c) => c.label)).toEqual([
-      'Transfer',
-      'Buses',
-      'Road km',
-      'Bus-km',
-      'Decision',
-      'Why?',
+  it('keeps transfer, buses, road km, bus-km and the decision word, no "Why?" column, and fits uncut', () => {
+    expect(TRANSFER_COLUMNS.map((c) => c.key)).toEqual([
+      'transfer',
+      'buses',
+      'roadKm',
+      'busKm',
+      'decision',
+      'open',
     ]);
+    expect(TRANSFER_COLUMNS.map((c) => c.label)).not.toContain('Why?');
+    // The row is the control: its last column is the 24px chevron, with no header text.
+    expect(TRANSFER_COLUMNS.at(-1)).toMatchObject({ label: '', widthPx: 24 });
+    expect(TRANSFER_COLUMNS[0]?.widthPx).toBe(224);
     expect(TRANSFER_TABLE_PX).toBe(616);
     expect(transferFrameInnerPx()).toBe(622);
     expect(TRANSFER_TABLE_PX).toBeLessThanOrEqual(transferFrameInnerPx());
@@ -139,7 +146,7 @@ describe('transfer table columns at 1440', () => {
       receiverDeficitBefore: 6,
     };
     expect(spareBeforeAfter(row)).toBe(
-      'Meerut has 20 spare before this transfer and 11 after; Bhaisali is 6 short before and 0 after.',
+      'Meerut has 20 surplus buses before this transfer and 11 after; Bhaisali is 6 buses short before and 0 after.',
     );
   });
 });

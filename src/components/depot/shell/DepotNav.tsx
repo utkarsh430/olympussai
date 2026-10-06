@@ -9,13 +9,15 @@ import { NavLinks } from './NavLinks';
 /**
  * The shell's navigation (rulings, section 4), one model (`shellNav`) in two forms:
  *
- * - From 900px, the left rail. The `<nav>` is stretched by the flex row to the full
+ * - From 1280px (Tailwind `xl`), the left rail, 232px wide. The `<nav>` is stretched by the flex row to the full
  *   height of the page, so its surface and right hairline run from under the bar to the
  *   footer however short the link list is; inside it the links sit in a sticky column
  *   capped at the viewport below the bar, which scrolls inside itself when a short
  *   viewport cannot hold them. In depot scope it leads with the depot's name as a group
  *   heading and that depot's pages, then the network groups. There are no depot tabs.
- * - Below 900px, ONE strip under the top bar (`DepotNavStrip`).
+ * - Below 1280px, ONE strip under the top bar (`DepotNavStrip`), so at 1024 the content
+ *   column is the full width less the page gutters (976px) rather than losing 200px to
+ *   a rail.
  *
  * Each form is `display: none` at the other's widths, so only one is ever in the
  * accessibility tree and in the tab order. An unknown depot has no depot group.
@@ -30,7 +32,7 @@ export function DepotNav() {
       <nav
         aria-label="Depot management"
         data-testid="depot-nav"
-        className="hidden shrink-0 border-r border-depot-line bg-depot-page min-[900px]:block min-[900px]:w-[200px] min-[1280px]:w-[232px]"
+        className="hidden shrink-0 border-r border-depot-line bg-depot-page xl:block xl:w-[232px]"
       >
         <div
           data-testid="depot-nav-column"

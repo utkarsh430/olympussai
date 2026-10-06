@@ -9,7 +9,7 @@ import {
   paramsSentence,
 } from '@/lib/depot/routes/allocationWording';
 import type { DepotAllocationResponse } from '@/lib/depot/routes/api';
-import { UPSTREAM_COST } from '@/lib/depot/routes/profileLoader';
+import { PROFILE_LOAD_CAP, UPSTREAM_COST } from '@/lib/depot/routes/profileLoader';
 
 /**
  * The page's closing disclosure: everything the plan panel used to say, said once (depot
@@ -26,7 +26,9 @@ export function RoutesMethod({ allocation }: { readonly allocation: DepotAllocat
         {allocation ? `${allocation.tripDefinition} ${TRIPS_MODELLED_NOTE}` : TRIPS_MODELLED_NOTE}
       </p>
       {allocation ? <p className="depot-prose">{paramsSentence(allocation.params)}</p> : null}
-      <p className="depot-prose">{`${PROFILES_GROW_WITH_USE} ${UPSTREAM_COST}`}</p>
+      <p className="depot-prose">
+        {`${PROFILES_GROW_WITH_USE} ${UPSTREAM_COST} Lookups run one at a time, at most ${PROFILE_LOAD_CAP} a press.`}
+      </p>
       {h ? <p className="depot-prose">{h.coverageLine}</p> : null}
       {h?.stayLine ? <p className="depot-prose">{h.stayLine}</p> : null}
       {h?.excludedLine ? <p className="depot-prose">{h.excludedLine}</p> : null}

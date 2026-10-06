@@ -53,17 +53,17 @@ describe('capacityFigure', () => {
   it('reads "N of M" with the modelled bays and a share', () => {
     const f = capacityFigure({ inYard: 87, visiting: 70, fleet: 200, bays: 209 }, false);
     expect(f.value).toBe('157 of 209');
-    expect(f.caption).toBe('modelled bays in use; 52 free');
+    expect(f.caption).toBe('52 free');
     expect(f.share).toBeCloseTo(157 / 209);
     expect(f.title).toContain('157 of 209 modelled bays in use; 52 free.');
     expect(f.title).toContain('70 buses from other depots');
   });
   it('says over, and sets only the fleet against bays with no yard', () => {
     expect(capacityFigure({ inYard: 55, visiting: 10, fleet: 60, bays: 60 }, false).caption).toBe(
-      'modelled bays in use; 5 over',
+      '5 over',
     );
     const none = capacityFigure({ inYard: null, visiting: 0, fleet: 50, bays: 60 }, false);
-    expect(none.caption).toBe('fleet against modelled bays');
+    expect(none.caption).toBe('fleet only');
     expect(none.title).toContain('No yard is established');
   });
   it('shows a dash and why when the bay count is missing', () => {
@@ -121,6 +121,12 @@ describe('visitorRows', () => {
         (r) => r.registration,
       ),
     ).toEqual(['A9', 'Z1', 'C1', 'B2']);
+  });
+  it('keeps the home depot id, so a visitor links to its own depot roster', () => {
+    const row = visitorRows([
+      { registrationNumber: 'V1', homeDepotName: 'Agra', homeDepotId: '7', state: 'standing', position: null },
+    ])[0];
+    expect(row?.homeDepotId).toBe('7');
   });
 });
 

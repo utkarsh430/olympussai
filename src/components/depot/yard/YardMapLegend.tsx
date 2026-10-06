@@ -22,15 +22,22 @@ function Dot({ colour, hollow }: { readonly colour: string; readonly hollow: boo
 const MARK_COLOUR = '#c7d2e0';
 
 /**
- * The map's key, on a 90% surface chip inside the map's bottom-left from 640px (above the
- * basemap's own logo line); below that it sits under the map so it never hides the yard.
- * Every swatch has its word, so colour never carries a state alone.
+ * The map's key, on a 90% surface chip inside the map's bottom-left from 640px, above the
+ * basemap's own logo line and clear of the zoom control on the right (its width stops
+ * 4.5rem short of the frame's right edge); below that it sits under the map so it never
+ * hides the yard. Every swatch has its word, so colour never carries a state alone. The
+ * key is words and a sentence: sans, never mono.
  */
+export const YARD_MAP_KEY_CLASS =
+  'mt-2 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 font-sans text-[11px] text-depot-muted ' +
+  'sm:absolute sm:bottom-8 sm:left-2 sm:z-10 sm:mt-0 sm:max-w-[calc(100%-4.5rem)] sm:rounded-[3px] ' +
+  'sm:border sm:border-depot-line sm:bg-depot-surface/90 sm:px-2 sm:py-1';
+
 export function YardMapKey() {
   return (
     <div
       data-testid="yard-map-key"
-      className="mt-2 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-depot-muted sm:absolute sm:bottom-8 sm:left-2 sm:z-10 sm:mt-0 sm:max-w-[calc(100%-1rem)] sm:rounded-[3px] sm:border sm:border-depot-line sm:bg-depot-surface/90 sm:px-2 sm:py-1"
+      className={YARD_MAP_KEY_CLASS}
     >
       <ul className="flex flex-wrap items-center gap-x-3 gap-y-1" aria-label="Bus state colours">
         {YARD_STATE_ORDER.map((state) => (
@@ -44,7 +51,7 @@ export function YardMapKey() {
         <Dot colour={MARK_COLOUR} hollow={false} /> this depot&apos;s
         <Dot colour={MARK_COLOUR} hollow /> visiting
       </span>
-      <span>Circle: the yard inferred from where buses park, not surveyed.</span>
+      <span>Circle: the inferred yard, not surveyed.</span>
     </div>
   );
 }
