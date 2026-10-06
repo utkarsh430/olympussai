@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ErrorPanel, StaleStrip } from '@/components/depot/shell/DataStates';
-import { Checkbox } from '@/components/depot/shell/Controls';
+import { Checkbox, FilterRow, SearchField } from '@/components/depot/shell/Controls';
 import { Figure, FigureBand } from '@/components/depot/shell/FigureBand';
 import { HowProduced } from '@/components/depot/shell/HowProduced';
 import { PageHeader } from '@/components/depot/shell/PageHeader';
@@ -194,21 +194,19 @@ function EconomicsBody({
           tag="modelled"
           note={ECONOMICS_TABLE_NOTE}
         />
-        <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2">
-          <label className="flex items-center gap-2 text-xs text-depot-muted">
-            <span>Search depots</span>
-            <input
-              type="search"
+        <div className="mb-3">
+          <FilterRow label="Filter depots">
+            <SearchField
+              label="Search depots"
               value={filters.search}
               onChange={(event) => setSearch(event.target.value)}
-              className="w-44 min-w-0 rounded-[3px] border border-depot-line bg-depot-surface px-2 py-1 text-depot-ink"
             />
-          </label>
-          <Checkbox
-            label="Show unranked"
-            checked={filters.showUnranked}
-            onChange={(event) => setShowUnrankedChoice(event.target.checked)}
-          />
+            <Checkbox
+              label="Show unranked"
+              checked={filters.showUnranked}
+              onChange={(event) => setShowUnrankedChoice(event.target.checked)}
+            />
+          </FilterRow>
         </div>
         {/* One line above the header row: what the signed suffix in each cell means. */}
         <p
