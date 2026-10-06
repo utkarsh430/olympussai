@@ -213,3 +213,52 @@ describe('assignDuties', () => {
     expect(b).toEqual(a);
   });
 });
+
+describe('assignDuties with no yard established', () => {
+  const NO_YARD = { yardEstablished: false } as const;
+  const heard = (reg: string, state: BusOpState, gpsAgeMin: number | null): DepotBusView =>
+    ({
+      registrationNumber: reg,
+      state,
+      location: 'unknown',
+      gpsAgeMin,
+      notHeardMin: gpsAgeMin !== null && gpsAgeMin > 30 ? gpsAgeMin : null,
+    }) as unknown as DepotBusView;
+
+  it('makes a standing bus with a recent report eligible though its location is unknown', () => {
+    const buses = [heard('A', 'standing', 2), heard('B', 'standing', 30), heard('C', 'standing', 0)];
+    const plan = assignDuties([duty(0), duty(1)], buses, fleetOf([]), NO_YARD);
+    expect(plan.unassignedDuties).toBe(0);
+    expect(plan.spareBuses).toHaveLength(1);
+    expect(plan.excluded).toEqual([]);
+  });
+
+  it('still holds out off-road, dark, moving, quiet and clockless buses, one reason each', () => {
+    const buses = [
+      heard('X', 'off_road', 2),
+      heard('D', 'dark', 2),
+      heard('M', 'on_road', 2),
+      heard('S', 'in_service', 2),
+      heard('Q', 'standing', 45),
+      heard('N', 'standing', null),
+    ];
+    const plan = assignDuties([duty(0)], buses, fleetOf([]), NO_YARD);
+    expect(plan.unassignedDuties).toBe(1);
+    expect(plan.excluded).toEqual([
+      { registrationNumber: 'D', reason: 'dark' },
+      { registrationNumber: 'M', reason: 'not_in_yard' },
+      { registrationNumber: 'N', reason: 'not_in_yard' },
+      { registrationNumber: 'Q', reason: 'not_in_yard' },
+      { registrationNumber: 'S', reason: 'not_in_yard' },
+      { registrationNumber: 'X', reason: 'off_road' },
+    ]);
+  });
+
+  it('changes nothing when a yard exists: location still decides', () => {
+    const buses = [heard('A', 'standing', 2), bus('B'), bus('C', 'standing', 'away')];
+    const withYard = assignDuties([duty(0), duty(1)], buses, fleetOf([]), { yardEstablished: true });
+    expect(withYard).toEqual(assignDuties([duty(0), duty(1)], buses, fleetOf([])));
+    expect(withYard.excluded.map((e) => e.registrationNumber)).toEqual(['A', 'C']);
+    expect(withYard.unassignedDuties).toBe(1);
+  });
+});

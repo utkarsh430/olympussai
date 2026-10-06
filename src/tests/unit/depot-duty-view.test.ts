@@ -182,3 +182,31 @@ describe('buildDutyBoard', () => {
     spy.mockRestore();
   });
 });
+
+describe('buildDutyBoard without a yard, and with repeated rows', () => {
+  it('matches standing buses heard recently and says location was ignored', () => {
+    const b = board(scattered(6));
+    expect(b.eligibilityIgnoredLocation).toBe(true);
+    expect(b.counts.excluded).toEqual({ notInYard: 0, offRoad: 0, dark: 0 });
+    expect(b.counts.assigned + b.counts.spare).toBe(6);
+    expect(b.counts.assigned).toBeGreaterThan(0);
+  });
+
+  it('says location counted when a yard exists', () => {
+    const b = board(parked());
+    expect(b.eligibilityIgnoredLocation).toBe(false);
+    expect(b.duplicateRowsDropped).toBe(0);
+  });
+
+  it('keeps the first row of a repeated registration and reports how many it dropped', () => {
+    const repeats = [
+      row({ registrationNumber: 'A0', routeName: 'ORD_0' }),
+      row({ registrationNumber: ' A1 ', routeName: 'ORD_1' }),
+    ];
+    const b = board([...parked(), ...repeats]);
+    expect(b.duplicateRowsDropped).toBe(2);
+    const proposed = b.duties.flatMap((d) => (d.registrationNumber ? [d.registrationNumber] : []));
+    expect(new Set([...proposed, ...b.spareBuses]).size).toBe(proposed.length + b.spareBuses.length);
+    expect(b.counts.assigned + b.counts.spare).toBe(8);
+  });
+});

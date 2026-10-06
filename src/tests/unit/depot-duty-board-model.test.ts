@@ -248,8 +248,27 @@ describe('sentences', () => {
     );
   });
 
+  it('never says every eligible bus has a duty beside a matching that proposed none', () => {
+    const none = counts({ duties: 158, assigned: 0, unassigned: 158, spare: 0 });
+    const summary = summarySentence(none);
+    const footer = spareSentence([], { assigned: none.assigned, locationIgnored: false });
+    expect(summary).toBe(
+      'MODELLED: 158 duties. The matching proposes a bus for 0 and leaves 158 without one; ' +
+        'no bus is eligible, so none is spare.',
+    );
+    expect(footer).toBe('No bus is spare: no bus is eligible for a duty.');
+    expect(`${summary} ${footer}`).not.toMatch(/every eligible bus has a duty|0 buses are spare/);
+    expect(summarySentence(counts({ spare: 0 }))).toMatch(/; no bus is spare\.$/);
+  });
+
   it('names the spare buses, or says there are none', () => {
-    expect(spareSentence([])).toBe('No bus is spare: every eligible bus has a duty.');
+    expect(spareSentence([])).toBe('No bus is spare.');
+    expect(spareSentence([], { assigned: 3, locationIgnored: false })).toBe(
+      'No bus is spare: every eligible bus has a duty.',
+    );
+    expect(spareSentence(['A', 'B'], { assigned: 3, locationIgnored: true })).toBe(
+      '2 buses are standing with no duty.',
+    );
     expect(spareSentence(['A', 'B'])).toBe('2 buses are in the yard with no duty.');
     expect(spareSentence(['A'])).toBe('1 bus is in the yard with no duty.');
   });
