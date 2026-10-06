@@ -43,7 +43,8 @@ export interface DayPlanInput {
   /**
    * As of when the plan is made: the feed clock, no clock, or a later day
    * (ruling S55). On the feed clock before the first duty, the plan is made as
-   * `before_first_duty` (ruling S62).
+   * `before_first_duty` (rulings S62, S62b): the yard buses take the earliest
+   * duties and the buses still out the ones after.
    */
   readonly now: PlanNow;
 }

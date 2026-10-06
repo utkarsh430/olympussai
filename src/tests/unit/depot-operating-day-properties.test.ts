@@ -74,18 +74,33 @@ describe('the modelled day keeps to the live fleet (ruling S47)', () => {
     expect(checked).toBeGreaterThan(30);
   });
 
-  it('before the first duty runs only buses standing in the yard (S62)', () => {
+  it('before the first duty runs the yard buses on the earliest duties, then buses still out (S62b)', () => {
     let checked = 0;
+    let withBusesOut = 0;
     for (const input of CASES) {
       const day = modelOperatingDay(input);
       if (day.duties.length === 0 || dayHasBegun(input, day)) continue;
       checked += 1;
-      const inYard = new Set(
-        input.buses.filter((b) => b.location === 'in_yard').map((b) => b.registrationNumber),
+      const heard = (b: DepotBusView): boolean => (b.gpsAgeMin ?? Infinity) <= 30;
+      const yard = input.buses.filter(
+        (b) => b.state === 'standing' && b.location === 'in_yard' && heard(b),
       );
-      for (const run of day.runs) expect(inYard.has(run.registrationNumber)).toBe(true);
+      const yardRegs = new Set(yard.map((b) => b.registrationNumber));
+      const out = new Set(input.buses.filter(onTheRoad).map((b) => b.registrationNumber));
+      const ran = new Set(day.runs.map((r) => r.registrationNumber));
+      for (const reg of ran) expect(yardRegs.has(reg) || out.has(reg)).toBe(true);
+      // Every yard bus runs, and on the earliest duties, before a bus still out does.
+      const yardRan = day.runs.filter((r) => yardRegs.has(r.registrationNumber));
+      expect(yardRan).toHaveLength(Math.min(yard.length, day.duties.length));
+      const earliest = new Set(day.duties.slice(0, yardRan.length).map((d) => d.id));
+      for (const run of yardRan) expect(earliest.has(run.dutyId)).toBe(true);
+      // A bus still out runs whenever a duty is left after the yard's.
+      const outRan = day.runs.filter((r) => out.has(r.registrationNumber)).length;
+      expect(outRan).toBe(Math.min(out.size, day.duties.length - yardRan.length));
+      if (outRan > 0) withBusesOut += 1;
     }
     expect(checked).toBeGreaterThan(5);
+    expect(withBusesOut).toBeGreaterThan(0);
   });
 
   it('runs every bus in service, heard recently, whenever the duties are at least those (S55, N5)', () => {
@@ -106,13 +121,25 @@ describe('the modelled day keeps to the live fleet (ruling S47)', () => {
       const day = modelOperatingDay(input);
       const live = liveRouteOf(input);
       const held = new Map(day.runs.map((r) => [r.dutyId, r.registrationNumber]));
+      // Before the first duty the yard buses hold the earliest duties and the buses
+      // still out the rest (S62b); the live route ranks below that, within each group.
+      const begun = dayHasBegun(input, day);
+      const standing = new Set(
+        input.buses.filter((b) => b.state === 'standing').map((b) => b.registrationNumber),
+      );
+      const yardRuns = day.runs.filter((r) => standing.has(r.registrationNumber)).length;
+      const earliest = new Set(day.duties.slice(0, yardRuns).map((d) => d.id));
       for (const run of day.runs) {
         const own = live.get(run.registrationNumber) ?? null;
         if (own === null || own === run.routeName) continue;
+        const group = (id: string): boolean =>
+          begun || earliest.has(id) === standing.has(run.registrationNumber);
         // A duty on its own route that no bus of that route holds would be free for it.
         const free = day.duties.filter((d) => {
           const holder = held.get(d.id);
-          return d.routeName === own && (holder === undefined || live.get(holder) !== own);
+          return (
+            d.routeName === own && group(d.id) && (holder === undefined || live.get(holder) !== own)
+          );
         });
         expect(free).toEqual([]);
       }

@@ -53,11 +53,13 @@ export interface AssignDutiesOptions {
   /**
    * As of when the plan is made (ruling S55). On the feed clock, a duty that
    * has started by then prefers a bus on the road and one still to start a
-   * standing bus. For a later day, and before the first duty of the feed's
-   * date (ruling S62), how the buses stand now does not count: the
-   * buses standing in the yard are the ones that will leave it, so only they
-   * are eligible, and nothing is ranked by being on the road. Defaults to a
-   * feed with no clock: no duty is treated as started.
+   * standing bus. Before the first duty of the feed's date (ruling S62b) every
+   * bus eligible on the feed clock can take a duty, but the buses standing in
+   * the yard leave first: they hold the earliest duties and the buses still out
+   * take the ones after, with no time fit. For a later day how the buses stand
+   * now does not count: the buses standing in the yard are the ones that will
+   * leave it, so only they are eligible. Defaults to a feed with no clock: no
+   * duty is treated as started.
    */
   readonly now?: PlanNow;
 }
@@ -75,10 +77,11 @@ function isHeardRecently(bus: DepotBusView): boolean {
 
 /**
  * How an eligible bus stands now, or why it is not eligible: off the road and
- * dark never; then, when the feed has a clock, a bus not heard recently
- * (`not_heard`) whether moving or standing; with no clock no report can be
- * aged, so recency is not judged. In service or on the road is eligible (it is
- * out working); a standing bus, when a yard is established, only in it.
+ * dark never; then, when the feed has a clock (on it, or before the first duty
+ * read off it), a bus not heard recently (`not_heard`) whether moving or
+ * standing; with no clock no report can be aged, so recency is not judged. In
+ * service or on the road is eligible (it is out working); a standing bus, when
+ * a yard is established, only in it. A later day takes the yard buses only.
  */
 function standingOf(
   bus: DepotBusView,
@@ -87,23 +90,25 @@ function standingOf(
 ): BusStandingNow | Exclusion {
   if (bus.state === 'off_road') return 'off_road';
   if (bus.state === 'dark') return 'dark';
-  if (!dayHasBegun(now)) return laterDayStanding(bus, yardEstablished);
-  if (now.kind === 'feed_time' && !isHeardRecently(bus)) return 'not_heard';
+  if (now.kind === 'later_day') return laterDayStanding(bus, yardEstablished);
+  const clocked = now.kind === 'feed_time' || now.kind === 'before_first_duty';
+  if (clocked && !isHeardRecently(bus)) return 'not_heard';
   if (bus.state === 'in_service' || bus.state === 'on_road') return 'on_road';
   if (!yardEstablished) return 'standing';
   return bus.location === 'in_yard' ? 'in_yard' : 'not_in_yard';
 }
 
 /**
- * False for a later day and before the feed date's first duty (ruling S62): no
- * duty has started, so how the buses stand now cannot rank them.
+ * False for a later day and before the feed date's first duty (rulings S62,
+ * S62b): no duty has started, so there is no time to fit and being out working
+ * does not put a bus first.
  */
 function dayHasBegun(now: PlanNow): boolean {
   return now.kind !== 'later_day' && now.kind !== 'before_first_duty';
 }
 
 /**
- * For a later day, or before the first duty: a bus the feed places in the yard will leave it (the yard's
+ * For a later day: a bus the feed places in the yard will leave it (the yard's
  * parking order is about exactly these buses); every other bus is not in the
  * yard. With no yard established, location cannot decide: every available bus.
  */
@@ -117,13 +122,15 @@ interface Candidate {
   readonly standing: BusStandingNow;
   /**
    * Tiers 1 and 2 in one per-bus rank: 0 in service, 1 merely on the road,
-   * 2 standing. For a later day or before the first duty every bus ranks 0.
+   * 2 standing. Before the first duty a standing bus (in the yard) ranks 0 and
+   * a bus still out 1 (ruling S62b); for a later day every bus ranks 0.
    */
   readonly rank: number;
 }
 
 function rankOf(bus: DepotBusView, standing: BusStandingNow, now: PlanNow): number {
-  if (!dayHasBegun(now)) return 0;
+  if (now.kind === 'before_first_duty') return standing === 'on_road' ? 1 : 0;
+  if (now.kind === 'later_day') return 0;
   if (standing !== 'on_road') return 2;
   return bus.state === 'in_service' ? 0 : 1;
 }
@@ -146,6 +153,34 @@ function selectByRank(
   return { inPlay: eligible.filter((c) => c.rank <= boundary), boundary };
 }
 
+/**
+ * The top tier. Once the day has begun: the boundary tier (`selectByRank`).
+ * Before the first duty (ruling S62b) it also says which duties: a bus that
+ * leaves first (rank 0) on one of the earliest duties, a bus still out on one
+ * after them. That is still 0 or 1 per pair, and a total of 0 exists, so the
+ * yard buses hold the earliest duties and, as the boundary tier would make
+ * them, every one of them runs before a bus still out does.
+ */
+function firstTier(duty: Duty, rank: number, ctx: CostContext): number {
+  if (ctx.leavesFirst === null) return rank < ctx.boundary ? 0 : 1;
+  return (rank === 0) === ctx.leavesFirst.has(duty.id) ? 0 : 1;
+}
+
+/**
+ * Before the first duty: the ids of the earliest duties, as many as there are
+ * buses in play that leave first, by start then id; otherwise null.
+ */
+function earliestDuties(
+  duties: readonly Duty[],
+  inPlay: readonly Candidate[],
+  now: PlanNow,
+): ReadonlySet<string> | null {
+  if (now.kind !== 'before_first_duty') return null;
+  const first = inPlay.filter((c) => c.rank === 0).length;
+  const ordered = [...duties].sort((a, b) => a.startMin - b.startMin || compare(a.id, b.id));
+  return new Set(ordered.slice(0, first).map((d) => d.id));
+}
+
 /** The pair's cost in tiers, highest first; each tier but the last is 0 or 1. */
 function tiersOf(duty: Duty, candidate: Candidate, ctx: CostContext): readonly number[] {
   const { bus, standing, rank } = candidate;
@@ -156,10 +191,10 @@ function tiersOf(duty: Duty, candidate: Candidate, ctx: CostContext): readonly n
     modelled !== undefined && Number.isFinite(modelled.ageYears) ? modelled.ageYears : ctx.fallbackAge;
   const base = Math.round(age * Math.round((duty.endMin - duty.startMin) / MINUTES_PER_HOUR));
   return [
-    rank < ctx.boundary ? 0 : 1,
+    firstTier(duty, rank, ctx),
     bus.routeName === duty.routeName ? 0 : 1,
     (modelled?.serviceClass ?? DEFAULT_CLASS) === duty.serviceClass ? 0 : 1,
-    started === onRoad ? 0 : 1,
+    !ctx.timeFit || started === onRoad ? 0 : 1,
     Math.min(Math.max(base, 0), MAX_BASE_COST),
   ];
 }
@@ -170,6 +205,10 @@ interface CostContext {
   readonly feedMinute: number | null;
   /** The rank the last pairs are drawn from (`selectByRank`). */
   readonly boundary: number;
+  /** Before the first duty, the duties the buses that leave first hold (`earliestDuties`). */
+  readonly leavesFirst: ReadonlySet<string> | null;
+  /** False before the first duty and for a later day: no duty has started, so no time fit. */
+  readonly timeFit: boolean;
 }
 
 /**
@@ -177,9 +216,11 @@ interface CostContext {
  * most every lower tier can add up to over a whole matching (`pairs` pairs),
  * so no number of lower-tier savings can pay for one higher-tier cost.
  *
- * The bound (ruling S55). There are five weighted tiers: the boundary tier
- * (which carries "on the road" and "in service", see `selectByRank`), route,
- * class, time fit, each 0 or 1, and the base, capped at MAX_BASE_COST = 15
+ * The bound (ruling S55). There are five weighted tiers in every mode: the
+ * top tier (the boundary tier, which carries "on the road" and "in service",
+ * see `selectByRank`; before the first duty, the yard buses on the earliest
+ * duties, see `firstTier`), route, class, time fit (0 throughout when no duty
+ * has started), each 0 or 1, and the base, capped at MAX_BASE_COST = 15
  * years x 16 h = 240. With P pairs the weights are 1, then w(k+1) = 1 + P x
  * (B + w1 + ... + wk) for B = 240, so the top weight is under (P + 1)^4 x B.
  * At P = 400 it is about 6.2e12; a cell is under 2 x the top weight, and a
@@ -211,9 +252,13 @@ const TIERS = 5;
  * S47, S55). Buses off the road or dark, buses not heard recently (when the
  * feed has a clock), and standing buses away from an established yard are
  * excluded first, each with one reason; a later day's plan takes the buses in
- * the yard, as does the feed's date before its first duty. Every other pairing is allowed and costed in lexicographic tiers:
+ * the yard only. Every other pairing is allowed and costed in lexicographic
+ * tiers:
  *  1. a bus on the road before a standing one, so when there are fewer duties
- *     than buses the buses left over are standing ones;
+ *     than buses the buses left over are standing ones (before the first duty,
+ *     ruling S62b, the other way round: a bus standing in the yard leaves
+ *     first, on the earliest duties, and the buses still out take the ones
+ *     after);
  *  2. a bus in service before one merely moving (tiers 1 and 2 are per bus,
  *     and are applied as one 0/1 tier by `selectByRank`);
  *  3. a bus reporting the duty's route live takes that route's duty;
@@ -223,7 +268,8 @@ const TIERS = 5;
  *  6. `ageYears x round(durationHours)`, capped at MAX_BASE_COST, so longer
  *     duties prefer younger buses;
  *     then the matcher's fixed scan order over buses sorted by registration.
- * A later day, and the feed's date before its first duty, have no tiers 1, 2 and 5. A bus missing from the fleet master
+ * A later day has no tiers 1, 2 and 5; before the first duty there are no
+ * tiers 2 and 5, and tier 1 is the yard first. A bus missing from the fleet master
  * counts as ordinary at the master's median age. The matching never fails:
  * duties without a bus are reported as `no_eligible_bus`, eligible buses
  * without a duty as spare. Deterministic whatever the order of `buses`; a
@@ -256,7 +302,14 @@ export function assignDuties(
   const feedMinute = now.kind === 'feed_time' ? now.feedMinute : null;
   const pairs = Math.min(duties.length, eligible.length);
   const { inPlay, boundary } = selectByRank(eligible, pairs);
-  const ctx = { fleet, fallbackAge: medianAge(fleet), feedMinute, boundary };
+  const ctx: CostContext = {
+    fleet,
+    fallbackAge: medianAge(fleet),
+    feedMinute,
+    boundary,
+    leavesFirst: earliestDuties(duties, inPlay, now),
+    timeFit: dayHasBegun(now),
+  };
   const tiers = duties.map((duty) => inPlay.map((c) => tiersOf(duty, c, ctx)));
   const weights = tierWeights(pairs, MAX_BASE_COST);
   const cost = tiers.map((row) =>

@@ -4,7 +4,7 @@ import { DEFAULT_REQUIREMENT_PARAMS } from '../sim/config';
 import { feedMinuteOn, planDay, type DutyPlan } from '../sim/dayPlan';
 import { dayFromPlan, nowOnFeedClock } from '../sim/operatingDay';
 import type { OperatingDay } from '../sim/operatingDayTypes';
-import { modelBalances } from '../sim/requirement';
+import { modelBalances, windowedOnRoadShares } from '../sim/requirement';
 import { operatingDateOf } from '../sim/seed';
 import { analyseSnapshot, type SnapshotAnalysis } from './analysis';
 import { depotBusViews } from './depotView';
@@ -53,16 +53,25 @@ const plans = new WeakMap<SnapshotAnalysis, Map<string, PlanSlot>>();
 const PLAN_DATES_HELD = 2;
 const days = new WeakMap<SnapshotAnalysis, DaySlot>();
 
-/** The peak requirement of every depot: the model works on the whole network at once. */
+/**
+ * The peak requirement of every depot: the model works on the whole network at
+ * once, on the on-road shares over the rolling score window (ruling S63), as
+ * the fleet-distribution view does. The analysis carries the windowed scores as
+ * they stood when its snapshot was offered to the window, so a memo on the
+ * analysis also holds the window's state.
+ */
 function peakRequirements(
   analysis: SnapshotAnalysis,
   operatingDate: string,
 ): ReadonlyMap<string, number> {
-  return new Map(
-    modelBalances(analysis.depots, analysis.yards, operatingDate, DEFAULT_REQUIREMENT_PARAMS).map(
-      (balance) => [balance.depotId, balance.peakRequirement] as const,
-    ),
+  const balances = modelBalances(
+    analysis.depots,
+    analysis.yards,
+    operatingDate,
+    DEFAULT_REQUIREMENT_PARAMS,
+    windowedOnRoadShares(analysis.scores),
   );
+  return new Map(balances.map((balance) => [balance.depotId, balance.peakRequirement] as const));
 }
 
 function planSlotFor(analysis: SnapshotAnalysis, operatingDate: string, kind: PlanKind): PlanSlot {
@@ -110,10 +119,11 @@ function planFor(
 /**
  * The depot's one duty plan for the feed's operating date, as of the feed
  * clock (no clock when the feed has none), or null for an unknown depot.
- * Before the date's first duty starts, the day has not begun and the plan is
- * made as a later day's is, from the buses in the yard (ruling S62). The
- * bus set is the depot's bus views, one per trimmed registration. No upstream
- * call is made.
+ * Before the date's first duty starts, the day has not begun (ruling S62b):
+ * every eligible bus can take a duty, the buses standing in the yard on the
+ * earliest duties and the buses still out on the ones after. The bus set is
+ * the depot's bus views, one per trimmed registration. No upstream call is
+ * made.
  */
 export function dutyPlanFor(
   analysis: SnapshotAnalysis,
