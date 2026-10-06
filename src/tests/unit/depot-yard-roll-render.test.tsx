@@ -127,6 +127,13 @@ describe('YardRoll', () => {
     for (const cell of cells) expect(cell).not.toMatch(/dark/i);
   });
 
+  it('sets the state groups side by side from 1280px, so the list is half as tall', () => {
+    const groups = container.querySelector('[data-testid="yard-roll-groups"]');
+    expect(groups?.className).toContain('xl:grid-cols-2');
+    expect(groups?.className).toContain('grid');
+    expect(groups?.querySelectorAll('[data-testid="yard-roll-group"]').length).toBeGreaterThan(1);
+  });
+
   it('shows five rows per group with the shared "Show all N"', async () => {
     expect(group('dark')?.querySelectorAll('tbody tr')).toHaveLength(5);
     const all = button('Show all 7');
@@ -135,10 +142,11 @@ describe('YardRoll', () => {
     expect(group('dark')?.querySelectorAll('tbody tr')).toHaveLength(7);
   });
 
-  it('caps visitors at 15 rows in one table with a depot column, and shows all on request', async () => {
+  it('shows five visitors in one table with a depot column, and shows all on request', async () => {
+    // The same cap as every other capped group on the page: five, then "Show all N".
     const section = container.querySelector('[aria-labelledby="yard-roll-visitors"]');
     expect(section?.querySelector('table')?.textContent).toContain('Home depot');
-    expect(section?.querySelectorAll('tbody tr')).toHaveLength(15);
+    expect(section?.querySelectorAll('tbody tr')).toHaveLength(5);
     await act(async () => button('Show all 20')?.click());
     expect(section?.querySelectorAll('tbody tr')).toHaveLength(20);
   });
