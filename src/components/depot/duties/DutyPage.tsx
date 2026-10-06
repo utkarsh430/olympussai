@@ -71,7 +71,6 @@ function HowProduced({
       </summary>
       <div className="depot-prose mt-2 max-w-[62ch] space-y-2 text-[13px]">
         <p data-testid="duties-notice">{MODEL_NOTICE}</p>
-        <p data-testid="duties-cost">{COST_SENTENCE}</p>
         <p data-testid="duties-spare">{spare}</p>
         {withoutDuty === null ? null : <p data-testid="duties-routes-without">{withoutDuty}</p>}
         {duplicates === null ? null : <p>{duplicates}</p>}
@@ -144,6 +143,10 @@ export function DutyPage({ depotId }: { readonly depotId: string }) {
             feedNow={data.feedNow}
             unmatched={unmatchedLine(data)}
           />
+          {/* The matching rule, as a muted caption under the chart (critique, Duties item 2). */}
+          <p className="-mt-4 max-w-[80ch] text-[11px] text-depot-muted" data-testid="duties-cost">
+            {COST_SENTENCE}
+          </p>
         </>
       )}
       <HowProduced data={data} spare={spare} />
