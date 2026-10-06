@@ -183,7 +183,7 @@ export interface FeedClock {
 }
 
 /**
- * The feed's own clock (ruling S56a): the newest `receivedAt` not later than
+ * The feed's own clock: the newest `receivedAt` not later than
  * the fetch time read in Indian time plus FEED_CLOCK_MAX_LEAD_MIN. A future
  * stamp (an Indian time converted twice, a garbage year) is the only way one
  * row can move the clock, and the fetch bounds the future without looking at

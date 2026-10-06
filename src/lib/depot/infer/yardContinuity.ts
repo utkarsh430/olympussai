@@ -6,7 +6,7 @@ import type { Yard } from './types';
 import { YARD_MIN_CLUSTER } from './yard';
 
 /*
- * Yard continuity (ruling S43), the pure half. The single-snapshot rule in
+ * Yard continuity, the pure half. The single-snapshot rule in
  * yard.ts still decides when a yard is first established. But it refuses to
  * choose between two stands of similar size, so a large depot whose terminal
  * stand fills up (42 buses against 41) lost its yard from one poll to the next
@@ -14,14 +14,14 @@ import { YARD_MIN_CLUSTER } from './yard';
  * during the day: once established it is kept while the depot's buses are
  * still standing in it.
  *
- * Given the yard remembered for a depot (ruling S50c):
+ * Given the yard remembered for a depot:
  *  - nothing remembered, or an entry more than YARD_HOLD_MAX_HOURS of feed
  *    time away from this snapshot: the rule decides;
  *  - an entry written at this very feed time (a re-fetch with new rows): that
  *    circle and `heldSince`, unchanged, so every poll of one feed time places
- *    buses alike; `parked` and `inCluster` come from these rows (N5): the
+ *    buses alike; `parked` and `inCluster` come from these rows: the
  *    rule's own counts (cluster members) when it still places an established
- *    yard inside the circle, so identical rows give identical counts (P5);
+ *    yard inside the circle, so identical rows give identical counts;
  *    otherwise a recount inside the circle (recently heard buses for a held
  *    yard, as it was held on; every standing bus for an established one);
  *  - the rule gives a yard whose centre is inside the remembered circle: that
@@ -114,8 +114,8 @@ export function continueYard(
   const overlaps =
     ruleYard !== null && distanceM(ruleYard.lat, ruleYard.lng, kept.lat, kept.lng) <= kept.radiusM;
   if (remembered.seenMs === feedMs) {
-    // The circle stays (S50c). An established yard the rule still places takes the rule's own
-    // counts (cluster members, P5), so identical rows cannot change it; a held yard counts as it
+    // The circle stays. An established yard the rule still places takes the rule's own
+    // counts (cluster members), so identical rows cannot change it; a held yard counts as it
     // was held on (recent reports), and an established one the rule no longer places, every bus.
     if (overlaps && kept.heldSince === undefined) {
       const counts = { parked: ruleYard.parked, inCluster: ruleYard.inCluster };
