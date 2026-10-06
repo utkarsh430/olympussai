@@ -1,7 +1,7 @@
+import { PEER_GROUP_LABEL } from '@/lib/depot/labels';
 import { indexBand } from '@/lib/depot/map/nodeStyle';
 import { MIN_FLEET_FOR_RANK } from '@/lib/depot/score/config';
 import {
-  PEER_GROUP_LABEL,
   formatIndex,
   rankedExtremes,
   rankedIndex,

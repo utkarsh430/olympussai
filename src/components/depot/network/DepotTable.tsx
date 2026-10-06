@@ -3,14 +3,8 @@
 import { useMemo, useState } from 'react';
 import { DataTable, type Column } from '@/components/depot/shell/DataTable';
 import { formatCount, formatShare } from '@/lib/depot/format';
-import { DEPOT_KIND_LABEL } from '@/lib/depot/labels';
-import {
-  PEER_GROUP_LABEL,
-  RANK_REASON_LABEL,
-  formatIndex,
-  rankedIndex,
-  type DepotRow,
-} from '@/lib/depot/network/overviewModel';
+import { DEPOT_KIND_LABEL, PEER_GROUP_LABEL, RANK_REASON_LABEL } from '@/lib/depot/labels';
+import { formatIndex, rankedIndex, type DepotRow } from '@/lib/depot/network/overviewModel';
 import { StatusMixBar, statusSegments } from './StatusMixBar';
 
 type KindFilter = 'all' | 'depot' | 'other';

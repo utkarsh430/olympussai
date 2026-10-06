@@ -1,14 +1,8 @@
 import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
 import { formatCount, formatShare } from '@/lib/depot/format';
-import { DEPOT_KIND_LABEL } from '@/lib/depot/labels';
+import { DEPOT_KIND_LABEL, PEER_GROUP_LABEL, RANK_REASON_LABEL } from '@/lib/depot/labels';
 import { indexBand } from '@/lib/depot/map/nodeStyle';
-import {
-  PEER_GROUP_LABEL,
-  RANK_REASON_LABEL,
-  formatIndex,
-  rankedIndex,
-  type DepotRow,
-} from '@/lib/depot/network/overviewModel';
+import { formatIndex, rankedIndex, type DepotRow } from '@/lib/depot/network/overviewModel';
 import { StatusMixBar, stateSegments } from './StatusMixBar';
 
 export interface DepotMapPanelProps {
