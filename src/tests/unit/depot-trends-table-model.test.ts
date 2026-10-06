@@ -71,7 +71,7 @@ describe('trend table rows', () => {
   });
 
   it('names the unit in each column header, with MODELLED', () => {
-    expect(trendColumnHeaders(ON_ROAD.metric, ON_ROAD.trendUnit, 30)).toEqual({
+    expect(trendColumnHeaders(ON_ROAD.trendUnit, 30)).toEqual({
       spark: 'Last 30 days, MODELLED',
       week: 'Change over 7 days, percentage points, MODELLED',
       fourWeeks: 'Over 4 weeks, percentage points, MODELLED',
