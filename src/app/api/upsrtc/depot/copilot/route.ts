@@ -2,6 +2,8 @@ import type { NextRequest } from 'next/server';
 import { requireUpsrtcAccess, unauthorizedResponse } from '@/lib/auth/authorize';
 import { getRepositories } from '@/lib/depot/repositories';
 import { handleCopilotPost } from '@/lib/depot/copilot/service/handle';
+import { copilotRuntimeOrNull } from '@/lib/depot/copilot/service/failureLog';
+import { fail } from '@/lib/depot/copilot/service/respond';
 import { getCopilotRuntime } from '@/lib/depot/copilot/service/runtime';
 
 export const runtime = 'nodejs';
@@ -19,9 +21,12 @@ export async function POST(request: NextRequest): Promise<Response> {
   // Independent authorization check — never rely on middleware alone.
   const session = await requireUpsrtcAccess();
   if (!session) return unauthorizedResponse();
+  // Built inside a guard, so a failure here is the route's fixed 503, not an unhandled error.
+  const copilot = copilotRuntimeOrNull(getCopilotRuntime, process.env);
+  if (copilot === null) return fail('unavailable');
   return handleCopilotPost(
     request,
-    getCopilotRuntime(),
+    copilot,
     () => getRepositories().fleet.snapshot(),
     session,
   );

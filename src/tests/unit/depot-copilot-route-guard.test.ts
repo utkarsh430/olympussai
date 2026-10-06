@@ -144,6 +144,20 @@ describe('copilot handler guards', () => {
     ]);
   });
 
+  it('answers a failure to build the copilot with the fixed 503 and no-store', async () => {
+    vi.mocked(getCopilotRuntime).mockImplementation(() => {
+      throw new TypeError('cannot build');
+    });
+    const response = await post(NETWORK);
+    expect(response.status).toBe(503);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(await response.json()).toEqual({ error: 'Depot data unavailable' });
+    expect(errorSpy.mock.calls.map((c) => String(c[0]))).toEqual([
+      '[depot:copilot-api] runtime_failed: TypeError: cannot build',
+    ]);
+    expect(snapshot).not.toHaveBeenCalled();
+  });
+
   it('compares the media type exactly, ignoring parameters and case', async () => {
     expect((await post(NETWORK, { type: 'application/jsonx' })).status).toBe(415);
     expect((await post(NETWORK, { type: 'application/json-patch+json' })).status).toBe(415);
