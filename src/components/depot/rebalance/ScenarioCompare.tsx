@@ -1,7 +1,7 @@
 import { formatCount } from '@/lib/depot/format';
 import type { ScenarioDelta } from '@/lib/depot/optimise/types';
 import type { PlanSummary } from '@/lib/depot/rebalance/rebalanceModel';
-import { describeDelta } from '@/lib/depot/rebalance/scenarioForm';
+import { describeDelta } from '@/lib/depot/rebalance/scenarioSummary';
 
 export interface ScenarioCompareProps {
   /** Scenario minus baseline, from `compareOutcomes`. */

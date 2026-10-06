@@ -7,6 +7,9 @@ import {
   parseDistanceKm,
   parseSparePercent,
   parseSurgePercent,
+  type ParseResult,
+} from '@/lib/depot/rebalance/scenarioParsers';
+import {
   withExcluded,
   withFleetAdjustment,
   withLocked,
@@ -15,7 +18,6 @@ import {
   withSurge,
   withoutFleetAdjustment,
   withoutSurge,
-  type ParseResult,
   type ScenarioFormState,
 } from '@/lib/depot/rebalance/scenarioForm';
 

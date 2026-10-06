@@ -22,13 +22,8 @@ import type { ScenarioOutcome } from '@/lib/depot/optimise/types';
 import { mapGeometry } from '@/lib/depot/rebalance/mapGeometry';
 import { balanceRows, busesWord, planSummary } from '@/lib/depot/rebalance/rebalanceModel';
 import { transferRows, uncoveredRows } from '@/lib/depot/rebalance/transferModel';
-import {
-  BASELINE_FORM,
-  effectiveMaxTransferKm,
-  isBaseline,
-  summariseScenario,
-  toScenario,
-} from '@/lib/depot/rebalance/scenarioForm';
+import { BASELINE_FORM, isBaseline, toScenario } from '@/lib/depot/rebalance/scenarioForm';
+import { effectiveMaxTransferKm, summariseScenario } from '@/lib/depot/rebalance/scenarioSummary';
 import { BalanceSummary } from './BalanceSummary';
 import { BalanceTable } from './BalanceTable';
 import { DecisionTrail, useDecisionLog } from './DecisionTrail';
