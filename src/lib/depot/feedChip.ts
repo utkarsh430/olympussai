@@ -1,5 +1,6 @@
 import type { UpstreamSource } from '@/models/canonical';
 import { formatCount, formatFeedTime } from './format';
+import type { PageRefreshState } from './pageRefresh';
 import type { Provenance } from './types';
 
 /**
@@ -36,6 +37,11 @@ export interface FeedChipInput {
   readonly loading: boolean;
   /** The browser clock in ms, passed in so the wording stays pure. */
   readonly nowMs: number;
+  /**
+   * Whether the open page's own data request is failing: its figures are then the last
+   * ones received, so the chip must not read LIVE at the current feed time.
+   */
+  readonly page?: PageRefreshState;
 }
 
 export interface FeedChip {
@@ -88,7 +94,16 @@ function plain(text: string, title: string): FeedChip {
   return { text, tone: 'neutral', title, srText: `Feed status: ${title}` };
 }
 
-export function feedChip({ data, error, loading, nowMs }: FeedChipInput): FeedChip {
+/** The page's own request failed while the feed answers: stale, at the page figures' time. */
+function pageStaleChip(data: FeedChipData, since: string | null, nowMs: number): FeedChip {
+  const time = formatFeedTime(since);
+  const title =
+    "This page's figures could not be refreshed; they are the last ones received, feed " +
+    `time ${time}. The feed itself answers: data ${received(data, nowMs)}`;
+  return { text: `STALE · ${time}`, tone: 'stale', title, srText: `Feed status: stale. ${title}` };
+}
+
+export function feedChip({ data, error, loading, nowMs, page }: FeedChipInput): FeedChip {
   if (!data) {
     return loading || !error
       ? plain('Feed connecting', 'Waiting for the first answer from the depot feed')
@@ -96,10 +111,11 @@ export function feedChip({ data, error, loading, nowMs }: FeedChipInput): FeedCh
   }
   const time = formatFeedTime(data.feedNow);
   const stale = data.stale || error !== null;
+  const pageFailed = page?.failed === true;
 
   if (data.source === 'fixture') {
     const title = 'Sample data, not the live feed';
-    const text = ['FIXTURE', stale ? 'stale' : null, time]
+    const text = ['FIXTURE', stale || pageFailed ? 'stale' : null, time]
       .filter((part): part is string => part !== null)
       .join(' · ');
     return { text, tone: 'fixture', title, srText: `Feed status: ${title}` };
@@ -116,6 +132,8 @@ export function feedChip({ data, error, loading, nowMs }: FeedChipInput): FeedCh
       srText: `Feed status: stale. ${title}`,
     };
   }
+
+  if (pageFailed) return pageStaleChip(data, page.since, nowMs);
 
   if (clock !== null) {
     const title = `${clock}. Data ${received(data, nowMs)}`;

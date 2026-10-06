@@ -2,6 +2,7 @@
 
 import { useDepotNetworkContext } from '@/components/depot/data/DepotNetworkProvider';
 import { feedChip, type FeedChipTone } from '@/lib/depot/feedChip';
+import { usePageRefresh } from './PageRefreshNotice';
 
 const TONE: Readonly<Record<FeedChipTone, string>> = {
   live: 'border-alert-green/50 text-alert-green',
@@ -14,13 +15,15 @@ const TONE: Readonly<Record<FeedChipTone, string>> = {
  * Top-bar chip for the feed: LIVE or STALE with the feed's own clock, FIXTURE
  * for sample data, CHECK CLOCK when enough reports are stamped ahead of the
  * server's clock that the feed clock may lag (read from the network response's
- * `feedClockAheadRows` and `recordCount`, which `data` already carries). How old the data is goes in the tooltip and the
+ * `feedClockAheadRows` and `recordCount`, which `data` already carries), and STALE at
+ * the page's own time when the open page's own request is failing (`usePageRefresh`). How old the data is goes in the tooltip and the
  * screen-reader text; the wording lives in `feedChip`. The age is worked out on
  * each render, which every poll triggers.
  */
 export function FeedStatus() {
   const { data, error, loading } = useDepotNetworkContext();
-  const chip = feedChip({ data, error, loading, nowMs: Date.now() });
+  const page = usePageRefresh();
+  const chip = feedChip({ data, error, loading, nowMs: Date.now(), page });
 
   return (
     <span

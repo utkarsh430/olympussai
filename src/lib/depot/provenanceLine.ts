@@ -54,6 +54,11 @@ export interface ProvenanceFeed {
     readonly scoreWindow?: WindowWordsInput;
   } | null;
   readonly error: string | null;
+  /**
+   * The open page's own data request is failing: its figures are the last ones received,
+   * from `since` (a feed time), whatever the network feed says.
+   */
+  readonly page?: { readonly failed: boolean; readonly since: string | null };
 }
 
 export interface ProvenanceLink {
@@ -137,11 +142,12 @@ const UNAVAILABLE = 'The feed is unavailable.';
 const WAITING = 'Waiting for the feed.';
 
 /** Same freshness rule as the feed chip: a cached answer is the live feed; stale is the last good data. */
-function feedState({ data, error }: ProvenanceFeed): FeedState {
+function feedState({ data, error, page }: ProvenanceFeed): FeedState {
   if (!data) return error !== null ? { kind: 'unavailable' } : { kind: 'waiting' };
   const time = formatFeedTime(data.feedNow);
   if (data.source === 'fixture') return { kind: 'sample', time };
   if (data.stale || error !== null) return { kind: 'stale', time };
+  if (page?.failed) return { kind: 'stale', time: formatFeedTime(page.since) };
   return { kind: 'fresh', time };
 }
 

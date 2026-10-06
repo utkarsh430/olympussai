@@ -11,6 +11,11 @@ import {
   type PolledState,
 } from '@/hooks/usePolledJson';
 import { useFetchedJson } from '@/hooks/useFetchedJson';
+import {
+  pageRefreshState,
+  refreshFailuresSnapshot,
+  reportRefreshFailure,
+} from '@/lib/depot/pageRefresh';
 
 interface Doc {
   readonly marker: string;
@@ -190,9 +195,9 @@ describe('usePolledJson', () => {
   });
 
   it('prefers a custom status message but still lets 401 through', async () => {
-    const statusMessages = { 404: 'Gone' } as const;
+    const statusMessages = { 503: 'Gone' } as const;
     await mount(<PolledProbe url="/api/a" options={{ statusMessages }} />);
-    await settle(calls[0], 404);
+    await settle(calls[0], 503);
     expect(state().error).toBe('Gone');
     await tick(DEFAULT_POLL_INTERVAL_MS);
     await settle(calls[1], 401);
@@ -336,5 +341,54 @@ describe('usePolledJson keeping the previous answer across a query change', () =
     await rerender(<PolledProbe url="/api/routes?q=ag" options={keep} />);
     await settle(calls[1], 500);
     expect(state()).toMatchObject({ data: null, error: DEPOT_UNAVAILABLE_MESSAGE, previous: false });
+  });
+});
+
+describe('usePolledJson when a request fails after a success', () => {
+  const failures = () => pageRefreshState(refreshFailuresSnapshot());
+  afterEach(() => {
+    [...refreshFailuresSnapshot().keys()].forEach((key) => reportRefreshFailure(key, null));
+  });
+
+  it('tells the shell at once, with the feed time of the figures kept, and clears on success', async () => {
+    await mount(<PolledProbe url="/api/depot/1/fuel" />);
+    await settle(calls[0], 200, { marker: 'good', feedNow: '2026-10-06T13:40:00Z' });
+    expect(failures().failed).toBe(false);
+    await tick(DEFAULT_POLL_INTERVAL_MS);
+    await settle(calls[1], 503);
+    expect(failures()).toEqual({ failed: true, since: '2026-10-06T13:40:00Z' });
+    await tick(DEFAULT_POLL_INTERVAL_MS);
+    await settle(calls[2], 200, doc('newer'));
+    expect(failures().failed).toBe(false);
+  });
+
+  it('clears its report when the page goes away', async () => {
+    await mount(<PolledProbe url="/api/depot/1/fuel" />);
+    await settle(calls[0], 200, doc('good'));
+    await tick(DEFAULT_POLL_INTERVAL_MS);
+    await settle(calls[1], 503);
+    expect(failures().failed).toBe(true);
+    await unmount();
+    expect(failures().failed).toBe(false);
+  });
+
+  it("leaves the shell's own network feed to the chip", async () => {
+    await mount(<PolledProbe url="/api/upsrtc/depot/network" />);
+    await settle(calls[0], 200, doc('good'));
+    await tick(DEFAULT_POLL_INTERVAL_MS);
+    await settle(calls[1], 503);
+    expect(state().error).toBe(DEPOT_UNAVAILABLE_MESSAGE);
+    expect(failures().failed).toBe(false);
+  });
+
+  it('drops the figures of a resource that answers 404 and stops polling it', async () => {
+    await mount(<PolledProbe url="/api/depot/1" options={{ statusMessages: { 404: 'Gone' } }} />);
+    await settle(calls[0], 200, doc('good'));
+    await tick(DEFAULT_POLL_INTERVAL_MS);
+    await settle(calls[1], 404);
+    expect(state()).toMatchObject({ data: null, error: 'Gone' });
+    expect(failures().failed).toBe(false);
+    await tick(DEFAULT_POLL_INTERVAL_MS * 3);
+    expect(calls).toHaveLength(2);
   });
 });

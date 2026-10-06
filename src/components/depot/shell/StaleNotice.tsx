@@ -5,6 +5,7 @@ import { useDepotNetworkContext } from '@/components/depot/data/DepotNetworkProv
 import { staleNoticeTiming } from '@/lib/depot/feedChip';
 import { formatFeedTime } from '@/lib/depot/format';
 import { Notice } from './Notice';
+import { usePageRefresh } from './PageRefreshNotice';
 
 export interface StaleStripProps {
   /** The feed time of the last good data (ISO string), or null when unknown. */
@@ -41,6 +42,8 @@ const SLOT = 'min-h-[3.75rem]';
  */
 export function StaleStrip({ since, fetchedAt }: StaleStripProps) {
   const shellFetchedAt = useShellFetchedAt();
+  // The shell's page notice already says these figures are the last received.
+  const covered = usePageRefresh().failed;
   const [, setTick] = useState(0);
   const timing = staleNoticeTiming(
     fetchedAt === undefined ? shellFetchedAt : fetchedAt,
@@ -54,6 +57,7 @@ export function StaleStrip({ since, fetchedAt }: StaleStripProps) {
   }, [timing.showInMs]);
 
   const time = formatFeedTime(since);
+  if (covered) return <div role="status" data-testid="depot-stale" data-state="covered" />;
   return (
     <div
       role="status"
