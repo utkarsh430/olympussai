@@ -1,0 +1,223 @@
+import type { AuditEvent, AuditEventType } from '@/lib/audit/auditLog';
+import type { TransferDecisionKind } from './rebalance/rebalanceModel';
+
+/*
+ * A planner's decisions on recommended transfers, kept as events in the local
+ * audit log. The log is append-only: an undo is a further event naming the
+ * event it withdraws, never a deletion. These reducers only read events; they
+ * never dispatch anything and never change the plan.
+ */
+
+export type { TransferDecisionKind };
+
+export const NOTE_MAX_CHARS = 200;
+const PAYLOAD_VERSION = 1;
+
+export interface DecisionInput {
+  readonly transferId: string;
+  readonly fromDepotId: string;
+  readonly fromDepotName: string;
+  readonly toDepotId: string;
+  readonly toDepotName: string;
+  readonly buses: number;
+  readonly operatingDate: string;
+  /** Summary of the what-if scenario showing when the decision was made; null on the baseline. */
+  readonly scenario: string | null;
+  readonly note: string;
+  readonly decision: TransferDecisionKind;
+}
+
+export interface DecisionEntry extends DecisionInput {
+  readonly eventId: string;
+  readonly at: string;
+  /** Id of the decision event this one withdraws; null for a decision. */
+  readonly undoes: string | null;
+}
+
+export interface TrailItem extends DecisionEntry {
+  /** The transfer's current decision, so it can still be undone. */
+  readonly undoable: boolean;
+  /** A later event withdrew this decision. */
+  readonly undone: boolean;
+}
+
+export interface DecisionTrail {
+  readonly baseline: readonly TrailItem[];
+  readonly scenario: readonly TrailItem[];
+}
+
+export type NewAuditEvent = Omit<AuditEvent, 'id' | 'at'>;
+
+export type NoteResult =
+  { readonly ok: true; readonly value: string } | { readonly ok: false; readonly error: string };
+
+const EVENT_TYPE: Readonly<Record<TransferDecisionKind, AuditEventType>> = {
+  approved: 'depot-transfer-approved',
+  rejected: 'depot-transfer-rejected',
+  deferred: 'depot-transfer-deferred',
+};
+
+const VERB: Readonly<Record<TransferDecisionKind, string>> = {
+  approved: 'Approved',
+  rejected: 'Rejected',
+  deferred: 'Deferred',
+};
+
+function kindOfType(type: unknown): TransferDecisionKind | null {
+  for (const [kind, eventType] of Object.entries(EVENT_TYPE)) {
+    if (eventType === type) return kind as TransferDecisionKind;
+  }
+  return null;
+}
+
+function eventFor(record: DecisionInput, undoes: string | null, summary: string): NewAuditEvent {
+  return {
+    type: EVENT_TYPE[record.decision],
+    summary,
+    simulated: true,
+    detail: JSON.stringify({ v: PAYLOAD_VERSION, ...record, undoes }),
+  };
+}
+
+function route(record: DecisionInput): string {
+  return `${record.buses} ${record.buses === 1 ? 'bus' : 'buses'} ${record.fromDepotName} → ${record.toDepotName}`;
+}
+
+/** A decision as an audit event, flagged model-derived like the log's other model events. */
+export function decisionEvent(record: DecisionInput): NewAuditEvent {
+  const where = record.scenario === null ? 'modelled plan' : 'what-if scenario';
+  return eventFor(record, null, `${VERB[record.decision]} transfer of ${route(record)} (${where})`);
+}
+
+/** Withdraws a decision by recording a further event of the same type. */
+export function undoEvent(entry: DecisionEntry): NewAuditEvent {
+  const record: DecisionInput = {
+    transferId: entry.transferId,
+    fromDepotId: entry.fromDepotId,
+    fromDepotName: entry.fromDepotName,
+    toDepotId: entry.toDepotId,
+    toDepotName: entry.toDepotName,
+    buses: entry.buses,
+    operatingDate: entry.operatingDate,
+    scenario: entry.scenario,
+    note: entry.note,
+    decision: entry.decision,
+  };
+  const verb = VERB[entry.decision].toLowerCase();
+  return eventFor(record, entry.eventId, `Undid ${verb} transfer of ${route(record)}`);
+}
+
+function isString(value: unknown): value is string {
+  return typeof value === 'string';
+}
+
+function readPayload(detail: unknown): Record<string, unknown> | null {
+  if (!isString(detail)) return null;
+  try {
+    const parsed: unknown = JSON.parse(detail);
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return null;
+    return parsed as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+/** A stored event as a decision, or null when it is not one or is malformed. */
+export function parseDecisionEvent(event: unknown): DecisionEntry | null {
+  if (typeof event !== 'object' || event === null) return null;
+  const e = event as Record<string, unknown>;
+  const decision = kindOfType(e.type);
+  const p = readPayload(e.detail);
+  if (!decision || !p || !isString(e.id) || !isString(e.at)) return null;
+  const strings = ['transferId', 'fromDepotId', 'fromDepotName', 'toDepotId', 'toDepotName'];
+  if (p.v !== PAYLOAD_VERSION || !strings.every((k) => isString(p[k]))) return null;
+  if (!isString(p.operatingDate) || !isString(p.note)) return null;
+  if (typeof p.buses !== 'number' || !Number.isFinite(p.buses)) return null;
+  if (p.scenario !== null && !isString(p.scenario)) return null;
+  if (p.undoes !== null && !isString(p.undoes)) return null;
+  return {
+    eventId: e.id,
+    at: e.at,
+    transferId: p.transferId as string,
+    fromDepotId: p.fromDepotId as string,
+    fromDepotName: p.fromDepotName as string,
+    toDepotId: p.toDepotId as string,
+    toDepotName: p.toDepotName as string,
+    buses: p.buses,
+    operatingDate: p.operatingDate,
+    scenario: p.scenario,
+    note: p.note,
+    decision,
+    undoes: p.undoes,
+  };
+}
+
+/** Baseline and each scenario keep their own decision per transfer. */
+function keyOf(transferId: string, scenario: string | null): string {
+  return JSON.stringify([scenario, transferId]);
+}
+
+/** Entries for the date, oldest first (the log stores newest first). */
+function entriesFor(events: readonly AuditEvent[], operatingDate: string): DecisionEntry[] {
+  return events
+    .map(parseDecisionEvent)
+    .filter((e): e is DecisionEntry => e !== null && e.operatingDate === operatingDate)
+    .reverse();
+}
+
+function replay(entries: readonly DecisionEntry[]): ReadonlyMap<string, DecisionEntry> {
+  const book = new Map<string, DecisionEntry>();
+  for (const entry of entries) {
+    const key = keyOf(entry.transferId, entry.scenario);
+    if (entry.undoes === null) book.set(key, entry);
+    else if (book.get(key)?.eventId === entry.undoes) book.delete(key);
+  }
+  return book;
+}
+
+/** The current decision per transfer (baseline and scenario kept apart) for one date. */
+export function decisionsFor(
+  events: readonly AuditEvent[],
+  operatingDate: string,
+): ReadonlyMap<string, DecisionEntry> {
+  return replay(entriesFor(events, operatingDate));
+}
+
+/** Current decisions for the plan showing: the baseline (null) or one scenario's summary. */
+export function decisionKindsFor(
+  book: ReadonlyMap<string, DecisionEntry>,
+  scenario: string | null,
+): ReadonlyMap<string, TransferDecisionKind> {
+  const kinds = new Map<string, TransferDecisionKind>();
+  for (const entry of book.values()) {
+    if (entry.scenario === scenario) kinds.set(entry.transferId, entry.decision);
+  }
+  return kinds;
+}
+
+/** Every decision and undo for the date, newest first, baseline and scenario listed apart. */
+export function decisionTrail(events: readonly AuditEvent[], operatingDate: string): DecisionTrail {
+  const entries = entriesFor(events, operatingDate);
+  const book = replay(entries);
+  const current = new Set([...book.values()].map((e) => e.eventId));
+  const undone = new Set(entries.map((e) => e.undoes).filter(isString));
+  const items: TrailItem[] = entries
+    .map((e) => ({
+      ...e,
+      undoable: current.has(e.eventId),
+      undone: undone.has(e.eventId),
+    }))
+    .reverse();
+  return {
+    baseline: items.filter((e) => e.scenario === null),
+    scenario: items.filter((e) => e.scenario !== null),
+  };
+}
+
+export function validateNote(raw: string): NoteResult {
+  const value = raw.trim();
+  if (value.length > NOTE_MAX_CHARS) {
+    return { ok: false, error: `A note can be at most ${NOTE_MAX_CHARS} characters.` };
+  }
+  return { ok: true, value };
+}

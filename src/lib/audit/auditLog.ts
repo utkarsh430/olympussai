@@ -18,7 +18,11 @@ export type AuditEventType =
   | 'call-started'
   | 'call-ended'
   | 'scenario-completed'
-  | 'demo-reset';
+  | 'demo-reset'
+  // A planner's decision on a modelled depot transfer; recorded only, never dispatched.
+  | 'depot-transfer-approved'
+  | 'depot-transfer-rejected'
+  | 'depot-transfer-deferred';
 
 export interface AuditEvent {
   id: string;
@@ -48,6 +52,9 @@ export const AUDIT_EVENT_LABELS: Record<AuditEventType, string> = {
   'call-ended': 'Voice call ended',
   'scenario-completed': 'Scenario completed',
   'demo-reset': 'Session reset',
+  'depot-transfer-approved': 'Depot transfer approved',
+  'depot-transfer-rejected': 'Depot transfer rejected',
+  'depot-transfer-deferred': 'Depot transfer deferred',
 };
 
 function safeStorage(): Storage | null {
