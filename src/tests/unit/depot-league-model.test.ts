@@ -5,6 +5,7 @@ import {
   filterLeagueRows,
   formatPoints,
   formatRate,
+  describeDifference,
   unrankedSentence,
   type LeagueRow,
 } from '@/lib/depot/league/leagueModel';
@@ -174,5 +175,52 @@ describe('formatters', () => {
     expect(formatPoints(-3.26)).toBe('−3.3 pts');
     expect(formatPoints(0.01)).toBe('0.0 pts');
     expect(formatPoints(null)).toBe('—');
+  });
+});
+
+describe('describeDifference', () => {
+  it('reads a positive difference as better when higher is better', () => {
+    expect(describeDifference(3.04, true)).toEqual({
+      text: '3.0 pts better than peers',
+      direction: 'better',
+    });
+  });
+
+  it('reads a positive difference as worse when lower is better', () => {
+    expect(describeDifference(3.04, false)).toEqual({
+      text: '3.0 pts worse than peers',
+      direction: 'worse',
+    });
+  });
+
+  it('reads a negative difference in the opposite direction', () => {
+    expect(describeDifference(-2.26, true)).toEqual({
+      text: '2.3 pts worse than peers',
+      direction: 'worse',
+    });
+    expect(describeDifference(-2.26, false)).toEqual({
+      text: '2.3 pts better than peers',
+      direction: 'better',
+    });
+  });
+
+  it('says level with peers at zero, including a difference that rounds to zero', () => {
+    expect(describeDifference(0, true)).toEqual({ text: 'level with peers', direction: 'level' });
+    expect(describeDifference(0.04, false)).toEqual({
+      text: 'level with peers',
+      direction: 'level',
+    });
+  });
+
+  it('says there is no comparison when the peer median is unknown', () => {
+    expect(describeDifference(null, true)).toEqual({
+      text: 'no peer median',
+      direction: 'unknown',
+    });
+  });
+
+  it('carries higherIsBetter on each component cell', () => {
+    const [row] = buildLeagueRows([DEPOTS[0] as DepotSummary], [score('1', 'large', 1)]);
+    expect(row?.components.map((c) => c.higherIsBetter)).toEqual([true, false, false, true, true]);
   });
 });
