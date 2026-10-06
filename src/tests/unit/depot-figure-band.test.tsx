@@ -43,22 +43,57 @@ describe('FigureBand', () => {
     const list = screen.getByTestId('depot-figure-band');
     expect(list.className).toContain('grid-cols-2');
     expect(list.className).toContain('sm:grid-cols-2');
+    expect(list.className).toContain('md:grid-cols-2');
     expect(list.className).toContain('lg:flex');
     expect(list.className).toContain('lg:flex-wrap');
   });
 
-  it('draws every band figure at 24px', () => {
+  it('draws a band value at 24px from 640px and one step smaller (20px) on a phone', () => {
     band();
-    expect(screen.getByText('39 of 41').className).toContain('text-2xl');
+    const classes = screen.getByText('39 of 41').className.split(/\s+/);
+    expect(classes).toEqual(expect.arrayContaining(['text-xl', 'sm:text-2xl']));
+    // The 28px line box holds at both sizes (a size class alone would reset it).
+    expect(classes).toEqual(expect.arrayContaining(['leading-7', 'sm:leading-7']));
   });
 
-  it('truncates the label and caption with their full text in title', () => {
+  it('never cuts a value or a label: each wraps instead', () => {
     band();
-    expect(screen.getByText('Parked with a position').getAttribute('title')).toBe('Parked with a position');
+    for (const text of ['39 of 41', 'Parked with a position']) {
+      const classes = screen.getByText(text).className.split(/\s+/);
+      expect(classes, text).not.toContain('truncate');
+      expect(classes, text).toContain('break-words');
+    }
+  });
+
+  it('lets a label and its tag wrap onto two lines rather than shrink the label', () => {
+    render(
+      <FigureBand label="Maintenance figures">
+        <Figure label="Due soon" value="27" tag="modelled" />
+      </FigureBand>,
+    );
+    const row = screen.getByText('Due soon').parentElement;
+    expect(row?.className).toContain('flex-wrap');
+    expect(row?.className).toContain('min-h-4');
+    expect(row?.className.split(/\s+/)).not.toContain('h-4');
+  });
+
+  it('wraps a caption instead of cutting it with an ellipsis, at every width', () => {
+    band();
     const caption = screen.getByText('no yard established yet today');
-    expect(caption.getAttribute('title')).toBe('no yard established yet today');
-    expect(caption.className).toContain('truncate');
-    expect(caption.className).toContain('depot-caption');
+    const classes = caption.className.split(/\s+/);
+    expect(classes).toContain('depot-caption');
+    expect(classes).toContain('break-words');
+    for (const cut of ['truncate', 'text-ellipsis', 'whitespace-nowrap', 'line-clamp-1', 'line-clamp-2']) {
+      expect(classes.some((name) => name.endsWith(cut)), cut).toBe(false);
+    }
+  });
+
+  it('aligns the figures in a row to the top, so a two-line caption moves no neighbour', () => {
+    band();
+    const classes = screen.getByTestId('depot-figure-band').className.split(/\s+/);
+    expect(classes).toContain('items-stretch');
+    expect(classes).not.toContain('items-center');
+    expect(classes).not.toContain('items-end');
   });
 });
 

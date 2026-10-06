@@ -23,10 +23,15 @@ export interface FigureBandProps {
  * 1440px (five fill the 1,160px column exactly), 200px from 1280px (1,000px beside the
  * rail), 192px from 1024px (976px, no rail), so five always fit one row and a band of two to four
  * never stretches to leave wide gaps; it wraps when the column is narrower. Below 1024px
- * the band is a grid whose columns depend on how many figures it holds, so no figure is
- * left alone on a row (`figureBandLayout`). 88px tall: label 11/16, 6px, figure 24/28, 6px,
- * caption 12/16, with 8px above and below. The label row is a fixed 16px line box
- * (`depot-tag-row`), so a tag beside a label never lowers that figure.
+ * the band is a grid whose columns depend on how many figures it holds: two on a phone,
+ * with an odd last figure spanning the row, so no figure is left alone in part of a row
+ * (`figureBandLayout`). 88px tall: label 11/16, 6px, figure 24/28, 6px, caption 12/16,
+ * with 8px above and below; a caption that does not fit wraps to a second line. Figures in
+ * a row stretch to the row's height with their content at the top, so a two-line caption
+ * moves no neighbour's figure and every hairline runs the row's full height. The label row
+ * is a 16px line box (`depot-tag-row`), so a tag beside a label that fits never lowers
+ * that figure; a label that does not fit wraps, with its tag, onto a second line rather
+ * than being cut. A value is never cut either.
  *
  * Every figure carries a hairline on its left; the list is pulled 17px left (its 16px
  * padding plus the 1px hairline) inside a clipping wrapper, so the first figure of every
@@ -44,7 +49,7 @@ export function FigureBand({ label, children, tag }: FigureBandProps) {
       <ul
         aria-label={label}
         data-testid="depot-figure-band"
-        className={`-ml-[17px] grid w-[calc(100%+17px)] gap-y-3 py-2 lg:flex lg:flex-wrap ${figureBandGridClasses(
+        className={`-ml-[17px] grid w-[calc(100%+17px)] items-stretch gap-y-3 py-2 lg:flex lg:flex-wrap ${figureBandGridClasses(
           Children.toArray(children).length,
         )}`}
       >
@@ -58,7 +63,10 @@ export interface FigureProps {
   readonly label: string;
   /** Already formatted ("1,249", "82%", "—"). */
   readonly value: string;
-  /** One line under the value. */
+  /**
+   * A short line under the value. It wraps (two lines at most for the captions the pages
+   * write, checked in `figureBandLayout`'s tests) and is never cut with an ellipsis.
+   */
   readonly caption?: string;
   /** Only when this figure's provenance differs from the page's provenance line. */
   readonly tag?: Provenance;
@@ -83,13 +91,20 @@ const INTERACTIVE =
   '-mx-2 block min-w-0 rounded-[3px] px-2 text-left hover:bg-depot-raised ' +
   'focus-visible:outline focus-visible:outline-1 focus-visible:outline-holo-glow';
 
+/**
+ * A band value: 24px on a 28px line from 640px, one step smaller (20px) on a phone, where
+ * the widest values need it in half of a 360px column (`figureBandLayout`). Both sizes keep
+ * the 28px line, which a size class alone would reset.
+ */
+const BAND_VALUE_SIZE = 'text-xl leading-7 sm:text-2xl sm:leading-7';
+
 const clampShare = (share: number): number =>
   Number.isFinite(share) ? Math.min(1, Math.max(0, share)) : 0;
 
 /**
- * One figure: label, value in mono 24px tabular numerals, one caption line. Inside a
- * `FigureBand` it is a list item; with `hero` it may also stand alone as the page's
- * hero number.
+ * One figure: label, value in mono 24px tabular numerals (20px on a phone), a caption that
+ * wraps rather than being cut. Inside a `FigureBand` it is a list item; with `hero` it may
+ * also stand alone as the page's hero number.
  */
 export function Figure(props: FigureProps) {
   const { label, value, caption, tag, share, hero = false, title, href, onPress, pressed } = props;
@@ -99,15 +114,13 @@ export function Figure(props: FigureProps) {
   const Caption = interactive ? 'span' : 'p';
   const body = (
     <>
-      <Row className="depot-tag-row gap-2">
-        <Row className="depot-label block truncate leading-4" title={label}>
-          {label}
-        </Row>
+      <Row className="depot-tag-row h-auto min-h-4 flex-wrap gap-x-2 gap-y-1">
+        <Row className="depot-label block min-w-0 break-words leading-4">{label}</Row>
         {tag ? <ProvenanceBadge provenance={tag} /> : null}
       </Row>
       <Row
-        className={`mt-1.5 block truncate ${
-          hero ? 'depot-hero-numeral' : 'font-mono text-2xl tabular-nums leading-7 text-depot-ink'
+        className={`mt-1.5 block break-words ${
+          hero ? 'depot-hero-numeral' : `font-mono tabular-nums text-depot-ink ${BAND_VALUE_SIZE}`
         }`}
       >
         {value}
@@ -122,9 +135,7 @@ export function Figure(props: FigureProps) {
         </Row>
       ) : null}
       {caption ? (
-        <Caption className="depot-caption mt-1.5 block truncate" title={caption}>
-          {caption}
-        </Caption>
+        <Caption className="depot-caption mt-1.5 block break-words">{caption}</Caption>
       ) : null}
     </>
   );
