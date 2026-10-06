@@ -3,7 +3,7 @@
 import { DataTable, type Column } from '@/components/depot/shell/DataTable';
 import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
 import type { UncoveredShiftRow } from '@/lib/depot/crew/api';
-import { reasonText, shiftLabel } from '@/lib/depot/crew/crewPageModel';
+import { shiftLabel, shortfallText } from '@/lib/depot/crew/crewPageModel';
 import { formatMinute } from '@/lib/depot/duties/dutyBoardModel';
 
 const COLUMNS: readonly Column<UncoveredShiftRow>[] = [
@@ -12,7 +12,7 @@ const COLUMNS: readonly Column<UncoveredShiftRow>[] = [
   { key: 'start', header: 'Start', align: 'right', render: (row) => formatMinute(row.startMin) },
   { key: 'end', header: 'End', align: 'right', render: (row) => formatMinute(row.endMin) },
   { key: 'short', header: 'Short', render: (row) => row.shortRoles.join(' and ') },
-  { key: 'why', header: 'Why', render: (row) => reasonText(row.shortRoles, row.reason) },
+  { key: 'why', header: 'Why', render: (row) => shortfallText(row.shortfalls) },
 ];
 
 const rowKey = (row: UncoveredShiftRow): string => `${row.dutyId}#${row.shiftIndex}`;

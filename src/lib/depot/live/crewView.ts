@@ -93,6 +93,7 @@ async function buildBody(
     .map((a) => ({
       ...shiftBase(a, routeFor(a.dutyId)),
       shortRoles: a.shortRoles,
+      shortfalls: a.shortfalls,
       reason: a.uncoveredReason ?? 'no_available_crew',
     }))
     .sort(byPressure);

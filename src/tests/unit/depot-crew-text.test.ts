@@ -9,7 +9,7 @@ import {
   emptyCrewSentence,
   modelledStatement,
   pageOf,
-  reasonText,
+  shortfallText,
   reliefSentence,
   shiftLabel,
   shiftsSentence,
@@ -56,14 +56,22 @@ describe('crew page wording', () => {
     expect(availabilityText('conductor', ONE)).toMatch(/^Conductors, 1 slot: 1 available/);
   });
 
-  it('words the reason in plain words, by role', () => {
-    expect(reasonText(['driver'], 'no_available_crew')).toBe('No driver available');
-    expect(reasonText(['driver', 'conductor'], 'no_available_crew')).toBe(
-      'No driver or conductor available',
+  it('words each short role separately with its own cause', () => {
+    expect(shortfallText([{ role: 'driver', cause: 'no_slot_available' }])).toBe(
+      'Driver: no driver is available today.',
     );
-    expect(reasonText(['conductor'], 'hours_limit')).toBe(
-      'Available conductor crew would exceed the hours limit',
+    expect(
+      shortfallText([
+        { role: 'driver', cause: 'all_rostered' },
+        { role: 'conductor', cause: 'hours_limit' },
+      ]),
+    ).toBe(
+      'Driver: all available drivers are already rostered at this time. Conductor: would exceed the hours limit.',
     );
+    expect(shortfallText([{ role: 'conductor', cause: 'all_rostered' }])).toBe(
+      'Conductor: all available conductors are already rostered at this time.',
+    );
+    expect(shortfallText([])).not.toMatch(/ or /);
   });
 
   it('labels a shift with its place in the duty', () => {

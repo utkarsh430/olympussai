@@ -1,5 +1,5 @@
 import type { DepotFeedEnvelope } from '../api';
-import type { CrewAvailability, CrewRole, UncoveredReason } from './types';
+import type { CrewAvailability, CrewRole, RoleShortfall, UncoveredReason } from './types';
 
 /*
  * What the crew page receives. Crew are anonymous slots: nothing here describes
@@ -31,6 +31,8 @@ export interface CrewShiftRow {
 export interface UncoveredShiftRow extends CrewShiftRow {
   readonly shortRoles: readonly CrewRole[];
   readonly reason: UncoveredReason;
+  /** The cause for each short role, so a page words every role on its own. */
+  readonly shortfalls: readonly RoleShortfall[];
 }
 
 export interface RosterShiftRow extends CrewShiftRow {

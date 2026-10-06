@@ -155,6 +155,12 @@ describe('buildCrewResponse', () => {
     expect(response.roster).toEqual([]);
     expect(response.uncovered.every((u) => u.reason === 'no_available_crew')).toBe(true);
     expect(response.uncovered.every((u) => u.shortRoles.length === 2)).toBe(true);
+    expect(
+      response.uncovered.every(
+        (u) =>
+          u.shortfalls.length === 2 && u.shortfalls.every((f) => f.cause === 'no_slot_available'),
+      ),
+    ).toBe(true);
     expect(response.uncovered[0]?.route).toBeTruthy();
   });
 
