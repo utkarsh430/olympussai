@@ -10,9 +10,10 @@ import { YARD_HOLD_MAX_MS, continueYard, type RememberedYard } from './yardConti
  *  - Newer feed time than the last one seen: entries too old to hold are
  *    pruned FIRST, then every depot in the snapshot is decided against its
  *    remembered yard and the memory is updated.
- *  - The same feed time again (a re-fetch with new rows): each depot gets
- *    exactly the yard decided at that feed time, or none if none was; the
- *    memory is not written, so polls of one feed time agree (ruling S50c).
+ *  - The same feed time again (a re-fetch with new rows): a depot whose yard
+ *    was decided at that feed time keeps that circle (ruling S50c); one with
+ *    no entry is left to the rule on these rows (N2), so fuller rows can place
+ *    a yard the first fetch could not. The memory is not written.
  *  - An older feed time: decided against the memory, which is not written,
  *    so it is never fed out of order and a late response still sees the yard.
  *  - More than one score window behind the newest (a straggler, ruling S56b,
@@ -35,8 +36,6 @@ export interface YardMemoryStore {
   /** Stragglers seen in a row (ruling S56b). */
   behindRun: number;
   readonly byDepot: Map<string, RememberedYard>;
-  /** Depots decided at `lastFeedMs`, so a repeat can tell "no yard" from "never seen". */
-  decidedAtLast: ReadonlySet<string>;
   /** Per depot: the feed times its yard was decided on and written (N10). */
   readonly seenByDepot: Map<string, DepotSeen>;
 }
@@ -52,7 +51,6 @@ export function createYardMemoryStore(): YardMemoryStore {
     lastFeedMs: null,
     behindRun: 0,
     byDepot: new Map(),
-    decidedAtLast: new Set(),
     seenByDepot: new Map(),
   };
 }
@@ -72,7 +70,6 @@ export function resetYardMemoryStore(store: YardMemoryStore = defaultYardMemoryS
   store.lastFeedMs = null;
   store.behindRun = 0;
   store.byDepot.clear();
-  store.decidedAtLast = new Set();
   store.seenByDepot.clear();
 }
 
@@ -130,13 +127,11 @@ export function applyYardContinuity(
   store.behindRun = behindRun;
   const last = store.lastFeedMs;
   const writes = last === null || feedMs > last;
-  const isRepeat = feedMs === last;
   if (writes) prune(store, feedMs);
   const groups = rowsByDepot(rows);
   const yards = new Map<string, Yard>();
   for (const id of [...groups.keys()].sort()) {
     const remembered = store.byDepot.get(id) ?? null;
-    if (isRepeat && remembered === null && store.decidedAtLast.has(id)) continue;
     const decision = continueYard(
       remembered,
       ruleYards.get(id) ?? null,
@@ -154,7 +149,6 @@ export function applyYardContinuity(
   if (writes) {
     prune(store, feedMs);
     store.lastFeedMs = feedMs;
-    store.decidedAtLast = new Set(groups.keys());
   }
   return yards;
 }
