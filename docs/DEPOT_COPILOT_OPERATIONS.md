@@ -28,9 +28,35 @@ too), and a later clause can still contradict an earlier one. Read Claude text w
   private home and working folder for every call. The folders are removed when the server sees
   the call end (success, failure, timeout or cancel); they are left behind if the server process
   is stopped or killed mid-call, and a grandchild that left the process group is not tracked.
+  The child's environment is an allowlist: `PATH` (system folders and node's), `HOME` (the call's
+  private home), `TMPDIR` (the call's private working folder, so the CLI's temporary files go
+  with it), `DISABLE_AUTOUPDATER=1`, `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1` and, when set,
+  `CLAUDE_CODE_OAUTH_TOKEN`. `ANTHROPIC_API_KEY`, `SESSION_SECRET` and `PROJECT_PIN_HASH` never
+  reach it. There is no `--max-turns`: the installed CLI (2.1.291) has no such flag.
   It answers
   only when it is switched on, its binary passes the safety checks, there is allowance and time
   left, and its draft passes the checks. Good Claude answers are cached for 10 minutes.
+
+What every draft (Claude's or scripted) must also satisfy, beyond the words allowed beside a
+figure:
+- No second-person word (you, your, yours) anywhere, and no sentence or headline opening with a
+  base-form verb or with please, do or let ("Check the yard."), unless that verb is the first
+  noun of a subject ("Schedule coverage is ..."). The scripted writer opens no sentence with a
+  bare verb; a test fails if it starts to.
+- Rate, total, limiter, negation and day-shift words are refused at every position of a clause
+  that holds a figure (tested per class, at every position of a long clause).
+- Wherever an efficiency index or rank is stated, the window it covers is stated too: "The rank
+  and index cover 7 snapshots from 07:42" (or "the 18 minutes from 07:42 (7 snapshots)" once
+  the response carries `coveredMin`, or "one snapshot, at 07:42"). A held yard is described as
+  "kept from earlier snapshots rather than placed by this snapshot. It has been held since
+  07:42", never with this snapshot's parked count.
+
+Residual wording that the checks still accept, so read Claude text for it:
+- A worded relation between two true figures ("200 buses exceed 3 buses"), S45.
+- A later sentence with no figure that denies an earlier one ("3 buses are dark. That is not
+  so."): negation is refused only inside a figure's clause.
+- An instruction phrased without an opening verb ("Depots should move buses", "We must act"),
+  and "Check it is clear"-style openers whose second word is a noun ("Move buses is ...").
 
 When Claude was expected but the scripted writer answered, the user sees: "Claude was not
 available, so this is a scripted response." Users never see an error because of Claude.
