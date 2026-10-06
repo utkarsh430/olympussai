@@ -56,4 +56,15 @@ describe('navigation strip scroll cue', () => {
     );
     expect(strip.getAllByRole('link')).toHaveLength(NETWORK_LINK_COUNT);
   });
+
+  it('contains its visually hidden group labels, so they cannot widen the page', () => {
+    // An absolutely positioned label inside a scrolling row is laid out against the nearest
+    // positioned ancestor. Unless that is the row itself, the label escapes the row's
+    // clipping and the whole page scrolls sideways (seen at 800px and below).
+    render(<DepotNav />);
+    const scroller = screen.getByTestId('depot-scroll-strip');
+    const hiddenLabels = scroller.querySelectorAll('.sr-only');
+    expect(hiddenLabels.length).toBeGreaterThan(0);
+    expect(scroller.classList.contains('relative')).toBe(true);
+  });
 });
