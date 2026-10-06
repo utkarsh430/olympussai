@@ -12,7 +12,7 @@ import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/usePolledJson';
 import type { DepotDistributionResponse } from '@/lib/depot/api';
 import { decisionEvent, undoEvent } from '@/lib/depot/rebalance/decisionEvents';
 import {
-  decisionKindsFor,
+  rowDecisionsFor,
   decisionTrail,
   decisionsFor,
 } from '@/lib/depot/rebalance/decisionReducers';
@@ -91,7 +91,7 @@ function Distribution({
     () => decisionTrail(log.events, operatingDate),
     [log.events, operatingDate],
   );
-  const rows = transferRows(shown.plan, shown.balances, decisionKindsFor(book, scenarioSummary));
+  const rows = transferRows(shown.plan, shown.balances, rowDecisionsFor(book, scenarioSummary));
   const geometry = useMemo(() => mapGeometry(shown.balances, shown.plan), [shown]);
   const depotRows = useMemo(() => balanceRows(shown.balances), [shown]);
   const summary = planSummary(shown.plan);
@@ -183,6 +183,7 @@ function Distribution({
                     buses: row.buses,
                     operatingDate,
                     scenario: scenarioSummary,
+                    scenarioLabel: scenarioSummary,
                     note,
                     decision,
                   }),

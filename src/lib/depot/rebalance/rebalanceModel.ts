@@ -10,6 +10,12 @@ import type { DepotBalance, NetworkBalanceTotals, TransferPlan } from '../optimi
 /** A planner's verdict on one recommended transfer; recorded, never dispatched. */
 export type TransferDecisionKind = 'approved' | 'rejected' | 'deferred';
 
+/** The decision in force on a transfer and the bus count it was made for. */
+export interface RowDecision {
+  readonly kind: TransferDecisionKind;
+  readonly buses: number;
+}
+
 export type BalanceClass = 'surplus' | 'deficit' | 'balanced';
 export interface PlanSummary {
   readonly before: NetworkBalanceTotals;

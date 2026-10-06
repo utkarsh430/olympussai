@@ -118,7 +118,7 @@ describe('balanceRows', () => {
 
 describe('transferRows', () => {
   it('joins names, the giver surplus and receiver deficit before the move, and decisions', () => {
-    const rows = transferRows(PLAN, BALANCES, new Map([['agra>kanpur', 'approved' as const]]));
+    const rows = transferRows(PLAN, BALANCES, new Map([['agra>kanpur', { kind: 'approved', buses: 5 } as const]]));
     expect(rows[0]).toEqual({
       id: 'agra>kanpur',
       fromDepotId: 'agra',
@@ -130,7 +130,7 @@ describe('transferRows', () => {
       busKm: 2481.6,
       giverSurplusBefore: 10,
       receiverDeficitBefore: 8,
-      decision: 'approved',
+      decision: { kind: 'approved', buses: 5 },
     });
     expect(rows[1]?.decision).toBeNull();
   });

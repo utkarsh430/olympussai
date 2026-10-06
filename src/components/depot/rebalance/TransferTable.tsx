@@ -98,7 +98,7 @@ export function TransferTable({ rows, selectedId, onSelect, onDecide }: Transfer
                 <td className="depot-align-right">{row.busKm.toFixed(1)}</td>
                 <td className="depot-align-right">{formatCount(row.giverSurplusBefore)}</td>
                 <td className="depot-align-right">{formatCount(row.receiverDeficitBefore)}</td>
-                <td>{row.decision ? DECISION_WORD[row.decision] : 'None yet'}</td>
+                <td>{row.decision ? DECISION_WORD[row.decision.kind] : 'None yet'}</td>
                 <td>
                   <div className="flex flex-wrap items-center gap-2">
                     <label htmlFor={noteId} className="sr-only">
@@ -118,7 +118,7 @@ export function TransferTable({ rows, selectedId, onSelect, onDecide }: Transfer
                       <button
                         key={d.kind}
                         type="button"
-                        aria-pressed={row.decision === d.kind}
+                        aria-pressed={row.decision?.kind === d.kind}
                         onClick={() => decide(row, d.kind)}
                         className="depot-filter-button"
                       >

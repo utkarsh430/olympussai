@@ -1,5 +1,5 @@
 import type { DepotBalance, TransferPlan, UncoveredReason } from '../optimise/types';
-import { busesWord, type TransferDecisionKind } from './rebalanceModel';
+import { busesWord, type RowDecision } from './rebalanceModel';
 
 /*
  * Rows for the transfer table and the shortfall list, joined from the plan and
@@ -18,7 +18,7 @@ export interface TransferRow {
   readonly busKm: number;
   readonly giverSurplusBefore: number;
   readonly receiverDeficitBefore: number;
-  readonly decision: TransferDecisionKind | null;
+  readonly decision: RowDecision | null;
 }
 
 export interface UncoveredRow {
@@ -36,7 +36,7 @@ function indexById(balances: readonly DepotBalance[]): ReadonlyMap<string, Depot
 export function transferRows(
   plan: TransferPlan,
   balances: readonly DepotBalance[],
-  decisions: ReadonlyMap<string, TransferDecisionKind>,
+  decisions: ReadonlyMap<string, RowDecision>,
 ): TransferRow[] {
   const byId = indexById(balances);
   return plan.transfers.map((t) => {

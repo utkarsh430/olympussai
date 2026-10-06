@@ -9,9 +9,9 @@ import {
   type DecisionInput,
 } from '@/lib/depot/rebalance/decisionEvents';
 import {
-  decisionKindsFor,
   decisionTrail,
   decisionsFor,
+  rowDecisionsFor,
 } from '@/lib/depot/rebalance/decisionReducers';
 
 const DATE = '2026-10-06';
@@ -26,6 +26,7 @@ function input(overrides: Partial<DecisionInput> = {}): DecisionInput {
     buses: 8,
     operatingDate: DATE,
     scenario: null,
+    scenarioLabel: null,
     note: '',
     decision: 'approved',
     ...overrides,
@@ -67,8 +68,8 @@ describe('decisionsFor', () => {
       decisionEvent(input({ operatingDate: '2026-10-05', decision: 'rejected' })),
     );
     const book = decisionsFor(events, DATE);
-    expect(decisionKindsFor(book, null).get('agra>kanpur')).toBe('approved');
-    expect(decisionKindsFor(decisionsFor(events, '2026-10-05'), null).get('agra>kanpur')).toBe(
+    expect(rowDecisionsFor(book, null).get('agra>kanpur')?.kind).toBe('approved');
+    expect(rowDecisionsFor(decisionsFor(events, '2026-10-05'), null).get('agra>kanpur')?.kind).toBe(
       'rejected',
     );
   });
@@ -81,9 +82,9 @@ describe('decisionsFor', () => {
       decisionEvent(input({ decision: 'rejected', scenario: 'Spare ratio 10%.' })),
     );
     const book = decisionsFor(events, DATE);
-    expect(decisionKindsFor(book, null).get('agra>kanpur')).toBe('approved');
-    expect(decisionKindsFor(book, 'Spare ratio 10%.').get('agra>kanpur')).toBe('rejected');
-    expect(decisionKindsFor(book, 'Spare ratio 20%.').size).toBe(0);
+    expect(rowDecisionsFor(book, null).get('agra>kanpur')?.kind).toBe('approved');
+    expect(rowDecisionsFor(book, 'Spare ratio 10%.').get('agra>kanpur')?.kind).toBe('rejected');
+    expect(rowDecisionsFor(book, 'Spare ratio 20%.').size).toBe(0);
     const trail = decisionTrail(events, DATE);
     expect(trail.baseline.map((e) => e.decision)).toEqual(['approved']);
     expect(trail.scenario.map((e) => e.decision)).toEqual(['rejected']);
@@ -97,12 +98,17 @@ describe('decisionsFor', () => {
     expect(current?.undoable).toBe(true);
     events = record(events, undoEvent(current!));
     expect(events).toHaveLength(3);
-    expect(decisionKindsFor(decisionsFor(events, DATE), null).has('agra>kanpur')).toBe(false);
+    // Undoing the latest decision restores the one it replaced.
+    expect(rowDecisionsFor(decisionsFor(events, DATE), null).get('agra>kanpur')?.kind).toBe(
+      'deferred',
+    );
     const trail = decisionTrail(events, DATE).baseline;
     expect(trail).toHaveLength(3);
     expect(trail[0]?.undoes).toBe(current?.eventId);
     expect(trail[1]?.undone).toBe(true);
-    expect(trail.every((e) => !e.undoable)).toBe(true);
+    expect(trail.map((e) => e.undoable)).toEqual([false, false, true]);
+    events = record(events, undoEvent(trail[2]!));
+    expect(rowDecisionsFor(decisionsFor(events, DATE), null).has('agra>kanpur')).toBe(false);
   });
 
   it('ignores an undo that does not refer to the current decision', () => {
@@ -111,7 +117,9 @@ describe('decisionsFor', () => {
     const old = decisionTrail(events, DATE).baseline[0]!;
     events = record(events, decisionEvent(input({ decision: 'approved' })));
     events = record(events, undoEvent(old));
-    expect(decisionKindsFor(decisionsFor(events, DATE), null).get('agra>kanpur')).toBe('approved');
+    expect(rowDecisionsFor(decisionsFor(events, DATE), null).get('agra>kanpur')?.kind).toBe(
+      'approved',
+    );
   });
 
   it('ignores malformed stored events and other event types without throwing', () => {

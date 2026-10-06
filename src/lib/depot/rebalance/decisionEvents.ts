@@ -11,7 +11,9 @@ import type { TransferDecisionKind } from './rebalanceModel';
 export type { TransferDecisionKind };
 
 export const NOTE_MAX_CHARS = 200;
-const PAYLOAD_VERSION = 1;
+/** Version 2 files a scenario decision under `scenarioKey`; version 1 used the sentence. */
+const PAYLOAD_VERSION = 2;
+const FIRST_PAYLOAD_VERSION = 1;
 
 export interface DecisionInput {
   readonly transferId: string;
@@ -21,8 +23,10 @@ export interface DecisionInput {
   readonly toDepotName: string;
   readonly buses: number;
   readonly operatingDate: string;
-  /** Summary of the what-if scenario showing when the decision was made; null on the baseline. */
+  /** `scenarioKey` of the what-if showing when the decision was made; null on the baseline. */
   readonly scenario: string | null;
+  /** The scenario's sentence at the time, for display only; null on the baseline. */
+  readonly scenarioLabel: string | null;
   readonly note: string;
   readonly decision: TransferDecisionKind;
 }
@@ -39,6 +43,8 @@ export interface TrailItem extends DecisionEntry {
   readonly undoable: boolean;
   /** A later event withdrew this decision. */
   readonly undone: boolean;
+  /** A later decision on the same transfer replaced this one and is still in force. */
+  readonly superseded: boolean;
 }
 
 export interface DecisionTrail {
@@ -100,6 +106,7 @@ export function undoEvent(entry: DecisionEntry): NewAuditEvent {
     buses: entry.buses,
     operatingDate: entry.operatingDate,
     scenario: entry.scenario,
+    scenarioLabel: entry.scenarioLabel,
     note: entry.note,
     decision: entry.decision,
   };
@@ -130,11 +137,15 @@ export function parseDecisionEvent(event: unknown): DecisionEntry | null {
   const p = readPayload(e.detail);
   if (!decision || !p || !isString(e.id) || !isString(e.at)) return null;
   const strings = ['transferId', 'fromDepotId', 'fromDepotName', 'toDepotId', 'toDepotName'];
-  if (p.v !== PAYLOAD_VERSION || !strings.every((k) => isString(p[k]))) return null;
+  const versionKnown = p.v === PAYLOAD_VERSION || p.v === FIRST_PAYLOAD_VERSION;
+  if (!versionKnown || !strings.every((k) => isString(p[k]))) return null;
   if (!isString(p.operatingDate) || !isString(p.note)) return null;
   if (typeof p.buses !== 'number' || !Number.isFinite(p.buses)) return null;
   if (p.scenario !== null && !isString(p.scenario)) return null;
   if (p.undoes !== null && !isString(p.undoes)) return null;
+  // A first-version event has no label: its sentence was its key.
+  const label = p.v === FIRST_PAYLOAD_VERSION ? p.scenario : p.scenarioLabel;
+  if (label !== null && !isString(label)) return null;
   return {
     eventId: e.id,
     at: e.at,
@@ -146,6 +157,7 @@ export function parseDecisionEvent(event: unknown): DecisionEntry | null {
     buses: p.buses,
     operatingDate: p.operatingDate,
     scenario: p.scenario,
+    scenarioLabel: label,
     note: p.note,
     decision,
     undoes: p.undoes,
