@@ -8,7 +8,8 @@ import {
 } from '@/lib/depot/cockpit/availability';
 import { depotExceptionLines, groupBusExceptions } from '@/lib/depot/cockpit/exceptionGroups';
 import { indexMeta } from '@/lib/depot/cockpit/indexMeta';
-import type { CockpitHeader, StatusBoard } from '@/lib/depot/cockpit/cockpitTypes';
+import { endedSummary } from '@/lib/depot/cockpit/outshedTracker';
+import type { CockpitHeader, StatusBoard, TrackerRow } from '@/lib/depot/cockpit/cockpitTypes';
 import type { BusException, DepotException } from '@/lib/depot/exceptions/types';
 import type { OutshedRow } from '@/lib/depot/infer/types';
 
@@ -263,5 +264,19 @@ describe('exception groups', () => {
     expect(line?.windowNote).toBe('Rate over the last 20 minutes; 44 buses affected now.');
     const [cluster] = depotExceptionLines([{ ...e, kind: 'power_cut_cluster' }], undefined, FEED_NOW);
     expect(cluster?.windowNote).toBeNull();
+  });
+});
+
+describe('outshedding summary', () => {
+  const row = (state: TrackerRow['state']): Pick<TrackerRow, 'state'> => ({ state });
+
+  it('says in one line when every tracked departure is past its window', () => {
+    expect(endedSummary([row('ended'), row('ended')])).toBe('All 2 tracked departures are past their window.');
+    expect(endedSummary([row('ended')])).toBe('The one tracked departure is past its window.');
+  });
+
+  it('says nothing when any departure still needs a look, or there is none', () => {
+    expect(endedSummary([row('ended'), row('overdue')])).toBeNull();
+    expect(endedSummary([])).toBeNull();
   });
 });

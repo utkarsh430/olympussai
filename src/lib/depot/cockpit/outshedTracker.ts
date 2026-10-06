@@ -135,3 +135,14 @@ export function coverageSentence(coverage: Coverage, feedDate: string | null): s
 export function noSchedulesSentence(feedDate: string | null): string {
   return `No bus carries a schedule ${forFeedDate(feedDate)}, so there are no departures to track.`;
 }
+
+/**
+ * When every tracked departure's window has ended there is nothing to act on: one line
+ * says so and the table waits behind "Show all". Null while any row still needs a look.
+ */
+export function endedSummary(rows: readonly Pick<TrackerRow, 'state'>[]): string | null {
+  if (rows.length === 0 || rows.some((row) => row.state !== 'ended')) return null;
+  return rows.length === 1
+    ? 'The one tracked departure is past its window.'
+    : `All ${formatCount(rows.length)} tracked departures are past their window.`;
+}

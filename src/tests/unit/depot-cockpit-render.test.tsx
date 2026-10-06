@@ -75,6 +75,22 @@ describe('cockpit empty states', () => {
     expect(textOf(markup)).toContain('No bus carries a schedule for the feed date, 2026-10-06');
     expect(textOf(markup)).not.toContain('today');
     expect(markup).not.toContain('depot-table');
+    // Critique §9, cockpit C: the label's "· 0" and one muted line, no coverage sentence, no box.
+    expect(markup).not.toContain('depot-outshed-coverage');
+    expect(textOf(markup)).not.toContain('0 of 10 buses');
+  });
+
+  it('says in one line when every departure window has ended, the table behind "Show all"', () => {
+    const ended = (key: string): TrackerRow => ({
+      key, registrationNumber: key, routeName: null, journeyCode: null, scheduledStart: '06:30',
+      state: 'ended', label: 'Window ended', minutes: null, minutesText: '—',
+    });
+    const markup = renderToStaticMarkup(
+      <OutshedTracker depotId="20" rows={[ended('A'), ended('B')]} coverageSentence="2 of 2." hasSchedules noSchedulesSentence="none" />,
+    );
+    expect(textOf(markup)).toContain('All 2 tracked departures are past their window.');
+    expect(markup).not.toContain('<table');
+    expect(textOf(markup)).toContain('Show all 2');
   });
 
   it('captions the tracker for the feed date, not for today', () => {
