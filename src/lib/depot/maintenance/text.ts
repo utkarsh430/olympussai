@@ -2,6 +2,7 @@ import type { DepotVehicleStatus } from '@/models/depotLive';
 import { formatCount } from '../format';
 import { lastHeardText } from '../roster/rosterModel';
 import type { ServiceClass } from '../sim/types';
+import { DUE_SOON_WITHIN_KM } from './config';
 import type { Coverage } from '../types';
 import type { ServiceGroup } from './serviceModel';
 import type { WorkshopLoad } from './workshop';
@@ -53,28 +54,40 @@ export function distanceNotice(coverage: Coverage): string {
   );
 }
 
+/*
+ * "Overdue" and "due soon" are modelled statements about a named bus, so they
+ * are never written without the word "modelled" in the same string.
+ */
 const GROUP_LABEL: Readonly<Record<ServiceGroup, string>> = {
-  overdue: 'Overdue',
-  due_soon: 'Due soon',
-  not_due: 'Not due',
+  overdue: 'Modelled: overdue',
+  due_soon: 'Modelled: due soon',
+  not_due: 'Modelled: not due',
 };
+
+export const SERVICE_HEADER = 'Service (MODELLED)';
+export const NEXT_SERVICE_HEADER = 'To next service (MODELLED)';
 
 export function serviceGroupLabel(group: ServiceGroup): string {
   return GROUP_LABEL[group];
 }
 
-export function kmToNextText(kmToNextService: number): string {
-  if (kmToNextService < 0) return `Overdue by ${formatCount(-kmToNextService)} km`;
-  if (kmToNextService === 0) return 'Due now';
-  return `${formatCount(kmToNextService)} km to next service`;
+export function kmToNextText(
+  kmToNextService: number,
+  dueSoonWithinKm: number = DUE_SOON_WITHIN_KM,
+): string {
+  if (kmToNextService < 0) return `Modelled: overdue by ${formatCount(-kmToNextService)} km`;
+  if (kmToNextService === 0) return 'Modelled: due now';
+  const km = `${formatCount(kmToNextService)} km to next service`;
+  return kmToNextService <= dueSoonWithinKm ? `Modelled: due soon, ${km}` : `Modelled: ${km}`;
 }
 
 export function groupSummary(counts: Readonly<Record<ServiceGroup, number>>): string {
   const total = counts.overdue + counts.due_soon + counts.not_due;
   if (total === 0) return 'The depot has no buses.';
   return (
-    `Of ${formatCount(total)} buses: ${formatCount(counts.overdue)} overdue, ` +
-    `${formatCount(counts.due_soon)} due soon, ${formatCount(counts.not_due)} not due.`
+    `Modelled, not workshop records: of ${formatCount(total)} buses, ` +
+    `${formatCount(counts.overdue)} are modelled as overdue, ` +
+    `${formatCount(counts.due_soon)} as due soon and ${formatCount(counts.not_due)} as not due.`
   );
 }
 
@@ -85,8 +98,12 @@ export function noAttentionText(): string {
 export function preventiveNote(dueSoonWithinKm: number): string {
   return (
     'Each bus has a modelled odometer and service history, anchored on its modelled age, with a ' +
-    `service interval set per class. Due soon means within ${formatCount(dueSoonWithinKm)} km of ` +
-    'the next service. These are proposals for planning, not workshop records.'
+    `service interval set per class. Modelled due soon means within ${formatCount(dueSoonWithinKm)} ` +
+    "km of the next service. The share of buses modelled as overdue is set by the model's " +
+    'assumptions and is not derived from any record. The history is fixed and does not advance ' +
+    "with the date, and a bus's class and service interval follow its current route, so " +
+    're-routing a bus can change its group. It shows how a workshop view would work and is not ' +
+    'for planning services.'
   );
 }
 
