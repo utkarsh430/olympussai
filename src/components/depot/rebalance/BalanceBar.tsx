@@ -1,10 +1,11 @@
 import { MINUS } from '@/lib/depot/format';
+import { DEPOT_PALETTE } from '@/lib/depot/palette';
 
-/** Diverging pair, validated for colour-vision deficiency on the dark surface (dataviz skill). */
-export const SURPLUS_COLOUR = '#3987e5';
-export const DEFICIT_COLOUR = '#e66767';
-/** Neutral midpoint: a balanced depot is grey, never a hue. */
-export const BALANCED_COLOUR = '#6b84a0';
+/** Diverging pair in the command centre's colours: cyan surplus, crimson deficit. */
+export const SURPLUS_COLOUR = DEPOT_PALETTE.bright;
+export const DEFICIT_COLOUR = DEPOT_PALETTE.crimson;
+/** Neutral midpoint: a balanced depot is slate, never a hue. */
+export const BALANCED_COLOUR = DEPOT_PALETTE.slate;
 
 const HALF = 50;
 

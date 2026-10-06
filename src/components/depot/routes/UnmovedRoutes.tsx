@@ -136,7 +136,7 @@ function GroupBlock({ group }: { readonly group: UnmovedGroup }) {
     >
       <summary className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
         <span className="tabular-nums">{group.countLabel}</span>
-        <span className="min-w-0 font-sans text-sm normal-case tracking-normal text-depot-muted">
+        <span className="min-w-0 font-sans text-sm normal-case tracking-normal text-depot-prose">
           {group.heading}
         </span>
         <span className="ml-auto">{disclosureWord(open)}</span>

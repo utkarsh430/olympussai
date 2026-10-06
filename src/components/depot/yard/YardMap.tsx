@@ -6,6 +6,7 @@ import { MapUnavailable } from '@/components/depot/shell/MapUnavailable';
 import { BUS_STATE_LABEL } from '@/lib/depot/labels';
 import { removeMapListeners } from '@/lib/maps/listeners';
 import { BUS_STATE_COLOUR, type YardMapPoint, type YardModel } from '@/lib/depot/yard/yardModel';
+import { DEPOT_PALETTE } from '@/lib/depot/palette';
 
 type Handle = google.maps.MapsEventListener | undefined;
 
@@ -25,7 +26,7 @@ const FALLBACK_ZOOM = 17;
 async function yardMapOptions(): Promise<google.maps.MapOptions> {
   return { center: { lat: 0, lng: 0 }, zoom: FALLBACK_ZOOM, isFractionalZoomEnabled: true };
 }
-const YARD_STROKE = '#6b84a0';
+const YARD_STROKE = DEPOT_PALETTE.faint;
 const YARD_FILL_OPACITY = 0.06;
 const DOT_SCALE = 5;
 const VISITOR_STROKE_WEIGHT = 2;
@@ -41,7 +42,7 @@ function iconFor(point: Pick<YardMapPoint, 'state' | 'relation'>): google.maps.S
     scale: DOT_SCALE,
     fillColor: colour,
     fillOpacity: visiting ? 0 : 0.95,
-    strokeColor: visiting ? colour : '#02040a',
+    strokeColor: visiting ? colour : DEPOT_PALETTE.page,
     strokeWeight: visiting ? VISITOR_STROKE_WEIGHT : HOME_STROKE_WEIGHT,
   };
 }
@@ -192,7 +193,7 @@ export function YardMap({ model }: YardMapProps) {
         <div
           aria-hidden
           data-testid="yard-map-hover"
-          className="pointer-events-none absolute left-3 top-3 z-20 rounded-[3px] border border-depot-line bg-depot-surface px-3 py-2"
+          className="pointer-events-none absolute left-3 top-3 z-20 depot-lit rounded-[3px] border border-depot-line bg-depot-surface px-3 py-2"
         >
           <span className="block font-mono text-[13px] text-depot-ink">{hovered.registration}</span>
           <span className="mt-0.5 block font-mono text-[11px] text-depot-muted">

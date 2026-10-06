@@ -15,6 +15,7 @@ import { markerLabel } from '@/lib/depot/network/mapWords';
 import { FIT_PADDING_PX, SINGLE_NODE_ZOOM, refitOnResize } from '@/lib/depot/map/overviewMapView';
 import { removeMapListeners } from '@/lib/maps/listeners';
 import { useDepotMap, type DepotMapStatus } from './useDepotMap';
+import { DEPOT_PALETTE } from '@/lib/depot/palette';
 
 /** One drawn depot. Not `Node`, which would shadow the DOM type. */
 interface DepotMarker {
@@ -24,7 +25,8 @@ interface DepotMarker {
   readonly listeners: ReadonlyArray<google.maps.MapsEventListener | undefined>;
 }
 
-const SELECTED_STROKE = '#3ff0ff';
+/** Near-white ink, not cyan: the index bands are the cyan ramp, so the ring must differ. */
+const SELECTED_STROKE = DEPOT_PALETTE.ink;
 const SELECTED_STROKE_WEIGHT = 2.5;
 const SELECTED_Z = 5000;
 
@@ -249,7 +251,7 @@ export function DepotMap({ rows, maxFleet, selectedId, onSelect, onStatusChange 
         <div
           aria-hidden
           data-testid="depot-map-hover"
-          className="pointer-events-none absolute left-3 top-3 z-20 max-w-[calc(100%-24px)] rounded-[3px] border border-depot-line bg-depot-surface px-3 py-2"
+          className="pointer-events-none absolute left-3 top-3 z-20 max-w-[calc(100%-24px)] depot-lit rounded-[3px] border border-depot-line bg-depot-surface px-3 py-2"
         >
           <div className="truncate text-[13px] text-depot-ink">{hovered.depot.name}</div>
           <div className="mt-0.5 text-[11px] text-depot-muted">

@@ -26,9 +26,9 @@ import { FeedSchema } from './FeedSchema';
 import { HowProduced } from '@/components/depot/shell/HowProduced';
 
 const STATUS_TONE: Readonly<Record<FeedStatus, string>> = {
-  live: 'border-alert-green/50 text-alert-green',
-  modelled: 'border-alert-amber/50 text-alert-amber',
-  awaiting: 'border-depot-muted/50 text-depot-muted',
+  live: 'border-alert-green/45 bg-alert-green/10 text-alert-green',
+  modelled: 'border-alert-amber/50 bg-alert-amber/10 text-alert-amber',
+  awaiting: 'border-slate-400/40 bg-slate-400/10 text-slate-400',
 };
 
 const FEED_IDS: readonly string[] = FEED_REGISTRY.map((feed) => feed.id);

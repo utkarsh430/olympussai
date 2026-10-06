@@ -12,17 +12,17 @@ Governs every screen under `/project/depots`. Read with
 
 Both read numbers for a living. The screens are instruments, not marketing.
 
-## Direction: the same world as the command centre, with the lights turned down
+## Direction: the same world as the command centre
 
 The command centre is cinematic: glow, scanlines, corner ticks, a fixed viewport. The
-depot module shares its palette and typefaces but is a working ledger: flat surfaces,
-hairline rules, long scrolling pages, dense tables.
+depot module shares its palette at the same strength (cyan labels and hairlines, lit
+panels with corner ticks, the grid and ambient glow behind the page) and its typefaces,
+but is a working ledger: long scrolling pages, dense tables, no scanlines and no motion.
 
 Boldness is spent in **one** place per page: a single hero instrument (the network map,
 the efficiency index, the transfer plan). Everything else is quiet.
 
-Not allowed: a card around everything, glow on ordinary panels, scanline or noise
-overlays, pill-shaped controls, gradient fills, decorative icons, count-up animation
+Not allowed: a card around everything, scanline or noise overlays, animated glow, pill-shaped controls, gradient fills, decorative icons, count-up animation
 outside the KPI band, large empty areas.
 
 ## Type
@@ -45,17 +45,25 @@ Nothing below 11px.
 
 ## Colour
 
-New `depot` Tailwind namespace (alongside `sim` and `ol`), all AA on the page background:
+New `depot` Tailwind namespace (alongside `sim` and `ol`), every text tier AA on every
+depot surface (`depot-contrast.test.ts`). Values are the command centre's; the colour
+section of `docs/DEPOT_UI_PATTERNS.md` says where each is defined.
 
 | Token | Value | Use |
 |---|---|---|
 | `depot-page` | `#02040a` | Page background (same as `void`) |
-| `depot-surface` | `#070f1d` | Panels, table header |
-| `depot-raised` | `#0a1626` | Hovered row, active nav item |
-| `depot-line` | `rgba(63,240,255,0.12)` | Hairline rules and borders |
-| `depot-ink` | `#dbe7f3` | Primary text and figures |
-| `depot-muted` | `#9bb0c7` | Secondary text |
-| `depot-faint` | `#6b84a0` | Tertiary labels (5.3:1 on page) |
+| `depot-surface` | `#070f1d` | Panels, table header (the dashboard panel fill) |
+| `depot-bar` | `#050b17` | Top bar (the command bar fill) |
+| `depot-raised` | `#061219` | Hover wash (`holo-glow` 6% over the page) |
+| `depot-selected` | `#081c23` | Selected row, current page (`holo-glow` 10%) |
+| `depot-line` | `rgba(63,240,255,0.2)` | Hairline rules and borders |
+| `depot-line-strong` | `rgba(63,240,255,0.35)` | Active or hero border |
+| `depot-ink` | `#d6ecf7` | Table text, notices (the dashboard's body ink) |
+| `depot-prose` | `#a6c0cc` | Sentences |
+| `depot-muted` | `#2da9b6` | Labels (`holo-glow` 70%, 7.3:1 on page) |
+| `depot-faint` | `#27929d` | Dimmest text (`holo-glow` 60%, 5.6:1 on page) |
+
+Figures and page titles are `holo-glow`.
 
 Existing tokens keep their meaning: `holo-glow` cyan for interactive and active,
 `alert-green` / `alert-amber` / `alert-crimson` for good / caution / critical.
@@ -67,7 +75,7 @@ Provenance tags (always text, never colour alone):
 | LIVE | `alert-green` | Straight from the feed |
 | DERIVED | `holo-glow` | Computed from live data |
 | MODELLED | `alert-amber` | Generated; never the word "simulated" |
-| REFERENCE | `depot-muted` | Curated static data |
+| REFERENCE | slate (`slate-400`) | Curated static data |
 
 ## Layout
 

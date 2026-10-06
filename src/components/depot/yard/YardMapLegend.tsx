@@ -1,5 +1,6 @@
 import { BUS_STATE_LABEL } from '@/lib/depot/labels';
 import { BUS_STATE_COLOUR, YARD_STATE_ORDER } from '@/lib/depot/yard/yardModel';
+import { DEPOT_PALETTE } from '@/lib/depot/palette';
 
 const SWATCH_PX = 12;
 const CENTRE = SWATCH_PX / 2;
@@ -12,14 +13,14 @@ function Dot({ colour, hollow }: { readonly colour: string; readonly hollow: boo
         cy={CENTRE}
         r={hollow ? 4 : 3.5}
         fill={hollow ? 'none' : colour}
-        stroke={hollow ? colour : '#02040a'}
+        stroke={hollow ? colour : DEPOT_PALETTE.page}
         strokeWidth={hollow ? 1.5 : 1}
       />
     </svg>
   );
 }
 
-const MARK_COLOUR = '#c7d2e0';
+const MARK_COLOUR = DEPOT_PALETTE.ink;
 
 /**
  * The map's key, on a 90% surface chip inside the map's bottom-left from 640px, above the
@@ -29,7 +30,7 @@ const MARK_COLOUR = '#c7d2e0';
  * key is words and a sentence: sans, never mono.
  */
 export const YARD_MAP_KEY_CLASS =
-  'mt-2 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 font-sans text-[11px] text-depot-muted ' +
+  'mt-2 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 font-sans text-[11px] text-depot-prose ' +
   'sm:absolute sm:bottom-8 sm:left-2 sm:z-10 sm:mt-0 sm:max-w-[calc(100%-4.5rem)] sm:rounded-[3px] ' +
   'sm:border sm:border-depot-line sm:bg-depot-surface/90 sm:px-2 sm:py-1';
 

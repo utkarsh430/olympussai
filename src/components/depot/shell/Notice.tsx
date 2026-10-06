@@ -32,7 +32,7 @@ export function Notice({ status, word, children }: NoticeProps) {
       data-testid="depot-notice"
       data-status={status}
       role={status === 'critical' ? 'alert' : undefined}
-      className={`mb-6 flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1 border-l-2 bg-depot-surface px-3 py-2 ${RULE[status]}`}
+      className={`mb-6 flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1 depot-lit border-l-2 bg-depot-surface px-3 py-2 ${RULE[status]}`}
     >
       <span className={`font-mono text-[11px] font-semibold uppercase tracking-[0.12em] ${WORD_TONE[status]}`}>
         {word ?? status.toUpperCase()}

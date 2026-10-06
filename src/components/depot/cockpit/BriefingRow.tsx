@@ -31,7 +31,7 @@ export function BriefingRow({
         <h2 id="depot-briefing-row" className="depot-label">
           Depot briefing
         </h2>
-        <p className="min-w-0 basis-full font-sans text-xs text-depot-muted sm:flex-1 sm:basis-auto sm:truncate">
+        <p className="min-w-0 basis-full font-sans text-xs text-depot-prose sm:flex-1 sm:basis-auto sm:truncate">
           A short written summary of these figures. Advisory: it describes, it does not instruct.
         </p>
         <button type="button" className="hud-button shrink-0" aria-expanded={open} aria-controls={bodyId} onClick={toggle}>

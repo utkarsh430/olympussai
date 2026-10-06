@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type RefObject } from 'react';
 import { DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM, MAP_DARK_STYLE } from '@/lib/constants';
 import { onMapsAuthFailure } from '@/lib/maps/authFailure';
 import { getMapsLoader, isMapsConfigured } from '@/lib/maps/loader';
+import { DEPOT_PALETTE } from '@/lib/depot/palette';
 
 export type BaseMapStatus = 'loading' | 'ready' | 'error';
 
@@ -11,7 +12,7 @@ export type BaseMapStatus = 'loading' | 'ready' | 'error';
 export const BASE_MAP_LOAD_TIMEOUT_MS = 15_000;
 
 /** The page's own canvas colour, so the map area never flashes white. */
-const MAP_BACKGROUND = '#02040a';
+const MAP_BACKGROUND = DEPOT_PALETTE.page;
 
 export interface BaseMapOptions {
   /** The sentence after every failure: where the map's content is also shown. */

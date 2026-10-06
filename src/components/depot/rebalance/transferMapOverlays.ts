@@ -3,6 +3,7 @@ import type { BalanceClass } from '@/lib/depot/rebalance/rebalanceModel';
 import { removeMapListeners } from '@/lib/maps/listeners';
 import { BALANCED_COLOUR, DEFICIT_COLOUR, SURPLUS_COLOUR } from './BalanceBar';
 import { ARC_COLOUR } from './TransferMapLegend';
+import { DEPOT_PALETTE } from '@/lib/depot/palette';
 
 /*
  * The transfer map's overlays: node symbols by balance class (shape as well
@@ -16,7 +17,8 @@ export interface Overlay<T> {
   readonly listeners: Handle[];
 }
 
-export const SELECTED = '#3ff0ff';
+/** Near-white ink, not cyan: a surplus depot is cyan, so the selected ring must differ. */
+export const SELECTED = DEPOT_PALETTE.ink;
 const SHAPE: Readonly<Record<BalanceClass, { path: string; scale: number; fill: string }>> = {
   surplus: { path: 'M -1 -1 L 1 -1 L 1 1 L -1 1 Z', scale: 6, fill: SURPLUS_COLOUR },
   deficit: { path: 'M -1.2 -1 L 1.2 -1 L 0 1.2 Z', scale: 7, fill: DEFICIT_COLOUR },
@@ -30,7 +32,7 @@ export function nodeIcon(cls: BalanceClass, selected: boolean): google.maps.Symb
     scale: s.scale,
     fillColor: s.fill,
     fillOpacity: 1,
-    strokeColor: selected ? SELECTED : '#02040a',
+    strokeColor: selected ? SELECTED : DEPOT_PALETTE.page,
     strokeWeight: selected ? 2.5 : 1,
   };
 }

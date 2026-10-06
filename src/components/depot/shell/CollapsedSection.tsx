@@ -41,7 +41,7 @@ function Toggle(props: {
 }) {
   const { open, panelId, onClick, label, count, row } = props;
   const look = row
-    ? 'py-1 font-sans text-sm text-depot-muted'
+    ? 'py-1 font-sans text-sm text-depot-prose'
     : 'font-mono text-[11px] uppercase tracking-[0.16em] text-depot-muted';
   return (
     <button

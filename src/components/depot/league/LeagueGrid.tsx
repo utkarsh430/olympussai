@@ -172,7 +172,7 @@ export function LeagueGrid({ rows, grouped, selectedId, onSelect, page, onPage, 
             key={c.key}
             style={c.frozen ? FROZEN_STYLE[c.frozen] : undefined}
             className={`whitespace-nowrap !py-1.5 ${cellClass(c)} ${
-              c.frozen ? `${selected ? 'bg-depot-raised' : 'bg-depot-page'} group-hover:bg-depot-raised` : ''
+              c.frozen ? `${selected ? 'bg-depot-selected' : 'bg-depot-page'} group-hover:bg-depot-raised` : ''
             }`}
           >
             <Boxed column={c}>
