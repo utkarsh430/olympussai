@@ -34,7 +34,15 @@ import {
   detectDepotExceptions,
 } from '../exceptions';
 import { compareText } from '../exceptions/depotExceptions';
+import { windowedOnRoadShares, type WindowedOnRoadShares } from '../sim/requirement';
+import { operatingDateOf } from '../sim/seed';
 import { summariseDepots } from './aggregate';
+import {
+  defaultPeakShareStore,
+  holdPeakShares,
+  resetPeakShareStore,
+  type PeakShareStore,
+} from './peakShareHold';
 
 export interface DepotExceptions {
   readonly depot: readonly DepotException[];
@@ -48,13 +56,15 @@ export interface DepotExceptions {
  * detects anything again. Maps are keyed by registration or by depot id
  * (`UNASSIGNED_DEPOT_ID` for buses with no home depot).
  *
- * Two things reach back past this snapshot, each through one small holder:
+ * Three things reach back past this snapshot, each through one small holder:
  * `scores` (and the peer-comparison depot exceptions read from them) are summed
- * over the rolling window in score/windowStore.ts, and `yards` carry yard
- * continuity from infer/yardMemory.ts. Both are read once, when the snapshot is
- * first analysed, and then held with the rest; everything else is this
- * snapshot alone. The tops of those two modules say exactly what depends on
- * history and what a repeated, stale, older or first snapshot does.
+ * over the rolling window in score/windowStore.ts, `yards` carry yard
+ * continuity from infer/yardMemory.ts, and `requirementShares` hold each
+ * depot's busiest windowed on-road share so far in the operating date
+ * (live/peakShareHold.ts). All are read once, when the snapshot is first
+ * analysed, and then held with the rest; everything else is this snapshot
+ * alone. The tops of those modules say exactly what depends on history and
+ * what a repeated, stale, older or first snapshot does.
  */
 export interface SnapshotAnalysis {
   readonly feedNow: string | null;
@@ -66,6 +76,12 @@ export interface SnapshotAnalysis {
   readonly scoresById: ReadonlyMap<string, DepotScore>;
   /** The widest window the scores were summed over: what a network screen states. */
   readonly scoreWindow: ScoreWindow;
+  /**
+   * The on-road shares the modelled requirement reads: per depot, the busiest
+   * windowed share so far in the operating date. The modelled day and the
+   * transfer plan both read this one map, so they rest on one requirement.
+   */
+  readonly requirementShares: WindowedOnRoadShares;
   /** After yard continuity: the one set of yards every location and page uses. */
   readonly yards: ReadonlyMap<string, Yard>;
   /**
@@ -123,15 +139,42 @@ function exceptionsByDepot(
 export interface AnalysisStores {
   readonly scoreWindow: ScoreWindowStore;
   readonly yardMemory: YardMemoryStore;
+  /** Absent: the requirement reads this snapshot's windowed shares alone. */
+  readonly peakShares?: PeakShareStore;
 }
 
 function defaultStores(): AnalysisStores {
-  return { scoreWindow: defaultScoreWindowStore(), yardMemory: defaultYardMemoryStore() };
+  return {
+    scoreWindow: defaultScoreWindowStore(),
+    yardMemory: defaultYardMemoryStore(),
+    peakShares: defaultPeakShareStore(),
+  };
+}
+
+/** The feed's operating date, as every view takes it; null when the snapshot has none. */
+function feedDateOf(view: FleetSnapshotView): string | null {
+  try {
+    return operatingDateOf(view.feedNow, view.fetchedAt);
+  } catch {
+    // Neither time carries a date: nothing can be held against a date.
+    return null;
+  }
+}
+
+function requirementSharesOf(
+  view: FleetSnapshotView,
+  scores: readonly DepotScore[],
+  store: PeakShareStore | undefined,
+): WindowedOnRoadShares {
+  const windowed = windowedOnRoadShares(scores);
+  // The recorded fixture never reads or writes a store, as with the other two.
+  if (store === undefined || view.source === 'fixture') return windowed;
+  return holdPeakShares(store, windowed, feedDateOf(view));
 }
 
 /**
  * Analyses one snapshot against explicit stores, without the memo. Each call
- * offers the snapshot to both stores, so call it once per snapshot.
+ * offers the snapshot to every store, so call it once per snapshot.
  */
 export function analyseWith(view: FleetSnapshotView, stores: AnalysisStores): SnapshotAnalysis {
   const { rows, feedNow } = view;
@@ -181,6 +224,7 @@ export function analyseWith(view: FleetSnapshotView, stores: AnalysisStores): Sn
     scores,
     scoresById,
     scoreWindow: windowed.window,
+    requirementShares: requirementSharesOf(view, scores, stores.peakShares),
     yards,
     ...(seen === undefined ? {} : { yardSnapshotsSeen: seen }),
     rowsByDepot: groupBy(rows, (r) => homeOf(r.depotId)),
@@ -198,7 +242,7 @@ export function analyseWith(view: FleetSnapshotView, stores: AnalysisStores): Sn
  * Keyed on the identity of the snapshot's rows array, not on its envelope. The
  * live snapshot serves one fetch as `live`, then `cache`, then (during an
  * outage) stale last-good, all with the same rows: one analysis covers them
- * all, and the two stores are offered each snapshot exactly once. A WeakMap
+ * all, and the stores are offered each snapshot exactly once. A WeakMap
  * lets an analysis go when its snapshot is no longer held.
  */
 let analyses = new WeakMap<readonly DepotBusRow[], SnapshotAnalysis>();
@@ -225,13 +269,14 @@ export function forgetWithAnalyses(forget: () => void): void {
 /**
  * Test seam: a process that has just started. Forgets every memoised analysis
  * (and with them every memoised view body), every memo registered through
- * `forgetWithAnalyses`, the score window and the yards.
+ * `forgetWithAnalyses`, the score window, the yards and the held shares.
  */
 export function resetAnalysisForTests(): void {
   analyses = new WeakMap();
   resetHooks.forEach((forget) => forget());
   resetScoreWindowStore();
   resetYardMemoryStore();
+  resetPeakShareStore();
 }
 
 /**
