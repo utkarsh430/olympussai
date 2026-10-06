@@ -3,9 +3,19 @@ import type { FieldCoverage } from '@/lib/depot/types';
 
 /** The word carries the meaning; only Sparse takes the warning tone beside it. */
 const WORD_TONE: Readonly<Record<CoverageWord, string>> = {
-  Complete: 'text-depot-faint',
+  Complete: 'text-alert-green',
   Partial: 'text-depot-muted',
   Sparse: 'text-alert-amber',
+};
+
+/**
+ * Each bar in its word's colour, as the dashboard's health bars are: a complete field
+ * green, a partial one cyan, a sparse one amber, so a 14% bar never looks like a full one.
+ */
+export const BAR_TONE: Readonly<Record<CoverageWord, string>> = {
+  Complete: 'depot-tone-green',
+  Partial: 'depot-tone-cyan',
+  Sparse: 'depot-tone-amber',
 };
 
 /*
@@ -38,7 +48,11 @@ export function CoverageBars({ coverage }: { readonly coverage: readonly FieldCo
             {row.word}
           </span>
           <span aria-hidden className="depot-bar-track col-span-2 overflow-hidden sm:col-span-1">
-            <span className="depot-bar-fill" style={{ width: `${row.share * 100}%` }} />
+            <span
+              className={`depot-bar-fill ${BAR_TONE[row.word]}`}
+              data-testid="depot-coverage-fill"
+              style={{ width: `${row.share * 100}%` }}
+            />
           </span>
           {/* Count and share in fixed nowrap columns, so every row is one 20px line. */}
           <span className="whitespace-nowrap font-mono text-[13px] tabular-nums text-depot-muted sm:text-right">
