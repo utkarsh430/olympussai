@@ -33,12 +33,14 @@ export function isRecentlyHeard(ageMin: number | null): boolean {
  *  2. no signal, no fix time, or fix older than 6 h    -> dark
  *  3. last fix at or below the moving speed            -> standing
  *  4. moving, carrying a route, scheduled for the feed
- *     date, and heard within the reporting window      -> in_service
+ *     date or on a trip whose scheduled start and end
+ *     span the feed time, and heard within the
+ *     reporting window                                 -> in_service
  *  5. any other moving bus                             -> on_road
  *
  * "In service" is a claim about now, so it needs evidence from now: a schedule
- * for the feed date (not yesterday's left on the row) and a report inside the
- * reporting window. A state is what the bus last reported; whether that report
+ * for the feed date or one still running at the feed time (an overnight trip,
+ * not yesterday's left on the row) and a report inside the reporting window. A state is what the bus last reported; whether that report
  * is recent enough to describe the present is `notHeardMinutes`.
  */
 export function classifyBusState(row: Readonly<DepotBusRow>, feedNow: string | null): BusOpState {
@@ -55,9 +57,21 @@ export function classifyBusState(row: Readonly<DepotBusRow>, feedNow: string | n
 
   const moving = row.speedKmph !== null && row.speedKmph > MOVING_SPEED_KMPH;
   if (!moving) return 'standing';
-  const inService =
-    Boolean(row.routeName) && isScheduledForFeedDate(row, feedNow) && isRecentlyHeard(age);
+  const scheduled = isScheduledForFeedDate(row, feedNow) || isOnScheduledTrip(row, feedNow);
+  const inService = Boolean(row.routeName) && scheduled && isRecentlyHeard(age);
   return inService ? 'in_service' : 'on_road';
+}
+
+/**
+ * The feed time falls between the trip's scheduled start and end (M2). An
+ * overnight trip that started before midnight is not "for the feed date",
+ * yet it is the bus's current trip until its scheduled end. No grace is added
+ * past the end: none is defined for an end, only for a push-out.
+ */
+function isOnScheduledTrip(row: Readonly<DepotBusRow>, feedNow: string | null): boolean {
+  if (row.scheduledStart === null || row.scheduledEnd === null || feedNow === null) return false;
+  const now = Date.parse(feedNow);
+  return Date.parse(row.scheduledStart) <= now && now <= Date.parse(row.scheduledEnd);
 }
 
 /**

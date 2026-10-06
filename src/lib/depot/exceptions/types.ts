@@ -15,6 +15,13 @@ export type BusExceptionKind = 'long_dark' | 'power_cut' | 'tamper_code' | 'emer
 
 export type ExceptionKind = DepotExceptionKind | BusExceptionKind;
 
+/**
+ * What an exception's figure describes: `window` is compared over the rolling
+ * score window (the peer comparisons), `feed_time` is the snapshot as of the
+ * feed time (counts of buses, and every bus exception).
+ */
+export type ExceptionBasis = 'window' | 'feed_time';
+
 export interface DepotException {
   /** Stable: `<kind>:<depotId>`. */
   readonly id: string;
@@ -28,6 +35,13 @@ export interface DepotException {
   readonly z: number | null;
   readonly affected: number;
   readonly fleet: number;
+  /**
+   * `window` for the peer comparisons: `value`, `peerMedian` and `z` are over
+   * the score window, while `affected` and `fleet` are as of the feed time (so
+   * `affected` can be 0). `feed_time` for `power_cut_cluster`. Always set by
+   * the detector.
+   */
+  readonly basis?: ExceptionBasis;
 }
 
 export interface BusException {
@@ -41,6 +55,8 @@ export interface BusException {
   readonly lastSeen: string | null;
   /** Extra fact for the row, e.g. the raw tamper code. */
   readonly detail: string | null;
+  /** Always `feed_time`: a bus exception is the bus as of the feed time. Always set by the detector. */
+  readonly basis?: ExceptionBasis;
 }
 
 export interface ExceptionReport {

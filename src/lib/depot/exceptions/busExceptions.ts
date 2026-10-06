@@ -2,7 +2,7 @@ import type { DepotBusRow } from '@/models/depotLive';
 import type { BusOpState, DepotSummary } from '../types';
 import { gpsAgeMinutes } from '../infer/busState';
 import { LONG_DARK_AFTER_MIN } from '../infer/thresholds';
-import { NORMAL_TAMPER_CODE, SEVERITY_ORDER } from './config';
+import { EXCEPTION_BASIS, NORMAL_TAMPER_CODE, SEVERITY_ORDER } from './config';
 import { compareText } from './depotExceptions';
 import type { BusException, BusExceptionKind, ExceptionSeverity } from './types';
 
@@ -81,6 +81,7 @@ export function detectBusExceptions(
         severity,
         lastSeen: row.gpsTimestamp,
         detail,
+        basis: EXCEPTION_BASIS[kind],
       });
     }
   }

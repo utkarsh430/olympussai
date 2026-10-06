@@ -284,11 +284,14 @@ describe('buildParkingResponse', () => {
     expect(noBuses.state).toBe('no_buses');
     expect(noBuses.order).toBeNull();
     expect(noBuses.droppedRows).toBeGreaterThan(0);
-    // No yard can be learned from buses 15 km apart.
+    // No yard can be learned from buses 15 km apart. A fresh process: at one feed time
+    // a re-fetch returns the yard already decided (S50c), so it would keep the one above.
+    resetAnalysisForTests();
     const noYard = parking(scattered());
     expect(noYard.state).toBe('no_yard');
     expect(noYard.order).toBeNull();
     expect(noYard.droppedRows).toBe(0);
+    resetAnalysisForTests();
     expect(parking(parked()).state).toBe('planned');
   });
 

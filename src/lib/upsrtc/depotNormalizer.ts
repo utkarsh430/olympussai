@@ -120,17 +120,32 @@ export function normalizeDepotRows(payload: unknown): NormalizeDepotResult {
   };
 }
 
-/** Newest `receivedAt` across the rows, or null when none carries one. */
+/**
+ * How far the feed clock may run ahead of the snapshot's 99th-percentile
+ * receive time. Upstream already sends IST values stamped Z (+5:30) and the
+ * odd garbage year; one such row must not move the whole module's clock.
+ */
+export const FEED_CLOCK_MAX_LEAD_MIN = 10;
+const FEED_CLOCK_PERCENTILE = 0.99;
+const MS_PER_MINUTE = 60_000;
+
+/**
+ * The feed's own clock (ruling S50a): the newest `receivedAt` that is no more
+ * than FEED_CLOCK_MAX_LEAD_MIN ahead of the 99th-percentile receive time
+ * (nearest rank, so with fewer than 100 rows that is the newest row and the
+ * clock is simply the newest time). Rows beyond the lead are ignored for the
+ * clock only; their own age is still measured against it. Null when no row
+ * carries a usable receive time. No wall clock is read.
+ */
 export function deriveFeedNow(rows: readonly DepotBusRow[]): string | null {
-  let newest: string | null = null;
-  let newestTime = -Infinity;
-  for (const row of rows) {
-    if (!row.receivedAt) continue;
-    const time = Date.parse(row.receivedAt);
-    if (time > newestTime) {
-      newestTime = time;
-      newest = row.receivedAt;
-    }
-  }
-  return newest;
+  const timed = rows
+    .filter((row): row is DepotBusRow & { receivedAt: string } => Boolean(row.receivedAt))
+    .map((row) => ({ iso: row.receivedAt, ms: Date.parse(row.receivedAt) }))
+    .filter(({ ms }) => !Number.isNaN(ms))
+    .sort((a, b) => a.ms - b.ms);
+  const percentile = timed[Math.ceil(FEED_CLOCK_PERCENTILE * timed.length) - 1];
+  if (percentile === undefined) return null;
+  const ceilingMs = percentile.ms + FEED_CLOCK_MAX_LEAD_MIN * MS_PER_MINUTE;
+  const accepted = timed.filter(({ ms }) => ms <= ceilingMs);
+  return accepted[accepted.length - 1]?.iso ?? null;
 }

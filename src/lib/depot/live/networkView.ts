@@ -1,4 +1,5 @@
 import type { DepotFeedEnvelope, DepotNetworkResponse } from '../api';
+import { EXCEPTION_BASIS } from '../exceptions/config';
 import type { FleetSnapshotView } from '../repositories/types';
 import { feedEnvelope, memoiseBody } from './analysis';
 import { networkKpis } from './aggregate';
@@ -15,6 +16,7 @@ const networkBody = memoiseBody((view, analysis): NetworkBody => ({
   scoreWindow: analysis.scoreWindow,
   exceptionCounts: analysis.report.counts,
   exceptionSeverityCounts: analysis.exceptionSeverityCounts,
+  exceptionBasis: EXCEPTION_BASIS,
 }));
 
 /**

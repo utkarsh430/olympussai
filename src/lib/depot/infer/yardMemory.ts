@@ -6,15 +6,18 @@ import { YARD_HOLD_MAX_MS, continueYard, type RememberedYard } from './yardConti
  * The holder of yard continuity (ruling S43): per depot, the last yard the
  * process established or held. The rule itself is in yardContinuity.ts.
  *
- *  - Newer feed time than the last one seen: every depot in the snapshot is
- *    decided against its remembered yard and the memory is updated.
- *  - The same feed time again: decided against the memory, which is not
- *    written, so a repeated snapshot changes nothing.
- *  - An older feed time, or none: the single-snapshot rule alone; the memory
- *    is neither read nor written, so it is never fed out of order.
+ *  - Newer feed time than the last one seen: entries too old to hold are
+ *    pruned FIRST, then every depot in the snapshot is decided against its
+ *    remembered yard and the memory is updated.
+ *  - The same feed time again (a re-fetch with new rows): each depot gets
+ *    exactly the yard decided at that feed time, or none if none was; the
+ *    memory is not written, so polls of one feed time agree (ruling S50c).
+ *  - An older feed time: decided against the memory, which is not written,
+ *    so it is never fed out of order and a late response still sees the yard.
+ *  - No usable feed time: the single-snapshot rule alone.
  *  - A process that has just started remembers nothing: the full rule applies.
- *  - The fixture is one constant snapshot, so it simply keeps the yards the
- *    rule gives it.
+ *  - The fixture is months older than live data, so an entry from either is
+ *    more than the hold cap away from the other and is not consulted.
  * Bounds: one entry per depot, dropped when the depot's yard has not been seen
  * for YARD_HOLD_MAX_HOURS of feed time, and never more than
  * YARD_MEMORY_MAX_DEPOTS entries (the least recently seen go first).
@@ -25,10 +28,12 @@ export const YARD_MEMORY_MAX_DEPOTS = 1000;
 export interface YardMemoryStore {
   lastFeedMs: number | null;
   readonly byDepot: Map<string, RememberedYard>;
+  /** Depots decided at `lastFeedMs`, so a repeat can tell "no yard" from "never seen". */
+  decidedAtLast: ReadonlySet<string>;
 }
 
 export function createYardMemoryStore(): YardMemoryStore {
-  return { lastFeedMs: null, byDepot: new Map() };
+  return { lastFeedMs: null, byDepot: new Map(), decidedAtLast: new Set() };
 }
 
 const GLOBAL_KEY = '__depotYardMemoryStore';
@@ -45,6 +50,7 @@ export function defaultYardMemoryStore(): YardMemoryStore {
 export function resetYardMemoryStore(store: YardMemoryStore = defaultYardMemoryStore()): void {
   store.lastFeedMs = null;
   store.byDepot.clear();
+  store.decidedAtLast = new Set();
 }
 
 function rowsByDepot(rows: readonly DepotBusRow[]): Map<string, DepotBusRow[]> {
@@ -81,29 +87,32 @@ export function applyYardContinuity(
   feedNow: string | null,
 ): ReadonlyMap<string, Yard> {
   const feedMs = feedNow === null ? Number.NaN : Date.parse(feedNow);
+  if (feedNow === null || Number.isNaN(feedMs)) return new Map(ruleYards);
   const last = store.lastFeedMs;
-  if (feedNow === null || Number.isNaN(feedMs) || (last !== null && feedMs < last)) {
-    return new Map(ruleYards);
-  }
+  const writes = last === null || feedMs > last;
   const isRepeat = feedMs === last;
+  if (writes) prune(store, feedMs);
   const groups = rowsByDepot(rows);
   const yards = new Map<string, Yard>();
   for (const id of [...groups.keys()].sort()) {
+    const remembered = store.byDepot.get(id) ?? null;
+    if (isRepeat && remembered === null && store.decidedAtLast.has(id)) continue;
     const decision = continueYard(
-      store.byDepot.get(id) ?? null,
+      remembered,
       ruleYards.get(id) ?? null,
       groups.get(id) ?? [],
       feedNow,
       feedMs,
     );
     if (decision.yard) yards.set(id, decision.yard);
-    if (isRepeat) continue;
+    if (!writes) continue;
     if (decision.remembered) store.byDepot.set(id, decision.remembered);
     else store.byDepot.delete(id);
   }
-  if (!isRepeat) {
+  if (writes) {
     prune(store, feedMs);
     store.lastFeedMs = feedMs;
+    store.decidedAtLast = new Set(groups.keys());
   }
   return yards;
 }

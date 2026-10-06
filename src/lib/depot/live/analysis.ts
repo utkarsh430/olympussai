@@ -132,10 +132,13 @@ export function analyseWith(view: FleetSnapshotView, stores: AnalysisStores): Sn
   const stateOf = (r: DepotBusRow): BusOpState =>
     states.get(r.registrationNumber) ?? classifyBusState(r, feedNow);
   const depots = summariseDepots(rows, feedNow);
-  const windowed = observeDepots(stores.scoreWindow, depots, feedNow);
-  const scores = scoreDepots(depots, windowed.values).map(
-    (score): DepotScore => ({ ...score, window: windowed.windows.get(score.depotId) }),
-  );
+  const windowed = observeDepots(stores.scoreWindow, depots, feedNow, {
+    fixture: view.source === 'fixture',
+  });
+  const scores = scoreDepots(depots, windowed.values).map((score): DepotScore => {
+    const window = windowed.windows.get(score.depotId);
+    return { ...score, window, samples: window?.samples };
+  });
   const yards = applyYardContinuity(stores.yardMemory, rows, inferYards(rows), feedNow);
   const locations = new Map(rows.map((r) => [r.registrationNumber, locateBus(r, yards)]));
   const locate = (r: DepotBusRow): LocatedBus =>

@@ -117,6 +117,7 @@ describe('depot exceptions', () => {
       z: -2,
       affected: 8,
       fleet: 20,
+      basis: 'window',
     });
   });
 
@@ -230,6 +231,7 @@ describe('bus exceptions', () => {
       severity: 'warning',
       lastSeen: old,
       detail: null,
+      basis: 'feed_time',
     });
   });
 

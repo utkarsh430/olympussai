@@ -60,7 +60,21 @@ to per-request nonces when practical.
 The failed-login limiter is in-memory / per-instance — best-effort on serverless.
 For a hard control, back it with Redis/Upstash. See [`AUTH.md`](./AUTH.md).
 
-## 8. Future: `project.olympuss.us`
+## 8. Depot module state note
+
+The depot routes keep two pieces of state between feed snapshots, both
+in-memory / per-instance: the rolling score window (the efficiency index, ranks
+and peer-comparison exceptions are summed over the last 20 minutes of feed
+time) and the yard memory (an established yard is held while its buses still
+stand in it). With several instances or cold starts each has its own, so the
+same feed can give different figures from one request to the next: a 1-sample
+index on one instance and a 20-minute one on another, or a held yard on one and
+no yard on another. The responses say so (`scoreWindow.samples` and
+`coveredMin`, `yard.heldSince`), but they do not agree across instances.
+For stable depot figures, serve the depot routes from one long-lived Node
+process (`next start`) until this state is shared (e.g. Redis/Upstash).
+
+## 9. Future: `project.olympuss.us`
 
 The protected area is already isolated under `/project/upsrtc` with its own
 layout, auth guard, and API namespace. Moving it to a `project.` subdomain later

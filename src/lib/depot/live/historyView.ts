@@ -4,6 +4,8 @@ import { isValidDepotId } from '../ids';
 import { getRepositories } from '../repositories';
 import type { FleetSnapshotView } from '../repositories/types';
 import { componentValues } from '../score/dei';
+import type { DeiComponentKey } from '../score/types';
+import type { ComponentValues } from '../score/window';
 import { operatingDateOf } from '../sim/seed';
 import type { HistoryScope, MetricKey } from '../sim/types';
 import { median, ratio } from '../stats/robust';
@@ -84,6 +86,21 @@ function networkRates(depots: readonly DepotSummary[]): Rates & { readonly avail
   };
 }
 
+/** A depot's component values from its score (summed over the window), else this snapshot's. */
+function windowedComponentValues(analysis: SnapshotAnalysis, depot: DepotSummary): ComponentValues {
+  const components = analysis.scoresById.get(depot.id)?.components;
+  if (!components) return componentValues(depot);
+  const valueOf = (key: DeiComponentKey): number | null =>
+    components.find((c) => c.key === key)?.value ?? null;
+  return {
+    onRoad: valueOf('onRoad'),
+    offRoad: valueOf('offRoad'),
+    dark: valueOf('dark'),
+    scheduled: valueOf('scheduled'),
+    deviceHealth: valueOf('deviceHealth'),
+  };
+}
+
 function networkIndex(analysis: SnapshotAnalysis): number | null {
   const indices = analysis.scores.flatMap((s) => (s.ranked && s.index !== null ? [s.index] : []));
   return median(indices);
@@ -100,7 +117,8 @@ function liveValue(
     if (!depot) return NO_DEPOT;
     if (metric === 'index') return analysis.scoresById.get(depot.id)?.index ?? NO_INDEX;
     if (metric === 'available') return depot.fleet - depot.states.offRoad;
-    const values = componentValues(depot);
+    // The windowed values the league breakdown shows (M6), not this snapshot's alone.
+    const values = windowedComponentValues(analysis, depot);
     const value = { onRoadShare: values.onRoad, offRoadRate: values.offRoad, darkRate: values.dark };
     return value[metric] ?? NO_VALUE;
   }

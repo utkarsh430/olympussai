@@ -137,6 +137,7 @@ describe('buildNetworkResponse', () => {
     expect(Object.keys(res).sort()).toEqual([
       'coverage',
       'depots',
+      'exceptionBasis',
       'exceptionCounts',
       'exceptionSeverityCounts',
       'feedNow',

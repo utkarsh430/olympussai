@@ -101,17 +101,19 @@ export function pruneSamples(
 }
 
 /**
- * The list after seeing `sample`: pruned at its feed time and with it appended.
- * A sample that is not newer than the last one held adds nothing and prunes
- * nothing, so a repeated, stale or older snapshot leaves the list exactly as it was.
+ * The list after seeing `sample` (ruling S50b): inserted in feed-time order,
+ * replacing a sample with the same feed time (a re-fetch with new rows), then
+ * pruned at the newest feed time held. The result depends only on which
+ * samples were seen, never on the order they arrived in.
  */
-export function appendSample(
+export function insertSample(
   samples: readonly DepotSample[],
   sample: DepotSample,
 ): readonly DepotSample[] {
-  const last = samples[samples.length - 1];
-  if (last !== undefined && sample.feedMs <= last.feedMs) return samples;
-  return pruneSamples([...samples, sample], sample.feedMs);
+  const others = samples.filter((s) => s.feedMs !== sample.feedMs);
+  const ordered = [...others, sample].sort((a, b) => a.feedMs - b.feedMs);
+  const newestMs = ordered[ordered.length - 1]?.feedMs ?? sample.feedMs;
+  return pruneSamples(ordered, newestMs);
 }
 
 /** A depot's component values over its samples: ratios of summed counts. */
@@ -119,11 +121,18 @@ export function windowedValues(samples: readonly DepotSample[]): ComponentValues
   return valuesOfCounts(sumCounts(samples));
 }
 
-/** The window a figure was computed over, for the screen to state. */
+/**
+ * The window a figure was computed over, for the screen to state. `coveredMin`
+ * is the whole minutes from the first sample to the last: what the figure
+ * actually spans, where `lengthMin` is only the configured length.
+ */
 export function windowOf(samples: readonly DepotSample[]): ScoreWindow {
+  const first = samples[0];
+  const last = samples[samples.length - 1];
   return {
     lengthMin: SCORE_WINDOW_MIN,
-    since: samples[0]?.feedNow ?? null,
+    since: first?.feedNow ?? null,
     samples: samples.length,
+    coveredMin: first && last ? Math.floor((last.feedMs - first.feedMs) / MS_PER_MINUTE) : 0,
   };
 }
