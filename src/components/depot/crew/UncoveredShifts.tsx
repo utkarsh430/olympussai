@@ -2,12 +2,19 @@
 
 import { useState } from 'react';
 import { DataTable, type Column } from '@/components/depot/shell/DataTable';
-import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
+import { Pager } from '@/components/depot/shell/LongLists';
+import { SectionLabel } from '@/components/depot/shell/SectionLabel';
 import type { UncoveredShiftRow } from '@/lib/depot/crew/api';
-import { pageOf, shiftLabel, shortfallText, uncoveredCountSentence } from '@/lib/depot/crew/crewPageModel';
+import {
+  NO_UNCOVERED_SENTENCE,
+  shiftLabel,
+  shortfallText,
+  uncoveredCountSentence,
+} from '@/lib/depot/crew/crewPageModel';
 import { formatMinute } from '@/lib/depot/duties/dutyBoardModel';
-import { Pager } from './Pager';
+import { PAGE_ROWS, pageRange } from '@/lib/depot/listPaging';
 
+/** Per-role reasons are the one text column; no slot id is needed here. */
 const COLUMNS: readonly Column<UncoveredShiftRow>[] = [
   { key: 'shift', header: 'Shift', render: (row) => shiftLabel(row) },
   { key: 'route', header: 'Route', render: (row) => row.route },
@@ -25,35 +32,36 @@ export interface UncoveredShiftsProps {
   readonly total: number;
 }
 
-const PAGE_SIZE = 20;
-
-/** Shifts with no crew and why, most pressing first (short of both roles, then earliest). */
+/**
+ * One green status line when every shift has its crew; otherwise the shifts with no
+ * crew and the per-role reason, most pressing first, a page of 25 at a time.
+ */
 export function UncoveredShifts({ shifts, total }: UncoveredShiftsProps) {
   const [requested, setRequested] = useState(0);
-  const { page, pageCount, rows } = pageOf(shifts, requested, PAGE_SIZE);
+  const range = pageRange(requested, shifts.length, PAGE_ROWS);
   return (
     <section aria-labelledby="depot-crew-uncovered-heading" className="min-w-0 animate-rise">
-      <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-        <h2 id="depot-crew-uncovered-heading" className="depot-section-label !mb-0">
-          Uncovered shifts
-        </h2>
-        <ProvenanceBadge provenance="modelled" />
-      </div>
-      <DataTable
-        columns={COLUMNS}
-        rows={rows}
-        rowKey={rowKey}
-        caption="Uncovered shifts, most pressing first"
-        emptyMessage="Every shift has a driver and a conductor on the modelled crew."
-      />
-      {total > 0 ? (
-        <Pager
-          page={page}
-          pageCount={pageCount}
-          summary={uncoveredCountSentence(shifts.length, total)}
-          onPage={setRequested}
-        />
-      ) : null}
+      <SectionLabel id="depot-crew-uncovered-heading" label="Uncovered shifts" count={total} />
+      {total === 0 ? (
+        <p className="flex items-center gap-2 font-sans text-[14px] text-depot-ink" role="status">
+          <span aria-hidden className="h-1.5 w-1.5 shrink-0 bg-alert-green" />
+          {NO_UNCOVERED_SENTENCE}
+        </p>
+      ) : (
+        <>
+          <p className="depot-prose mb-2">{uncoveredCountSentence(shifts.length, total)}</p>
+          <DataTable
+            columns={COLUMNS}
+            rows={shifts.slice(range.start, range.end)}
+            rowKey={rowKey}
+            caption="Uncovered shifts, most pressing first"
+            fixedRows
+            freezeFirstColumn
+            overflowCue
+          />
+          <Pager page={range.page} total={shifts.length} onPage={setRequested} />
+        </>
+      )}
     </section>
   );
 }

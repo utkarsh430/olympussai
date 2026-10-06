@@ -1,78 +1,99 @@
-import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
 import type { AvailabilityCounts } from '@/lib/depot/crew/api';
 import {
-  HATCHED_AVAILABILITY,
+  AVAILABILITY_PATTERN,
+  SHORTFALL_EXPLANATION,
   availabilitySegments,
   availabilityText,
+  coverageLine,
   totalSlots,
+  type CoverageInput,
+  type SegmentPattern,
 } from '@/lib/depot/crew/crewPageModel';
-import type { CrewAvailability, CrewRole } from '@/lib/depot/crew/types';
+import type { CrewAvailability, CrewRole, RoleShortfall } from '@/lib/depot/crew/types';
 import { formatCount } from '@/lib/depot/format';
+import { SectionLabel } from '@/components/depot/shell/SectionLabel';
 
 /*
- * One segment style per availability word. The word and the count are always
- * written beside the bar, so the fill only reinforces them; the fills are one
- * accent for "available", a paler accent for training, two greys and an outline.
+ * One texture per availability word, so the segments differ without colour: the
+ * accent solid, a solid grey, 45 degree hatching, dots and vertical stripes (the
+ * same patterns on the bar and on the legend swatch). The legend line writes the
+ * word and the count, so the texture only reinforces them.
  */
-const FILL: Readonly<Record<CrewAvailability, string>> = {
-  available: 'bg-holo-glow',
-  weekly_off: 'bg-depot-muted',
-  leave: 'bg-depot-faint',
-  training: 'bg-holo-glow/40',
-  absent: 'border border-depot-muted bg-depot-raised',
+const PATTERN_CLASS: Readonly<Record<SegmentPattern, string>> = {
+  solid: 'bg-holo-glow',
+  grey: 'bg-depot-muted',
+  diagonal: 'bg-depot-faint text-depot-ink',
+  dots: 'bg-depot-faint text-depot-ink',
+  vertical: 'border border-depot-muted bg-depot-raised text-depot-ink',
 };
 
-/** 45 degree ink lines over the grey: a pattern that survives greyscale and colour blindness. */
-const HATCH_STYLE: React.CSSProperties = {
-  backgroundImage:
-    'repeating-linear-gradient(45deg, currentColor 0, currentColor 1.5px, transparent 1.5px, transparent 4px)',
+const PATTERN_STYLE: Readonly<Record<SegmentPattern, React.CSSProperties | undefined>> = {
+  solid: undefined,
+  grey: undefined,
+  diagonal: {
+    backgroundImage:
+      'repeating-linear-gradient(45deg, currentColor 0, currentColor 1.5px, transparent 1.5px, transparent 4px)',
+  },
+  dots: {
+    backgroundImage: 'radial-gradient(currentColor 1.1px, transparent 1.3px)',
+    backgroundSize: '4px 4px',
+  },
+  vertical: {
+    backgroundImage:
+      'repeating-linear-gradient(90deg, currentColor 0, currentColor 1.5px, transparent 1.5px, transparent 4px)',
+  },
 };
 
+const classOf = (key: CrewAvailability): string => PATTERN_CLASS[AVAILABILITY_PATTERN[key]];
 const styleOf = (key: CrewAvailability): React.CSSProperties | undefined =>
-  HATCHED_AVAILABILITY.includes(key) ? HATCH_STYLE : undefined;
+  PATTERN_STYLE[AVAILABILITY_PATTERN[key]];
 
 const ROLES: readonly { readonly role: CrewRole; readonly title: string }[] = [
   { role: 'driver', title: 'Drivers' },
   { role: 'conductor', title: 'Conductors' },
 ];
 
-interface RoleBarProps {
+function RoleBar({
+  role,
+  title,
+  counts,
+}: {
   readonly role: CrewRole;
   readonly title: string;
   readonly counts: AvailabilityCounts;
-}
-
-function RoleBar({ role, title, counts }: RoleBarProps) {
+}) {
   const segments = availabilitySegments(counts);
-  const total = totalSlots(counts);
   return (
     <div className="min-w-0">
       <h3 className="mb-2 font-mono text-[13px] text-depot-ink">
-        {title} <span className="tabular-nums text-depot-muted">{formatCount(total)} slots</span>
+        {title}{' '}
+        <span className="tabular-nums text-depot-muted">{formatCount(totalSlots(counts))} slots</span>
       </h3>
       <div
         role="img"
         aria-label={availabilityText(role, counts)}
-        className="flex h-3 w-full gap-0.5 overflow-hidden rounded-[2px] bg-depot-raised"
+        className="flex h-4 w-full gap-0.5 overflow-hidden rounded-[2px] bg-depot-raised"
       >
         {segments
           .filter((segment) => segment.count > 0)
           .map((segment) => (
             <div
               key={segment.key}
-              className={`min-w-[2px] text-depot-ink ${FILL[segment.key]}`}
+              className={`min-w-[2px] ${classOf(segment.key)}`}
               style={{ ...styleOf(segment.key), flexGrow: segment.count, flexBasis: 0 }}
             />
           ))}
       </div>
-      <ul className="mt-2 grid grid-cols-1 gap-x-4 gap-y-1 sm:grid-cols-2">
+      <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
         {segments.map((segment) => (
-          <li key={segment.key} className="flex min-w-0 items-center gap-2 font-mono text-[12px]">
-            <span aria-hidden className={`h-2.5 w-2.5 shrink-0 rounded-[2px] text-depot-ink ${FILL[segment.key]}`}
+          <li key={segment.key} className="flex items-center gap-1.5 font-mono text-[12px]">
+            <span
+              aria-hidden
+              className={`h-2.5 w-2.5 shrink-0 rounded-[2px] ${classOf(segment.key)}`}
               style={styleOf(segment.key)}
             />
-            <span className="min-w-0 truncate text-depot-muted">{segment.label}</span>
-            <span className="ml-auto tabular-nums text-depot-ink">{formatCount(segment.count)}</span>
+            <span className="text-depot-muted">{segment.label}</span>
+            <span className="tabular-nums text-depot-ink">{formatCount(segment.count)}</span>
           </li>
         ))}
       </ul>
@@ -82,19 +103,37 @@ function RoleBar({ role, title, counts }: RoleBarProps) {
 
 export interface AvailabilityHeroProps {
   readonly availability: Readonly<Record<CrewRole, AvailabilityCounts>>;
+  readonly summary: CoverageInput;
+  readonly uncovered: readonly { readonly shortfalls: readonly RoleShortfall[] }[];
 }
 
-/** The page's hero: crew slots by availability for each role, as counts and a simple bar. */
-export function AvailabilityHero({ availability }: AvailabilityHeroProps) {
+/**
+ * The page's hero: one coverage line in a mono callout, then crew slots by availability
+ * for each role. A shortfall adds the one line that says it is a model outcome.
+ */
+export function AvailabilityHero({ availability, summary, uncovered }: AvailabilityHeroProps) {
   return (
     <section aria-labelledby="depot-crew-availability-heading" className="min-w-0 animate-rise">
-      <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-        <h2 id="depot-crew-availability-heading" className="depot-section-label !mb-0">
-          Crew availability by role
-        </h2>
-        <ProvenanceBadge provenance="modelled" />
-      </div>
-      <div className="depot-panel grid grid-cols-1 gap-6 p-4 xl:grid-cols-2">
+      <SectionLabel
+        id="depot-crew-availability-heading"
+        label="Crew availability"
+        note="Slots by role, today"
+      />
+      <p
+        role="status"
+        data-testid="crew-coverage-line"
+        className="mb-1 font-mono text-[15px] leading-snug text-depot-ink sm:text-[17px]"
+      >
+        {coverageLine(summary, uncovered)}
+      </p>
+      {summary.shiftsUncovered > 0 ? (
+        <p className="depot-prose mb-4" data-testid="crew-shortfall-explanation">
+          {SHORTFALL_EXPLANATION}
+        </p>
+      ) : (
+        <div className="mb-4" />
+      )}
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         {ROLES.map(({ role, title }) => (
           <RoleBar key={role} role={role} title={title} counts={availability[role]} />
         ))}
