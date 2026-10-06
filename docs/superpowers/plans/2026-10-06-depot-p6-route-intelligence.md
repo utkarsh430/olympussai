@@ -78,10 +78,12 @@ export interface AllocRoute { readonly routeName: string; readonly currentDepotI
   readonly deadKmByDepot: Readonly<Record<string, number>> }    // per-trip dead km for each candidate depot
 export interface AllocDepot { readonly depotId: string; readonly capacity: number }  // buses it can field
 export interface RouteMove { readonly routeName: string; readonly fromDepotId: string; readonly toDepotId: string;
-  readonly busesNeeded: number; readonly savedKmPerDay: number }
+  readonly busesNeeded: number; readonly savedKmPerDay: number;
+  readonly madeRoom: boolean }                                  // own net saving under the minimum: moved so another route could
 export interface AllocationPlan { readonly moves: readonly RouteMove[]; readonly beforeKmPerDay: number;
   readonly afterKmPerDay: number; readonly savedKmPerDay: number;
-  readonly unchanged: readonly { readonly routeName: string; readonly reason: 'already_best' | 'below_threshold' | 'no_capacity' | 'no_candidate' }[] }
+  readonly unchanged: readonly { readonly routeName: string; readonly reason: UnchangedReason }[] }
+// UnchangedReason, in precedence order: 'no_candidate' | 'already_best' | 'below_threshold' | 'over_capacity' | 'move_limit' | 'no_capacity'
 export const MIN_SAVING_KM_PER_DAY = 5;
 export const MAX_MOVES = 200;
 export function planAllocation(routes: readonly AllocRoute[], depots: readonly AllocDepot[]): AllocationPlan;

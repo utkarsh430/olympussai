@@ -1,4 +1,10 @@
-import { COST_GRID_M, MAX_MOVES, METRES_PER_KM } from './allocateConfig';
+import {
+  COST_GRID_M,
+  MAX_BUSES,
+  MAX_MOVES,
+  MAX_TRIPS_PER_DAY,
+  METRES_PER_KM,
+} from './allocateConfig';
 import {
   compareText,
   dailyCost,
@@ -22,7 +28,9 @@ import type {
 export { MAX_MOVES, MIN_SAVING_KM_PER_DAY } from './allocateConfig';
 
 const isCount = (n: number): boolean => Number.isFinite(n) && n >= 0;
-const isWholeCount = (n: number): boolean => Number.isInteger(n) && n >= 0;
+/** A whole, non-negative count no larger than `max`: anything else is a data error. */
+const isWholeCount = (n: number, max: number): boolean =>
+  Number.isInteger(n) && n >= 0 && n <= max;
 
 function capacities(depots: readonly AllocDepot[]): Map<string, number> {
   const cap = new Map<string, number>();
@@ -44,11 +52,15 @@ function buildWork(routes: readonly AllocRoute[], cap: ReadonlyMap<string, numbe
     loads.set(r.currentDepotId, (loads.get(r.currentDepotId) ?? 0) + buses);
   }
   return sorted.map((r, index) => {
-    const usable = isCount(r.busesNeeded) && isWholeCount(r.tripsPerDay);
+    const usable =
+      isWholeCount(r.busesNeeded, MAX_BUSES) && isWholeCount(r.tripsPerDay, MAX_TRIPS_PER_DAY);
     const cost = new Map<string, number>();
     if (usable) {
       for (const [id, km] of Object.entries(r.deadKmByDepot)) {
-        if (isCount(km)) cost.set(id, dailyCost(km, r.tripsPerDay));
+        if (!isCount(km)) continue;
+        const metres = dailyCost(km, r.tripsPerDay);
+        // An absurd kilometre figure would leave the exact-integer range: skip it.
+        if (Number.isSafeInteger(metres)) cost.set(id, metres);
       }
     }
     const costed = cost.has(r.currentDepotId);

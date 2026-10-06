@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { modelDuties as model } from '@/lib/depot/sim/duties';
-import { modelBus } from '@/lib/depot/sim/fleetMaster';
+import { classFromRoute, modelBus } from '@/lib/depot/sim/fleetMaster';
 import { ROUTE_TOKEN_CLASS } from '@/lib/depot/sim/config';
 import type { Duty } from '@/lib/depot/duties/types';
 import type { DepotSummary } from '@/lib/depot/types';
@@ -141,6 +141,11 @@ describe('modelDuties', () => {
     }
     for (const routeName of names) {
       const [duty] = modelDuties(depot, [{ routeName, scheduledDurationMin: 60 }], 1, DATE);
+      if (classFromRoute(routeName) === null) {
+        // A bus's class on such a route is sampled per registration; the duty is always ordinary.
+        expect(duty?.serviceClass).toBe('ordinary');
+        continue;
+      }
       expect(duty?.serviceClass).toBe(modelBus('MH-00-AB-0001', routeName).serviceClass);
     }
   });

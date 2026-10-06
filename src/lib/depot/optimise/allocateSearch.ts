@@ -34,9 +34,15 @@ export interface SearchResult {
 
 export const compareText = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 
-/** Whole-number metres on the cost grid: a tenth of a kilometre per trip, times whole trips. */
+/**
+ * Whole-number metres on the cost grid: the true daily distance (whole metres
+ * per trip times whole trips) rounded once, at the end, to a tenth of a
+ * kilometre. Rounding per trip first would be wrong by up to 50 m per trip.
+ * For whole trips and one-decimal kilometres this equals the per-trip result.
+ */
 export function dailyCost(perTripKm: number, tripsPerDay: number): number {
-  return Math.round(perTripKm * (METRES_PER_KM / COST_GRID_M)) * COST_GRID_M * tripsPerDay;
+  const perTripM = Math.round(perTripKm * METRES_PER_KM);
+  return Math.round((tripsPerDay * perTripM) / COST_GRID_M) * COST_GRID_M;
 }
 
 export function fits(

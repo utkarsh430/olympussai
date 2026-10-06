@@ -14,9 +14,15 @@ function compare(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
-/** Median age over the whole fleet master; zero when it is empty. */
+/**
+ * Median of the finite ages in the fleet master; zero when there are none, as
+ * for an empty master. A non-finite age is data noise and must not reach a cost.
+ */
 function medianAge(fleet: ReadonlyMap<string, ModelledBus>): number {
-  const ages = [...fleet.values()].map((b) => b.ageYears).sort((a, b) => a - b);
+  const ages = [...fleet.values()]
+    .map((b) => b.ageYears)
+    .filter(Number.isFinite)
+    .sort((a, b) => a - b);
   if (ages.length === 0) return EMPTY_MASTER_AGE_YEARS;
   const mid = Math.floor(ages.length / 2);
   return ages.length % 2 === 1
@@ -73,7 +79,11 @@ export function assignDuties(
     return eligible.map((bus) => {
       const modelled = fleet.get(bus.registrationNumber);
       if ((modelled?.serviceClass ?? DEFAULT_CLASS) !== duty.serviceClass) return Infinity;
-      return Math.round((modelled?.ageYears ?? fallbackAge) * hours);
+      const age =
+        modelled !== undefined && Number.isFinite(modelled.ageYears)
+          ? modelled.ageYears
+          : fallbackAge;
+      return Math.round(age * hours);
     });
   });
   const { rowToCol } = hungarian(cost);
