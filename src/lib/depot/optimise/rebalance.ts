@@ -10,8 +10,8 @@ import type {
   TransferPlan,
   UncoveredDeficit,
 } from './types';
+import { METRES_PER_KM } from '@/lib/depot/units';
 
-const METRES_PER_KM = 1000;
 /** Grid steps in a kilometre: a pair's distance is held as a whole number of them. */
 const STEPS_PER_KM = METRES_PER_KM / COST_GRID_M;
 

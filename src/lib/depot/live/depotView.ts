@@ -10,7 +10,7 @@ import {
   isScheduledForFeedDate,
   summariseOutshed,
 } from '../infer/outshed';
-import { compareText } from '../exceptions/depotExceptions';
+import { compareText } from '@/lib/depot/stats/order';
 import { analyseSnapshot, feedEnvelope, type SnapshotAnalysis } from './analysis';
 
 const DATE_PREFIX_LENGTH = 10;

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { rateLimitSentence } from '@/lib/depot/routes/routeDrawerModel';
+import { fetchRouteProfile, retryAfterWholeSeconds } from '@/lib/depot/routes/routeProfileClient';
 import type { RouteProfileResponse } from '@/lib/depot/routes/types';
 
 export interface UseRouteProfile {
@@ -35,20 +36,13 @@ const failed = (error: string, retryAfterSeconds: number | null = null): Outcome
   retryAfterSeconds,
 });
 
-function wholeSeconds(header: string | null): number | null {
-  return header !== null && /^\d{1,5}$/.test(header.trim()) ? Number(header) : null;
-}
-
 async function lookup(name: string, signal: AbortSignal): Promise<Outcome> {
-  const response = await fetch(`/api/upsrtc/depot/route/${encodeURIComponent(name)}`, {
-    signal,
-    cache: 'no-store',
-  });
+  const response = await fetchRouteProfile(name, signal);
   if (response.status === 400) return failed(INVALID_NAME_ERROR);
   if (response.status === 429) {
     // The throttle's own wait, printed only as a whole number of seconds.
     const header = response.headers.get('retry-after');
-    return failed(rateLimitSentence(header), wholeSeconds(header));
+    return failed(rateLimitSentence(header), retryAfterWholeSeconds(header));
   }
   if (!response.ok) throw new Error('unavailable');
   return { data: (await response.json()) as RouteProfileResponse, error: null, retryAfterSeconds: null };

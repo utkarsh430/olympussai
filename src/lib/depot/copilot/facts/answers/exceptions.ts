@@ -1,6 +1,7 @@
 import { DEPOT_EXCEPTION_PHRASE, cleanName, makeFact, nameFact, ph } from '@/lib/depot/copilot/facts/format';
 import type { CopilotFact, CopilotRequest } from '@/lib/depot/copilot/types';
-import { answer, plural, unavailable } from '@/lib/depot/copilot/facts/answers/shared';
+import { answer, unavailable } from '@/lib/depot/copilot/facts/answers/shared';
+import { plainCountPhrase } from '@/lib/depot/format';
 import type { AnswerData } from '@/lib/depot/copilot/facts/answers';
 
 export function exceptionsAnswer(data: AnswerData, depotId: string): CopilotRequest {
@@ -13,19 +14,19 @@ export function exceptionsAnswer(data: AnswerData, depotId: string): CopilotRequ
     makeFact(
       'ex.depot',
       'Depot-level exceptions',
-      plural(depot.length, 'exception', 'exceptions'),
+      plainCountPhrase(depot.length, 'exception', 'exceptions'),
       'derived',
     ),
     makeFact(
       'ex.bus',
       'Vehicle exceptions',
-      plural(bus.length, 'exception', 'exceptions'),
+      plainCountPhrase(bus.length, 'exception', 'exceptions'),
       'derived',
     ),
     makeFact(
       'ex.critical',
       'Rated critical',
-      plural(critical, 'exception', 'exceptions'),
+      plainCountPhrase(critical, 'exception', 'exceptions'),
       'derived',
     ),
   ];

@@ -1,4 +1,6 @@
-import { COST_GRID_M, METRES_PER_KM, MIN_SAVING_KM_PER_DAY } from './allocateConfig';
+import { METRES_PER_KM } from '@/lib/depot/units';
+import { COST_GRID_M, MIN_SAVING_KM_PER_DAY } from './allocateConfig';
+import { compareText } from '@/lib/depot/stats/order';
 
 export const MIN_SAVING_M = MIN_SAVING_KM_PER_DAY * METRES_PER_KM;
 
@@ -31,8 +33,6 @@ export interface SearchResult {
   readonly shifts: number;
   readonly swaps: number;
 }
-
-export const compareText = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 
 /**
  * Whole-number metres on the cost grid: the true daily distance (whole metres

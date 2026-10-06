@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { SessionClaims } from '@/lib/auth/session';
+import { MS_PER_SECOND } from '@/lib/depot/units';
 
 export interface RateDecision {
   readonly limited: boolean;
@@ -21,7 +22,6 @@ export interface WindowLimiter {
   size(): number;
 }
 
-const MS_PER_SECOND = 1_000;
 const ALLOWED: RateDecision = { limited: false, retryAfterSeconds: 0 };
 
 /**

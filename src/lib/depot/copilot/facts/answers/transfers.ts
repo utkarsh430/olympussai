@@ -6,9 +6,9 @@ import {
   MAX_TRANSFER_ROWS,
   answer,
   nameOf,
-  plural,
   unavailable,
 } from '@/lib/depot/copilot/facts/answers/shared';
+import { plainCountPhrase } from '@/lib/depot/format';
 import type { AnswerData } from '@/lib/depot/copilot/facts/answers';
 
 /** A sentence of its own: "because" is not in the vocabulary. */
@@ -58,7 +58,7 @@ export function transfersAnswer(data: AnswerData, depotId: string): CopilotReque
       makeFact(
         't.total',
         'Transfers in the plan',
-        plural(mine.length, 'transfer', 'transfers'),
+        plainCountPhrase(mine.length, 'transfer', 'transfers'),
         'modelled',
       ),
     );

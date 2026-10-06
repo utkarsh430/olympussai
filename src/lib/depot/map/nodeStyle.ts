@@ -1,3 +1,4 @@
+import { clamp } from '@/lib/depot/stats/robust';
 /**
  * How a depot is drawn on the network map: size from fleet, colour from the
  * Depot Efficiency Index. Pure, so the map, its legend and the tests agree.
@@ -54,10 +55,6 @@ const FILLED_STROKE = '#02040a';
 const FILLED_STROKE_WEIGHT = 1;
 const HOLLOW_STROKE_WEIGHT = 1.5;
 const FILLED_OPACITY = 0.92;
-
-function clamp(value: number, low: number, high: number): number {
-  return Math.min(high, Math.max(low, value));
-}
 
 /**
  * Radius in pixels. Proportional to the square root of fleet, so a node's

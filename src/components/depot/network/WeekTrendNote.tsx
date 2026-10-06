@@ -2,7 +2,7 @@
 
 import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
 import { useDepotForecast } from '@/hooks/useDepotForecast';
-import { weekTrendNote } from '@/lib/depot/network/overviewWords';
+import { onRoadAndDarkWeekNote } from '@/lib/depot/network/overviewWords';
 import type { HistoryScope, MetricKey } from '@/lib/depot/sim/types';
 
 const NETWORK: HistoryScope = { kind: 'network' };
@@ -20,7 +20,7 @@ function useWeekSentence(metric: MetricKey): string | null {
  * nothing: a missing trend must not look like a broken figure.
  */
 export function WeekTrendNote() {
-  const note = weekTrendNote(useWeekSentence('onRoadShare'), useWeekSentence('darkRate'));
+  const note = onRoadAndDarkWeekNote(useWeekSentence('onRoadShare'), useWeekSentence('darkRate'));
   if (note === null) return null;
   return (
     <p

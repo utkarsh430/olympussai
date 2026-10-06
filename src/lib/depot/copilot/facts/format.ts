@@ -60,7 +60,6 @@ export const index1 = (n: number): string => `index ${n.toFixed(1)}`;
  * The verb phrase that agrees with a count the prose cannot contain: "is dark" for
  * one, "are dark" otherwise. Prose may not hold digits, so the server picks the form.
  */
-export const countPhrase = (n: number, one: string, many: string): string => (n === 1 ? one : many);
 export const km1 = (n: number): string => `${n.toFixed(1)} km`;
 
 /** Buses moving: scheduled in service, or on the road with no schedule in the feed. */

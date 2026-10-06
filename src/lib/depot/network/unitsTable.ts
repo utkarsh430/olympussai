@@ -2,6 +2,7 @@ import { DARK_AFTER_MIN } from '@/lib/depot/infer/thresholds';
 import { PAGE_ROWS } from '@/lib/depot/listPaging';
 import type { DepotSummary } from '@/lib/depot/types';
 import { contentWidthAt } from '../shell/geometry';
+import { MINUTES_PER_HOUR } from '@/lib/depot/units';
 
 /**
  * The overview's units table: which columns, in what words, at what widths. The four
@@ -34,8 +35,6 @@ export interface ColumnSpec {
   /** Pixels: the longest header (mono 11px, 0.12em tracking) or cell, plus 24px padding. */
   readonly width: number;
 }
-
-const MINUTES_PER_HOUR = 60;
 
 /** Said once, in the Dark header's `title`, as the cockpit words it. */
 export const DARK_HEADER_TITLE = `Dark: no signal for ${DARK_AFTER_MIN / MINUTES_PER_HOUR} h or more`;

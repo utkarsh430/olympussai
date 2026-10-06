@@ -37,7 +37,8 @@ export interface ScenarioPanelProps {
   readonly clampNotes: readonly string[];
 }
 
-function signed(n: number): string {
+/** Sign and magnitude of a non-zero whole number; the form drops a zero entry first. */
+function signedNonZero(n: number): string {
   return n > 0 ? `+${n}` : `−${Math.abs(n)}`;
 }
 
@@ -115,7 +116,7 @@ export function ScenarioPanel(props: ScenarioPanelProps) {
         {list(
           form.fleetAdjustments.map((a) => ({
             key: a.depotId,
-            text: `${nameOf(a.depotId)} ${signed(a.deltaBuses)} buses`,
+            text: `${nameOf(a.depotId)} ${signedNonZero(a.deltaBuses)} buses`,
           })),
           (id) => (f) => withoutFleetAdjustment(f, id),
         )}
@@ -135,7 +136,7 @@ export function ScenarioPanel(props: ScenarioPanelProps) {
         {list(
           form.demandSurges.map((s) => ({
             key: s.depotId,
-            text: `${nameOf(s.depotId)} demand ${signed(s.percent)}%`,
+            text: `${nameOf(s.depotId)} demand ${signedNonZero(s.percent)}%`,
           })),
           (id) => (f) => withoutSurge(f, id),
         )}

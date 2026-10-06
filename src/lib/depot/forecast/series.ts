@@ -9,8 +9,8 @@
 import type { SeriesPoint } from '../sim/types';
 import type { SeriesRules } from './config';
 import type { InsufficientHistory, SeriesInputReason } from './types';
+import { MS_PER_DAY } from '@/lib/depot/units';
 
-const MS_PER_DAY = 86_400_000;
 const ISO_DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
 
 /** Milliseconds at UTC midnight for a real YYYY-MM-DD date, or null. */

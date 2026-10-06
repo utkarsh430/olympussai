@@ -1,4 +1,4 @@
-import { compareText } from './compare';
+import { compareText } from '@/lib/depot/stats/order';
 import { median } from '../stats/robust';
 import { isSupportedMedian } from './support';
 import {
@@ -13,18 +13,15 @@ import {
   type FuelGroupRow,
   type FuelTotals,
 } from './types';
+import { TENTH } from '@/lib/depot/units';
+import { roundOneDecimal } from '@/lib/depot/stats/rounding';
 
-const TENTH = 10;
 const PERCENT = 100;
 const KEY_SEPARATOR = '\u0000';
 
 /** Distance and litres are kept to one decimal; anything unusable counts as none. */
 function usable(value: number): number {
   return Number.isFinite(value) && value > 0 ? Math.round(value * TENTH) / TENTH : 0;
-}
-
-function round1(value: number): number {
-  return Math.round(value * TENTH) / TENTH;
 }
 
 function figureFor(day: BusFuelDay, pricePerLitre: number): BusFuelFigure {
@@ -145,7 +142,7 @@ function compared(
     const centre = peers === null ? null : median(peers);
     if (peers === null || centre === null) continue;
     // More fuel per km than the peers' median is the same as fewer km per litre.
-    const variancePct = round1((centre / row.kmPerLitre - 1) * PERCENT);
+    const variancePct = roundOneDecimal((centre / row.kmPerLitre - 1) * PERCENT);
     // The figure stays; only the flag is held back when the peers do not stand behind the median.
     const unsupported = variancePct > FUEL_VARIANCE_FLAG_PCT && !isSupportedMedian(peers);
     const withheldReason = unsupported ? 'peers_differ' : null;

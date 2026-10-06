@@ -1,8 +1,8 @@
 import { haversineKm } from '../infer/geo';
 import type { CanonicalSchedule, CanonicalStop } from '@/models/canonical';
 import type { RouteProfile, RouteStop } from './types';
+import { MINUTES_PER_DAY } from '@/lib/depot/units';
 
-const MINUTES_PER_DAY = 24 * 60;
 const TIME_PATTERN = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/;
 
 type LocatedStop = RouteStop & { readonly lat: number; readonly lng: number };

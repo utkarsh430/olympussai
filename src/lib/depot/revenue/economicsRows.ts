@@ -14,6 +14,7 @@ import {
 import { noDutyPhrase } from './economicsLayout';
 import { coverageSentence, NO_KM_RUN } from './revenuePageModel';
 import type { DepotEconomicsScore, EconomicsComponentKey } from './types';
+import { capitalise } from '@/lib/depot/format';
 
 /* The economics page's rows: one per unit, with its cells, rank and reason. */
 
@@ -82,7 +83,7 @@ function unrankedText(entry: EconomicsDepotRow, operatingDate?: string): string 
   }
   if (score.missing.includes('earningsPerKm')) {
     const phrase = noDutyPhrase(operatingDate);
-    return `${phrase.charAt(0).toUpperCase()}${phrase.slice(1)} (none of its buses reports a route, or none is available), so it has no earnings per kilometre.`;
+    return `${capitalise(phrase)} (none of its buses reports a route, or none is available), so it has no earnings per kilometre.`;
   }
   if (score.missing.includes('costPerKm')) {
     return `No bus runs a duty in the modelled day${operatingDate === undefined ? '' : ` for ${operatingDate}`}, so fuel cost per kilometre cannot be worked out.`;

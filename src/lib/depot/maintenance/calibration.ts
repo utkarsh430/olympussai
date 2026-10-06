@@ -1,5 +1,6 @@
 import type { DepotBusRow } from '@/models/depotLive';
 import { haversineKm, isUsablePosition } from '../infer/geo';
+import { MINUTES_PER_HOUR, MS_PER_MINUTE } from '@/lib/depot/units';
 
 /*
  * Odometer calibration arithmetic.
@@ -27,8 +28,6 @@ export const MIN_USABLE_PAIRS = 30;
 export const KILOMETRE_BAND = { min: 0.7, max: 2.5 } as const;
 export const METRE_BAND = { min: 700, max: 2500 } as const;
 
-const MS_PER_MINUTE = 60_000;
-const MINUTES_PER_HOUR = 60;
 const NO_SPEED_KM = 0;
 
 export type CalibrationReading = 'kilometres' | 'metres' | 'inconclusive' | 'too_few';

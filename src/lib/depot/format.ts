@@ -1,6 +1,11 @@
 import { formatNumber } from '@/lib/formatters';
+import { MINUTES_PER_DAY, MINUTES_PER_HOUR, MS_PER_DAY } from '@/lib/depot/units';
+import { roundToDecimals } from '@/lib/depot/stats/rounding';
 
 const DASH = '—';
+/** The typographic minus the pages print before a negative figure. */
+const MINUS = '−';
+const PERCENT = 100;
 const FEED_TIME_PATTERN = /^\d{4}-\d{2}-\d{2}[T ](\d{2}):(\d{2})/;
 const MAX_HOUR = 23;
 const MAX_MINUTE = 59;
@@ -8,6 +13,66 @@ const MAX_MINUTE = 59;
 /** Whole-number count with the Indian digit grouping used across the app. */
 export function formatCount(n: number): string {
   return formatNumber(n);
+}
+
+/** A ratio as a whole-number percentage: 0.456 is "46%". */
+export function formatPercent(ratio: number): string {
+  return `${Math.round(ratio * PERCENT)}%`;
+}
+
+/** A rate as a percentage to one decimal: 0.0456 is "4.6%". */
+export function formatPercentOneDecimal(rate: number): string {
+  return `${(rate * PERCENT).toFixed(1)}%`;
+}
+
+/** The text with its first character in upper case: "driver" is "Driver". */
+export function capitalise(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/** A whole number with its sign always shown: "+3", "−2", and "+0" for zero. */
+export function signedWhole(n: number): string {
+  return n < 0 ? `${MINUS}${Math.abs(n)}` : `+${n}`;
+}
+
+/** Two decimals with a sign: "+0.42", "−1.30"; a value that rounds to zero is "0.00". */
+export function signedTwoDecimals(n: number): string {
+  const rounded = roundToDecimals(n, 2);
+  if (rounded === 0) return '0.00';
+  return `${rounded > 0 ? '+' : MINUS}${Math.abs(rounded).toFixed(2)}`;
+}
+
+const pad2 = (n: number): string => String(n).padStart(2, '0');
+
+/** HH:MM for a minute count as it stands, so the end of the day reads "24:00". */
+export function formatClockMinute(minute: number): string {
+  return `${pad2(Math.floor(minute / MINUTES_PER_HOUR))}:${pad2(minute % MINUTES_PER_HOUR)}`;
+}
+
+/** HH:MM for a minute count; a minute past 24:00 is written on the next day. */
+export function formatMinute(minute: number): string {
+  const nextDay = minute >= MINUTES_PER_DAY;
+  const text = formatClockMinute(nextDay ? minute - MINUTES_PER_DAY : minute);
+  return nextDay ? `${text} next day` : text;
+}
+
+/** The singular word for exactly one, the plural for any other number (zero included). */
+export function pluralWord(n: number, one: string, many: string): string {
+  return n === 1 ? one : many;
+}
+
+/** A count and its noun, the count grouped as the pages show it: "1 bus", "1,204 buses". */
+export function countPhrase(n: number, one: string, many: string): string {
+  return `${formatCount(n)} ${pluralWord(n, one, many)}`;
+}
+
+/**
+ * A count and its noun with the digits as given, never grouped: "1204 buses". For the
+ * copilot's answers and the route loader's progress line, which have always printed the
+ * bare number.
+ */
+export function plainCountPhrase(n: number, one: string, many: string): string {
+  return `${n} ${pluralWord(n, one, many)}`;
 }
 
 /** `n` as a whole-number percentage of `of`; a dash when there is no population. */
@@ -131,10 +196,6 @@ export function formatFeedDateTime(iso: string | null): string {
   return stamp ? `${stamp.weekday} ${stamp.day} ${stamp.month}, ${stamp.time}` : DASH;
 }
 
-const MINUTE_MS = 60_000;
-const HOUR_MS = 60 * MINUTE_MS;
-const DAY_MS = 24 * HOUR_MS;
-
 /**
  * A feed timestamp as a clock time beside the feed's own clock: "19:45" when it falls on
  * the feed's day, "5 Oct, 19:45" when it falls on another day (a bus last heard
@@ -145,7 +206,7 @@ export function formatFeedTimeOn(iso: string | null, feedNow: string | null): st
   const stamp = readFeedStamp(iso);
   if (!stamp) return DASH;
   const now = readFeedStamp(feedNow);
-  const sameDay = now !== null && Math.floor(now.ms / DAY_MS) === Math.floor(stamp.ms / DAY_MS);
+  const sameDay = now !== null && Math.floor(now.ms / MS_PER_DAY) === Math.floor(stamp.ms / MS_PER_DAY);
   return sameDay ? stamp.time : `${Number(stamp.day)} ${stamp.month}, ${stamp.time}`;
 }
 
@@ -155,9 +216,6 @@ export function isLaterFeedTime(a: string | null, b: string | null): boolean {
   const right = readFeedStamp(b);
   return left !== null && right !== null && left.ms > right.ms;
 }
-
-const MINUTES_PER_HOUR = 60;
-const MINUTES_PER_DAY = 24 * MINUTES_PER_HOUR;
 
 /**
  * A length of time given in minutes, in the largest two units that matter: "47 min",

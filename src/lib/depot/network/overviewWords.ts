@@ -170,7 +170,7 @@ const lowerFirst = (text: string): string => text.charAt(0).toLowerCase() + text
  * the words. "On-road share steady over 7 days; dark rate up 1.2 percentage points
  * over 7 days."
  */
-export function weekTrendNote(onRoadWeek: string | null, darkWeek: string | null): string | null {
+export function onRoadAndDarkWeekNote(onRoadWeek: string | null, darkWeek: string | null): string | null {
   const parts = [
     onRoadWeek === null ? null : `${METRIC_LABEL.onRoadShare} ${onRoadWeek}`,
     darkWeek === null ? null : `${METRIC_LABEL.darkRate} ${darkWeek}`,

@@ -13,6 +13,7 @@ import {
   ruleSentence,
 } from './fuelPageModel';
 import type { FuelGroupRow } from './types';
+import { TENTH } from '@/lib/depot/units';
 
 /*
  * The fuel page's layout models: the figure band, the stand-out table's
@@ -21,7 +22,6 @@ import type { FuelGroupRow } from './types';
  */
 
 const DASH = '—';
-const TENTH = 10;
 const FULL_BAR_PCT = 100;
 /** The shortest bar a class with a value gets, so the lowest class is still seen. */
 const MIN_BAR_PCT = 6;

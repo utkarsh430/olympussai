@@ -1,3 +1,4 @@
+import { capitalise } from '@/lib/depot/format';
 /*
  * Parsers for what a planner types into the sandbox. Each accepts only a
  * strict decimal or whole-number pattern and answers with a sentence when it
@@ -18,12 +19,8 @@ function parseDecimal(raw: string, unit: RegExp, what: string): ParseResult {
   const text = raw.trim().replace(unit, '').trim();
   if (text === '') return { ok: false, error: `Enter ${what}.` };
   if (!DECIMAL_PATTERN.test(text))
-    return { ok: false, error: `${capital(what)} must be a number.` };
+    return { ok: false, error: `${capitalise(what)} must be a number.` };
   return { ok: true, value: Number(text) };
-}
-
-function capital(text: string): string {
-  return `${text.charAt(0).toUpperCase()}${text.slice(1)}`;
 }
 
 export function parseSparePercent(raw: string): ParseResult {

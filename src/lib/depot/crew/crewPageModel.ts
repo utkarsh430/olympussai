@@ -1,4 +1,4 @@
-import { formatCount, formatPlainDate } from '../format';
+import { capitalise, countPhrase, formatCount, formatPlainDate, pluralWord } from '../format';
 import { noDutiesReason } from '../sim/operatingDayWording';
 import type { AvailabilityCounts } from './api';
 import type { CrewAvailability, CrewRole, RoleShortfall, ShortfallCause } from './types';
@@ -63,10 +63,6 @@ export const AVAILABILITY_PATTERN: Readonly<Record<CrewAvailability, SegmentPatt
 
 const PERCENT = 100;
 
-const plural = (n: number, one: string, many: string): string => (n === 1 ? one : many);
-const countOf = (n: number, one: string, many: string): string =>
-  `${formatCount(n)} ${plural(n, one, many)}`;
-
 export interface AvailabilitySegment {
   readonly key: CrewAvailability;
   readonly label: string;
@@ -105,7 +101,7 @@ export function availabilityText(role: CrewRole, counts: AvailabilityCounts): st
   const parts = AVAILABILITY_ORDER.map(
     (key) => `${formatCount(counts[key])} ${AVAILABILITY_PHRASE[key]}`,
   );
-  return `${ROLE_PLURAL[role]}, ${countOf(total, 'slot', 'slots')}: ${parts.join(', ')}.`;
+  return `${ROLE_PLURAL[role]}, ${countPhrase(total, 'slot', 'slots')}: ${parts.join(', ')}.`;
 }
 
 /**
@@ -128,8 +124,6 @@ const CAUSE_TEXT: Readonly<Record<ShortfallCause, (role: CrewRole) => string>> =
   all_rostered: (role) => `all available ${role}s are already rostered at this time.`,
   hours_limit: () => 'would exceed the hours limit.',
 };
-
-const capitalise = (text: string): string => `${text.charAt(0).toUpperCase()}${text.slice(1)}`;
 
 /** Why a shift is uncovered: each short role on its own, never "driver or conductor". */
 export function shortfallText(shortfalls: readonly RoleShortfall[]): string {
@@ -164,9 +158,9 @@ export function shiftsSentence(
   operatingDate?: string,
 ): string {
   return (
-    `${countOf(required, 'shift is', 'shifts are')} required ${modelledDayPhrase(operatingDate)}; ` +
-    `${formatCount(covered)} ${plural(covered, 'is', 'are')} covered and ` +
-    `${formatCount(uncovered)} ${plural(uncovered, 'is', 'are')} uncovered (MODELLED).`
+    `${countPhrase(required, 'shift is', 'shifts are')} required ${modelledDayPhrase(operatingDate)}; ` +
+    `${formatCount(covered)} ${pluralWord(covered, 'is', 'are')} covered and ` +
+    `${formatCount(uncovered)} ${pluralWord(uncovered, 'is', 'are')} uncovered (MODELLED).`
   );
 }
 
@@ -176,21 +170,21 @@ export function strengthSentence(
 ): string {
   const verb = figures.available === 1 ? 'is' : 'are';
   return (
-    `${countOf(figures.available, role, `${role}s`)} ${verb} available across the day for ` +
-    `${countOf(figures.required, 'shift', 'shifts')}, some of which overlap.`
+    `${countPhrase(figures.available, role, `${role}s`)} ${verb} available across the day for ` +
+    `${countPhrase(figures.required, 'shift', 'shifts')}, some of which overlap.`
   );
 }
 
 export function dutiesSentence(full: number, partly: number, none: number): string {
   return (
-    `${countOf(full, 'duty', 'duties')} fully covered, ` +
+    `${countPhrase(full, 'duty', 'duties')} fully covered, ` +
     `${formatCount(partly)} partly covered, ${formatCount(none)} uncovered.`
   );
 }
 
 export function reliefSentence(count: number): string {
   if (count === 0) return 'No duty needs a relief crew.';
-  return `${countOf(count, 'duty needs', 'duties need')} a relief crew.`;
+  return `${countPhrase(count, 'duty needs', 'duties need')} a relief crew.`;
 }
 
 /** Crew C: the one sentence of the state panel; the remedy line and link are separate. */
@@ -204,13 +198,13 @@ export const EMPTY_CREW_REMEDY =
   'Crew shifts appear once the feed shows a route running from this depot; the data sources page says which feeds the day is built from.';
 
 export function rosterCountSentence(shown: number, total: number): string {
-  if (shown >= total) return `${countOf(total, 'covered shift', 'covered shifts')}.`;
-  return `Showing the first ${formatCount(shown)} of ${countOf(total, 'covered shift', 'covered shifts')}.`;
+  if (shown >= total) return `${countPhrase(total, 'covered shift', 'covered shifts')}.`;
+  return `Showing the first ${formatCount(shown)} of ${countPhrase(total, 'covered shift', 'covered shifts')}.`;
 }
 
 export function uncoveredCountSentence(shown: number, total: number): string {
-  if (shown >= total) return `${countOf(total, 'uncovered shift', 'uncovered shifts')}.`;
-  return `Showing the first ${formatCount(shown)} of ${countOf(total, 'uncovered shift', 'uncovered shifts')}, most pressing first.`;
+  if (shown >= total) return `${countPhrase(total, 'uncovered shift', 'uncovered shifts')}.`;
+  return `Showing the first ${formatCount(shown)} of ${countPhrase(total, 'uncovered shift', 'uncovered shifts')}, most pressing first.`;
 }
 
 /** Visible in one line whenever a shortfall is shown: it stops a model outcome reading as a finding. */
@@ -265,7 +259,7 @@ export function coverageLine(
   if (summary.shiftsUncovered === 0) {
     return summary.dutiesNeedingRelief === 0
       ? `${head}; no relief needed.`
-      : `${head}; ${countOf(summary.dutiesNeedingRelief, 'duty needs', 'duties need')} a relief crew.`;
+      : `${head}; ${countPhrase(summary.dutiesNeedingRelief, 'duty needs', 'duties need')} a relief crew.`;
   }
   const counts = shortfallCounts(uncovered);
   const roles = (['driver', 'conductor'] as const).flatMap((role) => {

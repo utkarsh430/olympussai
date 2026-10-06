@@ -1,5 +1,7 @@
 import type { DepotBusRow } from '@/models/depotLive';
 import { haversineKm } from '@/lib/simulation/seededRandom';
+import { METRES_PER_KM } from '@/lib/depot/units';
+import { medianOr } from '@/lib/depot/stats/robust';
 
 /**
  * Geometry for depot inference. The great-circle distance is the app's existing
@@ -8,7 +10,6 @@ import { haversineKm } from '@/lib/simulation/seededRandom';
  */
 export { haversineKm };
 
-const METRES_PER_KM = 1000;
 /** Metres per degree of latitude on the mean-radius sphere haversineKm uses. */
 const METRES_PER_DEGREE = (Math.PI / 180) * 6371 * METRES_PER_KM;
 
@@ -95,9 +96,7 @@ export function nearDistanceM(a: NearPoint, b: NearPoint): number {
   return Math.sqrt(north * north + east * east);
 }
 
+/** The median of a sample; NaN for an empty one. */
 export function median(values: readonly number[]): number {
-  if (values.length === 0) return NaN;
-  const sorted = [...values].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 === 1 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2;
+  return medianOr(values, NaN);
 }

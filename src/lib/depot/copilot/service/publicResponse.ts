@@ -14,7 +14,10 @@ export interface PublicExtras {
   readonly interpretedAs?: string;
   readonly table?: CopilotAnswerTable;
   readonly answerScope?: CopilotAnswerScope;
-  /** Server-written, for a stale snapshot: appended here, outside the cache. */
+  /**
+   * Server-written, for figures not from the live feed: appended here, outside the cache,
+   * and only to a text that carries figures (see `carriesFigures`).
+   */
   readonly staleSentence?: string;
   /** Where the figures come from when not the live feed, for the footer. */
   readonly dataSource?: CopilotDataSource;
@@ -24,6 +27,15 @@ function noticeFor(text: CopilotText, claudeMissed: boolean): CopilotPublicNotic
   if (text.provider === 'claude-cli') return 'none';
   if (text.fallbackReason === 'scripted_unavailable') return 'summary_unavailable';
   return text.fellBack || claudeMissed ? 'claude_unavailable' : 'none';
+}
+
+/**
+ * True when the answer was built from at least one fact or carries an evidence table. A
+ * decline has neither: it names its own data source, so "These figures" would point at
+ * nothing there.
+ */
+function carriesFigures(request: CopilotRequest, extras: PublicExtras): boolean {
+  return request.facts.length > 0 || extras.table !== undefined;
 }
 
 /**
@@ -40,7 +52,7 @@ export function toPublicResponse(
   return {
     headline: text.headline,
     paragraphs:
-      extras.staleSentence === undefined
+      extras.staleSentence === undefined || !carriesFigures(request, extras)
         ? [...text.paragraphs]
         : [...text.paragraphs, extras.staleSentence],
     provider: text.provider === 'claude-cli' ? 'claude' : 'scripted',

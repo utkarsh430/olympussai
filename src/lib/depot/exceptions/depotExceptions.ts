@@ -13,11 +13,9 @@ import {
   SEVERITY_ORDER,
 } from './config';
 import type { DepotException, DepotExceptionKind } from './types';
+import { compareText } from '@/lib/depot/stats/order';
 
 /** Code-point order: deterministic on every runtime, unlike locale collation. */
-export function compareText(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
-}
 
 /** Buses behind the rate: the ones a manager would go and look at. */
 function affectedFor(kind: DepotExceptionKind, depot: DepotSummary): number {

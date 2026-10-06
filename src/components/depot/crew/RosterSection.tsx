@@ -12,7 +12,7 @@ import {
   rosterCountSentence,
   shiftLabel,
 } from '@/lib/depot/crew/crewPageModel';
-import { formatMinute } from '@/lib/depot/duties/dutyBoardModel';
+import { formatMinute } from '@/lib/depot/format';
 import { PAGE_ROWS, pageRange } from '@/lib/depot/listPaging';
 
 /** Slot ids are plain identifiers: nothing else about a slot sits beside them. */

@@ -1,8 +1,7 @@
 import type { DepotBusRow } from '@/models/depotLive';
 import { distanceM, hasUsablePosition } from './geo';
 import type { LocatedBus, Yard } from './types';
-
-const METRES_PER_KM = 1000;
+import { METRES_PER_KM } from '@/lib/depot/units';
 
 const UNKNOWN: LocatedBus = { location: 'unknown', otherDepotId: null, distanceFromYardKm: null };
 

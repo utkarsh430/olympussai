@@ -53,7 +53,7 @@ const DECIMALS: Readonly<Record<TrendUnit, number>> = {
 };
 
 /** "+2.1", "−1.2", "0.0", "+3": the change as the trend summary rounded it. */
-function signed(change: number, unit: TrendUnit): string {
+function signedChange(change: number, unit: TrendUnit): string {
   const text = Math.abs(change).toFixed(DECIMALS[unit]);
   if (Number(text) === 0) return text;
   return `${change > 0 ? '+' : MINUS}${text}`;
@@ -77,8 +77,8 @@ function weekText(row: TrendRow, unit: TrendUnit, metric: MetricKey): string {
   const trend = row.trend;
   if (trend === null) return NO_VALUE;
   const direction = weekDirection(row, metric);
-  if (direction === null) return signed(trend.week, unit);
-  if (direction === 'steady') return `steady, ${signed(trend.week, unit)}`;
+  if (direction === null) return signedChange(trend.week, unit);
+  if (direction === 'steady') return `steady, ${signedChange(trend.week, unit)}`;
   return `${direction} ${Math.abs(trend.week).toFixed(DECIMALS[unit])}`;
 }
 
@@ -86,7 +86,7 @@ function fourWeeksText(row: TrendRow, unit: TrendUnit): string {
   const trend = row.trend;
   if (trend === null) return NO_VALUE;
   if (trend.fourWeeks === null) return 'too little history';
-  if (trend.direction === 'steady') return `steady, ${signed(trend.fourWeeks, unit)}`;
+  if (trend.direction === 'steady') return `steady, ${signedChange(trend.fourWeeks, unit)}`;
   return `${trend.direction} ${Math.abs(trend.fourWeeks).toFixed(DECIMALS[unit])}`;
 }
 
@@ -94,11 +94,11 @@ const WORD: Readonly<Record<TrendDirection, string>> = { up: 'UP', steady: 'STEA
 const TOO_SHORT_WORD = 'TOO SHORT';
 
 function weekSigned(row: TrendRow, unit: TrendUnit): string {
-  return row.trend === null ? NO_VALUE : signed(row.trend.week, unit);
+  return row.trend === null ? NO_VALUE : signedChange(row.trend.week, unit);
 }
 
 function fourWeeksSigned(row: TrendRow, unit: TrendUnit): string {
-  return row.trend?.fourWeeks == null ? NO_VALUE : signed(row.trend.fourWeeks, unit);
+  return row.trend?.fourWeeks == null ? NO_VALUE : signedChange(row.trend.fourWeeks, unit);
 }
 
 function weekWord(row: TrendRow, metric: MetricKey): string {

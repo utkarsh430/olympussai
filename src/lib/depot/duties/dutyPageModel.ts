@@ -1,4 +1,4 @@
-import { formatCount, formatPlainDate } from '../format';
+import { formatCount, formatPlainDate, pluralWord } from '../format';
 import { REPORTING_WINDOW_MIN } from '../infer/thresholds';
 import { modelledDayLine } from '../modelledDayLine';
 import type { Coverage } from '../types';
@@ -6,8 +6,6 @@ import type { BoardDuty, DutyBoardResponse } from './api';
 import { modelledDaySentence } from '../sim/operatingDayWording';
 import { heldOutParts } from './dutyBoardModel';
 import { matchedCaption, recencySentence, spareCaption } from './dutyStanding';
-
-const plural = (n: number, one: string, many: string): string => (n === 1 ? one : many);
 
 export interface DutyFigure {
   readonly label: string;
@@ -46,7 +44,7 @@ export function unmatchedLine(
   const { unassigned, assigned, excluded } = response.counts;
   if (unassigned <= 0) return null;
   const parts = heldOutParts(excluded, response.eligibilityIgnoredLocation === true);
-  const lead = `No bus for ${formatCount(unassigned)} ${plural(unassigned, 'duty', 'duties')}:`;
+  const lead = `No bus for ${formatCount(unassigned)} ${pluralWord(unassigned, 'duty', 'duties')}:`;
   const held = parts.length === 0 ? '' : ` Held out of the matching: ${parts.join(' · ')}.`;
   if (assigned > 0) return `${lead} every eligible bus has another duty.${held}`;
   return parts.length === 0
@@ -145,5 +143,5 @@ export function emptyBoardSentence(operatingDate: string): string {
 
 export function duplicateRowsSentence(dropped: number | undefined): string | null {
   if (!dropped || dropped <= 0) return null;
-  return `${formatCount(dropped)} feed ${plural(dropped, 'row repeated a registration and was', 'rows repeated a registration and were')} left out.`;
+  return `${formatCount(dropped)} feed ${pluralWord(dropped, 'row repeated a registration and was', 'rows repeated a registration and were')} left out.`;
 }

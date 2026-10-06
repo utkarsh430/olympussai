@@ -5,14 +5,11 @@ import { DEI_COMPONENTS, Z_CLAMP } from './config';
 import { assignPeerGroups } from './peerGroups';
 import type { DeiComponent, DepotScore, PeerGroupId } from './types';
 import { countsOf, valuesOfCounts, type ComponentValues } from './window';
+import { roundOneDecimal } from '@/lib/depot/stats/rounding';
 
 /** Rates in 0..1 from this depot's own counts on one snapshot. */
 export function componentValues(depot: DepotSummary): ComponentValues {
   return valuesOfCounts(countsOf(depot));
-}
-
-function roundOneDecimal(value: number): number {
-  return Math.round(value * 10) / 10;
 }
 
 function rawComponents(values: ComponentValues): DeiComponent[] {

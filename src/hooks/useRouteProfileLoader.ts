@@ -7,14 +7,14 @@ import {
   type LoaderProgress,
   type LookupOutcome,
 } from '@/lib/depot/routes/profileLoader';
+import { fetchRouteProfile, retryAfterWholeSeconds } from '@/lib/depot/routes/routeProfileClient';
 import type { RouteProfileResponse } from '@/lib/depot/routes/types';
 
-const PROFILE_ENDPOINT = '/api/upsrtc/depot/route/';
 const DEFAULT_RETRY_SECONDS = 30;
 
 /** Reads a `Retry-After` header as whole seconds; a missing or odd value waits the default. */
 function retrySeconds(header: string | null): number {
-  return header !== null && /^\d{1,5}$/.test(header.trim()) ? Number(header) : DEFAULT_RETRY_SECONDS;
+  return retryAfterWholeSeconds(header) ?? DEFAULT_RETRY_SECONDS;
 }
 
 /** One lookup through the existing per-route endpoint, as an outcome; it never throws. */
@@ -23,10 +23,7 @@ export async function lookupRouteProfile(
   signal: AbortSignal,
 ): Promise<LookupOutcome> {
   try {
-    const response = await fetch(`${PROFILE_ENDPOINT}${encodeURIComponent(routeName)}`, {
-      signal,
-      cache: 'no-store',
-    });
+    const response = await fetchRouteProfile(routeName, signal);
     if (response.status === 429) {
       return { kind: 'limited', retryAfterSeconds: retrySeconds(response.headers.get('retry-after')) };
     }

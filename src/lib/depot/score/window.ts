@@ -1,6 +1,7 @@
 import { ratio } from '../stats/robust';
 import type { DepotSummary } from '../types';
 import type { DeiComponentKey, ScoreWindow } from './types';
+import { MS_PER_MINUTE } from '@/lib/depot/units';
 
 /*
  * The pure half of the rolling score window. One snapshot of a
@@ -16,7 +17,6 @@ export const SCORE_WINDOW_MIN = 20;
 /** Hard bound on a depot's samples, whatever the feed's cadence (15 s gives 80). */
 export const SCORE_WINDOW_MAX_SAMPLES = 120;
 
-const MS_PER_MINUTE = 60_000;
 const WINDOW_MS = SCORE_WINDOW_MIN * MS_PER_MINUTE;
 
 /** The raw counts the five components are ratios of. */

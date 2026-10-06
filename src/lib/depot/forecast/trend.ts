@@ -18,6 +18,7 @@ import {
 import { nearestRankQuantile } from './band';
 import { insufficientHistory, prepareSeries } from './series';
 import type { InsufficientHistory, SeriesInputReason, TrendUnit } from './types';
+import { roundHalfAwayFromZero } from '@/lib/depot/stats/rounding';
 
 export type TrendDirection = 'up' | 'down' | 'steady';
 export type { TrendUnit } from './types';
@@ -76,18 +77,6 @@ const FORMAT: Readonly<Record<MetricKind, UnitFormat>> = {
   count: { unit: 'buses', words: 'buses', scale: 1, decimals: 0 },
 };
 
-/**
- * Rounds half away from zero, symmetric for rises and falls. The first pass
- * to six places strips binary noise, so 0.805 - 0.8 (0.50000000000000044 pp)
- * and its mirror both round the same way.
- */
-function roundTo(value: number, decimals: number): number {
-  const factor = 10 ** decimals;
-  const cleaned = Number((Math.abs(value) * factor).toFixed(6));
-  const rounded = (Math.sign(value) * Math.round(cleaned)) / factor;
-  return rounded === 0 ? 0 : rounded;
-}
-
 /** The steady threshold at lag `days`, in the display unit; see `TrendChange.steadyWithin`. */
 function steadyWithin(run: readonly SeriesPoint[], days: number, kind: MetricKind): number {
   const { scale } = FORMAT[kind];
@@ -124,7 +113,7 @@ function changeOver(
   const from = run.at(-1 - days);
   if (latest === undefined || from === undefined) return null;
   const format = FORMAT[kind];
-  const change = roundTo((latest.value - from.value) * format.scale, format.decimals);
+  const change = roundHalfAwayFromZero((latest.value - from.value) * format.scale, format.decimals);
   const threshold = steadyWithin(run, days, kind);
   const direction = directionOf(change, threshold);
   const sentence = sentenceFor(days, change, direction, format);

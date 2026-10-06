@@ -2,8 +2,7 @@ import type { DepotBusRow } from '@/models/depotLive';
 import type { BusOpState } from '../types';
 import { isScheduledForFeedDate } from './outshed';
 import { DARK_AFTER_MIN, MOVING_SPEED_KMPH, REPORTING_WINDOW_MIN } from './thresholds';
-
-const MS_PER_MINUTE = 60_000;
+import { MS_PER_MINUTE } from '@/lib/depot/units';
 
 /**
  * Minutes between a bus's last GPS fix and the feed's own clock.

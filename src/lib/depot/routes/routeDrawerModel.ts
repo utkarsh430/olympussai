@@ -1,4 +1,4 @@
-import { formatCount, formatDurationMinutes } from '../format';
+import { countPhrase, formatCount, formatDurationMinutes } from '../format';
 import { formatKm } from './allocationWording';
 import type { AllocationMoveItem, RouteListItem } from './api';
 import { LATE_AFTER_MIN } from './delayConfig';
@@ -70,9 +70,6 @@ const UNAVAILABLE: Readonly<Record<Unavailable, string>> = {
     'Its profile is unavailable: the route-details feed did not answer. Try again later.',
 };
 
-const plural = (n: number, one: string, many: string): string =>
-  `${formatCount(n)} ${n === 1 ? one : many}`;
-
 const NO_STOPS = 'No stops in the feed for this route.';
 
 /** The time of a stop the profile gives no schedule for. */
@@ -92,12 +89,12 @@ function unlocatedLine(unlocated: number, total: number): string {
   if (unlocated === 0) return 'Every stop has a usable position.';
   const verb = unlocated === 1 ? 'has' : 'have';
   const pronoun = unlocated === 1 ? 'it is' : 'they are';
-  return `${formatCount(unlocated)} of ${plural(total, 'stop', 'stops')} ${verb} no usable position, so ${pronoun} left out of distances.`;
+  return `${formatCount(unlocated)} of ${countPhrase(total, 'stop', 'stops')} ${verb} no usable position, so ${pronoun} left out of distances.`;
 }
 
 function operatorsLine(operators: DrawerRoute['operators']): string {
   if (operators.length === 0) return 'No depot is recorded for its buses.';
-  const named = operators.map((o) => `${o.depotName} (${plural(o.buses, 'bus', 'buses')})`);
+  const named = operators.map((o) => `${o.depotName} (${countPhrase(o.buses, 'bus', 'buses')})`);
   const list =
     named.length === 1 ? named[0] : `${named.slice(0, -1).join(', ')} and ${named[named.length - 1]}`;
   return `Operated by ${list}.`;
@@ -132,7 +129,7 @@ export function drawerView(
     durationLine: durationLine(profile.scheduledDurationMin),
     unlocatedLine: unlocatedLine(profile.unlocatedStops, profile.stops.length),
     operatorsLine: operatorsLine(route.operators),
-    busesLine: `${plural(route.buses, 'bus', 'buses')} on this route now.`,
+    busesLine: `${countPhrase(route.buses, 'bus', 'buses')} on this route now.`,
     deadKmLines: deadKmLines(route, move),
   };
 }
@@ -143,7 +140,7 @@ const LIMITED = 'Too many route lookups just now.';
 export function rateLimitSentence(retryAfter: string | null): string {
   const seconds = retryAfter !== null && /^\d{1,5}$/.test(retryAfter.trim()) ? Number(retryAfter) : null;
   if (seconds === null) return `${LIMITED} Try again shortly.`;
-  return `${LIMITED} Try again in ${plural(seconds, 'second', 'seconds')}.`;
+  return `${LIMITED} Try again in ${countPhrase(seconds, 'second', 'seconds')}.`;
 }
 
 /** What the drawer's hook reports; the optional parts are absent in older callers. */

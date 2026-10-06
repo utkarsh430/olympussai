@@ -2,6 +2,7 @@ import { formatCount } from '@/lib/depot/format';
 import type { DepotScore } from '@/lib/depot/score/types';
 import type { DepotSummary } from '@/lib/depot/types';
 import { differenceDirection, formatRate, type DifferenceDirection } from './leagueModel';
+import { roundOneDecimal } from '@/lib/depot/stats/rounding';
 
 /**
  * The league page's sentences, built from the data so the counts on screen
@@ -12,7 +13,6 @@ import { differenceDirection, formatRate, type DifferenceDirection } from './lea
 const DASH = '—';
 const SEP = ' · ';
 const MINUS = '−';
-const ROUND_TO_TENTH = 10;
 
 export type DifferenceUnit = 'pp' | 'pts';
 
@@ -53,19 +53,18 @@ export function windowMark(
   };
 }
 
-/** "rank 1 of 41 in its peer group (Small fleets)". */
+/**
+ * "rank 1 of 41 in its peer group (Small fleets)": the one wording of a depot's rank,
+ * used by the league, the map and the economics page. 41 is the peer group, not every depot.
+ */
 export function peerRankPhrase(rank: number, peerCount: number, groupLabel: string): string {
   return `rank ${rank} of ${peerCount} in its peer group (${groupLabel})`;
-}
-
-function roundTenth(n: number): number {
-  return Math.round(n * ROUND_TO_TENTH) / ROUND_TO_TENTH;
 }
 
 /** "+22.5 pp", "−5.0 pp", "0.0 pp"; the raw sign, never the direction of good. */
 export function formatSignedDifference(delta: number | null, unit: DifferenceUnit): string {
   if (delta === null) return DASH;
-  const rounded = roundTenth(delta);
+  const rounded = roundOneDecimal(delta);
   if (rounded === 0) return `0.0 ${unit}`;
   return `${rounded > 0 ? '+' : MINUS}${Math.abs(rounded).toFixed(1)} ${unit}`;
 }
@@ -98,7 +97,7 @@ export function metricCellWording(cell: MetricCellInput): MetricCellWording {
   const value = formatRate(cell.value);
   const median = formatRate(cell.peerMedian);
   const size =
-    cell.deltaPoints === null ? '' : `${Math.abs(roundTenth(cell.deltaPoints)).toFixed(1)} pp`;
+    cell.deltaPoints === null ? '' : `${Math.abs(roundOneDecimal(cell.deltaPoints)).toFixed(1)} pp`;
   const comparison: Readonly<Record<DifferenceDirection, string>> = {
     better: `${size} better than the peer median of ${median}`,
     worse: `${size} worse than the peer median of ${median}`,

@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import { TableOverflowCue, useColumnsToTheRight } from '@/components/depot/shell/TableOverflowCue';
-import { formatCount } from '@/lib/depot/format';
+import { formatCount, signedTwoDecimals } from '@/lib/depot/format';
 import {
   PEER_GROUP_LABEL,
   explainRow,
@@ -10,12 +10,6 @@ import {
 import { peerRankPhrase } from '@/lib/depot/league/leagueWording';
 
 const WEIGHT_PERCENT = 100;
-
-function signed(n: number): string {
-  const rounded = Math.round(n * 100) / 100;
-  if (rounded === 0) return '0.00';
-  return `${rounded > 0 ? '+' : '−'}${Math.abs(rounded).toFixed(2)}`;
-}
 
 /**
  * Why one depot scored what it did: each component's value, the peer median,
@@ -101,10 +95,10 @@ export function ScoreBreakdown({
                     </th>
                     <td className="depot-align-right">{formatRate(c.value)}</td>
                     <td className="depot-align-right">{formatRate(c.peerMedian)}</td>
-                    <td className="depot-align-right">{c.z === null ? '—' : signed(c.z)}</td>
+                    <td className="depot-align-right">{c.z === null ? '—' : signedTwoDecimals(c.z)}</td>
                     <td className="depot-align-right">{Math.round(c.weight * WEIGHT_PERCENT)}%</td>
                     <td className="depot-align-right">
-                      {row.ranked ? signed(c.contribution) : '—'}
+                      {row.ranked ? signedTwoDecimals(c.contribution) : '—'}
                     </td>
                   </tr>
                 ))}

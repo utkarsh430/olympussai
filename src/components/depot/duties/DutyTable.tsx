@@ -6,7 +6,8 @@ import { DataTable, type Column } from '@/components/depot/shell/DataTable';
 import { Pager } from '@/components/depot/shell/LongLists';
 import { PAGE_ROWS, pageRange } from '@/lib/depot/listPaging';
 import { rosterBusHref } from '@/lib/depot/depotNav';
-import { formatMinute, type BoardRow } from '@/lib/depot/duties/dutyBoardModel';
+import type { BoardRow } from '@/lib/depot/duties/dutyBoardModel';
+import { formatMinute } from '@/lib/depot/format';
 import {
   dutyColumnKeys,
   dutyColumnWidths,

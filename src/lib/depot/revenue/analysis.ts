@@ -1,12 +1,12 @@
-import { compareText } from '../fuel/compare';
+import { compareText } from '@/lib/depot/stats/order';
 import type {
   DepotRevenueTotals,
   RevenueAnalysis,
   RouteRevenueFigure,
   RouteRidershipDay,
 } from './types';
+import { TENTH } from '@/lib/depot/units';
 
-const TENTH = 10;
 const CENT = 100;
 
 function figureFor(day: RouteRidershipDay): RouteRevenueFigure {

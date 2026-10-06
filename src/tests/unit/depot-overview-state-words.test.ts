@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { kpiLayout, weekTrendNote } from '@/lib/depot/network/overviewWords';
+import { kpiLayout, onRoadAndDarkWeekNote } from '@/lib/depot/network/overviewWords';
 import {
   DARK_HEADER_TITLE,
   TABLE_COLUMN_SPEC,
@@ -43,7 +43,7 @@ describe('overview band, in the classified state words', () => {
 
 describe('the week trend note', () => {
   it('names both measures in one sentence, with no MODELLED word inside it', () => {
-    const note = weekTrendNote('steady over 7 days', 'up 1.2 percentage points over 7 days');
+    const note = onRoadAndDarkWeekNote('steady over 7 days', 'up 1.2 percentage points over 7 days');
     expect(note).toBe(
       'On-road share steady over 7 days; dark rate up 1.2 percentage points over 7 days.',
     );
@@ -51,11 +51,11 @@ describe('the week trend note', () => {
   });
 
   it('says one measure alone, and nothing when neither has a trend', () => {
-    expect(weekTrendNote(null, 'steady over 7 days')).toBe('Dark rate steady over 7 days.');
-    expect(weekTrendNote('down 3 percentage points over 7 days', null)).toBe(
+    expect(onRoadAndDarkWeekNote(null, 'steady over 7 days')).toBe('Dark rate steady over 7 days.');
+    expect(onRoadAndDarkWeekNote('down 3 percentage points over 7 days', null)).toBe(
       'On-road share down 3 percentage points over 7 days.',
     );
-    expect(weekTrendNote(null, null)).toBeNull();
+    expect(onRoadAndDarkWeekNote(null, null)).toBeNull();
   });
 });
 

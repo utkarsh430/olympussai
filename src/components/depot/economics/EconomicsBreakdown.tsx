@@ -9,11 +9,12 @@ import {
 import { breakdownButtonName } from '@/lib/depot/revenue/economicsLayout';
 import type { EconomicsResponse } from '@/lib/depot/revenue/api';
 import { coverageSentence } from '@/lib/depot/revenue/revenuePageModel';
+import { capitalise } from '@/lib/depot/format';
 
 /** "rank 3 of 41 in its peer group (Small fleets)" as a sentence. */
 function rankSentence(row: EconomicsRow): string {
   const phrase = peerRankPhrase(row);
-  return `${phrase.charAt(0).toUpperCase()}${phrase.slice(1)}.`;
+  return `${capitalise(phrase)}.`;
 }
 
 /**

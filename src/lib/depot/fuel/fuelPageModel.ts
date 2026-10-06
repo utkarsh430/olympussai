@@ -2,6 +2,8 @@ import { formatCount } from '../format';
 import type { ModelledDaySummary } from '../sim/operatingDayTypes';
 import { noDutiesReason } from '../sim/operatingDayWording';
 import type { FuelGroupRow, FuelTotals } from './types';
+import { TENTH } from '@/lib/depot/units';
+import { wholeTenths } from '@/lib/depot/stats/rounding';
 
 /*
  * Every sentence and grouping the fuel page shows is built here, so the wording
@@ -11,7 +13,6 @@ import type { FuelGroupRow, FuelTotals } from './types';
 
 const DASH = '—';
 const NO_ROUTE = 'No route';
-const TENTH = 10;
 const CLASS_LABELS: Readonly<Record<string, string>> = {
   ordinary: 'Ordinary',
   express: 'Express',
@@ -19,17 +20,15 @@ const CLASS_LABELS: Readonly<Record<string, string>> = {
   premium: 'Premium',
 };
 
-const tenths = (value: number): number => Math.round(value * TENTH);
-
 /** A figure to one decimal with Indian grouping of the whole part. */
 export function formatTenths(value: number): string {
-  const t = tenths(value);
+  const t = wholeTenths(value);
   const frac = Math.abs(t) % TENTH;
   return `${formatCount(Math.trunc(t / TENTH))}${frac === 0 ? '' : `.${frac}`}`;
 }
 
 export function formatKmPerLitre(value: number | null): string {
-  return value === null ? DASH : (tenths(value) / TENTH).toFixed(1);
+  return value === null ? DASH : (wholeTenths(value) / TENTH).toFixed(1);
 }
 
 export function formatCostPerKm(value: number | null): string {

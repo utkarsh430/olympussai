@@ -3,10 +3,9 @@ import {
   MAX_BUSES,
   MAX_MOVES,
   MAX_TRIPS_PER_DAY,
-  METRES_PER_KM,
 } from './allocateConfig';
+import { METRES_PER_KM } from '@/lib/depot/units';
 import {
-  compareText,
   dailyCost,
   fits,
   localSearch,
@@ -24,6 +23,7 @@ import type {
   UnchangedReason,
   UnchangedRoute,
 } from './allocateTypes';
+import { compareText } from '@/lib/depot/stats/order';
 
 export { MAX_MOVES, MIN_SAVING_KM_PER_DAY } from './allocateConfig';
 

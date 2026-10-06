@@ -1,14 +1,13 @@
 import { sortRows, type SortValue } from '../tableSort';
 import type { FilterOption, RouteListItem } from './api';
 import { NO_CLASS, type ListPage, type RouteSort, type RouteSortKey } from './routeQuery';
+import { wholeTenths } from '@/lib/depot/stats/rounding';
 
 /**
  * The route lists' filters, sort and paging, applied on the server so a
  * response carries one page and true totals. Each whole filtered list is
  * sorted before it is paged, so a sort never reorders only the visible page.
  */
-
-const tenths = (km: number): number => Math.round(km * 10);
 
 const SORT_VALUE: Readonly<Record<RouteSortKey, (route: RouteListItem) => SortValue>> = {
   route: (r) => r.routeName,
@@ -18,7 +17,7 @@ const SORT_VALUE: Readonly<Record<RouteSortKey, (route: RouteListItem) => SortVa
   class: (r) => r.serviceToken,
   trips: (r) => r.tripsPerDay.value,
   // Compared in tenths, as the figure is shown, never by floating-point equality.
-  deadKm: (r) => (r.deadKm === null ? null : tenths(r.deadKm.perTripKm)),
+  deadKm: (r) => (r.deadKm === null ? null : wholeTenths(r.deadKm.perTripKm)),
   median: (r) => r.delay.medianMin,
   late: (r) => r.delay.lateShare,
   profile: (r) => (r.profiled ? 1 : 0),

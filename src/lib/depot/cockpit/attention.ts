@@ -5,6 +5,7 @@ import { DARK_AFTER_MIN, REPORTING_WINDOW_MIN } from '@/lib/depot/infer/threshol
 import { EXCEPTIONS_PATH } from '@/lib/depot/nav';
 import { hasTamperCode, notHeardText } from '@/lib/depot/roster/rosterModel';
 import { rosterFilterHref } from '@/lib/depot/roster/rosterQuery';
+import { MINUTES_PER_HOUR } from '@/lib/depot/units';
 
 /**
  * The cockpit's hero: what needs attention now, as a few counted lines, most
@@ -12,7 +13,6 @@ import { rosterFilterHref } from '@/lib/depot/roster/rosterQuery';
  */
 
 export const ATTENTION_MAX_LINES = 6;
-const MINUTES_PER_HOUR = 60;
 
 export interface AttentionLine {
   readonly key: string;

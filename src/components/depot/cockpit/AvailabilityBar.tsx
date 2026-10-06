@@ -8,7 +8,7 @@ import { StatePanel } from '@/components/depot/shell/StatePanel';
 import { useDepotForecast } from '@/hooks/useDepotForecast';
 import {
   legendWord,
-  weekTrendNote,
+  availabilityWeekTrendNote,
   type AvailabilitySegment,
   type YardLine,
 } from '@/lib/depot/cockpit/availability';
@@ -39,7 +39,7 @@ function useWeekNote(): string {
   const state = useDepotForecast({ metric: COCKPIT_TREND_METRIC, scope: { kind: 'depot', depotId } });
   const result = state.data?.trend.result;
   if (result?.status !== 'ok') return DEFAULT_NOTE;
-  return weekTrendNote(METRIC_LABEL[COCKPIT_TREND_METRIC], result.summary.week.sentence);
+  return availabilityWeekTrendNote(METRIC_LABEL[COCKPIT_TREND_METRIC], result.summary.week.sentence);
 }
 
 function YardRow({ yard, yardHref, howId }: Pick<AvailabilityBarProps, 'yard' | 'yardHref' | 'howId'>) {

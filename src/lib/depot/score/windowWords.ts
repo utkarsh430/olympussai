@@ -1,5 +1,6 @@
 import { formatFeedTime } from '@/lib/depot/format';
 import type { ScoreWindow } from '@/lib/depot/score/types';
+import { MS_PER_MINUTE } from '@/lib/depot/units';
 
 /*
  * How every page says which window the efficiency index (and the depot exceptions that
@@ -16,7 +17,6 @@ export interface WindowWordsInput extends ScoreWindow {
   readonly coveredMin?: number;
 }
 
-const MS_PER_MIN = 60_000;
 /** A window this close to its configured length is called full (one poll of slack). */
 const FULL_SLACK_MIN = 1;
 
@@ -35,7 +35,7 @@ function classify(window: WindowWordsInput | undefined, feedNow: string | null):
     if (minutes >= 1) return { kind: 'span', minutes };
   }
   const now = feedNow === null ? Number.NaN : Date.parse(feedNow);
-  const spanMin = (now - Date.parse(window.since)) / MS_PER_MIN;
+  const spanMin = (now - Date.parse(window.since)) / MS_PER_MINUTE;
   if (Number.isFinite(spanMin) && spanMin >= window.lengthMin - FULL_SLACK_MIN) {
     return { kind: 'span', minutes: window.lengthMin };
   }

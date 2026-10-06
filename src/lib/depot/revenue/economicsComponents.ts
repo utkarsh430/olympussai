@@ -9,6 +9,7 @@ import type {
   EconomicsComponentKey,
   EconomicsInput,
 } from './types';
+import { TENTH } from '@/lib/depot/units';
 
 /*
  * The scoring of one depot's three components against a peer sample, and the
@@ -30,7 +31,6 @@ export const COMPONENTS: readonly ComponentConfig[] = [
 
 const INDEX_CENTRE = 50;
 const INDEX_HALF_RANGE = 50;
-const TENTH = 10;
 
 export type Values = Readonly<Record<EconomicsComponentKey, number | null>>;
 

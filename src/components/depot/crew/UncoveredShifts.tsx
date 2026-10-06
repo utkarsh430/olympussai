@@ -11,7 +11,7 @@ import {
   shortfallText,
   uncoveredCountSentence,
 } from '@/lib/depot/crew/crewPageModel';
-import { formatMinute } from '@/lib/depot/duties/dutyBoardModel';
+import { formatMinute } from '@/lib/depot/format';
 import { PAGE_ROWS, pageRange } from '@/lib/depot/listPaging';
 
 /** Per-role reasons are the one text column; no slot id is needed here. */

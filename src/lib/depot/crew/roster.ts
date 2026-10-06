@@ -12,8 +12,9 @@ import type {
   ShortfallCause,
   UncoveredReason,
 } from './types';
+import { MINUTES_PER_HOUR } from '@/lib/depot/units';
+import { compareText } from '@/lib/depot/stats/order';
 
-const MINUTES_PER_HOUR = 60;
 const DAILY_LIMIT_MIN = MAX_DUTY_HOURS_PER_DAY * MINUTES_PER_HOUR;
 const ROLES: readonly CrewRole[] = ['driver', 'conductor'];
 const AVAILABILITIES: readonly CrewAvailability[] = [
@@ -31,7 +32,6 @@ type SlotPick =
   | { readonly kind: 'slot'; readonly id: string }
   | { readonly kind: 'none'; readonly hoursRefused: boolean; readonly poolEmpty: boolean };
 
-const compareText = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 const minutesOf = (shift: CrewShift): number => shift.endMin - shift.startMin;
 const overlaps = (a: CrewShift, b: CrewShift): boolean =>
   a.startMin < b.endMin && b.startMin < a.endMin;

@@ -10,10 +10,12 @@
 import { SeededRandom } from '@/lib/simulation/seededRandom';
 import type { HistoryScope, MetricKey, SeriesAnchor, SeriesPoint } from './types';
 import { seedFor } from './seed';
+import { MS_PER_DAY } from '@/lib/depot/units';
+import { clamp } from '@/lib/depot/stats/robust';
+import { roundToDecimals } from '@/lib/depot/stats/rounding';
 
 const MIN_DAYS = 7;
 const MAX_DAYS = 180;
-const MS_PER_DAY = 86_400_000;
 /** Share of the previous day's deviation that carries to the day before it. */
 const REVERSION = 0.8;
 /** Half-width of a day's own shock, as a share of the metric's span. */
@@ -38,10 +40,6 @@ export const METRIC_RANGES: Readonly<Record<MetricKey, MetricRange>> = {
   available: { min: 0, max: Number.POSITIVE_INFINITY, decimals: 0 },
 };
 
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
-}
-
 /**
  * The metric's own maximum, tightened by the unit's ceiling when one is given
  * (never below the metric's minimum). Throws RangeError for a ceiling that is
@@ -52,11 +50,6 @@ function upperLimit(metric: MetricKey, ceiling: number | undefined): number {
   if (ceiling === undefined) return max;
   if (!Number.isFinite(ceiling)) throw new RangeError(`Ceiling must be finite, got ${ceiling}`);
   return clamp(ceiling, min, max);
-}
-
-function round(value: number, decimals: number): number {
-  const factor = 10 ** decimals;
-  return Math.round(value * factor) / factor;
 }
 
 export const RATE_METRICS: ReadonlySet<MetricKey> = new Set(['onRoadShare', 'offRoadRate', 'darkRate']);
@@ -130,7 +123,7 @@ export function modelSeries(
   const { min, decimals } = METRIC_RANGES[metric];
   const max = upperLimit(metric, anchor.ceiling);
   const count = clamp(Math.trunc(Number.isFinite(days) ? days : MIN_DAYS), MIN_DAYS, MAX_DAYS);
-  const anchorValue = round(clamp(anchor.value, min, max), decimals);
+  const anchorValue = roundToDecimals(clamp(anchor.value, min, max), decimals);
   // Every day carries the unit's own limit, so a forecast of this series can clip to it.
   const limit = anchor.ceiling === undefined ? {} : { ceiling: max };
 
@@ -150,7 +143,7 @@ export function modelSeries(
     const date = formatDay(time);
     deviation = deviation * REVERSION + shockOn(scopeKey, metric, date, span);
     const raw = anchorValue + deviation + weeklyAt(time) - anchorWeekly;
-    points.push({ date, value: round(clamp(raw, min, max), decimals), ...limit });
+    points.push({ date, value: roundToDecimals(clamp(raw, min, max), decimals), ...limit });
   }
   return points.reverse();
 }

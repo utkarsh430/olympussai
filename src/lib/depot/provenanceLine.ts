@@ -1,6 +1,6 @@
 import type { UpstreamSource } from '@/models/canonical';
 import { isFeedQuiet } from './feedChip';
-import { formatCount, formatFeedTime } from './format';
+import { countPhrase, formatCount, formatFeedTime } from './format';
 import { PROVENANCE_LABEL } from './labels';
 import { SOURCES_PATH } from './nav';
 import { scoreWindowSentence, type WindowWordsInput } from './score/windowWords';
@@ -93,16 +93,13 @@ export interface ModelledDayInput {
   readonly fleet: number;
 }
 
-const plural = (n: number, one: string, many: string): string =>
-  `${formatCount(n)} ${n === 1 ? one : many}`;
-
 /** The fixed formula for a page built on the modelled operating day. */
 export function modelledDaySentence(input: ModelledDayInput): string {
   const { date, duties, routes, scheduled, fleet } = input;
   return (
-    `Built on the modelled day for ${date}: ${plural(duties, 'duty', 'duties')} on ` +
-    `${plural(routes, 'route', 'routes')}; the feed schedules ${formatCount(scheduled)} of ` +
-    `${plural(fleet, 'bus', 'buses')}.`
+    `Built on the modelled day for ${date}: ${countPhrase(duties, 'duty', 'duties')} on ` +
+    `${countPhrase(routes, 'route', 'routes')}; the feed schedules ${formatCount(scheduled)} of ` +
+    `${countPhrase(fleet, 'bus', 'buses')}.`
   );
 }
 

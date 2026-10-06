@@ -1,5 +1,5 @@
 import type { DepotBusView } from '../api';
-import { compareText } from '../exceptions/depotExceptions';
+import { compareText } from '@/lib/depot/stats/order';
 import { deviceFlags } from '../roster/rosterModel';
 import type { OffRoadBus } from './api';
 

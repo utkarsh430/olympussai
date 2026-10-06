@@ -1,5 +1,5 @@
 import type { DepotVehicleStatus } from '@/models/depotLive';
-import { formatCount } from '../format';
+import { formatCount, pluralWord } from '../format';
 import { lastHeardText } from '../roster/rosterModel';
 import type { ServiceClass } from '../sim/types';
 import { DUE_SOON_WITHIN_KM } from './config';
@@ -12,8 +12,6 @@ import type { WorkshopLoad } from './workshop';
  * asserted in tests and the components only place it. Modelled figures are
  * always named as modelled in the sentence that carries them.
  */
-
-const plural = (n: number, one: string, many: string): string => (n === 1 ? one : many);
 
 export function offRoadHeadline(count: number): string {
   return count === 1
@@ -161,14 +159,14 @@ export function intervalText(serviceClass: ServiceClass, intervalKm: number): st
 export function workshopSentence(load: WorkshopLoad): string {
   const { bays, offRoad, queue, freeBays } = load;
   if (bays === 0) {
-    return `The depot has no modelled workshop bay, so ${formatCount(offRoad)} ${plural(offRoad, 'bus', 'buses')} off the road would wait.`;
+    return `The depot has no modelled workshop bay, so ${formatCount(offRoad)} ${pluralWord(offRoad, 'bus', 'buses')} off the road would wait.`;
   }
   if (offRoad === 0) {
     return `No bus is off the road, so all ${formatCount(bays)} modelled bays are free.`;
   }
-  const buses = `${formatCount(offRoad)} ${plural(offRoad, 'bus', 'buses')} off the road`;
+  const buses = `${formatCount(offRoad)} ${pluralWord(offRoad, 'bus', 'buses')} off the road`;
   if (queue === 0) {
-    return `${buses} fit in ${formatCount(bays)} modelled bays; ${formatCount(freeBays)} ${plural(freeBays, 'bay is', 'bays are')} free.`;
+    return `${buses} fit in ${formatCount(bays)} modelled bays; ${formatCount(freeBays)} ${pluralWord(freeBays, 'bay is', 'bays are')} free.`;
   }
   return `${buses} against ${formatCount(bays)} modelled bays: ${formatCount(queue)} would wait for a bay.`;
 }

@@ -1,8 +1,10 @@
-import { formatCount } from '../format';
+import { formatCount, signedTwoDecimals } from '../format';
+import { peerRankPhrase as rankInPeerGroup } from '../league/leagueWording';
 import { ECONOMICS_Z_CLAMP, type ECONOMICS_WEIGHTS } from '../sim/revenueConfig';
-import { DASH, HUNDREDTH, MINUS, PERCENT, formatComponentValue, roundTo } from './economicsFormat';
+import { DASH, MINUS, PERCENT, formatComponentValue } from './economicsFormat';
 import type { EconomicsRow, EconomicsCell } from './economicsRows';
 import type { EconomicsComponentKey } from './types';
+import { roundToDecimals } from '@/lib/depot/stats/rounding';
 
 /* The economics page's sentences: a depot's explanation and its breakdown. */
 
@@ -11,14 +13,14 @@ export function peerRankPhrase(row: EconomicsRow): string {
   if (!row.ranked || row.rank === null || row.peerCount === null || row.peerGroupLabel === null) {
     return 'not ranked';
   }
-  return `rank ${row.rank} of ${row.peerCount} in its peer group (${row.peerGroupLabel})`;
+  return rankInPeerGroup(row.rank, row.peerCount, row.peerGroupLabel);
 }
 
 /** One sentence on what moved a depot's economics index most. */
 export function explainEconomics(row: EconomicsRow): string {
   if (row.reasonText !== null) return row.reasonText;
   const scored = row.cells.filter((c) => c.value !== null);
-  const rounded = (c: EconomicsCell): number => roundTo(c.contribution, HUNDREDTH);
+  const rounded = (c: EconomicsCell): number => roundToDecimals(c.contribution, 2);
   const [first, ...rest] = scored;
   if (first === undefined) return 'No component could be worked out for this depot.';
   const strongest = rest.reduce((a, b) => (rounded(b) > rounded(a) ? b : a), first);
@@ -42,12 +44,6 @@ export interface BreakdownRow {
   readonly contributionText: string;
 }
 
-function signed(n: number): string {
-  const rounded = roundTo(n, HUNDREDTH);
-  if (rounded === 0) return '0.00';
-  return `${rounded > 0 ? '+' : MINUS}${Math.abs(rounded).toFixed(2)}`;
-}
-
 export function breakdownRows(
   row: EconomicsRow,
   weights: typeof ECONOMICS_WEIGHTS,
@@ -61,9 +57,9 @@ export function breakdownRows(
       cell.coverage === null
         ? null
         : `${formatCount(cell.coverage.n)} of ${formatCount(cell.coverage.of)} routes`,
-    zText: cell.z === null ? DASH : signed(cell.z),
+    zText: cell.z === null ? DASH : signedTwoDecimals(cell.z),
     weightText: `${Math.round(weights[cell.key] * PERCENT)}%`,
-    contributionText: row.ranked ? signed(cell.contribution) : DASH,
+    contributionText: row.ranked ? signedTwoDecimals(cell.contribution) : DASH,
   }));
 }
 
