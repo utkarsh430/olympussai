@@ -59,6 +59,18 @@ export const ROUTE_TOKEN_CLASS: Readonly<Record<string, ServiceClass>> = {
   SCANIA: 'premium',
 };
 
+/**
+ * When a route name carries several class tokens the most specific class wins,
+ * most specific first: a premium coach on a route also tagged ordinary is still
+ * a premium coach.
+ */
+export const SERVICE_CLASS_PRIORITY: readonly ServiceClass[] = [
+  'premium',
+  'ac',
+  'express',
+  'ordinary',
+];
+
 /** Fleet mix used when the route name names no class; sums to 1. */
 export const SERVICE_CLASS_PROPORTIONS: readonly (readonly [ServiceClass, number])[] = [
   ['ordinary', 0.72],

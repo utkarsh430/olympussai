@@ -3,20 +3,26 @@ import {
   MAX_BUS_AGE_YEARS,
   ROUTE_TOKEN_CLASS,
   SEATS_BY_CLASS,
+  SERVICE_CLASS_PRIORITY,
   SERVICE_CLASS_PROPORTIONS,
   STATIC_SEED_DATE,
 } from './config';
 import { seedFor } from './seed';
 import type { ModelledBus, ServiceClass } from './types';
 
-/** First whole underscore-separated token of the route name that names a class. */
+/**
+ * The most specific class named by any whole underscore-separated token of the
+ * route name (see SERVICE_CLASS_PRIORITY), so the result does not depend on
+ * token position.
+ */
 function classFromRoute(routeName: string | null): ServiceClass | null {
   if (routeName === null) return null;
+  const named = new Set<ServiceClass>();
   for (const token of routeName.toUpperCase().split('_')) {
     const found = ROUTE_TOKEN_CLASS[token];
-    if (found !== undefined) return found;
+    if (found !== undefined) named.add(found);
   }
-  return null;
+  return SERVICE_CLASS_PRIORITY.find((c) => named.has(c)) ?? null;
 }
 
 function sampleClass(rng: SeededRandom): ServiceClass {
