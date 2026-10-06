@@ -23,8 +23,10 @@ describe('noticeSentence', () => {
     expect(noticeSentence('claude_unavailable')).toBe(
       'Claude was not available, so this is a scripted response.',
     );
+    // True on the live feed, on last good data and on the saved sample alike: it must
+    // never call the figures current.
     expect(noticeSentence('summary_unavailable')).toBe(
-      'A written summary could not be prepared. The figures on this page are current.',
+      'A written summary could not be prepared. The figures on this page are not affected.',
     );
     expect(noticeSentence('none')).toBeNull();
   });

@@ -369,6 +369,8 @@ describe('rolling breaker, budget and fixed fallback', () => {
     const viaCli = await engine(cliThatFails('timeout')).instance.generate(bad);
     expect(viaCli).toMatchObject({ fellBack: true, fallbackReason: 'scripted_unavailable' });
     expect(renderDraft(UNAVAILABLE_DRAFT, [])).toMatchObject({ ok: true });
+    // The stand-in is shown on last good data and on the saved sample too.
+    expect(UNAVAILABLE_DRAFT.paragraphs.join(' ')).not.toMatch(/\bcurrent\b|\blive\b/i);
   });
 
   it('limits calls per hour and per day on a sliding window', () => {

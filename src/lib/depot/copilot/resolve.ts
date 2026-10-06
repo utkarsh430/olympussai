@@ -35,7 +35,7 @@ export interface CopilotEngineDeps {
 /** Shown only if the scripted draft cannot render; it must pass `renderDraft` with no facts. */
 export const UNAVAILABLE_DRAFT: CopilotDraft = {
   headline: 'Briefing unavailable',
-  paragraphs: ['The figures on this page are current. A written summary could not be prepared.'],
+  paragraphs: ['A written summary could not be prepared. The figures on this page are not affected.'],
 };
 
 /** The CLI was never called, or says nothing about its health: not an attempt. */

@@ -27,7 +27,7 @@ export function noticeSentence(notice: CopilotPublicNotice): string | null {
     case 'claude_unavailable':
       return 'Claude was not available, so this is a scripted response.';
     case 'summary_unavailable':
-      return 'A written summary could not be prepared. The figures on this page are current.';
+      return 'A written summary could not be prepared. The figures on this page are not affected.';
     case 'none':
       return null;
   }
