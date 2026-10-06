@@ -11,7 +11,6 @@ import { BUS_EXCEPTION_KINDS, BUS_PAGE_DEFAULT_LIMIT } from '@/lib/depot/excepti
 import { EXCEPTION_KIND_LABEL } from '@/lib/depot/exceptions/describe';
 import {
   depotScopeLine,
-  depotWindowNote,
   exceptionTotalsLine,
   kindSearch,
   failedQuerySentence,
@@ -19,6 +18,7 @@ import {
   parseKindParam,
   severitySections,
 } from '@/lib/depot/exceptions/pageModel';
+import { depotWindowNote } from '@/lib/depot/score/windowWords';
 import type {
   BusExceptionKind,
   DepotExceptionKind,
