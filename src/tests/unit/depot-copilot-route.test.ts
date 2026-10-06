@@ -151,11 +151,13 @@ describe('POST /api/upsrtc/depot/copilot', () => {
     expect(draft).not.toHaveBeenCalled();
   });
 
-  it('answers 503 with a fixed body when the snapshot cannot be read, logging a reason code', async () => {
-    snapshot.mockRejectedValue(new Error('ECONNREFUSED 10.0.0.7 token=abc'));
+  it('answers 503 with a fixed body when the snapshot cannot be read, logging the stage and error', async () => {
+    snapshot.mockRejectedValue(new Error('ECONNREFUSED 10.0.0.7'));
     await expectError(await POST(post(NETWORK_BRIEFING)), 503, 'Depot data unavailable');
     expect(errorSpy).toHaveBeenCalledTimes(1);
-    expect(String(errorSpy.mock.calls[0]?.[0])).toBe('[depot:copilot-api] snapshot_failed');
+    expect(String(errorSpy.mock.calls[0]?.[0])).toMatch(
+      /^\[depot:copilot-api\] snapshot_failed writer=(scripted|claude-cli): Error: ECONNREFUSED 10\.0\.0\.7$/,
+    );
   });
 
   it('answers a briefing in exactly the wire shape, with no-store', async () => {

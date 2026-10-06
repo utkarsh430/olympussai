@@ -125,7 +125,7 @@ describe('copilot handler guards', () => {
     expect((await post(null, { stream })).status).toBe(400);
   });
 
-  it('answers an unexpected throw with the fixed 503, no-store and one reason code', async () => {
+  it('answers an unexpected throw with the fixed 503, no-store and one log line', async () => {
     runtime = {
       ...runtime,
       cache: {
@@ -140,7 +140,7 @@ describe('copilot handler guards', () => {
     expect(response.headers.get('cache-control')).toBe('no-store');
     expect(await response.json()).toEqual({ error: 'Depot data unavailable' });
     expect(errorSpy.mock.calls.map((c) => String(c[0]))).toEqual([
-      '[depot:copilot-api] unexpected',
+      '[depot:copilot-api] unexpected writer=scripted: Error: boom /srv/secret',
     ]);
   });
 

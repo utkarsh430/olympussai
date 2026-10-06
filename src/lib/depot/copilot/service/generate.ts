@@ -2,6 +2,8 @@ import { UNAVAILABLE_DRAFT } from '@/lib/depot/copilot/resolve';
 import type { CopilotRequest, CopilotText } from '@/lib/depot/copilot/types';
 import type { CopilotApiResponse, CopilotDataSource } from '@/lib/depot/copilot/wire';
 import { logDepotError } from '@/lib/depot/log';
+import { withheldStrings } from '@/lib/depot/copilot/errorText';
+import { logCopilotFailure } from '@/lib/depot/copilot/service/failureLog';
 import {
   NO_CALL_REASONS,
   refundClaudeAllowance,
@@ -38,8 +40,9 @@ async function scriptedText(
 ): Promise<CopilotText> {
   try {
     return await runtime.scriptedEngine.generate(request);
-  } catch {
-    logDepotError(LOG_SCOPE, 'scripted_failed');
+  } catch (error: unknown) {
+    const withheld = withheldStrings({ env: runtime.env, facts: request.facts });
+    logCopilotFailure({ usesClaude: false }, 'scripted_failed', error, withheld);
     return {
       ...UNAVAILABLE_DRAFT,
       provider: 'scripted',
@@ -144,8 +147,9 @@ export async function answerCopilot(
   try {
     // The time floor is asked again after any queue wait, just before the slot is taken.
     outcome = await engineText(runtime, request, key, wait.signal, () => hasTime(runtime, call));
-  } catch {
-    logDepotError(LOG_SCOPE, 'engine_failed');
+  } catch (error: unknown) {
+    const withheld = withheldStrings({ env: runtime.env, facts: request.facts });
+    logCopilotFailure(runtime, 'engine_failed', error, withheld);
     return respond(await scriptedText(runtime, request), false, missed);
   } finally {
     wait.dispose();

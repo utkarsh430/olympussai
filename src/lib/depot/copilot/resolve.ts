@@ -2,6 +2,7 @@ import { CLI_WINDOW, CLI_WINDOW_FAILURES, type ProviderSetting } from '@/lib/dep
 import { monotonicNow } from '@/lib/depot/copilot/limiter';
 import { renderDraft } from '@/lib/depot/copilot/render';
 import { logDepotError } from '@/lib/depot/log';
+import { describeCopilotError, withheldStrings } from '@/lib/depot/copilot/errorText';
 import {
   CopilotFailure,
   type CopilotDraft,
@@ -90,14 +91,22 @@ export function createCopilotEngine(deps: CopilotEngineDeps): CopilotEngine {
     const generatedAt = new Date(deps.now()).toISOString();
     // Nothing the scripted provider or the renderer throws may escape the fallback.
     let rendered: ReturnType<typeof renderDraft>;
+    let thrown = '';
     try {
       rendered = renderDraft(await deps.scripted.draft(request), request.facts);
-    } catch {
+    } catch (error: unknown) {
       rendered = { ok: false, reason: 'threw' };
+      // The scripted writer never handles model output: its error is worth logging, with
+      // the fact values blanked.
+      const withheld = withheldStrings({ facts: request.facts });
+      thrown = `: ${describeCopilotError(error, withheld)}`;
     }
     if (!rendered.ok) {
       // A feed-driven condition must not turn the fallback into a server error.
-      logDepotError('copilot', `scripted ${request.task} draft failed: ${rendered.reason}`);
+      logDepotError(
+        'copilot',
+        `scripted ${request.task} draft failed: ${rendered.reason}${thrown}`,
+      );
       return {
         headline: UNAVAILABLE_DRAFT.headline,
         paragraphs: UNAVAILABLE_DRAFT.paragraphs,
