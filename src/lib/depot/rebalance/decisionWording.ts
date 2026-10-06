@@ -88,7 +88,8 @@ export function describeTrailItem(item: TrailItem): string {
 export const TRAIL_NOTE =
   'Decisions are kept in this browser only, are not sent anywhere, and are visible to ' +
   'anyone who uses this browser, notes included. The trail is append-only: Undo records ' +
-  'a further entry and deletes nothing; Clear trail removes the whole trail at once. A ' +
+  'a further entry and deletes nothing; Clear trail removes the whole trail at once. The ' +
+  'audit log in this browser keeps one line for each decision, without its note. A ' +
   'decision changes nothing but this record; no transfer order is issued.';
 
 /** Said with a recorded decision when the shared audit log refused its copy. */

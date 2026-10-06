@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useSyncExternalStore } from 'react';
 import { appendAuditEvent, readAuditLog, writeAuditLog } from '@/lib/audit/auditLog';
-import type { NewAuditEvent } from '@/lib/depot/rebalance/decisionEvents';
+import { withoutNote, type NewAuditEvent } from '@/lib/depot/rebalance/decisionEvents';
 import {
   DECISION_STORAGE_KEY,
   UNREADABLE_TRAIL_KEY,
@@ -84,7 +84,7 @@ export interface DecisionLog {
 /**
  * Transfer decisions from their own storage slice, kept in step with other
  * tabs through the `storage` event. Each decision is also written to the
- * shared audit log, which keeps its own behaviour.
+ * shared audit log without its note; that log keeps its own behaviour.
  */
 export function useDecisionLog(): DecisionLog {
   const raw = useSyncExternalStore(subscribe, snapshot, serverSnapshot);
@@ -104,7 +104,7 @@ export function useDecisionLog(): DecisionLog {
     // The slice is what the page reads, so it goes first: if storage refuses it, no audit
     // event is written. The audit log swallows its own refusal, so it is read back.
     if (!writeStoredSlice(store, appendToSlice(read.slice, stored))) return 'refused';
-    writeAuditLog(log);
+    writeAuditLog([withoutNote(stored), ...log.slice(1)]);
     const audited = readAuditLog()[0]?.id === stored.id;
     window.dispatchEvent(new Event(LOCAL_WRITE_EVENT));
     return audited ? 'recorded' : 'trail_only';

@@ -128,6 +128,17 @@ function readPayload(detail: unknown): Record<string, unknown> | null {
   }
 }
 
+/**
+ * The copy of a decision that goes to the shared audit log: the same event with its note
+ * emptied. The trail's clear control does not reach that log, so a planner's note must
+ * never be held there.
+ */
+export function withoutNote<T extends { readonly detail?: string }>(event: T): T {
+  const payload = readPayload(event.detail);
+  if (payload === null) return event;
+  return { ...event, detail: JSON.stringify({ ...payload, note: '' }) };
+}
+
 /** A stored event as a decision, or null when it is not one or is malformed. */
 export function parseDecisionEvent(event: unknown): DecisionEntry | null {
   if (typeof event !== 'object' || event === null) return null;
