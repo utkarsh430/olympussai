@@ -197,6 +197,9 @@ export function notProfiledSentence(missing: number, total: number): string {
 export const TRIP_MEANING =
   'A trip here is one run out of the depot: the bus drives empty from its depot to the first stop, runs the route, and drives empty back from the last stop. The feed does not carry trip counts, so trips a day are modelled from the buses on the route and its scheduled length.';
 
+export const DEAD_KM_MEANING =
+  "Dead kilometres are the empty running between those positions and each route's first and last stops.";
+
 export const PROFILES_GROW_WITH_USE =
   "A route's stops are fetched one route at a time, when a depot's roster or a bus on that route is opened, never in bulk, so coverage grows with use.";
 
