@@ -22,8 +22,17 @@ function isUnderProtectedRoot(pathname: string): boolean {
   return PROTECTED_ROOTS.some((root) => pathname === root || pathname.startsWith(`${root}/`));
 }
 
-export function sanitizeNext(next: string | null | undefined): string {
-  if (!next) return DEFAULT_NEXT;
+/** Longest redirect target accepted; a longer one is not a link anyone followed. */
+export const MAX_NEXT_LENGTH = 2048;
+
+/**
+ * `next` arrives from a query string, so it may be absent, repeated (an array)
+ * or anything else a caller passes: only a string of sane length is considered.
+ */
+export function sanitizeNext(next: unknown): string {
+  if (typeof next !== 'string' || next.length === 0 || next.length > MAX_NEXT_LENGTH) {
+    return DEFAULT_NEXT;
+  }
   // Must be a root-relative path, not a protocol-relative or backslash trick.
   if (!next.startsWith('/') || next.startsWith('//') || next.startsWith('/\\')) {
     return DEFAULT_NEXT;
