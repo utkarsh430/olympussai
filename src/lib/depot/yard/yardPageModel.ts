@@ -11,8 +11,8 @@ import {
 } from './parkingModel';
 import type { YardModel } from './yardModel';
 
-/** Visitors shown before "Show all N". */
-export const VISITOR_CAP = 15;
+/** Visitors shown before "Show all N": five, like every other capped group on the page. */
+export const VISITOR_CAP = 5;
 
 const plural = (n: number, one: string, many: string): string => (n === 1 ? one : many);
 

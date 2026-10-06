@@ -80,7 +80,12 @@ function Roll({ model, depotId }: Omit<YardRollProps, 'depotNames'>) {
       {roll.total === 0 ? (
         <StatePanel kind="empty" compact sentence={empty} />
       ) : (
-        <div className="flex min-w-0 flex-col gap-3">
+        // Side by side from 1280px: four state groups stacked made this the tallest part of
+        // the page. Each group's table still fits its column (it is at most 760px wide).
+        <div
+          data-testid="yard-roll-groups"
+          className="grid min-w-0 grid-cols-1 items-start gap-x-8 gap-y-3 xl:grid-cols-2"
+        >
           {roll.groups.map((group) => (
             <StateGroupBlock key={group.state} group={group} depotId={depotId} />
           ))}
