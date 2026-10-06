@@ -39,6 +39,7 @@ describe('depotNav', () => {
       'Crew',
       'Fuel and cost',
       'Revenue',
+      'Trends',
     ]);
     expect(cockpit).toEqual({ href: ROOT, label: 'Cockpit', exact: true });
     expect(roster.href).toBe(`${ROOT}/roster`);
@@ -58,6 +59,7 @@ describe('depotNav', () => {
     expect(activeOn(`${ROOT}/crew`)).toEqual(['Crew']);
     expect(activeOn(`${ROOT}/fuel`)).toEqual(['Fuel and cost']);
     expect(activeOn(`${ROOT}/revenue`)).toEqual(['Revenue']);
+    expect(activeOn(`${ROOT}/trends`)).toEqual(['Trends']);
   });
 
   it('ignores a trailing slash, a query string and a hash', () => {

@@ -45,6 +45,7 @@ describe('NETWORK_NAV', () => {
       ['Routes', '/project/depots/routes'],
       ['Exceptions', '/project/depots/exceptions'],
       ['Economics', '/project/depots/economics'],
+      ['Trends', '/project/depots/trends'],
       ['Ask', '/project/depots/ask'],
       ['Data sources', '/project/depots/sources'],
     ]);
