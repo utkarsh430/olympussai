@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { modelCrew } from '@/lib/depot/sim/crew';
+import { crewShiftsFor, rosterCrew } from '@/lib/depot/crew/roster';
 import { MAX_HOURS_PER_WEEK } from '@/lib/depot/crew/types';
+import { modelDuties } from '@/lib/depot/sim/duties';
+import { HOURS_THIS_WEEK_RANGE } from '@/lib/depot/sim/crew';
 import type { CrewSlot } from '@/lib/depot/crew/types';
 import type { DepotSummary } from '@/lib/depot/types';
 
@@ -33,7 +36,7 @@ describe('modelCrew', () => {
     expect(modelCrew(other, 5, DATE).map((s) => s.id)).toEqual(crew.map((s) => s.id));
   });
 
-  it('is never smaller than the duty count per role', () => {
+  it('is never smaller than the shift count per role', () => {
     for (const duties of [1, 2, 3, 10, 57]) {
       const crew = modelCrew(depot, duties, DATE);
       expect(count(crew, 'driver')).toBeGreaterThanOrEqual(duties);
@@ -53,7 +56,7 @@ describe('modelCrew', () => {
     );
   });
 
-  it('models no crew for zero duties and rejects a bad count', () => {
+  it('models no crew for zero shifts and rejects a bad count', () => {
     expect(modelCrew(depot, 0, DATE)).toEqual([]);
     expect(() => modelCrew(depot, -1, DATE)).toThrow(RangeError);
     expect(() => modelCrew(depot, 1.5, DATE)).toThrow(RangeError);
@@ -63,6 +66,36 @@ describe('modelCrew', () => {
     const text = JSON.stringify(modelCrew(depot, 30, DATE));
     for (const term of ['name', 'score', 'rank', 'rating', 'performance', 'speed', 'violation']) {
       expect(text.toLowerCase()).not.toContain(term);
+    }
+  });
+
+  it('keeps most slots able to take a shift this week', () => {
+    expect(HOURS_THIS_WEEK_RANGE.max).toBeLessThan(MAX_HOURS_PER_WEEK);
+    const crew = modelCrew(depot, 200, DATE);
+    expect(crew.every((s) => s.hoursThisWeek <= HOURS_THIS_WEEK_RANGE.max)).toBe(true);
+  });
+
+  it('shows a small but non-zero shortfall on some dates for a typical depot', () => {
+    const MAX_SHORTFALL_SHARE = 0.2;
+    const MAX_MEAN_SHORTFALL_SHARE = 0.1;
+    for (const [id, count, minutes] of [
+      ['D-40', 40, 200],
+      ['D-80', 80, 300],
+    ] as const) {
+      const typical = { id, name: 'T' } as unknown as DepotSummary;
+      const shares = Array.from({ length: 28 }, (_, day) => {
+        const date = `2026-10-${String(day + 1).padStart(2, '0')}`;
+        const routes = [{ routeName: 'A_ORD', scheduledDurationMin: minutes }];
+        const duties = modelDuties(typical, routes, count, date).duties;
+        const shifts = crewShiftsFor(duties).shifts.length;
+        const summary = rosterCrew(duties, modelCrew(typical, shifts, date));
+        return summary.shiftsUncovered / summary.shiftsRequired;
+      });
+      expect(shares.some((share) => share > 0)).toBe(true);
+      expect(Math.max(...shares)).toBeLessThanOrEqual(MAX_SHORTFALL_SHARE);
+      expect(shares.reduce((a, b) => a + b, 0) / shares.length).toBeLessThan(
+        MAX_MEAN_SHORTFALL_SHARE,
+      );
     }
   });
 });

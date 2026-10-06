@@ -10,9 +10,9 @@ import type { DepotSummary } from '../types';
 export const modelledCrewRepository: CrewRepository = {
   async crewFor(
     depot: DepotSummary,
-    dutyCount: number,
+    shiftCount: number,
     operatingDate: string,
   ): Promise<readonly CrewSlot[]> {
-    return modelCrew(depot, dutyCount, operatingDate);
+    return modelCrew(depot, shiftCount, operatingDate);
   },
 };
