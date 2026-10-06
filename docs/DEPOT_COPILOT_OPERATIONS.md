@@ -58,6 +58,11 @@ Residual wording that the checks still accept, so read Claude text for it:
 - An instruction phrased without an opening verb ("Depots should move buses", "We must act"),
   and "Check it is clear"-style openers whose second word is a noun ("Move buses is ...").
 
+These three are accepted for the owner-only command-line writer, whose text the owner reads
+with the writer's name beside it. They are not accepted for a writer that serves staff: before
+an API-key provider is switched on for other people, the later-sentence denial and the
+obligation words must be refused by rule and the noun-use opener replaced by an explicit list.
+
 When Claude was expected but the scripted writer answered, the user sees: "Claude was not
 available, so this is a scripted response." Users never see an error because of Claude.
 
