@@ -125,5 +125,10 @@ export function parseRouterOutput(structured: unknown, depots: readonly DepotRef
   const wire = wireSchema.safeParse(withoutNulls(structured as Record<string, unknown>));
   if (!wire.success) return UNSUPPORTED_QUERY;
   const query = copilotQuerySchema.safeParse(resolveWire(wire.data, depots));
-  return query.success ? query.data : UNSUPPORTED_QUERY;
+  if (!query.success) return UNSUPPORTED_QUERY;
+  // Comparing a depot with itself answers nothing.
+  if (query.data.kind === 'compareDepots' && query.data.depotA === query.data.depotB) {
+    return UNSUPPORTED_QUERY;
+  }
+  return query.data;
 }

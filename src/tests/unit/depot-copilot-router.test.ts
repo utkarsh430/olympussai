@@ -178,6 +178,7 @@ describe('cliRouter', () => {
     ['null', null],
     ['an array', [{ kind: 'networkSummary' }]],
     ['a missing depot', { kind: 'exceptionsFor' }],
+    ['the same depot twice', { kind: 'compareDepots', depotA: 'Kanpur', depotB: 'KANPUR' }],
   ])('returns unsupported for %s', (_label, output) => {
     expect(parseRouterOutput(output, DEPOTS)).toEqual({ kind: 'unsupported' });
   });

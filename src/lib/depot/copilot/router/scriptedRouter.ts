@@ -1,5 +1,5 @@
 import type { CopilotQuery, RankMetric } from '@/lib/depot/copilot/queries';
-import { UNSUPPORTED_QUERY } from '@/lib/depot/copilot/queries';
+import { UNSUPPORTED_QUERY, metricHigherIsBetter } from '@/lib/depot/copilot/queries';
 import { resolveDepot, type DepotRef } from '@/lib/depot/copilot/router/resolveDepot';
 import { sanitizeQuestion } from '@/lib/depot/copilot/router/sanitize';
 
@@ -10,7 +10,9 @@ import { sanitizeQuestion } from '@/lib/depot/copilot/router/sanitize';
  */
 
 const PEOPLE =
-  /\b(crew|crews|drivers?|conductors?|staff|employees?|personnel|people|persons?|individuals?|salary|salaries|attendance|roster|rosters)\b/;
+  /\b(crew|crews|drivers?|driving|driven|drives|conductors?|operators?|workers?|staff|employees?|personnel|manpower|people|persons?|individuals?|duty|duties|shifts?|rosters?|managers?|supervisors?|technicians?|mechanics?|attendance|salary|salaries)\b/;
+/** No catalogue query answers "who", so a question that opens with it is declined. */
+const LEADING_WHO = /^(who|whom|whose)\b/;
 const COMPARE = /\b(compare\w*|versus|vs|against|differ\w*)\b/;
 const TRANSFER =
   /\b(transfers?|transferr\w*|moves?|moved|moving|send\w*|reallocat\w*|redistribut\w*|rebalanc\w*|lend\w*|borrow\w*)\b/;
@@ -36,7 +38,6 @@ const METRIC_PATTERNS: readonly (readonly [RankMetric, RegExp])[] = [
   ['onRoad', /\b(on[\s-]?road|running|moving|active)\b/],
   ['scheduled', /\b(schedul\w*|timetable|assigned|coverage)\b/],
 ];
-const HIGHER_IS_BETTER: ReadonlySet<RankMetric> = new Set(['index', 'onRoad', 'scheduled']);
 
 const NUMBER_WORDS: Readonly<Record<string, number>> = {
   one: 1,
@@ -170,7 +171,7 @@ function limitFrom(text: string): number {
 
 function rankQuery(text: string): CopilotQuery {
   const metric = METRIC_PATTERNS.find(([, pattern]) => pattern.test(text))?.[0] ?? 'index';
-  const higherIsBetter = HIGHER_IS_BETTER.has(metric);
+  const higherIsBetter = metricHigherIsBetter(metric);
   let order: 'top' | 'bottom' = 'top';
   if (BOTTOM_WORDS.test(text)) order = 'bottom';
   else if (TOP_WORDS.test(text)) order = 'top';
@@ -182,7 +183,7 @@ function rankQuery(text: string): CopilotQuery {
 export function scriptedRoute(question: string, depots: readonly DepotRef[]): CopilotQuery {
   const clean = sanitizeQuestion(question);
   const text = clean.toLowerCase();
-  if (text === '' || PEOPLE.test(text)) return UNSUPPORTED_QUERY;
+  if (text === '' || PEOPLE.test(text) || LEADING_WHO.test(text)) return UNSUPPORTED_QUERY;
 
   const [first, second] = findDepots(text, depots);
   const needsDepot = (build: (id: string) => CopilotQuery): CopilotQuery =>

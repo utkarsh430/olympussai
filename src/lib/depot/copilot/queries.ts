@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { isValidDepotId } from '@/lib/depot/ids';
+import { DEI_COMPONENTS } from '@/lib/depot/score/config';
 
 /**
  * The fixed catalogue of questions the copilot can answer. A question is mapped
@@ -35,3 +36,13 @@ export const copilotQuerySchema = z.discriminatedUnion('kind', [
 export type CopilotQuery = z.infer<typeof copilotQuerySchema>;
 export type RankMetric = (typeof RANK_METRICS)[number];
 export const UNSUPPORTED_QUERY: CopilotQuery = { kind: 'unsupported' };
+
+/**
+ * Whether a higher figure is better for a ranking metric. Derived from the
+ * index configuration so a ranking can never be silently inverted; the index
+ * itself is higher-is-better.
+ */
+export function metricHigherIsBetter(metric: RankMetric): boolean {
+  if (metric === 'index') return true;
+  return DEI_COMPONENTS.find((c) => c.key === metric)?.higherIsBetter ?? true;
+}
