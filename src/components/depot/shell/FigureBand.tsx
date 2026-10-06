@@ -21,7 +21,8 @@ export interface FigureBandProps {
  * 1280px (five fill a 1440 column exactly), 200px from 1024px, so a band of two to four
  * never stretches to leave wide gaps; it wraps when the column is narrower. Below 1024px
  * the band is two equal columns. 88px tall: label 11/16, 6px, figure 24/28, 6px,
- * caption 12/16, with 8px above and below.
+ * caption 12/16, with 8px above and below. The label row is a fixed 16px line box
+ * (`depot-tag-row`), so a tag beside a label never lowers that figure.
  *
  * Every figure carries a hairline on its left; the list is pulled 17px left (its 16px
  * padding plus the 1px hairline) inside a clipping wrapper, so the first figure of every
@@ -31,7 +32,7 @@ export function FigureBand({ label, children, tag }: FigureBandProps) {
   return (
     <div className="mb-6 min-w-0 overflow-hidden border-y border-depot-line">
       {tag ? (
-        <div data-testid="depot-figure-band-head" className="flex min-w-0 items-center gap-2 pt-2">
+        <div data-testid="depot-figure-band-head" className="mt-2 depot-tag-row gap-2">
           <span className="depot-label truncate leading-4">{label}</span>
           <ProvenanceBadge provenance={tag} pill />
         </div>
@@ -92,7 +93,7 @@ export function Figure(props: FigureProps) {
   const Caption = interactive ? 'span' : 'p';
   const body = (
     <>
-      <Row className="flex min-w-0 items-center gap-2">
+      <Row className="depot-tag-row gap-2">
         <Row className="depot-label block truncate leading-4" title={label}>
           {label}
         </Row>

@@ -285,7 +285,7 @@ export function DataTable<T>({
                     <HeaderText column={column} />
                   )}
                   {column.tag ? (
-                    <span className="ml-1.5 inline-block align-middle">
+                    <span className="depot-tag-row ml-1.5 inline-flex align-top">
                       <ProvenanceBadge provenance={column.tag} pill />
                     </span>
                   ) : null}

@@ -344,6 +344,18 @@
     @apply rounded-full px-2;
   }
 
+  /* A tag on a label's line (a figure's label, a band's head, a header cell, a section
+     label) never changes that line's box: the row is 16px and the tag is drawn 16px tall
+     (11px type on a 14px line inside 1px borders) instead of 22px. */
+  .depot-tag-row {
+    @apply flex h-4 min-w-0 items-center;
+  }
+
+  .depot-tag-row .depot-tag,
+  .depot-tag-fit .depot-tag {
+    @apply py-0 leading-[14px];
+  }
+
   /* Data states. The placeholder is static: no shimmer, no pulse. */
   .depot-skeleton {
     @apply rounded-[3px] bg-depot-surface;
