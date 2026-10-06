@@ -25,6 +25,10 @@ import { groupLabel } from '@/lib/depot/fuel/fuelPageModel';
 import type { FuelGroupRow } from '@/lib/depot/fuel/types';
 import type { RevenueResponse } from '@/lib/depot/revenue/api';
 
+// The pages now render their own header (round 2), whose provenance line reads the feed.
+vi.mock('@/components/depot/data/DepotNetworkProvider', () => ({
+  useDepotNetworkContext: () => ({ data: null, error: null }),
+}));
 vi.mock('@/hooks/useDepotFuel', () => ({ useDepotFuel: vi.fn() }));
 vi.mock('@/hooks/useDepotRevenue', () => ({ useDepotRevenue: vi.fn() }));
 vi.mock('@/components/depot/data/DepotDetailProvider', () => ({
@@ -119,6 +123,8 @@ function sectionTags(): (string | null)[][] {
 function withoutDisclosure(): string {
   const clone = host.cloneNode(true) as HTMLElement;
   clone.querySelector('[data-testid="depot-how-produced"]')?.remove();
+  // The header's provenance line is the page default, pinned in depot-fuel-revenue-provenance.
+  clone.querySelector('[data-testid="depot-page-header"]')?.remove();
   return clone.textContent ?? '';
 }
 
@@ -381,13 +387,17 @@ describe('RevenuePage', () => {
     );
     expect(host.querySelectorAll('table')).toHaveLength(1);
     expect(host.querySelector('[aria-label="Modelled revenue by route"]')).toBeNull();
-    expect(host.textContent).toContain(
-      'lengths: 1 of 2 routes from real route profiles, the rest modelled'.replace('l', 'L'),
+    // Round 2: the length coverage is the band caption, from the response (critique revenue).
+    expect(host.querySelector('[data-testid="depot-figure-band"]')?.textContent).toContain(
+      '1 of 2 route lengths from real profiles',
     );
+    // Ruling S51: the by-route label carries MODELLED; a real-profile length says DERIVED.
+    expect(sectionTags()).toEqual([['By route', 'modelled']]);
     expect(
       [...host.querySelectorAll('[data-provenance]')].map((t) => t.getAttribute('data-provenance')),
-    ).toEqual(['derived']);
-    expect(withoutDisclosure()).not.toMatch(/MODELLED|\(modelled\)/);
+    ).toEqual(['modelled', 'derived']);
+    expect(host.textContent).not.toMatch(/Rows 1 to|Previous/);
+    expect(withoutDisclosure().match(/MODELLED/g)).toHaveLength(1);
     expect(
       host.querySelector('details[data-testid="depot-how-produced"]')?.hasAttribute('open'),
     ).toBe(false);

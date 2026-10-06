@@ -3,6 +3,7 @@ import { FuelPage } from '@/components/depot/fuel/FuelPage';
 import { LoadingBlock } from '@/components/depot/shell/DataStates';
 import { PageHeader } from '@/components/depot/shell/PageHeader';
 import { requireDepotPage } from '@/lib/depot/depotGate';
+import { fuelHeader } from '@/lib/depot/fuel/fuelHeader';
 
 /** Modelled fuel issued, kilometres per litre and cost per kilometre, and the buses that stand out. */
 export default async function DepotFuelPage({
@@ -15,20 +16,17 @@ export default async function DepotFuelPage({
   // the id is checked before the session gate sees it.
   await requireDepotPage(depotId, '/fuel');
 
+  // The client page renders the header, so its provenance line can carry the dated day.
   return (
-    <>
-      <PageHeader
-        title="Fuel and cost"
-        description="Fuel, distance and cost for the day, and the buses that stand out from their peers."
-        provenanceLine={{
-          default: 'modelled',
-          replacedBy: 'fuel issue records and odometer readings',
-          feedId: 'fuel',
-        }}
-      />
-      <Suspense fallback={<LoadingBlock rows={14} label="Loading the fuel and cost view" />}>
-        <FuelPage />
-      </Suspense>
-    </>
+    <Suspense
+      fallback={
+        <>
+          <PageHeader {...fuelHeader()} />
+          <LoadingBlock rows={14} label="Loading the fuel and cost view" />
+        </>
+      }
+    >
+      <FuelPage />
+    </Suspense>
   );
 }

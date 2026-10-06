@@ -65,13 +65,15 @@ describe('formatting', () => {
     expect(coverageSentence({ n: 1, of: 2 })).toBe(
       'Lengths: 1 of 2 routes from real route profiles, the rest modelled',
     );
-    expect(coverageSentence({ n: 1, of: 1 })).toBe('Lengths: 1 of 1 route from real route profiles');
-    expect(coverageSentence({ n: 0, of: 0 })).toBe('No routes ran in the modelled day');
+    expect(coverageSentence({ n: 1, of: 1 })).toBe(
+      'Lengths: 1 of 1 route from real route profiles',
+    );
+    expect(coverageSentence({ n: 0, of: 0 })).toBe('No route runs in the modelled day');
   });
   it('withholds earnings only when nothing ran, and says so', () => {
     // The unknown-length reason is gone (S39); the one left is a route with no kilometres.
     expect(withheldSentence('no_service_km')).toBe(
-      'No duty on this route had a bus in the modelled day, so it ran no kilometres and has no earnings per kilometre.',
+      'No duty on this route had a bus in the modelled day, so it runs no kilometres and has no earnings per kilometre.',
     );
   });
 });
@@ -95,7 +97,7 @@ describe('summaryTiles', () => {
       'Lengths: 1 of 2 routes from real route profiles, the rest modelled',
     );
     expect(tiles.find((t) => t.key === 'trips')?.note).toBe(
-      'Duties that ran in the modelled day, one trip out and back each',
+      'Duties run in the modelled day, one trip out and back each',
     );
   });
   it('states the share of revenue that rests on a modelled length, on the revenue tile', () => {
@@ -104,15 +106,19 @@ describe('summaryTiles', () => {
     expect(tiles.find((t) => t.key === 'revenue')?.note).toBe(
       '25.0% of revenue is on routes of modelled length (no real profile yet)',
     );
-    expect(tiles.find((t) => t.key === 'loadFactor')?.note).toBe('Occupied seats over seats offered, weighted by trips');
+    expect(tiles.find((t) => t.key === 'loadFactor')?.note).toBe(
+      'Occupied seats over seats offered, weighted by trips',
+    );
     const none = summaryTiles({ ...TOTALS, modelledLengthRevenueShare: 0 });
     expect(none.find((t) => t.key === 'revenue')?.note).toBeNull();
     expect(modelledLengthSentence({ ...TOTALS, modelledLengthRevenueShare: null })).toBeNull();
   });
   it('shows earnings as no kilometres run only when nothing ran, with its coverage', () => {
-    const tile = summaryTiles({ ...TOTALS, earningsPerKm: null, lengthCoverage: { n: 0, of: 2 } }).find(
-      (t) => t.key === 'earningsPerKm',
-    );
+    const tile = summaryTiles({
+      ...TOTALS,
+      earningsPerKm: null,
+      lengthCoverage: { n: 0, of: 2 },
+    }).find((t) => t.key === 'earningsPerKm');
     expect(tile?.value).toBe(NO_KM_RUN);
     expect(tile?.note).toBe('Lengths: 0 of 2 routes from real route profiles, the rest modelled');
   });
@@ -120,7 +126,14 @@ describe('summaryTiles', () => {
 
 describe('buildRouteRows', () => {
   const rows = buildRouteRows([
-    route({ routeName: 'A', revenue: 5000, trips: 0, serviceKm: 0, earningsPerKm: null, earningsWithheld: 'no_service_km' }),
+    route({
+      routeName: 'A',
+      revenue: 5000,
+      trips: 0,
+      serviceKm: 0,
+      earningsPerKm: null,
+      earningsWithheld: 'no_service_km',
+    }),
     route({
       routeName: 'B',
       lengthKm: 80,
@@ -138,7 +151,7 @@ describe('buildRouteRows', () => {
       revenueText: '₹5,000',
       classLabel: 'Ordinary',
     });
-    expect(rows[0]?.withheldText).toMatch(/ran no kilometres/i);
+    expect(rows[0]?.withheldText).toMatch(/runs no kilometres/i);
     expect(rows[1]).toMatchObject({
       earningsText: '₹7.50 per km',
       lengthText: '80 km (derived)',
@@ -178,7 +191,10 @@ describe('heroBars', () => {
     expect(hero.toggleLabel).toBeNull();
   });
   it('sizes bars in proportion to rounded revenue, never below zero', () => {
-    const hero = heroBars([route({ routeName: 'X', revenue: 400 }), route({ routeName: 'Y', revenue: 100 })], false);
+    const hero = heroBars(
+      [route({ routeName: 'X', revenue: 400 }), route({ routeName: 'Y', revenue: 100 })],
+      false,
+    );
     expect(hero.bars.map((b) => b.widthPercent)).toEqual([100, 25]);
     expect(heroBars([route({ routeName: 'Z', revenue: 0 })], false).bars[0]?.widthPercent).toBe(0);
   });
@@ -211,7 +227,7 @@ describe('modelledStatement', () => {
   it('says what is modelled, what a trip is and that these are planning assumptions', () => {
     expect(text).toContain('MODELLED');
     expect(text).toMatch(/no ticketing/i);
-    expect(text).toMatch(/each duty that a bus ran is one trip, a run out and back, so two legs/i);
+    expect(text).toMatch(/each duty a bus runs is one trip, a run out and back, so two legs/i);
     expect(text).toMatch(/for a route, load factor is the share of seats filled/i);
     expect(text).toMatch(/for a depot, occupied seats over seats offered, weighted by trips/i);
     expect(text).not.toMatch(/seat-kilometres over seat-kilometres/i);
