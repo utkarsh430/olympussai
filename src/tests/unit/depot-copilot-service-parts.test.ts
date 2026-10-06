@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { createWindowLimiter } from '@/lib/depot/rateLimit';
 import { cacheKey, createResponseCache } from '@/lib/depot/copilot/service/cache';
 import { readCappedBody } from '@/lib/depot/copilot/service/body';
-import { parseCopilotBody } from '@/lib/depot/copilot/service/schema';
+import { parseCopilotBody, type ValidCopilotRequest } from '@/lib/depot/copilot/service/schema';
 import { MAX_BODY_BYTES } from '@/lib/depot/copilot/service/constants';
 import { MAX_QUESTION_CHARS } from '@/lib/depot/copilot/limits';
 import type { CopilotRequest, CopilotText } from '@/lib/depot/copilot/types';
@@ -132,6 +132,13 @@ describe('readCappedBody', () => {
 });
 
 describe('parseCopilotBody', () => {
+  it('is the only source of a validated request (a branded type)', () => {
+    // @ts-expect-error A plain object has not been through the parser.
+    const forged: ValidCopilotRequest = { task: 'briefing', scope: { kind: 'network' } };
+    const parsed: ValidCopilotRequest | null = parseCopilotBody(JSON.stringify(forged));
+    expect(parsed).toEqual(forged);
+  });
+
   const ok = (value: unknown): boolean => parseCopilotBody(JSON.stringify(value)) !== null;
 
   it('accepts exactly the wire request shapes', () => {
