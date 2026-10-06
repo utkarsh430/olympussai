@@ -307,6 +307,48 @@
     @apply border-l-holo-glow;
   }
 
+  /* Filter controls: 3px radius, hairline border, the global focus ring. */
+  .depot-field {
+    @apply rounded-[3px] border border-depot-line bg-depot-surface px-2 py-1.5 font-mono text-[13px]
+      text-depot-ink;
+  }
+
+  /* Index bar: a thin fill on a 0-100 track, with a tick at 50 (the peer median).
+     One hue; the value is always also written beside it. */
+  .depot-bar-track {
+    @apply relative h-1.5 w-full min-w-[64px]rounded-[2px] bg-depot-raised;
+  }
+
+  .depot-bar-fill {
+    @apply absolute inset-y-0 left-0 rounded-[2px] bg-holo-glow;
+  }
+
+  .depot-bar-tick {
+    @apply absolute -inset-y-0.5 w-px bg-depot-muted;
+  }
+
+  /* Severity tags carry a word; the colour only reinforces it. */
+  .depot-sev-critical {
+    @apply border-alert-crimson/60 text-alert-crimson;
+  }
+
+  .depot-sev-warning {
+    @apply border-alert-amber/60 text-alert-amber;
+  }
+
+  .depot-sev-info {
+    @apply border-depot-muted/50 text-depot-muted;
+  }
+
+  /* Details disclosure: summary reads as a control, content stays in the page flow. */
+  .depot-details > summary {
+    @apply cursor-pointer list-none font-mono text-xs uppercase tracking-[0.1em] text-holo-glow;
+  }
+
+  .depot-details > summary::-webkit-details-marker {
+    display: none;
+  }
+
   .scanline-overlay {
     background-image: repeating-linear-gradient(
       0deg,
