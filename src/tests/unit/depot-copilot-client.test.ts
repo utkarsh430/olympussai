@@ -1,5 +1,17 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { requestCopilot } from '@/lib/depot/copilot/ui/copilotClient';
+import {
+  MAX_TABLE_COLUMNS,
+  MAX_TABLE_ROWS,
+  requestCopilot,
+} from '@/lib/depot/copilot/ui/copilotClient';
+import {
+  MAX_FACTS,
+  MAX_FACT_LABEL_CHARS,
+  MAX_FACT_TEXT_CHARS,
+  MAX_PARAGRAPHS,
+  MAX_RENDERED_HEADLINE_CHARS,
+  MAX_RENDERED_PARAGRAPH_CHARS,
+} from '@/lib/depot/copilot/limits';
 import type { CopilotApiRequest } from '@/lib/depot/copilot/wire';
 
 const BODY: CopilotApiRequest = { task: 'briefing', scope: { kind: 'network' } };
@@ -142,5 +154,76 @@ describe('requestCopilot', () => {
     stub(200, GOOD);
     controller.abort();
     expect(await requestCopilot(BODY, controller.signal)).toEqual({ ok: false, kind: 'aborted' });
+  });
+});
+
+describe('requestCopilot bounds', () => {
+  const fact = GOOD.facts[0];
+  const bad: readonly (readonly [string, unknown])[] = [
+    ['empty headline', { ...GOOD, headline: '' }],
+    ['over-long headline', { ...GOOD, headline: 'h'.repeat(MAX_RENDERED_HEADLINE_CHARS + 1) }],
+    ['no paragraphs', { ...GOOD, paragraphs: [] }],
+    ['too many paragraphs', { ...GOOD, paragraphs: Array(MAX_PARAGRAPHS + 1).fill('p') }],
+    [
+      'over-long paragraph',
+      { ...GOOD, paragraphs: ['p'.repeat(MAX_RENDERED_PARAGRAPH_CHARS + 1)] },
+    ],
+    ['too many facts', { ...GOOD, facts: Array(MAX_FACTS + 1).fill(fact) }],
+    [
+      'over-long fact text',
+      { ...GOOD, facts: [{ ...fact, text: 't'.repeat(MAX_FACT_TEXT_CHARS + 1) }] },
+    ],
+    [
+      'over-long fact label',
+      { ...GOOD, facts: [{ ...fact, label: 'l'.repeat(MAX_FACT_LABEL_CHARS + 1) }] },
+    ],
+    [
+      'over-long interpretedAs',
+      { ...GOOD, interpretedAs: 'i'.repeat(MAX_RENDERED_PARAGRAPH_CHARS + 1) },
+    ],
+    [
+      'too many columns',
+      {
+        ...GOOD,
+        table: {
+          columns: Array(MAX_TABLE_COLUMNS + 1).fill('c'),
+          rows: [Array(MAX_TABLE_COLUMNS + 1).fill('x')],
+        },
+      },
+    ],
+    [
+      'too many rows',
+      { ...GOOD, table: { columns: ['a'], rows: Array(MAX_TABLE_ROWS + 1).fill(['x']) } },
+    ],
+    ['ragged row (short)', { ...GOOD, table: { columns: ['a', 'b'], rows: [['x']] } }],
+    ['ragged row (long)', { ...GOOD, table: { columns: ['a'], rows: [['x', 'y']] } }],
+  ];
+
+  it.each(bad)('rejects %s as unavailable', async (_name, body) => {
+    stub(200, body);
+    expect(await requestCopilot(BODY)).toEqual({ ok: false, kind: 'unavailable' });
+  });
+
+  it('accepts every bound exactly at its limit', async () => {
+    stub(200, {
+      ...GOOD,
+      headline: 'h'.repeat(MAX_RENDERED_HEADLINE_CHARS),
+      paragraphs: Array(MAX_PARAGRAPHS).fill('p'.repeat(MAX_RENDERED_PARAGRAPH_CHARS)),
+      facts: Array(MAX_FACTS).fill({
+        ...fact,
+        text: 't'.repeat(MAX_FACT_TEXT_CHARS),
+        label: 'l'.repeat(MAX_FACT_LABEL_CHARS),
+      }),
+      table: {
+        columns: Array(MAX_TABLE_COLUMNS).fill('c'),
+        rows: Array(MAX_TABLE_ROWS).fill(Array(MAX_TABLE_COLUMNS).fill('x')),
+      },
+    });
+    expect((await requestCopilot(BODY)).ok).toBe(true);
+  });
+
+  it('accepts a table with no rows', async () => {
+    stub(200, { ...GOOD, table: { columns: ['a'], rows: [] } });
+    expect((await requestCopilot(BODY)).ok).toBe(true);
   });
 });
