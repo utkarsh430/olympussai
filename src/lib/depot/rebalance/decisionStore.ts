@@ -91,7 +91,7 @@ export function writeStoredSlice(storage: StorageLike | null, slice: DecisionSli
 /** Said under the trail once the cap has dropped anything; null until then. */
 export function trailCapacityNote(slice: DecisionSlice): string | null {
   if (slice.dropped === 0) return null;
-  const older =
-    slice.dropped === 1 ? '1 older decision is' : `${slice.dropped} older decisions are`;
-  return `The trail holds ${slice.events.length} decisions, the most it keeps; ${older} no longer listed.`;
+  // The trail shows one date; this counts the whole record, so it says so.
+  const entries = slice.events.length === 1 ? '1 entry' : `${slice.events.length} entries`;
+  return `The decision record holds ${entries} across all dates; older ones are no longer listed.`;
 }

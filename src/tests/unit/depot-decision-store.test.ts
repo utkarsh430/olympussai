@@ -63,7 +63,7 @@ describe('decision slice', () => {
     );
     expect(slice.dropped).toBe(1);
     expect(trailCapacityNote(slice)).toBe(
-      'The trail holds 3 decisions, the most it keeps; 1 older decision is no longer listed.',
+      'The decision record holds 3 entries across all dates; older ones are no longer listed.',
     );
     expect(MAX_STORED_DECISIONS).toBeGreaterThanOrEqual(250);
   });
