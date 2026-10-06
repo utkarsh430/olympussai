@@ -72,6 +72,11 @@ export function unpositionedSentence(missing: number): string {
     : `${formatCount(missing)} units have no positioned buses and are not on the map.`;
 }
 
+/** The map's caption: where a unit is drawn, and which units are not drawn. */
+export function mapPositionNote(missing: number): string {
+  return `Each unit is drawn at the median position of its buses, not at a surveyed yard. ${unpositionedSentence(missing)}`;
+}
+
 /** "Rank 1 of 41 in its peer group (Small fleets)": 41 is the peer group, not every depot. */
 export function peerRankLine(rank: number, peerCount: number, group: PeerGroupId): string {
   return `Rank ${rank} of ${peerCount} in its peer group (${PEER_GROUP_LABEL[group]})`;

@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { PANEL_HEADING_ID, clearSelection } from './clearSelection';
+import { PANEL_HEADING_ID } from './clearSelection';
 import { depotLink } from '@/lib/depot/network/mapWords';
+import { TABLE_SELECT_NOTE } from '@/lib/depot/network/unitsTable';
 import {
   formatIndex,
   rankedIndex,
@@ -11,8 +12,8 @@ import {
 } from '@/lib/depot/network/overviewModel';
 
 /**
- * Both lines always render at a fixed minimum height, selected or not, so the
- * map and the table never jump when the first selection arrives.
+ * The line renders at a fixed minimum height, selected or not, so the
+ * table never jumps when the first selection arrives.
  */
 const LINE =
   'flex min-h-[34px] min-w-0 flex-wrap items-center gap-x-3 gap-y-1 border-y border-depot-line py-1';
@@ -28,38 +29,6 @@ function showOnMap(): void {
     .getElementById('depot-map-heading')
     ?.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' });
   document.getElementById(PANEL_HEADING_ID)?.focus({ preventScroll: true });
-}
-
-/** "Selected: KAUSHAMBI" with Clear, right above the map. */
-export function SelectionLine({
-  row,
-  onClear,
-}: {
-  readonly row: DepotRow | null;
-  readonly onClear: () => void;
-}) {
-  return (
-    <div className={`${LINE} mb-2`} data-testid="depot-map-selection">
-      {row ? (
-        <>
-          <span className="min-w-0 truncate text-[13px] text-depot-ink">
-            <span className="text-depot-muted">Selected: </span>
-            {row.depot.name}
-          </span>
-          <span className="text-[13px] tabular-nums text-depot-muted">{detail(row)}</span>
-          <button
-            type="button"
-            onClick={() => clearSelection(onClear)}
-            className="depot-filter-button ml-auto"
-          >
-            Clear selection
-          </button>
-        </>
-      ) : (
-        <span className="font-sans text-[13px] text-depot-muted">No unit selected.</span>
-      )}
-    </div>
-  );
 }
 
 /** Says what a click in the table or the lists did, right where the click happened. */
@@ -86,9 +55,9 @@ export function SelectionBar({ row }: { readonly row: DepotRow | null }) {
           </span>
         </>
       ) : (
-        <span className="font-sans text-[13px] text-depot-muted">
-          Select a row to see the unit on the map and in the summary beside it.
-        </span>
+        <p className="depot-note">
+          {TABLE_SELECT_NOTE}
+        </p>
       )}
     </div>
   );

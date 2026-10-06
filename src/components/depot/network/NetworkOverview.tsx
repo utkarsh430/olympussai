@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import { useDepotNetworkContext } from '@/components/depot/data/DepotNetworkProvider';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
 import {
@@ -29,6 +29,8 @@ const SECTION = 'animate-rise';
 const OPERATIONS_HREF = '/project/upsrtc';
 /** Module-level so the card's request body keeps one identity across polls. */
 const NETWORK_SCOPE: CopilotScope = { kind: 'network' };
+const BRIEFING_ROW_SENTENCE =
+  'A short written summary of these figures. Advisory: it describes, it does not instruct.';
 
 function OverviewLoading() {
   return (
@@ -98,8 +100,12 @@ function OverviewBody({ data }: { readonly data: DepotNetworkResponse }) {
             />
           </div>
           <div className={SECTION}>
-            <SelectionBar row={selected} />
-            <DepotTable rows={rows} selectedId={selectedId} onSelect={select} />
+            <DepotTable
+              rows={rows}
+              selectedId={selectedId}
+              onSelect={select}
+              selection={<SelectionBar row={selected} />}
+            />
           </div>
         </>
       )}
@@ -109,17 +115,37 @@ function OverviewBody({ data }: { readonly data: DepotNetworkResponse }) {
 }
 
 /**
- * The briefing as one collapsed row that opens in place. The card is given the page's
- * feed time, so its footer says when the page has moved on since the text was written.
+ * The briefing as the cockpit's row: label, one sentence, "Open briefing" on the right.
+ * Opening mounts the card in place; closing hides it without unmounting, so a written
+ * text is kept. The card is given the page's feed time, so its footer says when the
+ * page has moved on since the text was written.
  */
 function NetworkBriefingRow({ feedNow }: { readonly feedNow: string | null }) {
+  const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const bodyId = useId();
+  const toggle = (): void => {
+    setMounted(true);
+    setOpen((value) => !value);
+  };
   return (
-    <details className="depot-details border-y border-depot-line py-2.5" data-testid="depot-briefing-row">
-      <summary>Network briefing · a written summary of these figures, on request</summary>
-      <div className="mt-3">
-        <BriefingCard scope={NETWORK_SCOPE} title="Network briefing" currentFeedTime={feedNow} />
+    <section aria-labelledby="network-briefing-row" data-testid="depot-briefing-row" className="min-w-0 border-y border-depot-line">
+      <div className="flex min-h-9 min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 py-1">
+        <h2 id="network-briefing-row" className="depot-label">
+          Network briefing
+        </h2>
+        <p className="depot-note min-w-0 flex-1 truncate">{BRIEFING_ROW_SENTENCE}</p>
+        <button type="button" className="hud-button shrink-0" aria-expanded={open} aria-controls={bodyId} onClick={toggle}>
+          {open ? 'Close briefing' : 'Open briefing'}
+        </button>
       </div>
-    </details>
+      {/* Hidden by class, not the attribute: a closed card keeps its written text. */}
+      <div id={bodyId} className={open ? 'pb-3' : 'hidden'}>
+        {mounted ? (
+          <BriefingCard scope={NETWORK_SCOPE} title="Network briefing" currentFeedTime={feedNow} />
+        ) : null}
+      </div>
+    </section>
   );
 }
 

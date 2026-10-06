@@ -17,7 +17,6 @@ import {
   MIX_BAR_PX,
   NARROW_TABLE_NOTE,
   TABLE_COLUMN_SPEC,
-  TABLE_SELECT_NOTE,
   tableColumnKeys,
   unitStateCounts,
   type KindFilter,
@@ -123,6 +122,8 @@ export interface DepotTableProps {
   readonly rows: readonly DepotRow[];
   readonly selectedId: string | null;
   readonly onSelect: (depotId: string) => void;
+  /** The selection line, drawn under the table's label so it never sits above it. */
+  readonly selection?: React.ReactNode;
 }
 
 /**
@@ -131,7 +132,7 @@ export interface DepotTableProps {
  * sort, so sorting ranks every row, and a selected row beyond the cap is kept. Below
  * 900px a reduced set of columns shows and the rest are in the selected-unit panel.
  */
-export function DepotTable({ rows, selectedId, onSelect }: DepotTableProps) {
+export function DepotTable({ rows, selectedId, onSelect, selection }: DepotTableProps) {
   const [filter, setFilter] = useState<KindFilter>('all');
   const [expanded, setExpanded] = useState(false);
   const narrow = useNarrow();
@@ -153,9 +154,11 @@ export function DepotTable({ rows, selectedId, onSelect }: DepotTableProps) {
         <h2 id="depot-table-heading" className="depot-label">
           {tableHeading(filter, visible.length)}
         </h2>
-        <p className="depot-note min-w-0 flex-1" data-testid="depot-table-note">
-          {narrow ? NARROW_TABLE_NOTE : TABLE_SELECT_NOTE}
-        </p>
+        {narrow ? (
+          <p className="depot-note min-w-0 flex-1" data-testid="depot-table-note">
+            {NARROW_TABLE_NOTE}
+          </p>
+        ) : null}
         <div role="group" aria-label="Filter by kind" className="flex flex-wrap gap-1.5">
           {KIND_FILTER_OPTIONS.map((option) => (
             <button
@@ -170,6 +173,7 @@ export function DepotTable({ rows, selectedId, onSelect }: DepotTableProps) {
           ))}
         </div>
       </div>
+      {selection}
       <div className="depot-table-flow">
         <DataTable
           id={TABLE_ID}

@@ -3,7 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { DepotMapPanel } from '@/components/depot/network/DepotMapPanel';
 import { ExceptionSummary } from '@/components/depot/network/ExceptionSummary';
-import { SelectionBar, SelectionLine } from '@/components/depot/network/SelectionBar';
+import { SelectionBar } from '@/components/depot/network/SelectionBar';
 import type { DepotRow } from '@/lib/depot/network/overviewModel';
 import type { DepotSummary } from '@/lib/depot/types';
 import type { ExceptionKind, ExceptionSeverity } from '@/lib/depot/exceptions/types';
@@ -75,28 +75,18 @@ function button(label: string): HTMLButtonElement | undefined {
 function Host({ initial }: { readonly initial: DepotRow | null }) {
   const [row, setRow] = useState<DepotRow | null>(initial);
   return (
-    <>
-      <SelectionLine row={row} onClear={() => setRow(null)} />
-      <DepotMapPanel
-        row={row}
-        rows={ROWS}
-        onSelect={() => undefined}
-        onClear={() => setRow(null)}
-      />
-    </>
+    <DepotMapPanel
+      row={row}
+      rows={ROWS}
+      onSelect={() => undefined}
+      onClear={() => setRow(null)}
+    />
   );
 }
 
 describe('clearing the selection keeps keyboard focus on the page', () => {
-  it('moves focus to the selected-unit heading after "Clear selection"', () => {
-    act(() => root.render(<Host initial={A} />));
-    const clear = button('Clear selection');
-    clear?.focus();
-    expect(document.activeElement).toBe(clear);
-    click(clear);
-    expect(document.activeElement).toBe(container.querySelector('#depot-panel-heading'));
-  });
-
+  // Round 2: the line above the map ("No unit selected." / "Clear selection") is gone;
+  // the panel says the selection once and its Clear keeps focus.
   it('moves focus to the selected-unit heading after the panel\'s "Clear"', () => {
     act(() => root.render(<Host initial={A} />));
     const clear = button('Clear');
@@ -138,7 +128,7 @@ describe('unit terminology and the empty panel', () => {
   it('says "unit" where the selection can be any unit', () => {
     act(() => root.render(<Host initial={null} />));
     expect(container.querySelector('#depot-panel-heading')?.textContent).toBe('Selected unit');
-    expect(container.textContent).toContain('No unit selected.');
+    expect(container.textContent).toContain('Nothing selected. Pick a unit');
     expect(container.textContent).not.toMatch(/Selected depot|No depot selected/);
   });
 

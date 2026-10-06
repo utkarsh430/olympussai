@@ -40,11 +40,11 @@ export function DepotMapLegend({ maxFleet }: DepotMapLegendProps) {
   return (
     <div
       data-testid="depot-map-legend"
-      className="grid grid-cols-1 gap-x-8 gap-y-3 text-[11px] text-depot-muted md:grid-cols-2 xl:grid-cols-1"
+      className="grid grid-cols-1 gap-x-8 gap-y-3 border-t border-depot-line pt-3 text-[11px] text-depot-muted md:grid-cols-2 xl:grid-cols-1"
     >
       <div>
-        <p className="depot-label mb-1.5">Size</p>
-        <p className="mb-2 font-sans text-xs leading-snug">
+        <div className="depot-label mb-1">Size</div>
+        <p className="depot-caption mb-1.5">
           Circle area grows with the unit&apos;s fleet.
         </p>
         <ul className="flex flex-wrap items-end gap-4">
@@ -57,8 +57,8 @@ export function DepotMapLegend({ maxFleet }: DepotMapLegendProps) {
         </ul>
       </div>
       <div>
-        <p className="depot-label mb-1.5">Colour</p>
-        <p className="mb-2 font-sans text-xs leading-snug">
+        <div className="depot-label mb-1">Colour</div>
+        <p className="depot-caption mb-1.5">
           Depot Efficiency Index against depots of similar size: lighter is better.
         </p>
         <ul className="flex flex-wrap gap-x-3 gap-y-1.5">
