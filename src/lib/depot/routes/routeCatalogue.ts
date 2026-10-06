@@ -30,6 +30,8 @@ const DATE_PREFIX = /^\d{4}-\d{2}-\d{2}/;
 const profiles = new Map<string, RouteProfile>();
 const negatives = new Map<string, NegativeEntry>();
 const inFlight = new Map<string, Promise<RouteProfileResult>>();
+/** Bumped whenever the set of cached profiles changes, so views built on it know to rebuild. */
+let revision = 0;
 
 function setBounded<V>(map: Map<string, V>, key: string, value: V): void {
   map.delete(key);
@@ -139,6 +141,7 @@ export async function getRouteProfile(
     .then((result) => {
       if (result.status === 'ok') {
         setBounded(profiles, key, result.profile);
+        revision += 1;
         negatives.delete(routeName);
       } else {
         setBounded(negatives, routeName, { result, storedAt: now });
@@ -150,7 +153,40 @@ export async function getRouteProfile(
   return request;
 }
 
+/**
+ * Profiles already cached for the routes in this snapshot, looked up exactly
+ * as `getRouteProfile` would (same sampled bus, same operating date) but never
+ * fetched: a view over many routes must not turn into a crawl of the upstream.
+ * Routes absent from the result have not been profiled today.
+ */
+export function cachedRouteProfiles(
+  view: FleetSnapshotView,
+  now: number = Date.now(),
+): ReadonlyMap<string, RouteProfile> {
+  const byRoute = new Map<string, DepotBusRow[]>();
+  for (const row of view.rows) {
+    if (!isValidRouteName(row.routeName)) continue;
+    const group = byRoute.get(row.routeName);
+    if (group) group.push(row);
+    else byRoute.set(row.routeName, [row]);
+  }
+  const order = compareCandidates(view.feedNow);
+  const found = new Map<string, RouteProfile>();
+  for (const [routeName, rows] of byRoute) {
+    const bus = rows.reduce((best, row) => (order(row, best) < 0 ? row : best));
+    const profile = profiles.get(`${routeName}:${operatingDate(bus, view, now)}`);
+    if (profile) found.set(routeName, profile);
+  }
+  return found;
+}
+
+/** Changes whenever a profile is added to the cache (or the cache is reset). */
+export function routeCatalogueRevision(): number {
+  return revision;
+}
+
 export function resetRouteCatalogueForTests(): void {
+  revision += 1;
   profiles.clear();
   negatives.clear();
   inFlight.clear();
