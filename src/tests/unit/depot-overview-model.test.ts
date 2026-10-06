@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   exceptionRows,
+  selectionStatus,
   severityTotals,
   formatIndex,
   joinScores,
@@ -222,7 +223,6 @@ describe('exception summaries', () => {
     const dark = rows.find((row) => row.kind === 'dark_share_high');
     expect(dark?.severity).toBe('variable');
   });
-
 });
 
 describe('severityTotals', () => {
@@ -268,5 +268,19 @@ describe('formatIndex', () => {
     expect(formatIndex(72)).toBe('72.0');
     expect(formatIndex(null)).toBe('—');
     expect(formatIndex(Number.NaN)).toBe('—');
+  });
+});
+
+describe('selectionStatus', () => {
+  it('names the depot and its index, or why it is unranked', () => {
+    const [ranked, small] = rowsFor([
+      ['a', 62.4],
+      ['b', null, 'fleet_too_small'],
+    ]);
+    expect(selectionStatus(ranked ?? null)).toBe('Selected Depot a, index 62.4');
+    expect(selectionStatus(small ?? null)).toBe(
+      'Selected Depot b, not ranked: Fewer than 10 buses',
+    );
+    expect(selectionStatus(null)).toBe('');
   });
 });

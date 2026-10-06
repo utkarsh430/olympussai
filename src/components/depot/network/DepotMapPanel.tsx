@@ -2,13 +2,20 @@ import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
 import { formatCount, formatShare } from '@/lib/depot/format';
 import { DEPOT_KIND_LABEL, PEER_GROUP_LABEL, RANK_REASON_LABEL } from '@/lib/depot/labels';
 import { indexBand } from '@/lib/depot/map/nodeStyle';
-import { formatIndex, rankedIndex, type DepotRow } from '@/lib/depot/network/overviewModel';
+import {
+  formatIndex,
+  rankedIndex,
+  selectionStatus,
+  type DepotRow,
+} from '@/lib/depot/network/overviewModel';
 import { StatusMixBar, stateSegments } from './StatusMixBar';
 
 export interface DepotMapPanelProps {
   /** The selected depot, or null when nothing is selected. */
   readonly row: DepotRow | null;
   readonly onClear: () => void;
+  /** True when the depot selected earlier has dropped out of the feed. */
+  readonly vanished?: boolean;
 }
 
 function Ranking({ row }: { readonly row: DepotRow }) {
@@ -43,12 +50,21 @@ function Ranking({ row }: { readonly row: DepotRow }) {
  * Summary of the selected depot beside the map. It is fed by the shared
  * selection, so the ranked lists and the table fill it as well as the map.
  */
-export function DepotMapPanel({ row, onClear }: DepotMapPanelProps) {
+export function DepotMapPanel({ row, onClear, vanished = false }: DepotMapPanelProps) {
+  const status = (
+    <p role="status" className="sr-only">
+      {selectionStatus(row)}
+    </p>
+  );
   if (!row) {
     return (
-      <aside className="depot-panel p-4" data-testid="depot-map-panel" aria-live="polite">
-        <p className="depot-label">Selected depot</p>
+      <aside className="depot-panel relative min-w-0 p-4" data-testid="depot-map-panel">
+        {status}
+        <h3 id="depot-panel-heading" tabIndex={-1} className="depot-label">
+          Selected depot
+        </h3>
         <p className="depot-prose mt-2">
+          {vanished ? 'The selected depot is no longer in the feed. ' : null}
           Select a depot on the map, in the ranked lists or in the table to see its fleet, state and
           index here.
         </p>
@@ -60,11 +76,18 @@ export function DepotMapPanel({ row, onClear }: DepotMapPanelProps) {
   const segments = stateSegments(depot.states);
 
   return (
-    <aside className="depot-panel min-w-0 p-4" data-testid="depot-map-panel" aria-live="polite">
+    <aside className="depot-panel relative min-w-0 p-4" data-testid="depot-map-panel">
+      {status}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="depot-label">Selected depot</p>
-          <h3 className="mt-1 break-words text-[15px] text-depot-ink">{depot.name}</h3>
+          <h3
+            id="depot-panel-heading"
+            tabIndex={-1}
+            className="mt-1 break-words text-[15px] text-depot-ink"
+          >
+            {depot.name}
+          </h3>
           <p className="text-[11px] text-depot-muted">{DEPOT_KIND_LABEL[depot.kind]}</p>
         </div>
         <button type="button" onClick={onClear} className="depot-filter-button shrink-0">
@@ -77,6 +100,9 @@ export function DepotMapPanel({ row, onClear }: DepotMapPanelProps) {
           <dt className="depot-label">Fleet</dt>
           <dd className="mt-1 text-[13px] tabular-nums text-depot-ink">
             {formatCount(depot.fleet)} buses
+          </dd>
+          <dd className="mt-1 text-[11px] text-depot-muted">
+            Position: median of {formatCount(depot.positioned)} positioned buses (derived)
           </dd>
         </div>
         <div>

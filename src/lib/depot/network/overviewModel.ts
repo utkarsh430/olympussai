@@ -1,5 +1,5 @@
 import { formatShare } from '@/lib/depot/format';
-import { EXCEPTION_KIND_LABEL } from '@/lib/depot/labels';
+import { EXCEPTION_KIND_LABEL, RANK_REASON_LABEL } from '@/lib/depot/labels';
 import type { DepotSummary, Figure, NetworkKpis } from '@/lib/depot/types';
 import type { DepotScore } from '@/lib/depot/score/types';
 import type { ExceptionKind, ExceptionSeverity } from '@/lib/depot/exceptions/types';
@@ -33,6 +33,20 @@ export function rankedIndex(row: DepotRow): number | null {
 /** The index to one decimal, or a dash when there is none. */
 export function formatIndex(index: number | null): string {
   return index === null || !Number.isFinite(index) ? '—' : index.toFixed(1);
+}
+
+/** Why a row has no index, in words. */
+export function unrankedReason(row: DepotRow): string {
+  return row.score ? RANK_REASON_LABEL[row.score.reason] : 'No score for this depot';
+}
+
+/** One line for the screen-reader status when the selection changes. */
+export function selectionStatus(row: DepotRow | null): string {
+  if (!row) return '';
+  const index = rankedIndex(row);
+  const detail =
+    index === null ? `not ranked: ${unrankedReason(row)}` : `index ${formatIndex(index)}`;
+  return `Selected ${row.depot.name}, ${detail}`;
 }
 
 export const RANKED_STRIP_SIZE = 5;
