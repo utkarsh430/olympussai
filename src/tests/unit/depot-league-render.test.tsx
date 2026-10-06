@@ -96,6 +96,23 @@ describe('LeagueGrid: the index cell opens the breakdown', () => {
     expect(onSelect).toHaveBeenLastCalledWith(SMALL);
   });
 
+  it('opens the breakdown as an expanded row directly under the activated row, by click or Enter', () => {
+    const onSelect = vi.fn();
+    grid({ onSelect, selectedId: 'a', expanded: <p>breakdown of a</p> });
+    const rows = Array.from(container.querySelectorAll('tbody tr'));
+    expect(rows[1]?.getAttribute('data-testid')).toBe('league-breakdown-row');
+    expect(rows[1]?.textContent).toBe('breakdown of a');
+    expect(rows[0]?.getAttribute('tabindex')).toBe('0');
+    act(() => {
+      rows[2]?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    });
+    expect(onSelect).toHaveBeenLastCalledWith(SMALL);
+    // The index cell's own button opens it once, not once for itself and once for the row.
+    onSelect.mockClear();
+    act(() => container.querySelector<HTMLButtonElement>('tbody button')?.click());
+    expect(onSelect).toHaveBeenCalledTimes(1);
+  });
+
   it('describes the button by its value, and an unranked one by its reason', () => {
     grid();
     const [ranked, small] = Array.from(container.querySelectorAll('tbody button'));

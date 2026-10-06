@@ -29,8 +29,7 @@ export const EMPTY_FEED_SENTENCE = 'The live feed returned no depots, so there i
 /**
  * Depots ranked within peer groups. Above the table: the header and its provenance line
  * (which carries the index window), then the filter row and one section note. The
- * selected depot's breakdown opens beside the table only from `2xl` (1536px); below that
- * it opens under the table, so it never squeezes it.
+ * selected depot's breakdown opens as an expanded row directly under its row.
  */
 export function LeagueTable() {
   const { data, error, loading, refresh } = useDepotNetworkContext();
@@ -51,10 +50,22 @@ export function LeagueTable() {
     setFilters(next);
     setPage(0);
   }, []);
-  const select = useCallback((row: LeagueRow): void => {
-    setSelectedId(row.depotId);
-    setFocusPending(true);
-  }, []);
+  // The row or its index cell opens the breakdown under it; activating it again closes it and
+  // returns focus to the row.
+  const select = useCallback(
+    (row: LeagueRow): void => {
+      if (selectedId !== row.depotId) {
+        setSelectedId(row.depotId);
+        setFocusPending(true);
+        return;
+      }
+      setSelectedId(null);
+      Array.from(document.querySelectorAll<HTMLElement>('[data-league-row]'))
+        .find((el) => el.getAttribute('data-league-row') === row.depotId)
+        ?.focus();
+    },
+    [selectedId],
+  );
   // The selection outlives a filter that hides it, so relaxing the filter reopens it.
   const selected = selectedRowIn(rows, selectedId);
 
@@ -87,8 +98,7 @@ export function LeagueTable() {
         <section aria-labelledby="league-ranked">
           <SectionLabel id="league-ranked" label="Ranked depots" note={note} />
           <LeagueFilters filters={filters} peerGroups={peerGroups} onChange={changeFilters} />
-          <div className={selected ? 'grid gap-4 2xl:grid-cols-[minmax(0,1fr)_28rem]' : ''}>
-            <div className="min-w-0">
+          <div className="min-w-0">
               <LeagueGrid
                 rows={rows}
                 grouped={showsPeerGroupColumn(filters)}
@@ -97,9 +107,8 @@ export function LeagueTable() {
                 page={page}
                 onPage={setPage}
                 windowSamples={data.scoreWindow?.samples}
+                expanded={selected ? <ScoreBreakdown row={selected} headingRef={headingRef} /> : null}
               />
-            </div>
-            {selected ? <ScoreBreakdown row={selected} headingRef={headingRef} /> : null}
           </div>
         </section>
         <HowProduced paragraphs={LEAGUE_HOW_PRODUCED} />
