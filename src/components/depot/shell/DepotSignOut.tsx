@@ -1,10 +1,9 @@
 'use client';
 
 import { LogOut } from 'lucide-react';
-import { useProjectSignOut } from '@/hooks/useProjectSignOut';
+import { SIGN_OUT_FAILED, useProjectSignOut } from '@/hooks/useProjectSignOut';
 
-/** Said when the logout request failed: the session may still be open. */
-export const SIGN_OUT_FAILED = 'Sign-out failed; you may still be signed in. Try again or close the browser.';
+export { SIGN_OUT_FAILED };
 
 /**
  * Sign-out for the depot top bar. Depot pages run without CSS zoom and with an

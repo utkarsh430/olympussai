@@ -1,7 +1,7 @@
 'use client';
 
 import { LogOut } from 'lucide-react';
-import { useProjectSignOut } from '@/hooks/useProjectSignOut';
+import { SIGN_OUT_FAILED, useProjectSignOut } from '@/hooks/useProjectSignOut';
 
 /**
  * Restrained Olympuss project context + Sign Out, mounted into the dashboard's
@@ -9,10 +9,11 @@ import { useProjectSignOut } from '@/hooks/useProjectSignOut';
  * as "you are inside an Olympuss project environment" without overwhelming the
  * command centre's cyan HUD identity.
  *
- * Sign-out behaviour lives in `useProjectSignOut`.
+ * Sign-out behaviour lives in `useProjectSignOut`. A refused sign-out keeps the
+ * user on the page, so the button says it failed and can be pressed again.
  */
 export function ProjectSignOut() {
-  const { signOut, pending } = useProjectSignOut();
+  const { signOut, pending, failed } = useProjectSignOut();
 
   return (
     <div className="flex items-center gap-2.5">
@@ -49,10 +50,14 @@ export function ProjectSignOut() {
         onClick={signOut}
         disabled={pending}
         data-testid="project-sign-out"
+        title={failed ? SIGN_OUT_FAILED : undefined}
         className="inline-flex items-center gap-1.5 rounded border border-[#d6a13a]/40 bg-[#d6a13a]/[0.06] px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-[#e8c477] transition-colors hover:border-[#d6a13a]/80 hover:bg-[#d6a13a]/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#d6a13a] disabled:cursor-not-allowed disabled:opacity-50"
       >
         <LogOut className="h-3.5 w-3.5" aria-hidden />
-        {pending ? 'Signing out…' : 'Sign Out'}
+        {pending ? 'Signing out…' : failed ? 'Sign-out failed: retry' : 'Sign Out'}
+        <span role="status" className="sr-only">
+          {failed ? SIGN_OUT_FAILED : ''}
+        </span>
       </button>
     </div>
   );

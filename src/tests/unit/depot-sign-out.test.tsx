@@ -1,6 +1,7 @@
 import { act, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DepotSignOut, SIGN_OUT_FAILED } from '@/components/depot/shell/DepotSignOut';
+import { ProjectSignOut } from '@/components/upsrtc/ProjectSignOut';
 
 const originalFetch = globalThis.fetch;
 const originalLocation = window.location;
@@ -52,6 +53,34 @@ describe('signing out of the depot module', () => {
     render(<DepotSignOut />);
     await press();
     expect(assign).not.toHaveBeenCalled();
+    expect(screen.getByRole('status').textContent).toBe(SIGN_OUT_FAILED);
+  });
+});
+
+describe('signing out of the command centre', () => {
+  async function pressProject(): Promise<void> {
+    await act(async () => {
+      screen.getByTestId('project-sign-out').click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+  }
+
+  it('goes to the login page once the server has ended the session', async () => {
+    globalThis.fetch = vi.fn(async () => ({ ok: true, status: 200 }) as Response) as typeof fetch;
+    render(<ProjectSignOut />);
+    await pressProject();
+    expect(assign).toHaveBeenCalledWith('/login');
+  });
+
+  it('says so when the server refused, since the user stays on the page', async () => {
+    globalThis.fetch = vi.fn(async () => ({ ok: false, status: 500 }) as Response) as typeof fetch;
+    render(<ProjectSignOut />);
+    await pressProject();
+    expect(assign).not.toHaveBeenCalled();
+    const button = screen.getByTestId('project-sign-out') as HTMLButtonElement;
+    expect(button.disabled).toBe(false);
+    expect(button.textContent).toContain('Sign-out failed: retry');
+    expect(button.getAttribute('title')).toBe(SIGN_OUT_FAILED);
     expect(screen.getByRole('status').textContent).toBe(SIGN_OUT_FAILED);
   });
 });
