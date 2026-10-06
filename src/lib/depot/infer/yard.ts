@@ -48,7 +48,9 @@ import { densityClusters } from './yardClusters';
  *    between them are therefore one place. A queue with a bus every 75 m or
  *    closer joins whatever it reaches; the span limit then decides.
  *  - A bus standing just outside the circle reads as away. No margin is added:
- *    on the snapshot 13 buses stood within 450 m outside against 1,659 inside.
+ *    under this rule the snapshot gives 95 of 119 depots a yard, with 2,444
+ *    parked buses inside their own yard and 50 within 450 m outside it, mostly
+ *    a second stand beside the yard at three depots.
  */
 
 /** Two parked buses this close stand in the same place. */
