@@ -103,6 +103,29 @@ describe('classifyBusState', () => {
   });
 });
 
+describe('classifyBusState, overnight trips (M2)', () => {
+  const AFTER_MIDNIGHT = '2026-10-06T00:30:00.000Z';
+  const heard = { gpsTimestamp: '2026-10-06T00:29:00.000Z', speedKmph: 40, routeName: 'R1' };
+  const overnight = {
+    scheduledStart: '2026-10-05T16:01:00.000Z',
+    scheduledEnd: '2026-10-06T03:01:00.000Z',
+  };
+
+  it('keeps a trip that started before midnight in service after it, on the feed clock', () => {
+    expect(classifyBusState(makeRow({ ...heard, ...overnight }), AFTER_MIDNIGHT)).toBe('in_service');
+  });
+
+  it('does not count a trip from yesterday that has already ended', () => {
+    const ended = { ...overnight, scheduledEnd: '2026-10-06T00:10:00.000Z' };
+    expect(classifyBusState(makeRow({ ...heard, ...ended }), AFTER_MIDNIGHT)).toBe('on_road');
+  });
+
+  it('still needs a recent report', () => {
+    const quiet = { ...heard, gpsTimestamp: '2026-10-05T23:30:00.000Z' };
+    expect(classifyBusState(makeRow({ ...quiet, ...overnight }), AFTER_MIDNIGHT)).toBe('on_road');
+  });
+});
+
 describe('notHeardMinutes', () => {
   const quiet = (minutes: number, over: Partial<DepotBusRow> = {}): DepotBusRow =>
     makeRow({ gpsTimestamp: minutesBefore(minutes), ...over });
