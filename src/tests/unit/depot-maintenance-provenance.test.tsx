@@ -20,7 +20,7 @@ vi.mock('@/hooks/useDepotMaintenance', () => ({
   }),
 }));
 
-/** X1: the page's provenance line, pinned in every state of the page. */
+/** The page's provenance line, pinned in every state of the page. */
 const LIVE_SENTENCE = 'Off-road buses are LIVE; service status and workshop bays are MODELLED.';
 
 const BASE = { data: null, error: null, loading: false, refresh: () => {} };

@@ -103,7 +103,7 @@ describe('the depot availability band', () => {
     expect(band.match(/<li/g)).toHaveLength(3);
     const section = text(markup.slice(markup.indexOf('trends-availability')));
     expect(section).toContain('36 at peak + 4 spare');
-    // Critique depot trends MUST 1: the note sits on the tagged label, the tag word never in prose.
+    // The note sits on the tagged label, the tag word never in prose.
     expect(
       markup
         .slice(markup.indexOf('trends-availability-heading'))

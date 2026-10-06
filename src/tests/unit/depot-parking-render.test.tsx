@@ -81,7 +81,7 @@ beforeEach(() => {
   hook.detail = detailOf({}, 38, 2);
 });
 
-// Rewritten for the design wave: capacity is now a figure in the yard's band (the old
+// Capacity is now a figure in the yard's band (the old
 // capacity panel is gone); its full sentences moved to the page's closed disclosure.
 const yardModel = (established: boolean): YardModel =>
   ({
@@ -206,7 +206,7 @@ describe('ParkingPlan', () => {
     expect(text(note)).toContain('Nothing is instructed or dispatched.');
   });
 
-  // Rewritten for the design wave: the lane cards became one diagram that scrolls
+  // The lane cards became one diagram that scrolls
   // sideways in its own relative frame, so no grid of lane cards exists at any width.
   it('draws the lanes in their own scrolling frame, never a grid of lane cards', () => {
     expect(html).toContain('parking-diagram');

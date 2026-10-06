@@ -4,7 +4,7 @@ import { StatePanel } from '@/components/depot/shell/StatePanel';
 
 afterEach(cleanup);
 
-/** StatePanel (design critique round 4, E): one sentence, one muted line, one action. */
+/** StatePanel: one sentence, one muted line, one action. */
 describe('StatePanel forms', () => {
   it('fits its text when no footprint is given', () => {
     render(<StatePanel kind="not-established" sentence="No yard is established yet." />);

@@ -82,7 +82,7 @@ describe('lastHeardIso', () => {
 });
 
 describe('workshopRows', () => {
-  // Round 3 (M17): the one live row under the MODELLED label says it is the feed's count.
+  // The one live row under the MODELLED label says it is the feed's count.
   it('uses the live off-road count, says so in its label, and tags no row', () => {
     const rows = workshopRows(workshopLoad(7, 4));
     expect(rows).toEqual([

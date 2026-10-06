@@ -3,7 +3,7 @@ import { busGroupLabel, exceptionPageScope } from '@/lib/depot/exceptions/pageSc
 import type { DepotException } from '@/lib/depot/exceptions/types';
 
 /*
- * Round 3 (R2-m22, R2-m23, capture item 4): with `?depot=` the whole exceptions page is
+ * With `?depot=` the whole exceptions page is
  * about that depot, and with `?kind=` as well every count reflects both.
  */
 function depotException(depotId: string, kind: DepotException['kind']): DepotException {

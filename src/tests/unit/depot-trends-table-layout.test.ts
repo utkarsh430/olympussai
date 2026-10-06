@@ -17,8 +17,8 @@ const trendTableWidth = (tier: TableTier, sort: TrendSortKey): number =>
 
 const SORTS: readonly TrendSortKey[] = ['name', 'week', 'fourWeeks'];
 
-describe('network trends unit table per width (critique §7)', () => {
-  it('shows every column from 1280, and the critique sets at 1024 and 800', () => {
+describe('network trends unit table per width', () => {
+  it('shows every column from 1280, and the reduced sets at 1024 and 800', () => {
     expect(trendColumnKeys('wide', 'fourWeeks')).toEqual([
       'name',
       'spark',

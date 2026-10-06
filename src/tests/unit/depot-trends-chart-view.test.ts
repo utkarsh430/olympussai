@@ -45,7 +45,7 @@ describe('the Trends chart view', () => {
     expect(summary).toMatch(/forecast to .* range /);
   });
 
-  it('builds the text equivalent once with the word in its one place, never by repairing a string (R2-m18)', () => {
+  it('builds the text equivalent once with the word in its one place, never by repairing a string', () => {
     const { model, summary } = buildTrendsChartView(FULL);
     expect(summary).toBe(trendSummary(FULL, model.points, 'once'));
     expect(summary).toMatch(/^On-road share, MODELLED history from /);
@@ -68,7 +68,7 @@ describe('the Trends chart view', () => {
     const view = buildTrendsChartView(FULL);
     expect(view.table).toHaveLength(70 + 14);
     expect(view.table[69]?.kind).toBe('Now (live)');
-    // R2-m16: the Kind cell never carries the tag word.
+    // The Kind cell never carries the tag word.
     expect(view.table.some((r) => /MODELLED/.test(r.kind))).toBe(false);
     expect(view.table[70]?.sortLow).not.toBeNull();
   });

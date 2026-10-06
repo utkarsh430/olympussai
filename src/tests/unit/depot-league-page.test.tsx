@@ -7,7 +7,7 @@ import { bannedOnScreen } from './depot-guard-rendered';
 
 /*
  * The real league page, gate mocked, in every state: the provenance line's tone and
- * sentence (ruling S51 / guard X1), the index window words on the page (guard X11), and
+ * sentence, the index window words on the page, and
  * the one MODELLED tag, in the trend column's header cell.
  */
 

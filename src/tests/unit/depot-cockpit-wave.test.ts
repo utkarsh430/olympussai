@@ -193,7 +193,7 @@ describe('availability bar', () => {
     });
   });
 
-  // P2: the count restarts after an epoch, so the sentence claims only what it knows.
+  // The count restarts after an epoch, so the sentence claims only what it knows.
   it('says how many snapshots it has decided the yard on when that is at most one', () => {
     const noYard = { ...BOARD, locations: null, yard: { established: false, sentence: 'Rule.' } } as StatusBoard;
     for (const [snapshotsSeen, words] of [[0, '0 snapshots'], [1, '1 snapshot']] as const) {
@@ -256,7 +256,7 @@ describe('exception groups', () => {
       ],
     );
     expect(groups.map((g) => [g.kind, g.rows.length])).toEqual([['long_dark', 1], ['power_cut', 1]]);
-    // Round 2 (critique, cockpit Must 5): the group names its kind and severity once; a row
+    // The group names its kind and severity once; a row
     // shows only the kinds beyond the group's own.
     expect(groups[0]?.rows[0]).toMatchObject({ registrationNumber: 'UP1', extra: '+ Power off' });
     expect(groups[1]?.rows[0]).toMatchObject({ registrationNumber: 'UP2', extra: null });

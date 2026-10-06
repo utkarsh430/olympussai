@@ -7,7 +7,7 @@ import type { CopilotApiResponse } from '@/lib/depot/copilot/wire';
 import { bannedOnScreen } from './depot-guard-rendered';
 
 /*
- * Round 2, guard X8, X1 and M15: the ask page's real top-level component declares MIXED
+ * The ask page's real top-level component declares MIXED
  * (computed answers DERIVED, shortfalls, spares and transfers MODELLED) in every state;
  * "advisory" and the staff limit stay visible; a generated evidence column carries
  * MODELLED in its header cell; the scope chip names the scope the ANSWER used; TRY ASKING
@@ -46,7 +46,7 @@ const SHORT: CopilotApiResponse = {
   notice: 'none',
   generatedAt: '2026-10-06T14:20:05.000Z',
   cached: false,
-  // The text cites only the count and the total: no row fact reaches the page (guard R2-I2).
+  // The text cites only the count and the total: no row fact reaches the page.
   facts: [
     { id: 'list.count', label: 'Depots', text: '2 depots', provenance: 'modelled' },
     { id: 'list.total', label: 'Short by in all', text: '10 buses', provenance: 'modelled' },

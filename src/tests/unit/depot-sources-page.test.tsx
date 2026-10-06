@@ -6,8 +6,8 @@ import { SourcesRegistry } from '@/components/depot/sources/SourcesRegistry';
 import { bannedOnScreen } from './depot-guard-rendered';
 
 /*
- * Round 2: the sources page declares REFERENCE in every state (guard X1) with the coverage
- * section's own DERIVED tag visible (M21); each feeds-table row is the expander for its
+ * The sources page declares REFERENCE in every state with the coverage
+ * section's own DERIVED tag visible; each feeds-table row is the expander for its
  * field list; `#feed-<id>` scrolls to that row and opens it; the GPS row carries the
  * feed-clock line when the response says rows ran ahead of the server's clock.
  */

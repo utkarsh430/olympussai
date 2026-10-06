@@ -69,7 +69,7 @@ describe('the duty board names the modelled day', () => {
     const body = render(
       board([duty('a', 'AGRA_EXP_1'), duty('b', 'DELHI_EXP_2'), duty('c', 'AGRA_EXP_1')]),
     );
-    // Round 3: the one shared formula (modelledDayLine), with the plain date and the
+    // The one shared formula (modelledDayLine), with the plain date and the
     // feed's schedule coverage from the depot detail.
     const sentence =
       'Built on the modelled day for 6 Oct 2026: 3 duties on 2 routes; the feed schedules 8 of 200 buses.';

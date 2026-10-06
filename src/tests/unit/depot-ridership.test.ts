@@ -16,7 +16,7 @@ import { priceRoute } from '@/lib/depot/sim/ridershipFigures';
 import type { BusOpState, DepotSummary } from '@/lib/depot/types';
 
 /*
- * Rewritten for rulings S41 and S39. The old tests pinned trips taken from the
+ * The old tests pinned trips taken from the
  * trip-frequency model, a flat fare for a route of unknown length and earnings
  * per kilometre withheld as `unknown_length`. Trips are now the operating day's
  * duties that ran, every route is priced on a length (real or modelled), and
@@ -26,7 +26,7 @@ import type { BusOpState, DepotSummary } from '@/lib/depot/types';
 const DEPOT = { id: '7', name: 'Kaushambi', kind: 'depot', fleet: 24 } as unknown as DepotSummary;
 
 function bus(registrationNumber: string, state: BusOpState, routeName: string | null): DepotBusView {
-  // Heard a minute ago, in the yard: a standing bus is then eligible for a duty (ruling S47).
+  // Heard a minute ago, in the yard: a standing bus is then eligible for a duty.
   return {
     registrationNumber, state, routeName, location: 'in_yard', gpsAgeMin: 1, notHeardMin: null,
   } as unknown as DepotBusView;

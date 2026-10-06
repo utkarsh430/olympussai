@@ -78,7 +78,7 @@ const UNRANKED_SMALL = entry('8', {
   rank: null,
   peerGroup: null,
 }, { fleet: 4 });
-/** Ruling S39: one real length in nine routes is a coverage figure; the depot is still ranked. */
+/** One real length in nine routes is a coverage figure; the depot is still ranked. */
 const RANKED_THIN = entry('6', { rank: 2 }, { lengthCoverage: { n: 1, of: 9 } });
 const UNRANKED_GROUP = entry('5', {
   ranked: false,

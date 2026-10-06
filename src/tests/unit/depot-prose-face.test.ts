@@ -3,7 +3,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
 /**
- * Prose is never in the mono face (design critique round 4, pattern 1). The shell's
+ * Prose is never in the mono face. The shell's
  * inherited face is mono, which is right for data, so any sentence a page forgets to
  * class comes out mono and the page reads like a log. Every `<p>` under
  * `src/components/depot/**` must therefore carry a class that sets the sans face.

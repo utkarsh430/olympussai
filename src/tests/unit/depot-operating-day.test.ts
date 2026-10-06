@@ -11,7 +11,7 @@ const DAY = '2026-10-06';
 const DEPOT = { id: '7', name: 'Kaushambi', kind: 'depot', fleet: 0 } as unknown as DepotSummary;
 
 function bus(registrationNumber: string, state: BusOpState, routeName: string | null): DepotBusView {
-  // Heard a minute ago, in the yard: a standing bus is then eligible for a duty (ruling S47).
+  // Heard a minute ago, in the yard: a standing bus is then eligible for a duty.
   return {
     registrationNumber, state, routeName, location: 'in_yard', gpsAgeMin: 1, notHeardMin: null,
   } as unknown as DepotBusView;

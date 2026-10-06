@@ -5,7 +5,7 @@ import { DEPOT_NOT_FOUND_MESSAGE } from '@/hooks/useDepotDetail';
 import { bannedOnScreen } from './depot-guard-rendered';
 
 /**
- * Guard review X1: the cockpit's page-level default (DERIVED) is pinned by rendering the
+ * The cockpit's page-level default (DERIVED) is pinned by rendering the
  * real route page in every state, so changing or dropping the default fails here.
  */
 

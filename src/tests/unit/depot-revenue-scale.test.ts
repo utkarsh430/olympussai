@@ -38,7 +38,7 @@ function dayOf(
   };
 }
 
-describe('S32 scale of revenue, worked by hand', () => {
+describe('scale of revenue, worked by hand', () => {
   it('uses the trip count the frequency model gives for 4 buses and 120 minutes', () => {
     // 4 buses run the route; at a scheduled 120 minutes the model gives 2 trips per bus.
     expect(
@@ -70,7 +70,7 @@ describe('S32 scale of revenue, worked by hand', () => {
   });
 
   it('a route with no real profile is priced on its modelled length, earnings still given', () => {
-    // Ruling S39 removed the flat fare and the withholding: a route without a real profile
+    // There is no flat fare and no withholding: a route without a real profile
     // runs on the MODELLED typical length of its class; earnings per km do not depend on it.
     const length = modelRouteLength('HAND_UNKNOWN', 'ordinary', null);
     expect(length.lengthProvenance).toBe('modelled');
@@ -109,7 +109,7 @@ describe('S32 scale of revenue, worked by hand', () => {
   });
 });
 
-describe('S32 sanity: earnings beat fuel cost per kilometre at the base load factor', () => {
+describe('sanity: earnings beat fuel cost per kilometre at the base load factor', () => {
   it.each(CLASSES)('%s', (serviceClass) => {
     const seats = SEATS_BY_CLASS[serviceClass];
     const earnings = seats * LOAD_FACTOR_BASE[serviceClass] * FARE_PER_KM[serviceClass];

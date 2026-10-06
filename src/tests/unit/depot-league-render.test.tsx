@@ -222,7 +222,7 @@ describe('ScoreBreakdown', () => {
   });
 });
 
-describe('league trend cell (critique MUST 2)', () => {
+describe('league trend cell', () => {
   it('reads sparkline then a right-aligned signed figure, never "steady, -0.3"', () => {
     const trendRow = {
       id: 'a', name: 'GARH', href: '#', values: [1, 2], sparkLabel: 'Index, GARH',

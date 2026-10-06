@@ -44,7 +44,7 @@ describe('the route table as drawn', () => {
     expect(html).not.toMatch(/class="depot-link[ "]/);
   });
 
-  it('shows the pager, the list\'s only count, on a filtered list of one page (R2-m20)', () => {
+  it('shows the pager, the list\'s only count, on a filtered list of one page', () => {
     const one = { ...ROUTES_FIXTURE, routes: [ROUTE_FIXTURE], total: 1, offset: 0 };
     expect(markup(DEFAULT_ROUTES_QUERY, one)).not.toMatch(/Rows 1 to 1 of 1/);
     expect(markup({ ...DEFAULT_ROUTES_QUERY, q: 'BSI' }, one)).toMatch(/Rows 1 to 1 of 1/);

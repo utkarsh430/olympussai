@@ -128,7 +128,7 @@ describe('the crew page header', () => {
       expect(line?.getAttribute('data-tone')).toBe('modelled');
       expect(line?.querySelector('.depot-tag')?.textContent).toBe('MODELLED');
       expect(line?.textContent).toContain('Generated from planning assumptions, not measured.');
-      // Round 3 (crew Must 1): the people sentence is the description's second sentence,
+      // The people sentence is the description's second sentence,
       // inside the header, above the provenance line, in every state.
       const header = line?.closest('header');
       const description = [...(header?.querySelectorAll('p') ?? [])].find((p) =>
@@ -151,7 +151,7 @@ describe('the crew page header', () => {
     setHook({ data: DATA });
     const page = await renderPage();
     const context = page.querySelector('[data-testid="depot-provenance-context"]');
-    // Round 3: the ONE formula (modelledDayLine), plain date, with Data sources on the line.
+    // The ONE formula (modelledDayLine), plain date, with Data sources on the line.
     expect(context?.textContent).toBe(
       'Built on the modelled day for 6 Oct 2026: 2 duties on 1 route; the feed schedules 5 of 200 buses.',
     );
@@ -324,7 +324,7 @@ describe('every string the crew page model can produce', () => {
   });
 
   it('dates the modelled day when the date is given', () => {
-    // Round 3 (R2-m1): the date is the plain one ("6 Oct 2026"), never the ISO form.
+    // The date is the plain one ("6 Oct 2026"), never the ISO form.
     expect(crewModel.modelledDayPhrase('2026-10-06')).toBe('in the modelled day for 6 Oct 2026');
     expect(crewModel.modelledDayPhrase()).toBe('in the modelled day');
     expect(crewModel.shiftsSentence(40, 38, 2, '2026-10-06')).toContain(

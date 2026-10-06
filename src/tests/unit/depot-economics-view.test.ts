@@ -133,7 +133,7 @@ describe('buildEconomicsResponse', () => {
   });
 
   it('ranks every operating depot, real lengths or not, and says why the small one is not', async () => {
-    // Ruling S39: depot 7 has no real route length (coverage 0 of 2) and is ranked all the same.
+    // Depot 7 has no real route length (coverage 0 of 2) and is ranked all the same.
     const response = await build();
     for (const id of RANKED_DEPOTS) expect(byId(response, id).score.ranked).toBe(true);
     const noLength = byId(response, NO_LENGTH_DEPOT);

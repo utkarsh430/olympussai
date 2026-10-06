@@ -6,7 +6,7 @@ import type { DepotScore } from '@/lib/depot/score/types';
 import type { DepotSummary, Figure, NetworkKpis } from '@/lib/depot/types';
 
 /*
- * Guard R2-m21 and the date rule, on the page's real top-level component (the route's
+ * The provenance line and the date rule, on the page's real top-level component (the route's
  * default export, gate and header included), mounted in jsdom so effects run:
  * - the provenance line is driven through its own states: waiting, unavailable, stale,
  *   empty and data, and each says its own words;
@@ -126,7 +126,7 @@ const WORDS: Readonly<Record<string, RegExp>> = {
   data: /^DERIVED ?Computed from the live feed at \d\d:\d\d\. Efficiency index over the last 20 minutes\.$/,
 };
 
-describe('the overview provenance line, driven through its own states (R2-m21)', () => {
+describe('the overview provenance line, driven through its own states', () => {
   it.each(STATES)('says its own words in the %s state, one line, under the h1', async (name, network) => {
     await renderPage(network);
     expect(container.querySelectorAll('[data-testid="depot-provenance-line"]')).toHaveLength(1);

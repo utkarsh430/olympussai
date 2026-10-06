@@ -4,7 +4,7 @@ import { drawerRowFacts } from '@/lib/depot/routes/routeDrawerModel';
 import { ROUTE_FIXTURE } from './depot-routes.fixtures';
 
 describe('the route drawer first line', () => {
-  it('says the class, the delay, the late share and the buses they rest on (R2-m19)', () => {
+  it('says the class, the delay, the late share and the buses they rest on', () => {
     expect(drawerRowFacts(ROUTE_FIXTURE)).toBe(
       `Class ORD. Median delay +4.0 min; 20% more than ${LATE_AFTER_MIN} minutes late, based on 5 of 5 buses.`,
     );

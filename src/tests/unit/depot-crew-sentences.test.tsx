@@ -194,7 +194,7 @@ describe('the crew page', () => {
     expectClean(text(await renderPage()));
   });
 
-  // Rewritten for round 3 (crew Must 1): the people sentence is the description's second
+  // The people sentence is the description's second
   // sentence, so it comes before the provenance line and the coverage line.
   it('puts the coverage line under the header, whose description carries the people sentence', async () => {
     setHook({ data: { ...BASE, summary: { ...BASE.summary, shiftsUncovered: 1 } } });
@@ -206,7 +206,7 @@ describe('the crew page', () => {
     expect(people).toBeGreaterThan(-1);
     expect(people).toBeLessThan(markup.indexOf('depot-provenance-line'));
     expect(markup.indexOf('depot-provenance-line')).toBeLessThan(markup.indexOf('crew-coverage-line'));
-    // Each role bar has one mono label (critique section 6), not a sans label and a mono count.
+    // Each role bar has one mono label, not a sans label and a mono count.
     const labels = [...markup.matchAll(/<h3 class="depot-label[^"]*" data-testid="crew-role-label">([^<]*)<\/h3>/g)];
     expect(labels.map((m) => m[1]?.replace(/ · .*/, ''))).toEqual(['Drivers', 'Conductors']);
     expect(labels.every((m) => / · \d[\d,]* slots?$/.test(m[1] ?? ''))).toBe(true);
@@ -226,7 +226,7 @@ describe('the crew page', () => {
     setHook({ data: BASE });
     const markup = await renderPage();
     expect(markup).toContain('crew-shortfall-explanation');
-    // Round 3: the shared formula with the plain date (no coverage before the detail loads).
+    // The shared formula with the plain date (no coverage before the detail loads).
     expect(text(markup)).toContain('Built on the modelled day for 6 Oct 2026.');
     expect(text(markup)).not.toMatch(/\d{4}-\d{2}-\d{2}/);
   });
@@ -236,7 +236,7 @@ describe('the crew page', () => {
     const markup = await renderPage();
     expect(markup).not.toContain('About this page');
     expect(markup).not.toContain('Shifts required');
-    // Rewritten for round 3 (review R2-I3, ruling S51): one tag per labelled surface, the
+    // One tag per labelled surface, the
     // provenance line, "Uncovered shifts" and "Suggested roster", each on its section
     // label; none in a header cell or a cell.
     const page = new DOMParser().parseFromString(markup, 'text/html');

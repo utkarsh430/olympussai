@@ -5,7 +5,7 @@ const ENV = { DEPOT_TRUSTED_IP_HEADER: 'x-real-ip' };
 const addressOf = (value: string): string | null =>
   requestAddress(new Headers({ 'x-real-ip': value }), ENV);
 
-describe('ruling S49 M2a: the trusted client address as a limiter key', () => {
+describe('the trusted client address as a limiter key', () => {
   it('keeps an IPv4 address as it is', () => {
     expect(addressOf('203.0.113.7')).toBe('203.0.113.7');
   });

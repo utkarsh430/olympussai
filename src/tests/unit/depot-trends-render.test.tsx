@@ -118,7 +118,7 @@ describe('network Trends page', () => {
     );
   });
 
-  it('states the horizon and method on the VISIBLE page, not only in the closed disclosure (R2-I5)', () => {
+  it('states the horizon and method on the VISIBLE page, not only in the closed disclosure', () => {
     const markup = renderToStaticMarkup(<NetworkTrends metric="onRoadShare" />);
     const visible = text(markup.replace(/<details[\s\S]*?<\/details>/g, ''));
     expect(visible).toMatch(/14-day forecast, (seasonal|Holt-Winters) method, within /);
@@ -205,7 +205,7 @@ describe('the unit table', () => {
     );
     act(() => (fourWeeks as HTMLButtonElement).click());
     expect(names()[0]).toBe('Depot 26');
-    // The shared pager replaced "Show all N" (rulings: a page whose purpose is the list pages at 25).
+    // The shared pager replaced "Show all N" (a page whose purpose is the list pages at 25).
     expect(
       container.querySelector('[data-testid="depot-pager"] [role="status"]')?.textContent,
     ).toBe(`Rows 1 to ${TREND_ROW_CAP} of ${TREND_ROW_CAP + 2}`);
@@ -216,7 +216,7 @@ describe('the unit table', () => {
     expect(names()).toHaveLength(2);
   });
 
-  describe('below 1280 (critique §7)', () => {
+  describe('below 1280', () => {
     let viewport = 1024;
     const listeners: (() => void)[] = [];
     const original = window.matchMedia;

@@ -5,7 +5,7 @@ import * as textModule from '@/lib/depot/maintenance/text';
 import { workshopLoad } from '@/lib/depot/maintenance/workshop';
 
 /*
- * The rule (S51, X10): every sentence the maintenance module can produce that says
+ * The rule: every sentence the maintenance module can produce that says
  * overdue, due soon or due now also says modelled. The walk calls every exported
  * function with arguments chosen so that EACH branch that builds such a sentence runs
  * (the overdue branch, the due-soon branch, the due-now wording, the none branch); it

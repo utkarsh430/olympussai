@@ -151,7 +151,7 @@ function breakdownButton(): HTMLButtonElement | null {
   );
 }
 
-/** X1: the page declares MODELLED in every state, so dropping the default fails here. */
+/** The page declares MODELLED in every state, so dropping the default fails here. */
 describe('EconomicsPage provenance line', () => {
   const MODELLED_SENTENCE = 'Generated from planning assumptions, not measured.';
   const states: readonly [string, Partial<HookResult>][] = [
@@ -266,7 +266,7 @@ describe('EconomicsPage', () => {
     const cells = [...host.querySelectorAll('tbody tr:not([data-testid]) td')];
     const shown = (i: number): string =>
       [...(cells[i]?.querySelectorAll('[aria-hidden]') ?? [])].map((n) => n.textContent).join(' ');
-    // The shared expander's chevron is the first cell (round 5).
+    // The shared expander's chevron is the first cell.
     expect(cells[0]?.className).toContain('depot-cell-expander');
     expect(shown(4)).toBe('30.00 +5.00');
     expect(shown(5)).toBe('20.00 −2.00');
@@ -360,7 +360,7 @@ function sparseData(): EconomicsResponse {
     score: {
       ...base.score,
       depotId: id,
-      // S39: no real length is no reason; what leaves these unranked is the peer-group guard.
+      // No real length is no reason; what leaves these unranked is the peer-group guard.
       ranked: false,
       reason: 'peer_group_too_small',
       missing: [],
@@ -489,7 +489,7 @@ describe('revenue components', () => {
     expect(host.querySelector('a[href="/project/depots/sources"]')).not.toBeNull();
   });
 
-  // Round 2 (critique revenue #1, #2): the pager only above 25 rows; the bar sits in the
+  // The pager only above 25 rows; the bar sits in the
   // load-factor cell; the length coverage moved to the band caption (one statement).
   it('pages the route table above 25 rows and draws the bar in the load-factor cell', async () => {
     const routes = Array.from({ length: 30 }, (_, i) => route(`R${i}`, 100 + i));
@@ -526,7 +526,7 @@ describe('revenue components', () => {
     const tags = [...host.querySelectorAll('[data-provenance]')].map((t) =>
       t.getAttribute('data-provenance'),
     );
-    // Ruling S51: the by-route section carries MODELLED on its label; M14: the length basis is
+    // The by-route section carries MODELLED on its label; the length basis is
     // plain words in a BASIS column, never a tag in a cell or a mixed column.
     expect(tags).toEqual(['modelled']);
     expect(host.textContent).not.toMatch(/\(modelled\)|\(derived\)/);
@@ -568,11 +568,11 @@ describe('revenue components', () => {
       host.querySelector('td[title*="runs no kilometres and has no earnings per kilometre"]'),
     ).not.toBeNull();
     expect(host.textContent).not.toContain('undefined');
-    expect(host.textContent).toContain('₹ / km'); // round 2: the header is "₹ / km"
+    expect(host.textContent).toContain('₹ / km'); // the header is "₹ / km"
   });
 });
 
-describe('EconomicsPage, round 3', () => {
+describe('EconomicsPage: the breakdown name, the filter row and plain dates', () => {
   it('names the breakdown for its depot, keeps the sign note out of the filter row, and prints no raw date', async () => {
     await render(<EconomicsPage />);
     const caption = host.querySelector('[data-testid="depot-economics-table-caption"]');

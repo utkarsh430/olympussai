@@ -142,7 +142,7 @@ describe('reasons in words', () => {
 
 describe('planHeadline', () => {
   it('is one sentence: what would move and on how many routes', () => {
-    // M11: the exact sentence the fixture produces, not either of two wordings.
+    // The exact sentence the fixture produces, not either of two wordings.
     expect(planHeadline(response())).toBe(
       'No route would move. Based on 412 of 1,204 routes with a known profile.',
     );

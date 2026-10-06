@@ -5,7 +5,7 @@ import type { DepotExceptionsResponse } from '@/lib/depot/api';
 import type { DepotException, ExceptionKind } from '@/lib/depot/exceptions/types';
 
 /*
- * Guard X1 and X11 (round 2): the exceptions page's real top-level component, in every
+ * The exceptions page's real top-level component, in every
  * state, declares DERIVED with its sentence; with data, the window words are on the page
  * and each depot exception says the window it was compared over.
  */

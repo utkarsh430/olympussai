@@ -12,7 +12,7 @@ import {
 } from '@/lib/depot/sources/sourcesModel';
 import { FEED_REGISTRY } from '@/lib/depot/sources/registry';
 
-describe('feed row words (round 2)', () => {
+describe('feed row words', () => {
   const fields = (n: number) =>
     Array.from({ length: n }, (_, i) => ({ name: `f${i}`, type: 'string' }));
   it('puts the field count in the row expander label', () => {

@@ -26,7 +26,7 @@ import { groupLabel } from '@/lib/depot/fuel/fuelPageModel';
 import type { FuelGroupRow } from '@/lib/depot/fuel/types';
 import type { RevenueResponse } from '@/lib/depot/revenue/api';
 
-// The pages now render their own header (round 2), whose provenance line reads the feed.
+// The pages now render their own header, whose provenance line reads the feed.
 vi.mock('@/components/depot/data/DepotNetworkProvider', () => ({
   useDepotNetworkContext: () => ({ data: null, error: null }),
 }));
@@ -142,7 +142,7 @@ afterEach(async () => {
 });
 
 describe('fuel page models', () => {
-  // Round 2: tense-neutral for the modelled day (rereview F1 m1); "Cost" names fuel cost.
+  // Tense-neutral for the modelled day; "Cost" names fuel cost.
   it('shows N of M buses running duties first, with the no-duty count as a caption', () => {
     const band = fuelBand(fuelData());
     expect(band).toHaveLength(5);
@@ -172,7 +172,7 @@ describe('fuel page models', () => {
   });
 
   it('puts the rule once in a one-line note and the unlisted counts in one line under the table', () => {
-    // X3: the note names the measure and its direction (it read "above the peers' median").
+    // The note names the measure and its direction (it read "above the peers' median").
     expect(standOutNote(15)).toBe(
       'Uses more than 15% more fuel per kilometre than the median of its peers',
     );
@@ -262,7 +262,7 @@ describe('FuelPage', () => {
     const headers = [...(standOut?.querySelectorAll('thead th') ?? [])].map((th) =>
       th.textContent?.trim(),
     );
-    // X3: consumption in the direction of the variance (was km per litre beside "+18.8%").
+    // Consumption in the direction of the variance (was km per litre beside "+18.8%").
     expect(headers).toEqual([
       'Registration',
       'Class',
@@ -275,7 +275,7 @@ describe('FuelPage', () => {
       (td) => td.textContent,
     );
     expect(first).toContain('+18.8%');
-    // X3: a bus at 3.7 km per litre against peers at 4.4 reads as MORE fuel, in one direction.
+    // A bus at 3.7 km per litre against peers at 4.4 reads as MORE fuel, in one direction.
     expect(first).toEqual(expect.arrayContaining(['27.0', '22.7']));
     expect(host.textContent).toContain(
       'Uses more than 15% more fuel per kilometre than the median of its peers',
@@ -283,7 +283,7 @@ describe('FuelPage', () => {
     expect(standOut?.textContent).not.toMatch(/km per litre|above the peers/i);
     expect(first).toContain('class in depot');
     expect(standOut?.textContent).not.toContain('a sentence that must not appear');
-    // Ruling S51 (round 2): the sections that put generated figures beside real
+    // The sections that put generated figures beside real
     // registrations and route names carry ONE tag on their label; nothing else does.
     expect(sectionTags()).toEqual([
       ['Buses that stand out', 'modelled'],
@@ -297,7 +297,7 @@ describe('FuelPage', () => {
       host.querySelector('details[data-testid="depot-how-produced"]')?.hasAttribute('open'),
     ).toBe(false);
     expect(host.querySelectorAll('tbody tr')).toHaveLength(3 + 4 + 1);
-    // Critique fuel #3: LITRES dropped from BY ROUTE so it fits at 800; units in headers.
+    // LITRES dropped from BY ROUTE so it fits at 800; units in headers.
     const routeHeaders = [...(tables[2]?.querySelectorAll('thead th') ?? [])].map((th) =>
       th.textContent?.trim(),
     );
@@ -401,11 +401,11 @@ describe('RevenuePage', () => {
     );
     expect(host.querySelectorAll('table')).toHaveLength(1);
     expect(host.querySelector('[aria-label="Modelled revenue by route"]')).toBeNull();
-    // Round 2: the length coverage is the band caption, from the response (critique revenue).
+    // The length coverage is the band caption, from the response.
     expect(host.querySelector('[data-testid="depot-figure-band"]')?.textContent).toContain(
       '1 of 2 route lengths from real profiles',
     );
-    // Ruling S51: the by-route label carries MODELLED. M14: mixed lengths say where each
+    // The by-route label carries MODELLED. Mixed lengths say where each
     // came from in a plain BASIS column ("Profile", "Model"), never a tag inside a cell.
     expect(sectionTags()).toEqual([['By route', 'modelled']]);
     expect(

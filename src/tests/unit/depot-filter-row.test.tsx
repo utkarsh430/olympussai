@@ -4,7 +4,7 @@ import { Checkbox, FilterRow, SearchField, Select } from '@/components/depot/she
 
 afterEach(cleanup);
 
-/** One filter-row pattern (design critique round 4, J). */
+/** One filter-row pattern. */
 describe('FilterRow', () => {
   it('lays its controls out in one wrapping row, named for assistive technology', () => {
     render(

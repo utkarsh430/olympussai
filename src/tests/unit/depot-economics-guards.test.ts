@@ -90,7 +90,7 @@ describe('route coverage guard', () => {
     };
   }
 
-  // Ruling S39 removed the coverage gate: earnings per km do not depend on a route's length,
+  // There is no coverage gate: earnings per km do not depend on a route's length,
   // so how many lengths are real is a coverage figure and never withholds a rank. The cases
   // the old gate refused (one route; a quarter but under two routes; 22%) now rank.
   it.each([

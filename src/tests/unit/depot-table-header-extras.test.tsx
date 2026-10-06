@@ -31,7 +31,7 @@ const ROWS: readonly Row[] = [
   { id: 'DHAMPUR', group: 'Small fleets', earnings: 38.36, trips: 9 },
 ];
 
-/** Tags in the ruled places and units in the header (critique round 4, I and K). */
+/** Tags in the ruled places and units in the header. */
 describe('table header extras', () => {
   it('puts a column tag as a pill inside its header cell', () => {
     render(<DataTable columns={COLUMNS} rows={ROWS} rowKey={(row) => row.id} caption="Depots" />);

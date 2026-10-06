@@ -77,7 +77,7 @@ describe('cockpit empty states', () => {
     expect(textOf(markup)).toContain('No bus carries a schedule for the feed date, 6 Oct 2026');
     expect(textOf(markup)).not.toContain('today');
     expect(markup).not.toContain('depot-table');
-    // Critique §9, cockpit C: the label's "· 0" and one muted line, no coverage sentence, no box.
+    // The label's "· 0" and one muted line, no coverage sentence, no box.
     expect(markup).not.toContain('depot-outshed-coverage');
     expect(textOf(markup)).not.toContain('0 of 10 buses');
   });
@@ -166,7 +166,7 @@ describe('cockpit page with data', () => {
     expect(markup.indexOf('depot-attention')).toBeLessThan(markup.indexOf('depot-status-board'));
     expect(markup).toContain('href="/project/depots/d/20/roster?flag=power_off"');
     expect(markup).toContain('href="/project/depots/d/20/roster?state=off_road"');
-    // Round 2: with no yard there is no visitor or standing split, only one line and the rule's link.
+    // With no yard there is no visitor or standing split, only one line and the rule's link.
     expect(text).toContain('No yard is established yet: no place where these buses park meets the yard rule.');
     expect(markup).toContain('href="#how-produced"');
     expect(markup).not.toContain('A yard is claimed only when</p>');

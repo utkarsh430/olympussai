@@ -17,7 +17,7 @@ function rule(selector: string): string {
 afterEach(cleanup);
 
 /**
- * Vertical rhythm (design critique round 4, section 7), held by the shared pieces so a
+ * Vertical rhythm, held by the shared pieces so a
  * page inherits it rather than hand-picking margins.
  */
 describe('shared vertical rhythm', () => {
@@ -28,7 +28,7 @@ describe('shared vertical rhythm', () => {
   });
 
   it('keeps a band wrapped in a stack child from adding its own margin to the 40px', () => {
-    // Yard (round 5): the band sat in a wrapper div, so the stack dropped the wrapper's
+    // Yard: the band sat in a wrapper div, so the stack dropped the wrapper's
     // margin but not the band's 24px, and the next rule landed about 64px down.
     render(
       <FigureBand label="Yard figures">

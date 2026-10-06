@@ -6,7 +6,7 @@ import type { DepotBalance, TransferPlan } from '@/lib/depot/optimise/types';
 import { bannedOnScreen } from './depot-guard-rendered';
 
 /*
- * Ruling S51 and guard X1: the page's MIXED provenance line, rendered by the page's real
+ * The page's MIXED provenance line, rendered by the page's real
  * top-level component in every state. Changing or dropping the page default fails here.
  */
 

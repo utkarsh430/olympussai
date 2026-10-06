@@ -83,7 +83,7 @@ describe('sentences', () => {
     );
   });
   it('explains an empty day', () => {
-    // S41: an empty fuel page is a depot with no modelled duties, or one with no bus to run them.
+    // An empty fuel page is a depot with no modelled duties, or one with no bus to run them.
     expect(emptyText()).toContain('No duties are modelled for this depot (no route');
     expect(emptyText()).not.toMatch(/today|\bran\b/);
     expect(

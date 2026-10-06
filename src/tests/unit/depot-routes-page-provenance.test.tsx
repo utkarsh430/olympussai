@@ -4,7 +4,7 @@ import DepotRoutesPage from '@/app/(protected)/project/depots/routes/page';
 import { ROUTES_FIXTURE, PLAN_FIXTURE, slot } from './depot-routes.fixtures';
 
 /**
- * Guard X1 (rulings §2, S51): the routes page's provenance default is MIXED and names what
+ * The routes page's provenance default is MIXED and names what
  * is live, what is derived and what is modelled. The page is rendered from its real module
  * in every state, so changing or dropping the default fails here.
  */

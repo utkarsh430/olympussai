@@ -313,7 +313,7 @@ describe('analyseFuel: counts and ordering', () => {
     const expected = ['10', '9', 'B', 'Z', 'a', 'b'];
     expect(result.perBus.map((b) => b.registrationNumber)).toEqual(expected);
     expect(result.perRoute.map((r) => r.key)).toEqual(expected.map((r) => `r${r}`));
-    // S41: the fuel day is the operating day's buses that ran, still in code-point order.
+    // The fuel day is the operating day's buses that ran, still in code-point order.
     const fuel = modelFuelDay(
       modelOperatingDay({
         depot: { id: '1', name: 'D', kind: 'depot', fleet: 6 } as unknown as DepotSummary,
@@ -348,7 +348,7 @@ describe('analyseFuel: totals', () => {
       state: i % 9 === 0 ? 'off_road' : 'on_road',
       routeName: ['PUNE_EXP_X', 'AKOLA_ORD_Y', 'MUM_VOLVO_AC', null][i % 4] ?? null,
     })) as unknown as DepotBusView[];
-    // S41: fuel reads the depot's one modelled day; only the buses that ran burn fuel.
+    // Fuel reads the depot's one modelled day; only the buses that ran burn fuel.
     const day = modelOperatingDay({
       depot: { id: '1', name: 'D', kind: 'depot', fleet: 60 } as unknown as DepotSummary,
       buses,

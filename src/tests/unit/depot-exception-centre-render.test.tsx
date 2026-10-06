@@ -196,7 +196,7 @@ describe('exceptions page filters and paging', () => {
     expect(hook.queries.every((q) => (q as BusPageQuery).kind === 'long_dark')).toBe(true);
   });
 
-  // Round 2: the pager is the only place the count appears; no "Showing…" sentence above.
+  // The pager is the only place the count appears; no "Showing…" sentence above.
   it('states the bus count once, in the pager, with separators', () => {
     hook.result = (q) => ({
       data: response(q as BusPageQuery, 1936, 25),
@@ -210,7 +210,7 @@ describe('exceptions page filters and paging', () => {
     expect(container.querySelector('[data-testid="bus-page-status"]')).toBeNull();
   });
 
-  // Round 2, ruling 1: the depot cockpit links here with both parameters.
+  // The depot cockpit links here with both parameters.
   it('honours ?kind= and ?depot= on entry, names the depot in a chip that clears it', () => {
     window.history.replaceState({}, '', '/project/depots/exceptions?kind=emergency&depot=42');
     hook.result = (q) => ({
@@ -235,7 +235,7 @@ describe('exceptions page filters and paging', () => {
     expect(container.querySelector('[data-testid="bus-depot-chip"]')).toBeNull();
   });
 
-  it('makes the whole page about the depot in ?depot=: bands, totals and group rows count that depot (R2-m23)', () => {
+  it('makes the whole page about the depot in ?depot=: bands, totals and group rows count that depot', () => {
     window.history.replaceState({}, '', '/project/depots/exceptions?depot=49');
     hook.result = (q) => ({
       data: {

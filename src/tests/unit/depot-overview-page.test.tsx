@@ -5,7 +5,7 @@ import type { DepotSummary, Figure, NetworkKpis } from '@/lib/depot/types';
 import { bannedOnScreen } from './depot-guard-rendered';
 
 /*
- * Guard review X1 and X11: the overview's real page in every state. The provenance line
+ * The overview's real page in every state. The provenance line
  * is the page's only statement of its default (DERIVED) and carries the index window, so
  * changing the default or dropping the window words must fail here. Queried on the
  * visible page, outside the closed "How these figures are produced" disclosure.

@@ -7,7 +7,7 @@ import { modelledDayLine } from '@/lib/depot/modelledDayLine';
 import { REVENUE_MODEL_PARAMS } from '@/lib/depot/sim/revenueConfig';
 
 /*
- * Guard review X1 and X12: each page's provenance line (tone, sentence and the dated
+ * Each page's provenance line (tone, sentence and the dated
  * modelled-day extension) is pinned by rendering the page file itself in every state, so
  * changing or dropping the page default fails here. A page built on the modelled day
  * prints the date the day is for, on screen.
@@ -193,7 +193,7 @@ describe.each(PAGES)('the $name page provenance line', ({ page, set, data, empty
   });
 });
 
-describe('the empty modelled day on fuel (critique section 9, fuel C)', () => {
+describe('the empty modelled day on fuel', () => {
   it('replaces the band of zeros with the state panel', async () => {
     hooks.fuel = ok(fuel(EMPTY_DAY, 0));
     await renderPage(DepotFuelPage as PageFn);
