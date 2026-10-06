@@ -15,7 +15,7 @@ import {
   type TrendChartModel,
 } from './chartModel';
 import { formatDate, formatValue } from './chartScale';
-import type { TrendChange, TrendResult } from './trend';
+import { FOUR_WEEK_DAYS, type TrendChange, type TrendResult } from './trend';
 import type { Forecast, TrendUnit } from './types';
 
 const BAND_SHARE = Math.round(BAND_QUANTILE * 100);
@@ -109,7 +109,7 @@ export function chartCaption(input: TrendChartInput): string | null {
     const { fourWeeks, week, historyDays, unit } = trend.summary;
     pieces.push(
       fourWeeks === null
-        ? `no trend over 4 weeks yet (${historyDays} of 29 days)`
+        ? `no trend over 4 weeks yet (${historyDays} of ${FOUR_WEEK_DAYS + 1} days)`
         : trendPiece(fourWeeks, '4 weeks', unit),
     );
     pieces.push(trendPiece(week, '7 days', unit));

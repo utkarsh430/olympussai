@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { DepotBusView, DepotDetailResponse } from '@/lib/depot/api';
 import { buildAttention } from '@/lib/depot/cockpit/attention';
+import { REPORTING_WINDOW_MIN } from '@/lib/depot/infer/thresholds';
 import {
   availabilitySegments,
   availabilityText,
@@ -73,7 +74,7 @@ describe('buildAttention', () => {
       '1 departure is overdue',
       '1 bus is dark: no signal for 6 h or more',
       '1 bus is off the road',
-      '1 bus has not been heard for over 30 min',
+      `1 bus has not been heard for over ${REPORTING_WINDOW_MIN} min`,
     ]);
     expect(attention.lines[1]?.href).toBe('/project/depots/d/49/roster?flag=power_off');
     expect(attention.lines[3]?.href).toBe('/project/depots/d/49/roster?state=dark');
