@@ -291,3 +291,51 @@ describe('DutyBoard', () => {
     expect(texts[1]?.dataset.placement).not.toBe('inside');
   });
 });
+
+describe('DutyBoard by width (round 3, Duties Must 1)', () => {
+  const realMatchMedia = window.matchMedia;
+  const phone = (matches: boolean): void => {
+    window.matchMedia = ((query: string) => ({
+      matches: matches && query === '(max-width: 639px)',
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    })) as unknown as typeof window.matchMedia;
+  };
+  afterEach(() => {
+    window.matchMedia = realMatchMedia;
+  });
+
+  it('opens as the table under 640 px, with the chart one press away', () => {
+    phone(true);
+    render();
+    expect(container.querySelector('table')).not.toBeNull();
+    expect(button('Table').getAttribute('aria-pressed')).toBe('true');
+    act(() => button('Chart').click());
+    expect(container.querySelector('table')).toBeNull();
+    expect(container.querySelectorAll('[data-testid="duty-row"]')).toHaveLength(3);
+  });
+
+  it('opens on the chart from 640 px, its canvas fitted to the frame (no fixed width)', () => {
+    phone(false);
+    render();
+    expect(container.querySelector('table')).toBeNull();
+    const canvas = container.querySelector('[data-testid="duty-timeline-canvas"]');
+    expect(canvas?.className).toContain('sm:min-w-0');
+  });
+
+  // R2-m6: the matched bar's visible word is its registration; every bar keeps its state
+  // word for a screen reader, and the legend names each style in words.
+  it('keeps a state word per bar and a legend word per style', () => {
+    phone(false);
+    render();
+    const rows = [...container.querySelectorAll('[data-testid="duty-row"]')];
+    for (const row of rows) {
+      expect(row.querySelector('.sr-only')?.textContent).toMatch(/\b(Matched|Unmatched)\b/);
+    }
+    const legend = container.querySelector('[aria-label="Legend"]')?.textContent ?? '';
+    expect(legend).toContain('Solid bar: matched');
+    expect(legend).toContain('Dashed outline: unmatched, no bus');
+    expect(legend).toContain('Thick left edge: its bus is on the road now');
+  });
+});
