@@ -82,7 +82,14 @@ export function DutyBoard({ depotId, rows, feedNow, figures, notes }: DutyBoardP
       </p>
       <FigureBand label="Duty figures">
         {figures.map((f) => (
-          <Figure key={f.label} label={f.label} value={f.value} caption={f.caption} />
+          <Figure
+            key={f.label}
+            label={f.label}
+            value={f.value}
+            caption={f.caption}
+            tone={f.tone}
+            lead={f.lead}
+          />
         ))}
       </FigureBand>
       {notes.length === 0 ? null : (

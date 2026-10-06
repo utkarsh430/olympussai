@@ -32,6 +32,14 @@ const matched = (busStanding: BoardDuty['busStanding']): BoardDuty => ({
   blockers: null,
 });
 
+describe('dutyFigures colours', () => {
+  it('prints Unmatched in the timeline tick crimson and leads with the duties', () => {
+    const figures = dutyFigures({ counts: counts(), duties: [] });
+    expect(figures.find((f) => f.label === 'Unmatched')?.tone).toBe('critical');
+    expect(figures.filter((f) => f.lead).map((f) => f.label)).toEqual(['Duties']);
+  });
+});
+
 describe('dutyFigures', () => {
   // The Matched caption splits by how the bus stands now and the
   // Spare caption comes from counts.spareByStanding.
