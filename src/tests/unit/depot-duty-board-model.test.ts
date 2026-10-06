@@ -3,7 +3,6 @@ import type { BoardDuty, DutyBoardCounts } from '@/lib/depot/duties/api';
 import {
   AXIS_END_MIN,
   AXIS_START_MIN,
-  CHART_DUTY_LIMIT,
   COST_SENTENCE,
   MODEL_NOTICE,
   axisTicks,
@@ -12,8 +11,9 @@ import {
   emptyDutiesSentence,
   formatMinute,
   barTextPlacement,
-  defaultView,
-  largeBoardSentence,
+  barLabel,
+  heldOutParts,
+  nowLabel,
   nowLinePct,
   nowSentence,
   viewAnnouncement,
@@ -161,13 +161,15 @@ describe('buildBoardRows', () => {
       }),
     ]);
     expect(assigned?.stateWord).toBe('Assigned');
-    expect(nobus?.stateWord).toBe('No bus');
-    expect(away?.stateWord).toBe('Bus not in yard');
+    // Rewritten for the design wave: an unmatched row says "Unmatched"; why is in its reason.
+    expect(nobus?.stateWord).toBe('Unmatched');
+    expect(away?.stateWord).toBe('Unmatched');
+    expect(away?.reason).toContain('2 not in the yard');
     expect(assigned?.timeText).toBe('06:40 to 15:00');
     expect(assigned?.ariaLabel).toBe(
       'Route ORD_1, ordinary, 06:40 to 15:00 (modelled). Assigned: UP32A0001.',
     );
-    expect(nobus?.ariaLabel).toContain('No bus');
+    expect(nobus?.ariaLabel).toContain('Unmatched');
     expect(nobus?.registrationNumber).toBeNull();
     expect(assigned?.reason).toBeNull();
     expect(away?.reason).toContain('not in the yard');
@@ -209,12 +211,14 @@ describe('sentences', () => {
     );
   });
 
-  it('explains an empty board by its cause', () => {
+  // Rewritten: the shared modelled-day sentence says there are no duties; this gives
+  // only the cause, so an empty board has one "no duties" sentence, not two.
+  it('explains an empty board by its cause alone', () => {
     expect(emptyDutiesSentence({ routeCount: 0, peakRequirement: 5 })).toBe(
-      'No duties are modelled for this depot: none of its buses reports a route in the live feed, so there is nothing to run a duty on.',
+      'None of its buses reports a route in the live feed, so there is nothing to run a duty on.',
     );
     expect(emptyDutiesSentence({ routeCount: 3, peakRequirement: 0 })).toBe(
-      'No duties are modelled for this depot: the modelled peak requirement is zero buses.',
+      'The modelled peak requirement is zero buses.',
     );
   });
 
@@ -241,7 +245,7 @@ describe('sentences', () => {
     const base = duty({ registrationNumber: null, state: 'no_bus' });
     expect(reasonSentence(duty())).toBeNull();
     expect(reasonSentence({ ...base, blockers: { notInYard: 2, offRoad: 1, dark: 0 } })).toBe(
-      'No free ordinary bus. Held out of the matching: 2 not in the yard, 1 off road. Every other ordinary bus is on another duty.',
+      'No free ordinary bus. Held out of the matching: 2 not in the yard, 1 off the road. Every other ordinary bus is on another duty.',
     );
     expect(reasonSentence({ ...base, blockers: { notInYard: 0, offRoad: 0, dark: 0 } })).toBe(
       'No free ordinary bus. Every ordinary bus the depot has is on another duty, or it has none.',
@@ -280,7 +284,9 @@ describe('bar text placement', () => {
   const NEEDED_PCT = (LONG * 7 + 12) / 7;
 
   it('keeps the text inside a bar that is wide enough, and puts it beside one that is not', () => {
-    expect(barTextPlacement({ leftPct: 10, widthPct: NEEDED_PCT, textLength: LONG })).toBe('inside');
+    expect(barTextPlacement({ leftPct: 10, widthPct: NEEDED_PCT, textLength: LONG })).toBe(
+      'inside',
+    );
     expect(barTextPlacement({ leftPct: 10, widthPct: NEEDED_PCT - 0.1, textLength: LONG })).toBe(
       'right',
     );
@@ -296,23 +302,35 @@ describe('bar text placement', () => {
     const w = 5;
     expect(barTextPlacement({ leftPct: 100 - w, widthPct: w, textLength: LONG })).toBe('left');
     const room = NEEDED_PCT;
-    expect(barTextPlacement({ leftPct: 100 - w - room, widthPct: w, textLength: LONG })).toBe('right');
+    expect(barTextPlacement({ leftPct: 100 - w - room, widthPct: w, textLength: LONG })).toBe(
+      'right',
+    );
     expect(barTextPlacement({ leftPct: 100 - w - room + 0.1, widthPct: w, textLength: LONG })).toBe(
       'left',
     );
   });
 });
 
-describe('a large board', () => {
-  it('opens on the chart up to the limit and on the table past it', () => {
-    expect(defaultView(CHART_DUTY_LIMIT)).toBe('chart');
-    expect(defaultView(CHART_DUTY_LIMIT + 1)).toBe('table');
+// Rewritten for the design wave: the automatic fallback to the table above 60 duties is
+// removed (the chart scrolls in a fixed pane), so the board always opens on the chart.
+describe('bar labels and the now label', () => {
+  it('labels a bar with its registration, or the state word when unmatched', () => {
+    expect(barLabel({ registrationNumber: 'UP78JN1770', stateWord: 'Assigned' })).toBe(
+      'UP78JN1770',
+    );
+    expect(barLabel({ registrationNumber: null, stateWord: 'Unmatched' })).toBe('Unmatched');
   });
 
-  it('says why the table opened and offers the chart', () => {
-    expect(largeBoardSentence(CHART_DUTY_LIMIT + 40)).toBe(
-      `This depot has ${CHART_DUTY_LIMIT + 40} duties, more than ${CHART_DUTY_LIMIT}, so the table is shown first because the chart would be very tall. The chart is one button away.`,
-    );
+  it('labels the now line with its time, and gives none off the axis', () => {
+    expect(nowLabel('2026-10-05T14:04:00Z')).toBe('Now 14:04');
+    expect(nowLabel('2026-10-05T02:00:00Z')).toBeNull();
+    expect(nowLabel(null)).toBeNull();
+  });
+
+  it('words held-out buses by location only when location was used', () => {
+    const blockers = { notInYard: 66, offRoad: 8, dark: 34 };
+    expect(heldOutParts(blockers)).toEqual(['66 not in the yard', '8 off the road', '34 dark']);
+    expect(heldOutParts(blockers, true)[0]).toBe('66 not standing on a recent report');
   });
 
   it('announces which view is showing and how many duties', () => {
