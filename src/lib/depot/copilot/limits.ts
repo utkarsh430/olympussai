@@ -82,4 +82,26 @@ export const QUANTITY_WORDS: readonly string[] = [
   'percent',
   'percentage',
   'per cent',
+  // Ordinals and words the suffix rule misses (no "d" suffix: it would reject "tend").
+  'first',
+  'second',
+  'twelfth',
+  'twentieth',
+  'thirtieth',
+  'fortieth',
+  'fiftieth',
+  'sixtieth',
+  'seventieth',
+  'eightieth',
+  'ninetieth',
+  'nil',
+  'nought',
+  'naught',
+  'handful',
+  'doubled',
+  'tripled',
+  'quadrupled',
+  'halved',
 ];
+
+export const MAX_GUIDANCE_CHARS = 600;

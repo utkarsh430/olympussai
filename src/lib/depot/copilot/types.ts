@@ -38,6 +38,9 @@ export type FallbackReason =
   | 'cooling_down'
   | 'invalid_output'
   | 'rejected_draft'
+  | 'budget_exhausted'
+  | 'request_rejected'
+  | 'scripted_unavailable'
   | 'error';
 
 export interface CopilotText {

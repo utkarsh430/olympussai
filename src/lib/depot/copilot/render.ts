@@ -41,7 +41,7 @@ const ALLOWED_PROSE = /^[A-Za-z .,;:'"()-]*$/;
 const PLACEHOLDER_NEIGHBOUR = new Set([' ', '.', ',', ';', ':', '(', ')', "'", '"', '-']);
 
 const QUANTITY = new RegExp(
-  `\\b(?:${QUANTITY_WORDS.map((w) => w.replace(/\s+/g, '\\s+')).join('|')})(?:s|es|ed|d|th|ths|fold)?\\b`,
+  `\\b(?:${QUANTITY_WORDS.map((w) => w.replace(/\s+/g, '\\s+')).join('|')})(?:s|es|ed|th|ths|fold)?\\b`,
   'i',
 );
 const ROMAN_NUMERAL = /\b[IVXLCDM]{2,}\b/;
@@ -50,6 +50,27 @@ const LINK = /www\.|:\/\/|mailto|javascript|[A-Za-z]\.[A-Za-z]/i;
 const fail = (reason: string): RenderResult => ({ ok: false, reason });
 
 const UNSAFE_CHARS = /[\p{Cc}\p{Cf}\p{Co}\p{Cn}\p{Cs}]/gu;
+/** No figure or depot name needs these; full-width forms normalise into them under NFKC. */
+const MARKUP_CHARS = /[<>`{}[\]]/g;
+/** Invisible fillers the category strip misses: Hangul fillers, braille blank, CGJ, Khmer, variation selectors. */
+const INVISIBLE_FILLERS = /[ㅤᅠ⠀͏឴឵︀-️]/g;
+
+const FUSED_PLACEHOLDERS = /\}\}[^A-Za-z\s]*\{\{/;
+const SIGNED_PLACEHOLDER = /(?:^|[\s(])[-.,]\{\{/;
+const SPACED_LETTERS = /\b(?:[A-Za-z][ -]){2,}[A-Za-z]\b/;
+const NUMBER_STEMS = [...new Set([...QUANTITY_WORDS.filter((w) => !w.includes(' ')), 'one'])];
+
+/** True when a lowercase token is made only of number-word stems (at least one not "one"). */
+function isConcatenatedNumber(token: string): boolean {
+  const reach: boolean[] = Array.from({ length: token.length + 1 }, () => false);
+  reach[0] = true;
+  for (let i = 1; i <= token.length; i += 1) {
+    reach[i] = NUMBER_STEMS.some(
+      (s) => s.length <= i && reach[i - s.length] && token.endsWith(s, i),
+    );
+  }
+  return reach[token.length] === true && token.replace(/one/g, '') !== '';
+}
 
 /**
  * Makes feed-derived text safe to show or prompt with: NFKC, whitespace
@@ -58,8 +79,21 @@ const UNSAFE_CHARS = /[\p{Cc}\p{Cf}\p{Co}\p{Cn}\p{Cs}]/gu;
  * characters removed, then capped by code point.
  */
 export function sanitizeFactText(text: string, maxChars: number = MAX_FACT_TEXT_CHARS): string {
-  const cleaned = text.normalize('NFKC').replace(/\s+/g, ' ').replace(UNSAFE_CHARS, '').trim();
-  return Array.from(cleaned).slice(0, maxChars).join('').trim();
+  const cleaned = text
+    .normalize('NFKC')
+    .replace(/\s+/g, ' ')
+    .replace(UNSAFE_CHARS, '')
+    .replace(MARKUP_CHARS, '')
+    .replace(INVISIBLE_FILLERS, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const chars = Array.from(cleaned);
+  if (chars.length <= maxChars) return cleaned;
+  let end = maxChars - 1; // room for the ellipsis
+  while (end > 0 && /\p{M}/u.test(chars[end] ?? '')) end -= 1; // keep a base with its marks
+  const lastSpace = chars.slice(0, end).lastIndexOf(' ');
+  if (lastSpace > 0) end = lastSpace;
+  return `${chars.slice(0, end).join('').trimEnd()}…`;
 }
 
 function adjacentToSomething(text: string): boolean {
@@ -78,8 +112,14 @@ function checkProse(text: string): string | null {
   if (!ALLOWED_PROSE.test(bare)) {
     return 'Draft contains a character outside the allowed set (digit, symbol, markup, control or invisible character)';
   }
-  if (adjacentToSomething(text))
+  if (adjacentToSomething(text)) {
     return 'Draft has a placeholder adjacent to a letter or another placeholder';
+  }
+  // Punctuation must not join two figures ("5.2", "12,345", "12:30", "3-5").
+  if (FUSED_PLACEHOLDERS.test(text)) return 'Draft has placeholders joined without a word between';
+  // A sign or decimal point must not change a figure ("-12", ".5").
+  if (SIGNED_PLACEHOLDER.test(text))
+    return 'Draft puts a sign or decimal point before a placeholder';
   return null;
 }
 
@@ -88,7 +128,12 @@ function checkWords(text: string): string | null {
   if (bare.includes('{{') || bare.includes('}}')) return 'Draft has a malformed placeholder';
   if (QUANTITY.test(bare)) return 'Draft contains a quantity word';
   if (ROMAN_NUMERAL.test(bare)) return 'Draft contains a roman numeral';
-  if (LINK.test(bare)) return 'Draft contains a link or bare domain';
+  if (SPACED_LETTERS.test(bare)) return 'Draft contains spaced single letters';
+  if ((bare.match(/[a-z]+/g) ?? []).some(isConcatenatedNumber)) {
+    return 'Draft contains a concatenated number word (quantity)';
+  }
+  // Placeholders become a letter here so a suffix such as "{{fact:x}}.com" is seen.
+  if (LINK.test(text.replace(PLACEHOLDER, 'x'))) return 'Draft contains a link or bare domain';
   return null;
 }
 

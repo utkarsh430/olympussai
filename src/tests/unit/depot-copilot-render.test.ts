@@ -62,7 +62,7 @@ describe('renderDraft', () => {
   it('does not expand a placeholder that appears inside fact text', () => {
     const facts = [fact('a', 'see {{fact:b}}'), fact('b', 'BOOM')];
     const result = renderDraft(draft('Head', 'Value {{fact:a}}.'), facts);
-    expect(result).toMatchObject({ ok: true, paragraphs: ['Value see {{fact:b}}.'] });
+    expect(result).toMatchObject({ ok: true, paragraphs: ['Value see fact:b.'] });
   });
 
   it('rejects an unknown fact id', () => {
@@ -232,7 +232,7 @@ describe('renderDraft', () => {
       expect(result.ok).toBe(true);
       const text = result.ok ? (result.paragraphs[0] ?? '') : '';
       expect(text).not.toMatch(/[‮\n]/);
-      expect(text.startsWith('Value evil line xxx')).toBe(true);
+      expect(text.startsWith('Value evil line')).toBe(true);
       expect(text.length).toBeLessThanOrEqual('Value .'.length + MAX_FACT_TEXT_CHARS);
     });
 
@@ -259,7 +259,7 @@ describe('renderDraft', () => {
     it('normalises, strips invisible characters, collapses whitespace and caps', () => {
       expect(sanitizeFactText('ＡＢ  a​b\t\nc\u0000')).toBe('AB ab c');
       expect(sanitizeFactText('x'.repeat(300))).toHaveLength(MAX_FACT_TEXT_CHARS);
-      expect(sanitizeFactText('abcdef', 3)).toBe('abc');
+      expect(sanitizeFactText('abcdef', 3)).toBe('ab…');
       expect(sanitizeFactText('\u{E0041}‮ok')).toBe('ok');
     });
 
@@ -267,6 +267,117 @@ describe('renderDraft', () => {
       expect(sanitizeFactText('1,204')).toBe('1,204');
       expect(sanitizeFactText('BAREILLY(R)')).toBe('BAREILLY(R)');
       expect(sanitizeFactText('31%')).toBe('31%');
+    });
+  });
+
+  describe('fused or re-signed figures and number-word tricks', () => {
+    const two = [fact('a', '5'), fact('b', '2'), fact('depot', 'BAREILLY(R)')];
+    const bad = (text: string): boolean => !renderDraft(draft('Head', text), two).ok;
+
+    it.each([
+      '{{fact:a}}.{{fact:b}}',
+      '{{fact:a}},{{fact:b}}',
+      '{{fact:a}}:{{fact:b}}',
+      '{{fact:a}}-{{fact:b}}',
+      '{{fact:a}}({{fact:b}})',
+    ])('rejects fused placeholders in %s', (t) => expect(bad(`Value ${t} here.`)).toBe(true));
+
+    it('accepts placeholders separated by words or spaces', () => {
+      expect(bad('Between {{fact:a}} and {{fact:b}}.')).toBe(false);
+      expect(bad('Values {{fact:a}} ({{fact:b}}) here.')).toBe(false);
+    });
+
+    it.each([
+      'Down -{{fact:a}} now.',
+      'See .{{fact:a}} now.',
+      'See ,{{fact:a}} now.',
+      '(-{{fact:a}})',
+    ])('rejects a sign or decimal flip in %s', (t) => expect(bad(t)).toBe(true));
+
+    it('rejects a domain suffix after a placeholder', () => {
+      expect(bad('Visit {{fact:depot}}.com today.')).toBe(true);
+    });
+
+    it.each(['twentyfive', 'onehundred', 'fortytwo', 'sixteenhundred'])('rejects %s', (w) =>
+      expect(bad(`It is ${w} buses.`)).toBe(true),
+    );
+
+    it.each([
+      'often',
+      'weight',
+      'listen',
+      'someone',
+      'anyone',
+      'network',
+      'stone',
+      'attend',
+      'canine',
+      'none',
+      'tone',
+      'height',
+      'freight',
+    ])('does not reject the ordinary word %s', (w) => expect(bad(`The ${w} is fine.`)).toBe(false));
+
+    it.each([
+      'first',
+      'second',
+      'twelfth',
+      'twentieth',
+      'ninetieth',
+      'nil',
+      'nought',
+      'naught',
+      'handful',
+      'fours',
+      'eights',
+    ])('rejects the word %s', (w) => expect(bad(`The ${w} one.`)).toBe(true));
+
+    it('accepts "tend" and does not use a d suffix', () => {
+      expect(bad('Depots tend to be late.')).toBe(false);
+    });
+
+    it.each(['t w o', 't-w-o', 'a b c'])('rejects spaced single letters in %s', (t) =>
+      expect(bad(`It is ${t} buses.`)).toBe(true),
+    );
+
+    it.each(['It is a bus.', 'Send an e-mail.'])('accepts %s', (t) => expect(bad(t)).toBe(false));
+  });
+
+  describe('fact sanitiser gaps', () => {
+    it('removes markup characters and full-width forms of them', () => {
+      expect(sanitizeFactText('a<b>`c`{d}[e]＜f＞')).toBe('abcdef');
+    });
+
+    it('removes invisible fillers and variation selectors', () => {
+      expect(sanitizeFactText('aㅤbᅠc⠀d͏e឴f឵g️h')).toBe('abcdefgh');
+    });
+
+    it('truncates at a word boundary with an ellipsis, within the cap', () => {
+      const long = Array.from({ length: 100 }, (_, i) => `w${i}`).join(' ');
+      const out = sanitizeFactText(long, 20);
+      expect(out.endsWith('…')).toBe(true);
+      expect(Array.from(out).length).toBeLessThanOrEqual(20);
+      expect(out.slice(0, -1).trimEnd()).toBe(out.slice(0, -1));
+      expect(long.startsWith(out.slice(0, -1))).toBe(true);
+      expect(long[out.length - 1]).toBe(' ');
+    });
+
+    it('keeps text of exactly the cap and hard-cuts a spaceless value', () => {
+      expect(sanitizeFactText('x'.repeat(MAX_FACT_TEXT_CHARS))).toBe(
+        'x'.repeat(MAX_FACT_TEXT_CHARS),
+      );
+      const out = sanitizeFactText('y'.repeat(500));
+      expect(Array.from(out)).toHaveLength(MAX_FACT_TEXT_CHARS);
+      expect(out.endsWith('…')).toBe(true);
+    });
+
+    it('never splits a surrogate pair or a combining mark', () => {
+      const emoji = sanitizeFactText('\u{1F600}'.repeat(50), 10);
+      expect(Array.from(emoji)).toHaveLength(10);
+      expect(emoji).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/);
+      const marks = sanitizeFactText('x́'.repeat(20), 10);
+      expect(marks).not.toMatch(/^́|́…$/);
+      expect(Array.from(marks).at(-2)).toBe('́');
     });
   });
 

@@ -1,5 +1,6 @@
-import { CLI_FAILURE_THRESHOLD, type ProviderSetting } from '@/lib/depot/copilot/config';
+import { CLI_WINDOW, CLI_WINDOW_FAILURES, type ProviderSetting } from '@/lib/depot/copilot/config';
 import { renderDraft } from '@/lib/depot/copilot/render';
+import { logDepotError } from '@/lib/depot/log';
 import {
   CopilotFailure,
   type CopilotDraft,
@@ -22,29 +23,42 @@ export interface CopilotEngineDeps {
   readonly cooldownMs: number;
 }
 
-/** A busy slot or a rejected draft says nothing about whether the CLI is healthy. */
-const NO_COOLDOWN: readonly FallbackReason[] = ['busy', 'rejected_draft'];
+/** Shown only if the scripted draft cannot render; it must pass `renderDraft` with no facts. */
+export const UNAVAILABLE_DRAFT: CopilotDraft = {
+  headline: 'Briefing unavailable',
+  paragraphs: ['The figures on this page are current. A written summary could not be prepared.'],
+};
 
-/** One bad output or slow call is noise; only a run of them counts as an outage. */
-const SOFT_FAILURES: readonly FallbackReason[] = ['timeout', 'invalid_output'];
+/** The CLI was never called, or says nothing about its health: not an attempt. */
+const NOT_AN_ATTEMPT: readonly FallbackReason[] = ['busy', 'budget_exhausted', 'request_rejected'];
+/** Count in the rolling window rather than cooling down on their own. */
+const SOFT_FAILURES: readonly FallbackReason[] = ['timeout', 'invalid_output', 'rejected_draft'];
 
 /**
- * Chooses who writes the text. The CLI is tried when selected and healthy; any
- * failure falls back to the scripted draft, and a failing CLI is left alone
- * until the cool-down ends. `provider` and `fellBack` report what really happened.
+ * Chooses who writes the text. Hard CLI failures cool it down at once; soft
+ * ones (timeout, bad output, a draft the renderer rejects) count in a rolling
+ * window of the last CLI_WINDOW attempts and cool it down at CLI_WINDOW_FAILURES.
+ * A success never resets the window, so a prompt that makes most drafts fail
+ * cannot spend on every request forever. `provider` and `fellBack` are truthful.
  */
 export function createCopilotEngine(deps: CopilotEngineDeps): CopilotEngine {
   let coolingUntil = 0;
-  let softFailures = 0;
+  let window: readonly boolean[] = []; // true = failed attempt
+
+  function startCooldown(): void {
+    window = [];
+    coolingUntil = deps.now() + deps.cooldownMs;
+  }
+
+  function recordAttempt(failed: boolean): void {
+    window = [...window, failed].slice(-CLI_WINDOW);
+    if (window.filter(Boolean).length >= CLI_WINDOW_FAILURES) startCooldown();
+  }
 
   function recordFailure(reason: FallbackReason): void {
-    if (NO_COOLDOWN.includes(reason)) return;
-    if (SOFT_FAILURES.includes(reason)) {
-      softFailures += 1;
-      if (softFailures < CLI_FAILURE_THRESHOLD) return;
-    }
-    softFailures = 0;
-    coolingUntil = deps.now() + deps.cooldownMs;
+    if (NOT_AN_ATTEMPT.includes(reason)) return;
+    if (SOFT_FAILURES.includes(reason)) recordAttempt(true);
+    else startCooldown();
   }
 
   async function scripted(
@@ -52,23 +66,30 @@ export function createCopilotEngine(deps: CopilotEngineDeps): CopilotEngine {
     fallbackReason: FallbackReason,
     fellBack: boolean,
   ): Promise<CopilotText> {
+    const generatedAt = new Date(deps.now()).toISOString();
     const rendered = renderDraft(await deps.scripted.draft(request), request.facts);
     if (!rendered.ok) {
-      throw new Error(`Scripted ${request.task} draft failed to render: ${rendered.reason}`);
+      // A feed-driven condition must not turn the fallback into a server error.
+      logDepotError('copilot', `scripted ${request.task} draft failed: ${rendered.reason}`);
+      return {
+        headline: UNAVAILABLE_DRAFT.headline,
+        paragraphs: UNAVAILABLE_DRAFT.paragraphs,
+        provider: 'scripted',
+        usedFactIds: [],
+        generatedAt,
+        fellBack,
+        fallbackReason: 'scripted_unavailable',
+      };
     }
     return {
       headline: rendered.headline,
       paragraphs: rendered.paragraphs,
       provider: 'scripted',
       usedFactIds: rendered.usedFactIds,
-      generatedAt: new Date(deps.now()).toISOString(),
+      generatedAt,
       fellBack,
       fallbackReason,
     };
-  }
-
-  function failureReason(error: unknown): FallbackReason {
-    return error instanceof CopilotFailure ? error.reason : 'error';
   }
 
   return {
@@ -83,14 +104,19 @@ export function createCopilotEngine(deps: CopilotEngineDeps): CopilotEngine {
       try {
         draft = await cli.draft(request);
       } catch (error: unknown) {
-        const reason = failureReason(error);
+        const reason: FallbackReason = error instanceof CopilotFailure ? error.reason : 'error';
+        logDepotError('copilot', `claude-cli fell back: ${reason}`); // reason only
         recordFailure(reason);
         return scripted(request, reason, true);
       }
-      softFailures = 0;
 
       const rendered = renderDraft(draft, request.facts);
-      if (!rendered.ok) return scripted(request, 'rejected_draft', true);
+      if (!rendered.ok) {
+        logDepotError('copilot', 'claude-cli fell back: rejected_draft');
+        recordAttempt(true);
+        return scripted(request, 'rejected_draft', true);
+      }
+      recordAttempt(false);
       return {
         headline: rendered.headline,
         paragraphs: rendered.paragraphs,

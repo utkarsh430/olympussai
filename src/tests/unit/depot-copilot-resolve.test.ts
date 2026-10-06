@@ -3,7 +3,9 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   CLI_CONCURRENCY,
   CLI_COOLDOWN_MS,
-  CLI_FAILURE_THRESHOLD,
+  CLI_WINDOW_FAILURES as CLI_FAILURE_THRESHOLD,
+  CLI_MAX_CALLS_PER_HOUR,
+  CLI_WINDOW,
   CLI_MAX_OUTPUT_BYTES,
   CLI_QUEUE,
   CLI_TIMEOUT_MS,
@@ -12,7 +14,12 @@ import {
 import type { ChildLike, SpawnLike } from '@/lib/depot/copilot/cli/run';
 import { createClaudeCliProvider, isAbsoluteBinary } from '@/lib/depot/copilot/providers/claudeCli';
 import { createScriptedProvider } from '@/lib/depot/copilot/providers/scripted';
-import { createCopilotEngine } from '@/lib/depot/copilot/resolve';
+import { createCopilotEngine, UNAVAILABLE_DRAFT } from '@/lib/depot/copilot/resolve';
+import { createCallLimiter } from '@/lib/depot/copilot/limiter';
+import { renderDraft } from '@/lib/depot/copilot/render';
+import { logDepotError } from '@/lib/depot/log';
+
+vi.mock('@/lib/depot/log', () => ({ logDepotError: vi.fn() }));
 import { createSemaphore } from '@/lib/depot/copilot/semaphore';
 import {
   CopilotFailure,
@@ -168,39 +175,6 @@ describe('createCopilotEngine', () => {
       expect((await instance.generate(REQUEST)).fallbackReason).toBe('cooling_down');
       expect(cli.draft).toHaveBeenCalledTimes(CLI_FAILURE_THRESHOLD);
     });
-
-    it('is reset by a success', async () => {
-      let fail = true;
-      const cli: CopilotProvider = {
-        id: 'claude-cli',
-        draft: vi.fn(async () => {
-          if (fail) throw new CopilotFailure(reason);
-          return GOOD_DRAFT;
-        }),
-      };
-      const { instance } = engine(cli);
-      for (let i = 0; i < CLI_FAILURE_THRESHOLD - 1; i += 1) await instance.generate(REQUEST);
-      fail = false;
-      expect((await instance.generate(REQUEST)).fallbackReason).toBeNull();
-      fail = true;
-      for (let i = 0; i < CLI_FAILURE_THRESHOLD - 1; i += 1) {
-        expect((await instance.generate(REQUEST)).fallbackReason).toBe(reason);
-      }
-      expect(cli.draft).toHaveBeenCalledTimes(2 * (CLI_FAILURE_THRESHOLD - 1) + 1);
-    });
-  });
-
-  it('counts timeouts and invalid output together as one run of soft failures', async () => {
-    const reasons: FallbackReason[] = ['timeout', 'invalid_output', 'timeout'];
-    const cli: CopilotProvider = {
-      id: 'claude-cli',
-      draft: vi.fn(async () => {
-        throw new CopilotFailure(reasons.shift() ?? 'timeout');
-      }),
-    };
-    const { instance } = engine(cli);
-    for (let i = 0; i < 3; i += 1) await instance.generate(REQUEST);
-    expect((await instance.generate(REQUEST)).fallbackReason).toBe('cooling_down');
   });
 
   it('retries the CLI once the cool-down has expired', async () => {
@@ -255,17 +229,84 @@ describe('createCopilotEngine', () => {
     expect((await instance.generate(REQUEST)).fallbackReason).toBe('rejected_draft');
     expect(cli.draft).toHaveBeenCalledTimes(2);
   });
+});
 
-  it('throws, naming the task, when the scripted draft itself fails to render', async () => {
+describe('rolling breaker, budget and fixed fallback', () => {
+  const rejectedDraft: CopilotDraft = { headline: 'Head', paragraphs: ['About 5 buses.'] };
+
+  it('counts rejected drafts as failures and cools down at the window threshold', async () => {
+    const cli = cliThatReturns(rejectedDraft);
+    const { instance } = engine(cli);
+    for (let i = 0; i < CLI_FAILURE_THRESHOLD; i += 1) {
+      expect((await instance.generate(REQUEST)).fallbackReason).toBe('rejected_draft');
+    }
+    expect((await instance.generate(REQUEST)).fallbackReason).toBe('cooling_down');
+    expect(cli.draft).toHaveBeenCalledTimes(CLI_FAILURE_THRESHOLD);
+  });
+
+  it('is not reset by an interleaved success, and the window forgets old attempts', async () => {
+    let bad = true;
+    const cli: CopilotProvider = {
+      id: 'claude-cli',
+      draft: vi.fn(async () => (bad ? rejectedDraft : GOOD_DRAFT)),
+    };
+    const { instance } = engine(cli);
+    for (let i = 0; i < CLI_WINDOW; i += 1) {
+      bad = i % 2 === 0 && i < CLI_FAILURE_THRESHOLD * 2 - 1;
+      expect((await instance.generate(REQUEST)).fallbackReason).not.toBe('cooling_down');
+    }
+    bad = true;
+    await instance.generate(REQUEST);
+    expect((await instance.generate(REQUEST)).fallbackReason).toBe('cooling_down');
+  });
+
+  it.each(['budget_exhausted', 'request_rejected'] as const)(
+    '%s falls back without a cool-down or counting as an attempt',
+    async (reason) => {
+      const cli = cliThatFails(reason);
+      const { instance } = engine(cli);
+      for (let i = 0; i < CLI_WINDOW * 2; i += 1) {
+        expect((await instance.generate(REQUEST)).fallbackReason).toBe(reason);
+      }
+      expect(cli.draft).toHaveBeenCalledTimes(CLI_WINDOW * 2);
+    },
+  );
+
+  it('returns the fixed text, logging the reason, when the scripted draft cannot render', async () => {
     const bad: CopilotRequest = {
       ...REQUEST,
       task: 'rationale',
       scriptedDraft: { headline: 'Head', paragraphs: ['Has 7 digits'] },
     };
-    await expect(engine(null).instance.generate(bad)).rejects.toThrow(/rationale/);
-    await expect(engine(cliThatFails('timeout')).instance.generate(bad)).rejects.toThrow(
-      /rationale/,
-    );
+    const out = await engine(null).instance.generate(bad);
+    expect(out).toMatchObject({
+      headline: UNAVAILABLE_DRAFT.headline,
+      provider: 'scripted',
+      fellBack: false,
+      fallbackReason: 'scripted_unavailable',
+    });
+    expect(logDepotError).toHaveBeenCalledWith('copilot', expect.stringContaining('rationale'));
+    const viaCli = await engine(cliThatFails('timeout')).instance.generate(bad);
+    expect(viaCli).toMatchObject({ fellBack: true, fallbackReason: 'scripted_unavailable' });
+    expect(renderDraft(UNAVAILABLE_DRAFT, [])).toMatchObject({ ok: true });
+  });
+
+  it('limits calls per hour and per day on a sliding window', () => {
+    let clock = 0;
+    const limiter = createCallLimiter({ now: () => clock, perHour: 2, perDay: 3 });
+    expect(limiter.tryAcquire()).toBe(true); // t=0
+    clock = 10;
+    expect(limiter.tryAcquire()).toBe(true);
+    expect(limiter.tryAcquire()).toBe(false); // hour full
+    clock = 3_600_000 - 1;
+    expect(limiter.tryAcquire()).toBe(false);
+    clock = 3_600_000; // the t=0 call ages out exactly now
+    expect(limiter.tryAcquire()).toBe(true);
+    clock = 7_300_000;
+    expect(limiter.tryAcquire()).toBe(false); // daily cap of three reached
+    clock = 86_400_000;
+    expect(limiter.tryAcquire()).toBe(true);
+    expect(CLI_MAX_CALLS_PER_HOUR).toBe(30);
   });
 });
 
@@ -363,7 +404,7 @@ describe('createClaudeCliProvider', () => {
       REQUEST,
     );
     const options = spawn.mock.calls[0]?.[2];
-    expect(options?.env).toEqual({ PATH: '/opt/node/bin:/usr/bin:/bin', HOME: '/tmp/home' });
+    expect(options?.env).toEqual({ PATH: '/usr/bin:/bin:/opt/node/bin', HOME: '/tmp/home' });
     expect(options?.cwd).toBe('/tmp/empty');
   });
 
@@ -433,7 +474,7 @@ describe('createClaudeCliProvider', () => {
       provenance: 'live' as const,
     }));
     await expect(providerWith(spawn).draft({ ...REQUEST, facts })).rejects.toMatchObject({
-      reason: 'error',
+      reason: 'request_rejected',
     });
     expect(spawn).not.toHaveBeenCalled();
   });
