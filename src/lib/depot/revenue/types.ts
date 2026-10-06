@@ -14,7 +14,10 @@ export interface RouteRidershipDay {
   readonly serviceClass: ServiceClass;
   readonly trips: number;
   readonly seatsPerTrip: number;
-  /** Seat-trips offered: trips times seats per trip. */
+  /**
+   * The seats offered on the route over the modelled day (the day's seats offered, capped at
+   * trips times the largest bus); seats per trip is derived from it, not the other way round.
+   */
   readonly seatCapacity: number;
   /** Modelled share of seats filled, never above MAX_LOAD_FACTOR. */
   readonly loadFactor: number;
