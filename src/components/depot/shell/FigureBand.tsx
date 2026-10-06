@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import { Children } from 'react';
+import { figureBandGridClasses } from '@/lib/depot/shell/figureBandLayout';
 import type { Provenance } from '@/lib/depot/types';
 import { ProvenanceBadge } from './ProvenanceBadge';
 
@@ -21,7 +23,8 @@ export interface FigureBandProps {
  * 1440px (five fill the 1,160px column exactly), 200px from 1280px (1,000px beside the
  * rail), 192px from 1024px (976px, no rail), so five always fit one row and a band of two to four
  * never stretches to leave wide gaps; it wraps when the column is narrower. Below 1024px
- * the band is two equal columns. 88px tall: label 11/16, 6px, figure 24/28, 6px,
+ * the band is a grid whose columns depend on how many figures it holds, so no figure is
+ * left alone on a row (`figureBandLayout`). 88px tall: label 11/16, 6px, figure 24/28, 6px,
  * caption 12/16, with 8px above and below. The label row is a fixed 16px line box
  * (`depot-tag-row`), so a tag beside a label never lowers that figure.
  *
@@ -41,7 +44,9 @@ export function FigureBand({ label, children, tag }: FigureBandProps) {
       <ul
         aria-label={label}
         data-testid="depot-figure-band"
-        className="-ml-[17px] grid w-[calc(100%+17px)] grid-cols-2 gap-y-3 py-2 sm:grid-cols-3 lg:flex lg:flex-wrap"
+        className={`-ml-[17px] grid w-[calc(100%+17px)] gap-y-3 py-2 lg:flex lg:flex-wrap ${figureBandGridClasses(
+          Children.toArray(children).length,
+        )}`}
       >
         {children}
       </ul>
