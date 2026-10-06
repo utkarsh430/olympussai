@@ -284,6 +284,7 @@ describe('planAllocation: construction and search', () => {
     expect(run.swaps).toBeGreaterThan(0);
     assertInvariants(routes, tight, run.plan);
   });
+});
 
 describe('planAllocation: over-capacity input', () => {
   it('does not repair an over-full depot, never adds to it, and improves elsewhere', () => {
