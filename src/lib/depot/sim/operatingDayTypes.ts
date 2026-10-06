@@ -48,10 +48,15 @@ export interface DayRun {
   readonly distanceKm: number;
 }
 
-/** A bus that did not run: off the road or dark, or available with no duty left for it. */
+/**
+ * A bus that did not run, and why: `unavailable`, off the road or dark;
+ * `held_out`, held out of the matching though available (not heard recently,
+ * or standing away from the yard: the plan's `excluded`); `no_duty`, eligible
+ * with no duty left for it. `held_out` is added; the other two keep their meaning.
+ */
 export interface DayIdleBus {
   readonly registrationNumber: string;
-  readonly reason: 'unavailable' | 'no_duty';
+  readonly reason: 'unavailable' | 'held_out' | 'no_duty';
 }
 
 export interface OperatingDay {
@@ -67,7 +72,7 @@ export interface OperatingDay {
   /** Sorted by registration. A bus that did not run has no distance. */
   readonly notRun: readonly DayIdleBus[];
   readonly fleet: number;
-  /** Buses neither off the road nor dark by their live state. */
+  /** Buses neither off the road nor dark by their live state; held-out buses included. */
   readonly availableBuses: number;
   /** Duties left without a bus because fewer buses were available than duties. */
   readonly dutiesWithoutBus: number;
