@@ -48,16 +48,32 @@ export interface TimetableRepository {
 export type Ineligibility = 'off_road' | 'dark' | 'not_in_yard' | 'not_heard' | 'class_mismatch';
 
 /**
- * The moment a plan is made "as of" (ruling S55). A plan for the feed's own
- * operating date is as of the feed clock (`feedMinute`, minutes past midnight),
- * or of no clock when the feed has none. A plan for a later date (the night
- * parking order plans tomorrow) is not as of any moment of that day: how the
- * buses stand now cannot rank them for it.
+ * The moment a plan is made "as of" (rulings S55, S62). A plan for the feed's
+ * own operating date is as of the feed clock (`feedMinute`, minutes past
+ * midnight), or of no clock when the feed has none. A plan for a later date,
+ * and the feed's own date before its first duty starts (`before_first_duty`),
+ * is not as of any moment of that day: how the buses stand now cannot rank
+ * them for it.
  */
 export type PlanNow =
   | { readonly kind: 'feed_time'; readonly feedMinute: number }
   | { readonly kind: 'no_feed_clock' }
+  | { readonly kind: 'before_first_duty' }
   | { readonly kind: 'later_day' };
+
+/**
+ * Which of the three ways a plan was made (rulings S55, S62). There is one plan
+ * per snapshot, depot and date, and it is in exactly one of them:
+ *  - `as_of_feed_time`: the feed's own date once its first duty has started
+ *    (or a feed with no clock, which cannot be placed before a duty): buses are
+ *    ranked by how they stand now, out working first, and fitted to the feed time;
+ *  - `before_first_duty`: the feed's own date before its first duty starts. The
+ *    day has not begun, so buses are matched as they stand in the yard, exactly
+ *    as for a later day; the night parking order reads this same plan;
+ *  - `later_day`: a date after the feed's (the night parking order's, once the
+ *    feed's day has begun). It covers only the buses in the yard.
+ */
+export type PlanMode = 'as_of_feed_time' | 'before_first_duty' | 'later_day';
 
 /**
  * How a bus with a duty stands now, by its live state: out on the road (in

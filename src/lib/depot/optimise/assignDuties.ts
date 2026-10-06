@@ -53,7 +53,8 @@ export interface AssignDutiesOptions {
   /**
    * As of when the plan is made (ruling S55). On the feed clock, a duty that
    * has started by then prefers a bus on the road and one still to start a
-   * standing bus. For a later day, how the buses stand now does not count: the
+   * standing bus. For a later day, and before the first duty of the feed's
+   * date (ruling S62), how the buses stand now does not count: the
    * buses standing in the yard are the ones that will leave it, so only they
    * are eligible, and nothing is ranked by being on the road. Defaults to a
    * feed with no clock: no duty is treated as started.
@@ -86,7 +87,7 @@ function standingOf(
 ): BusStandingNow | Exclusion {
   if (bus.state === 'off_road') return 'off_road';
   if (bus.state === 'dark') return 'dark';
-  if (now.kind === 'later_day') return laterDayStanding(bus, yardEstablished);
+  if (!dayHasBegun(now)) return laterDayStanding(bus, yardEstablished);
   if (now.kind === 'feed_time' && !isHeardRecently(bus)) return 'not_heard';
   if (bus.state === 'in_service' || bus.state === 'on_road') return 'on_road';
   if (!yardEstablished) return 'standing';
@@ -94,7 +95,15 @@ function standingOf(
 }
 
 /**
- * For a later day: a bus the feed places in the yard will leave it (the yard's
+ * False for a later day and before the feed date's first duty (ruling S62): no
+ * duty has started, so how the buses stand now cannot rank them.
+ */
+function dayHasBegun(now: PlanNow): boolean {
+  return now.kind !== 'later_day' && now.kind !== 'before_first_duty';
+}
+
+/**
+ * For a later day, or before the first duty: a bus the feed places in the yard will leave it (the yard's
  * parking order is about exactly these buses); every other bus is not in the
  * yard. With no yard established, location cannot decide: every available bus.
  */
@@ -108,13 +117,13 @@ interface Candidate {
   readonly standing: BusStandingNow;
   /**
    * Tiers 1 and 2 in one per-bus rank: 0 in service, 1 merely on the road,
-   * 2 standing. For a later day every bus ranks 0: how it stands now does not count.
+   * 2 standing. For a later day or before the first duty every bus ranks 0.
    */
   readonly rank: number;
 }
 
 function rankOf(bus: DepotBusView, standing: BusStandingNow, now: PlanNow): number {
-  if (now.kind === 'later_day') return 0;
+  if (!dayHasBegun(now)) return 0;
   if (standing !== 'on_road') return 2;
   return bus.state === 'in_service' ? 0 : 1;
 }
@@ -202,7 +211,7 @@ const TIERS = 5;
  * S47, S55). Buses off the road or dark, buses not heard recently (when the
  * feed has a clock), and standing buses away from an established yard are
  * excluded first, each with one reason; a later day's plan takes the buses in
- * the yard. Every other pairing is allowed and costed in lexicographic tiers:
+ * the yard, as does the feed's date before its first duty. Every other pairing is allowed and costed in lexicographic tiers:
  *  1. a bus on the road before a standing one, so when there are fewer duties
  *     than buses the buses left over are standing ones;
  *  2. a bus in service before one merely moving (tiers 1 and 2 are per bus,
@@ -214,7 +223,7 @@ const TIERS = 5;
  *  6. `ageYears x round(durationHours)`, capped at MAX_BASE_COST, so longer
  *     duties prefer younger buses;
  *     then the matcher's fixed scan order over buses sorted by registration.
- * A later day has no tiers 1, 2 and 5. A bus missing from the fleet master
+ * A later day, and the feed's date before its first duty, have no tiers 1, 2 and 5. A bus missing from the fleet master
  * counts as ordinary at the master's median age. The matching never fails:
  * duties without a bus are reported as `no_eligible_bus`, eligible buses
  * without a duty as spare. Deterministic whatever the order of `buses`; a

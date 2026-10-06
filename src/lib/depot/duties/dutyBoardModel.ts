@@ -1,7 +1,6 @@
 import { formatCount, formatFeedTime } from '../format';
 import { modelledDaySentence, type ModelledDayReference } from '../sim/operatingDayWording';
 import type { BoardDuty, DutyBlockers, DutyState } from './api';
-import { REPORTING_WINDOW_MIN } from '../infer/thresholds';
 import { CLASS_WORD, STANDING_WORD, busClassWord } from './dutyStanding';
 import type { BusStandingNow, SpareByStanding } from './types';
 
@@ -19,16 +18,20 @@ export const MODEL_NOTICE =
   'Duties are a model until a timetable is supplied, and their lengths are generated, not timetabled. The matching of buses to duties is a recommendation: nothing is assigned or dispatched.';
 
 /**
- * Wording follows `assignDuties`' tiers in order (rulings S47, S55): class is a
- * preference, not a bar, so a bus of another class can take a duty.
+ * Wording follows `assignDuties`' tiers in order (rulings S47, S55, S62): class is a
+ * preference, not a bar, so a bus of another class can take a duty. Before the day's
+ * first duty how the buses stand and the feed time do not count, so those tiers are
+ * said to apply once it has started; the page's notes say which mode the plan is in.
  */
 export const COST_SENTENCE =
-  'The matching gives duties first to buses already out on the road, buses in service before buses merely moving, then to standing buses; then it gives a route’s duties to buses running that route, prefers a bus of the duty’s service class, and fits buses to the feed time. Among what is left it minimises total wear: a bus costs its age in years times the duty length in whole hours, so longer duties go to younger buses.';
+  'Once the day’s first duty has started, the matching gives duties first to buses already out on the road, buses in service before buses merely moving, then to standing buses. It gives a route’s duties to buses running that route and prefers a bus of the duty’s service class; once the day has begun it also fits buses to the feed time. Among what is left it minimises total wear: a bus costs its age in years times the duty length in whole hours, so longer duties go to younger buses.';
 
-/** Who `assignDuties` holds out (ruling S55); the window is the module's reporting rule. */
-export const ELIGIBILITY_SENTENCE =
-  `A bus off the road, dark, or not heard in the last ${REPORTING_WINDOW_MIN} minutes is held out of the matching; ` +
-  'a standing bus must also be in the yard when the depot has one established.';
+/**
+ * Who `assignDuties` never matches, in every mode. Who else is held out depends on
+ * the plan's mode, the feed clock and the yard, so the page's notes say it
+ * (`eligibilityNotes`): a fixed sentence here could contradict them (review m-d).
+ */
+export const ELIGIBILITY_SENTENCE = 'A bus off the road or dark is never matched to a duty.';
 
 /** "Matched", never "Assigned": the matching is a recommendation and nothing is assigned. */
 export const STATE_WORD: Readonly<Record<DutyState, string>> = {
@@ -239,6 +242,9 @@ export function heldOutParts(blockers: DutyBlockers, locationIgnored = false): r
   ].filter((p): p is string => p !== null);
 }
 
+/** "an" before a class word that starts with a vowel sound (Express, Ordinary, AC), else "a". */
+const articleFor = (word: string): string => (/^[aeiou]/i.test(word) ? 'an' : 'a');
+
 /**
  * A row's text equivalent. No reason on an unmatched row: it is the same for every
  * one and is said once above the chart. Under the MODELLED section label, so no tag.
@@ -247,7 +253,8 @@ function describe(row: Omit<BoardRow, 'ariaLabel' | 'geometry'>): string {
   const head = `Route ${row.routeName}, ${row.classWord}, ${row.timeText}. ${row.stateWord}`;
   if (row.registrationNumber === null) return `${head}.`;
   const now = row.standingWord === null ? '' : `, ${row.standingWord.toLowerCase()} now`;
-  const other = row.busClassWord === null ? '' : `, an ${row.busClassWord} bus`;
+  const word = row.busClassWord;
+  const other = word === null ? '' : `, ${articleFor(word)} ${word} bus`;
   return `${head}: ${row.registrationNumber}${now}${other}.`;
 }
 

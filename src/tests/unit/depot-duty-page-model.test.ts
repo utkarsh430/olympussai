@@ -78,25 +78,29 @@ describe('unmatchedLine', () => {
 
 describe('server context sentences', () => {
   it('says location is not used only when it is not, and drops recency without a clock', () => {
+    // Rewritten for m2: a bus out on the road is eligible too, so it is named.
     expect(locationIgnoredSentence(true, false)).toBe(
-      'No yard is established for this depot, so location is not used: every standing bus heard in the last 30 minutes is eligible.',
+      'No yard is established for this depot, so location is not used: every bus heard in the last 30 minutes that is not off the road or dark is eligible, standing or out on the road.',
     );
     expect(locationIgnoredSentence(true, true)).toBe(
-      'No yard is established for this depot, so location is not used: every standing bus is eligible.',
+      'No yard is established for this depot, so location is not used: every bus that is not off the road or dark is eligible, standing or out on the road.',
     );
     expect(locationIgnoredSentence(false, false)).toBeNull();
     expect(locationIgnoredSentence(undefined, undefined)).toBeNull();
   });
 
-  it('gathers the reason, the location and the recency notes said above the chart', () => {
+  // Rewritten for S62 / m-d: every eligibility note is reached in
+  // depot-duty-wording-branches.test.ts; here only the order of the notes.
+  it('says why duties have no bus first, then how eligibility was judged', () => {
     const notes = matchingNotes({
       counts: counts(),
       eligibilityIgnoredLocation: true,
       recencyNotJudged: true,
     });
     expect(notes).toHaveLength(3);
-    expect(notes[2]).toContain('The feed has no clock');
-    expect(matchingNotes({ counts: counts({ unassigned: 0 }) })).toEqual([]);
+    expect(notes[0]).toMatch(/^No bus for 116 duties/);
+    expect(notes[1]).toContain('The feed has no clock');
+    expect(matchingNotes({ counts: counts({ unassigned: 0 }) })).toHaveLength(1);
   });
 
   it('counts repeated registrations left out', () => {

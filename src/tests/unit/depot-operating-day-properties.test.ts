@@ -47,6 +47,15 @@ const CASES = Array.from({ length: 150 }, (_, n) => depotCase(n));
 const onTheRoad = (b: DepotBusView): boolean =>
   (b.state === 'in_service' || b.state === 'on_road') && (b.gpsAgeMin ?? Infinity) <= 30;
 
+/**
+ * The feed's day has begun once its first duty has started (ruling S62); before
+ * that buses are matched as they stand in the yard. The duties do not depend on
+ * the matching, so reading the first start off the day is reading an input.
+ */
+const dayHasBegun = (input: OperatingDayInput, day: OperatingDay): boolean =>
+  day.duties.length > 0 &&
+  (input.feedMinute ?? -1) >= Math.min(...day.duties.map((d) => d.startMin));
+
 function liveRouteOf(input: OperatingDayInput): Map<string, string | null> {
   return new Map(input.buses.map((b) => [b.registrationNumber, b.routeName]));
 }
@@ -57,7 +66,7 @@ describe('the modelled day keeps to the live fleet (ruling S47)', () => {
     for (const input of CASES) {
       const day = modelOperatingDay(input);
       const working = input.buses.filter(onTheRoad);
-      if (day.duties.length < working.length) continue;
+      if (!dayHasBegun(input, day) || day.duties.length < working.length) continue;
       checked += 1;
       const ran = new Set(day.runs.map((r) => r.registrationNumber));
       for (const b of working) expect(ran.has(b.registrationNumber)).toBe(true);
@@ -65,12 +74,26 @@ describe('the modelled day keeps to the live fleet (ruling S47)', () => {
     expect(checked).toBeGreaterThan(30);
   });
 
+  it('before the first duty runs only buses standing in the yard (S62)', () => {
+    let checked = 0;
+    for (const input of CASES) {
+      const day = modelOperatingDay(input);
+      if (day.duties.length === 0 || dayHasBegun(input, day)) continue;
+      checked += 1;
+      const inYard = new Set(
+        input.buses.filter((b) => b.location === 'in_yard').map((b) => b.registrationNumber),
+      );
+      for (const run of day.runs) expect(inYard.has(run.registrationNumber)).toBe(true);
+    }
+    expect(checked).toBeGreaterThan(5);
+  });
+
   it('runs every bus in service, heard recently, whenever the duties are at least those (S55, N5)', () => {
     let checked = 0;
     for (const input of CASES) {
       const day = modelOperatingDay(input);
       const inService = input.buses.filter((b) => b.state === 'in_service' && onTheRoad(b));
-      if (day.duties.length < inService.length) continue;
+      if (!dayHasBegun(input, day) || day.duties.length < inService.length) continue;
       checked += 1;
       const ran = new Set(day.runs.map((r) => r.registrationNumber));
       for (const b of inService) expect(ran.has(b.registrationNumber)).toBe(true);

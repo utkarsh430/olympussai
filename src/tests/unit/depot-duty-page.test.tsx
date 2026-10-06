@@ -155,7 +155,7 @@ describe('the duty page in every state (guard X1)', () => {
     const seen = visible(await renderPage());
     expect(seen.split('No bus for 2 duties')).toHaveLength(2);
     expect(seen).toContain('3 not heard recently · 1 off the road · 2 dark');
-    expect(seen).toContain('so location is not used: every standing bus is eligible.');
+    expect(seen).toContain('so location is not used: every bus that is not off the road or dark is eligible, standing or out on the road.');
     expect(seen).toContain('The feed has no clock, so no bus could be judged');
   });
 
