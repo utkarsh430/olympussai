@@ -22,6 +22,7 @@ import { FlaggedList } from './FlaggedList';
 import { RouteTable } from './RouteTable';
 import { SOURCES_PATH } from '@/lib/depot/nav';
 import { feedAnchor } from '@/lib/depot/sources/sourcesModel';
+import { DEPOT_FIGURE_MEANING } from '@/lib/depot/figureTones';
 
 /** Placeholder footprint: the band, then the stand-out table, the class table and the routes. */
 const LOADING_ROWS = 14;
@@ -90,7 +91,13 @@ function FuelBody({ data, stale }: { readonly data: FuelResponse; readonly stale
         <>
           <FigureBand label={`Fuel and fuel cost for ${formatPlainDate(data.operatingDate)}`}>
             {fuelBand(data).map((f) => (
-              <Figure key={f.key} label={f.label} value={f.value} caption={f.caption} />
+              <Figure
+                key={f.key}
+                label={f.label}
+                value={f.value}
+                caption={f.caption}
+                tone={DEPOT_FIGURE_MEANING[f.key]}
+              />
             ))}
           </FigureBand>
           <FlaggedList data={data} />

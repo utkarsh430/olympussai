@@ -130,6 +130,16 @@ export function navGroupToneClass(heading: string, isDepotGroup: boolean): strin
   return DEPOT_TONE_CLASS.cyan;
 }
 
+/** A meaning's text class (a word or figure printed in it). */
+export function meaningTextClass(meaning: DepotMeaning): string {
+  return DEPOT_TONE_TEXT[DEPOT_MEANING_TONE[meaning]];
+}
+
+/** A meaning's tone class (sets `--depot-tone` for an accent, wash, fill or glow). */
+export function meaningToneClass(meaning: DepotMeaning): string {
+  return DEPOT_TONE_CLASS[DEPOT_MEANING_TONE[meaning]];
+}
+
 /** A meaning's colour as a value (chart and map attributes). */
 export function meaningColour(meaning: DepotMeaning): string {
   return DEPOT_TONE_COLOUR[DEPOT_MEANING_TONE[meaning]];

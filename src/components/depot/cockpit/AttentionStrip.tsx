@@ -2,7 +2,9 @@ import Link from 'next/link';
 import type { Attention } from '@/lib/depot/cockpit/attention';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
 import { attentionLayoutClasses } from '@/lib/depot/cockpit/attentionLayout';
+import { DEPOT_FIGURE_MEANING } from '@/lib/depot/figureTones';
 import { formatCount } from '@/lib/depot/format';
+import { meaningToneClass } from '@/lib/depot/palette';
 
 /**
  * The cockpit's hero: what needs attention now, most pressing first, each line a link to
@@ -33,7 +35,9 @@ export function AttentionStrip({ attention }: { readonly attention: Attention })
                 data-testid={`depot-attention-${line.key}`}
                 className={`group flex min-w-0 items-baseline gap-4 py-2 hover:bg-depot-surface focus-visible:bg-depot-surface ${layout.link}`}
               >
-                <span className={`w-14 shrink-0 text-right font-display text-[24px] tabular-nums leading-none text-depot-ink ${layout.count}`}>
+                <span
+                  className={`depot-figure-value w-14 shrink-0 text-right font-display text-[24px] tabular-nums leading-none ${meaningToneClass(DEPOT_FIGURE_MEANING[line.key] ?? 'count')} ${layout.count}`}
+                >
                   {formatCount(line.count)}
                 </span>
                 <span

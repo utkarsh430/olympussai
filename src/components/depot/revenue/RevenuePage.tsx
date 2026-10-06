@@ -21,6 +21,7 @@ import {
 } from '@/lib/depot/revenue/revenueTablePageModel';
 import { HowProduced } from './HowProduced';
 import { RevenueRoutesTable } from './RevenueRoutesTable';
+import { DEPOT_FIGURE_MEANING } from '@/lib/depot/figureTones';
 
 /** Placeholder footprint: the band, then the table. */
 const LOADING_ROWS = 8;
@@ -74,7 +75,13 @@ function RevenueBody({ data, stale }: { readonly data: RevenueResponse; readonly
         <>
           <FigureBand label={`Revenue and ridership for ${formatPlainDate(data.operatingDate)}`}>
             {revenueBand(data.summary).map((f) => (
-              <Figure key={f.key} label={f.label} value={f.value} caption={f.caption} />
+              <Figure
+                key={f.key}
+                label={f.label}
+                value={f.value}
+                caption={f.caption}
+                tone={DEPOT_FIGURE_MEANING[f.key]}
+              />
             ))}
           </FigureBand>
           <RevenueRoutesTable routes={data.routes} />

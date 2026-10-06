@@ -1,5 +1,7 @@
 import { BUS_STATE_LABEL } from '@/lib/depot/labels';
 import type { BusOpState } from '@/lib/depot/types';
+import { BUS_STATE_MEANING } from '@/lib/depot/figureTones';
+import { meaningTextClass } from '@/lib/depot/palette';
 
 /**
  * Square colour per bus state: the command centre's status colours, the same five the
@@ -40,7 +42,7 @@ export function BusStateMark({ state, short = false }: BusStateMarkProps) {
       className="inline-flex min-w-0 items-center gap-1.5 whitespace-nowrap"
     >
       <span aria-hidden className={`h-1.5 w-1.5 shrink-0 ${BUS_STATE_SQUARE[state]}`} />
-      <span className="truncate">{word}</span>
+      <span className={`truncate ${meaningTextClass(BUS_STATE_MEANING[state])}`}>{word}</span>
     </span>
   );
 }

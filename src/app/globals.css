@@ -570,6 +570,12 @@
     text-shadow: 0 0 12px rgb(var(--depot-tone) / 0.3);
   }
 
+  /* A segment of a stacked state bar (the cockpit's availability): its state's colour
+     brightening towards its top edge. */
+  .depot-bar-seg {
+    background-image: linear-gradient(180deg, rgb(var(--depot-tone)), rgb(var(--depot-tone) / 0.62));
+  }
+
   /* The page's one hero figure: a stronger wash and glow. */
   .depot-figure-hero {
     background-image: linear-gradient(180deg, rgb(var(--depot-tone) / 0.13), transparent 85%);
