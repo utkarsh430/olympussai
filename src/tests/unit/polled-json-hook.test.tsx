@@ -7,6 +7,7 @@ import {
   NETWORK_UNREACHABLE_MESSAGE,
   SESSION_EXPIRED_MESSAGE,
   usePolledJson,
+  type PolledJsonOptions,
   type PolledState,
 } from '@/hooks/usePolledJson';
 import { useFetchedJson } from '@/hooks/useFetchedJson';
@@ -24,10 +25,7 @@ interface PendingCall {
   readonly fail: (error: unknown) => void;
 }
 
-interface Options {
-  readonly intervalMs?: number;
-  readonly statusMessages?: Readonly<Record<number, string>>;
-}
+type Options = PolledJsonOptions;
 
 const actGlobal = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
 const originalFetch = globalThis.fetch;
