@@ -67,7 +67,10 @@ describe('the routes page provenance line in every state', () => {
 
   it.each(STATES)('is MIXED and names the live, derived and modelled parts when %s', async (_, set) => {
     set();
-    const line = provenanceLine(await renderPage());
+    const markup = await renderPage();
+    const line = provenanceLine(markup);
+    // every string the page draws in this state, attributes (title, aria-label) included
+    expect(markup.toLowerCase()).not.toContain('simulated');
     expect(line.tone).toBe('mixed');
     expect(line.words).toContain(LINE);
     expect(line.words).toContain(MODELLED_PART);
