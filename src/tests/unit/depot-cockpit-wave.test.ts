@@ -75,6 +75,17 @@ describe('buildAttention', () => {
     expect(attention.lines[1]?.href).toBe('/project/depots/d/49/roster?flag=power_off');
     expect(attention.lines[3]?.href).toBe('/project/depots/d/49/roster?state=dark');
     expect(attention.lines[2]?.href).toBe('/project/depots/d/49#depot-outshed');
+    expect(attention.lines.map((l) => l.destination)).toEqual([
+      'Exceptions', 'Roster', 'Departures', 'Roster', 'Roster', 'Roster',
+    ]);
+  });
+
+  it('sends the emergency line to the exception centre narrowed to this depot', () => {
+    const attention = buildAttention(
+      detail({ exceptions: { depot: [], bus: [busException('F', 'emergency', 'critical')] } }),
+      '49',
+    );
+    expect(attention.lines[0]?.href).toBe('/project/depots/exceptions?kind=emergency&depot=49');
   });
 
   it('never shows more than six lines', () => {
