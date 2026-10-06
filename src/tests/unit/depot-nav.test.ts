@@ -44,6 +44,7 @@ describe('NETWORK_NAV', () => {
       ['Fleet distribution', '/project/depots/rebalance'],
       ['Routes', '/project/depots/routes'],
       ['Exceptions', '/project/depots/exceptions'],
+      ['Economics', '/project/depots/economics'],
       ['Ask', '/project/depots/ask'],
       ['Data sources', '/project/depots/sources'],
     ]);
