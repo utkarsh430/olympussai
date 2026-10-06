@@ -17,7 +17,8 @@ const networkBody = memoiseBody((view, analysis): NetworkBody => ({
   exceptionCounts: analysis.report.counts,
   exceptionSeverityCounts: analysis.exceptionSeverityCounts,
   exceptionBasis: EXCEPTION_BASIS,
-  yardSnapshotsSeen: analysis.yardSnapshotsSeen,
+  // Not sent for the fixture (P2): the memory never decides it.
+  ...(analysis.yardSnapshotsSeen ? { yardSnapshotsSeen: analysis.yardSnapshotsSeen } : {}),
 }));
 
 /**
