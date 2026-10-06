@@ -9,8 +9,6 @@ vi.mock('@/lib/upsrtc/liveSnapshot', () => ({ getLiveSnapshot: vi.fn() }));
 vi.mock('@/lib/depot/routes/routeCatalogue', () => ({
   ROUTE_LOOKUP_DEADLINE_MS: 25_000,
   getRouteProfile: vi.fn(),
-  // A cache hit: these tests are not about the upstream throttle.
-  routeProfileNeedsFetch: vi.fn(() => false),
 }));
 
 import { requireUpsrtcAccess } from '@/lib/auth/authorize';

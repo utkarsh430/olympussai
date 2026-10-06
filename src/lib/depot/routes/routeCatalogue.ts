@@ -1,4 +1,5 @@
 import { fetchBusSchedule } from '@/lib/upsrtc/scheduleService';
+import type { RateDecision } from '../rateLimit';
 import { isValidRouteName } from '../ids';
 import { logDepotError } from '../log';
 import { classifyBusState, gpsAgeMinutes } from '../infer/busState';
@@ -13,8 +14,8 @@ import type { RouteProfile, RouteProfileResult, RouteStop } from './types';
  * it, one lookup per route per operating day, and never crawled: the upstream
  * is a government server and the fleet has thousands of routes. One lookup is
  * up to `SCHEDULE_MAX_UPSTREAM_CALLS` calls to that server (the bus's date,
- * then the fallback dates), and the route's limiter charges every lookup that
- * many.
+ * then the fallback dates). The caller's permit is asked before each call, so a
+ * lookup is charged the calls it makes; a refused call stops it as `limited`.
  */
 
 export const ROUTE_CACHE_MAX = 2000;
@@ -32,6 +33,21 @@ export const ROUTE_LOOKUP_DEADLINE_MS = 25_000;
 
 type Unavailable = Extract<RouteProfileResult, { status: 'unavailable' }>;
 
+/**
+ * Asked immediately before each call to the schedule server; the call is made only
+ * when it is not limited. It must take its slot in the same step as it decides, so
+ * lookups in flight together can never pass the limit between them.
+ */
+export type UpstreamPermit = () => RateDecision;
+
+/** A call the lookup needed was refused: no answer, nothing remembered, try after the wait. */
+export interface LimitedLookup {
+  readonly status: 'limited';
+  readonly retryAfterSeconds: number;
+}
+
+export type RouteLookupOutcome = RouteProfileResult | LimitedLookup;
+
 interface NegativeEntry {
   readonly result: Unavailable;
   readonly storedAt: number;
@@ -42,7 +58,7 @@ const DATE_PREFIX = /^\d{4}-\d{2}-\d{2}/;
 // Insertion order is the age, so the first key is always the oldest.
 const profiles = new Map<string, RouteProfile>();
 const negatives = new Map<string, NegativeEntry>();
-const inFlight = new Map<string, Promise<RouteProfileResult>>();
+const inFlight = new Map<string, Promise<RouteLookupOutcome>>();
 /** Bumped whenever the set of cached profiles changes, so views built on it know to rebuild. */
 let revision = 0;
 
@@ -114,7 +130,20 @@ async function fetchProfile(
   routeName: string,
   { bus, date, feedDate }: Lookup,
   now: number,
-): Promise<RouteProfileResult> {
+  permit: UpstreamPermit | undefined,
+): Promise<RouteLookupOutcome> {
+  // The service is told only yes or no; the wait of a refusal is kept here for the answer.
+  const refusal: { decision: RateDecision | null } = { decision: null };
+  const asking =
+    permit === undefined
+      ? {}
+      : {
+          beforeUpstreamCall: (): boolean => {
+            const decision = permit();
+            if (decision.limited) refusal.decision = decision;
+            return !decision.limited;
+          },
+        };
   try {
     // The service's fallback dates count back from the feed's date, not the wall clock.
     // Strict: "no schedule" is cached for ten minutes, so it must be what the server
@@ -122,7 +151,7 @@ async function fetchProfile(
     const response = await fetchBusSchedule(
       { regNum: bus.registrationNumber, date, tripId: bus.journeyId },
       now,
-      { today: feedDate, requireEveryDateAnswered: true },
+      { today: feedDate, requireEveryDateAnswered: true, ...asking },
     );
     // The fixture is a stand-in, not this route: never present it as real data.
     if (response.source === 'fixture') return unavailable('upstream_error');
@@ -150,6 +179,11 @@ async function fetchProfile(
       profile: { ...built, routeNameConfirmed, description: bus.routeDescription },
     };
   } catch (error) {
+    // A refused call is the limit at work, not a failure: the person is told to wait.
+    const { decision } = refusal;
+    if (decision !== null) {
+      return { status: 'limited', retryAfterSeconds: decision.retryAfterSeconds };
+    }
     logDepotError('route-catalogue', error);
     return unavailable('upstream_error');
   }
@@ -181,25 +215,17 @@ const freshNegative = (routeName: string, now: number): NegativeEntry | undefine
 };
 
 /**
- * Read-only: true when `getRouteProfile` with the same arguments would call
- * the upstream (no cached profile, no fresh negative answer, nothing in
- * flight), so a caller can limit cache misses without limiting hits.
+ * The route's profile, from the cache or through one lookup. `permit`, when given,
+ * is asked before each call to the schedule server; a cache hit, a fresh negative
+ * answer or joining a lookup already in flight asks nothing. A request that joins a
+ * lookup gets that lookup's outcome, `limited` included.
  */
-export function routeProfileNeedsFetch(
-  routeName: string,
-  view: FleetSnapshotView,
-  now: number = Date.now(),
-): boolean {
-  const lookup = lookupFor(routeName, view);
-  if (!lookup) return false;
-  return !profiles.has(lookup.key) && !freshNegative(routeName, now) && !inFlight.has(lookup.key);
-}
-
 export async function getRouteProfile(
   routeName: string,
   view: FleetSnapshotView,
   now: number = Date.now(),
-): Promise<RouteProfileResult> {
+  permit?: UpstreamPermit,
+): Promise<RouteLookupOutcome> {
   const lookup = lookupFor(routeName, view);
   if (!lookup) return unavailable('no_bus_on_route');
   const { key } = lookup;
@@ -213,8 +239,10 @@ export async function getRouteProfile(
   const pending = inFlight.get(key);
   if (pending) return pending;
 
-  const request = fetchProfile(routeName, lookup, now)
-    .then((result): RouteProfileResult => {
+  const request = fetchProfile(routeName, lookup, now, permit)
+    .then((result): RouteLookupOutcome => {
+      // A stopped lookup has no answer: nothing is remembered.
+      if (result.status === 'limited') return result;
       if (result.status !== 'ok') {
         // Only an answer is remembered. A failure is not: the person's Retry must
         // reach the server again, and every such retry is charged to the limiter.

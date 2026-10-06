@@ -10,7 +10,6 @@ vi.mock('@/lib/depot/routes/routeCatalogue', async (importOriginal) => ({
     await importOriginal<typeof import('@/lib/depot/routes/routeCatalogue')>()
   ).ROUTE_LOOKUP_DEADLINE_MS,
   getRouteProfile: vi.fn(),
-  routeProfileNeedsFetch: vi.fn(() => false),
 }));
 
 import { requireUpsrtcAccess } from '@/lib/auth/authorize';

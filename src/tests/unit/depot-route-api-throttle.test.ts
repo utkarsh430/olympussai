@@ -1,88 +1,160 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { UpstreamFetchResult } from '@/lib/upsrtc/client';
+import type { DepotBusRow } from '@/models/depotLive';
+import type { FleetSnapshotView } from '@/lib/depot/repositories/types';
+import type { WindowLimiter } from '@/lib/depot/rateLimit';
+import scheduleFixture from '@/fixtures/upsrtc-schedule-sample.json';
 
 vi.mock('@/lib/auth/authorize', () => ({
   requireUpsrtcAccess: vi.fn(),
   unauthorizedResponse: vi.fn(() => new Response(null, { status: 401 })),
 }));
-vi.mock('@/lib/upsrtc/liveSnapshot', () => ({ getLiveSnapshot: vi.fn() }));
-vi.mock('@/lib/depot/routes/routeCatalogue', () => ({
-  ROUTE_LOOKUP_DEADLINE_MS: 25_000,
-  getRouteProfile: vi.fn(),
-  routeProfileNeedsFetch: vi.fn(),
+vi.mock('@/lib/upsrtc/client', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/upsrtc/client')>()),
+  fetchUpstream: vi.fn(),
+}));
+const snapshotHolder: { view: FleetSnapshotView | null } = { view: null };
+vi.mock('@/lib/depot/repositories', () => ({
+  getRepositories: () => ({ fleet: { snapshot: async () => snapshotHolder.view } }),
 }));
 
 import { requireUpsrtcAccess } from '@/lib/auth/authorize';
-import { getLiveSnapshot } from '@/lib/upsrtc/liveSnapshot';
-import { getRouteProfile, routeProfileNeedsFetch } from '@/lib/depot/routes/routeCatalogue';
-import { ROUTE_PROFILE_FETCH_LIMITS } from '@/lib/depot/rateLimit';
-import { SCHEDULE_MAX_UPSTREAM_CALLS } from '@/lib/upsrtc/scheduleService';
-import { GET } from '@/app/api/upsrtc/depot/route/[routeName]/route';
+import { fetchUpstream } from '@/lib/upsrtc/client';
+import { requestIdentity, ROUTE_PROFILE_FETCH_LIMITS } from '@/lib/depot/rateLimit';
+import { ROUTE_LOOKUP_DEADLINE_MS } from '@/lib/depot/routes/routeCatalogue';
 
 /**
- * Cache misses on the route profile reach the government's server, so they are limited.
- * The limits count calls to that server, and each miss is charged the most calls one
- * lookup can make.
+ * The route lookup is limited in calls to the government's schedule server, and each
+ * call takes its slot immediately before it is made. Only the server is mocked: the
+ * route, the route catalogue, the schedule service and the limiters are the real ones.
  */
 
-const { perIdentityPerMinute, perProcessPerMinute } = ROUTE_PROFILE_FETCH_LIMITS;
-const lookupsPerIdentity = Math.floor(perIdentityPerMinute / SCHEDULE_MAX_UPSTREAM_CALLS);
-let sidCounter = 0;
-const signedInAs = (sid: string): void => {
-  vi.mocked(requireUpsrtcAccess).mockResolvedValue({
-    project: 'upsrtc',
-    role: 'project-access',
-    iat: 0,
-    exp: 0,
-    sid,
-  });
-};
-const call = (): Promise<Response> =>
-  GET(new Request('http://localhost/api/upsrtc/depot/route/x') as never, {
-    params: Promise.resolve({ routeName: 'R_1' }),
-  });
-
-/** The route keeps its limiters on `globalThis`; each test starts from fresh, empty windows. */
+const T0 = Date.UTC(2026, 9, 6, 10, 0, 0);
+const FEED_NOW = '2026-10-06T10:00:00.000Z';
+const NOT_ASSIGNED = ' Bus Not Assigned!!! ';
+const ADDRESS_HEADER = 'x-real-ip';
+const { perIdentityPerMinute, perAddressPerMinute, perProcessPerMinute, windowMs } =
+  ROUTE_PROFILE_FETCH_LIMITS;
 const LIMITERS_KEY = Symbol.for('olympuss.depot.routeProfileFetchLimiters');
+const mockFetch = vi.mocked(fetchUpstream);
 
-beforeEach(() => {
-  delete (globalThis as Record<symbol, unknown>)[LIMITERS_KEY];
-  sidCounter += 1;
-  signedInAs(`throttle-${sidCounter}`);
-  vi.mocked(getLiveSnapshot)
-    .mockReset()
-    .mockResolvedValue({
-      snapshot: {
-        buses: [],
-        depotRows: [],
-        recordCount: 0,
-        rejectedRecordCount: 0,
-        fetchedAt: '2026-10-06T10:00:00.000Z',
-        feedNow: null,
-      },
-      source: 'live',
-      stale: false,
-    });
-  vi.mocked(getRouteProfile)
-    .mockReset()
-    .mockResolvedValue({ status: 'unavailable', reason: 'no_schedule' });
+const ok = (payload: unknown): UpstreamFetchResult => ({
+  ok: true,
+  status: 200,
+  contentType: 'application/json',
+  payload,
 });
 
-describe('route profile upstream throttle', () => {
-  it('never limits cache hits', async () => {
-    vi.mocked(routeProfileNeedsFetch).mockReturnValue(false);
-    for (let i = 0; i < perIdentityPerMinute * 2; i += 1) expect((await call()).status).toBe(200);
+/** One bus on each of `count` routes, all on the feed's operating date: three dates to try. */
+function fleetOf(count: number): FleetSnapshotView {
+  const rows = Array.from({ length: count }, (_, i) => ({
+    registrationNumber: `UP78JT${String(1000 + i)}`,
+    routeName: `R_${i}`,
+    routeDescription: null,
+    journeyId: null,
+    scheduledStart: '2026-10-06T08:00:00.000Z',
+    gpsTimestamp: FEED_NOW,
+    receivedAt: FEED_NOW,
+    speedKmph: 40,
+    ignitionOn: true,
+    tripStatus: 'Live',
+    vehicleStatus: 'live',
+  })) as unknown as DepotBusRow[];
+  const source = 'live' as const;
+  return { rows, feedNow: FEED_NOW, fetchedAt: FEED_NOW, source, stale: false, recordCount: count };
+}
+
+const claimsFor = (sid: string) =>
+  ({ project: 'upsrtc', role: 'project-access', iat: 0, exp: 0, sid }) as const;
+
+type Route = typeof import('@/app/api/upsrtc/depot/route/[routeName]/route');
+let route: Route;
+
+/** Starts a request now: the session is read synchronously, so concurrent calls keep theirs. */
+function call(routeName: string, sid = 'person', address?: string): Promise<Response> {
+  vi.mocked(requireUpsrtcAccess).mockResolvedValueOnce(claimsFor(sid));
+  const headers = address === undefined ? undefined : { [ADDRESS_HEADER]: address };
+  return route.GET(new Request('http://localhost/x', { headers }) as never, {
+    params: Promise.resolve({ routeName }),
+  });
+}
+
+interface Limiters {
+  readonly identity: WindowLimiter;
+  readonly address: WindowLimiter;
+  readonly process: WindowLimiter;
+}
+const limiters = (): Limiters =>
+  (globalThis as Record<symbol, unknown>)[LIMITERS_KEY] as Limiters;
+const identityKey = (sid: string): string =>
+  requestIdentity(claimsFor(sid), new Headers(), process.env);
+
+/** Slots taken from `limit` for `key`: the limit less the most that still fits. */
+function used(limiter: WindowLimiter, key: string, limit: number): number {
+  let free = 0;
+  while (free < limit && !limiter.check(key, free + 1).limited) free += 1;
+  return limit - free;
+}
+
+/** Holds every upstream call until released, so the lookups are all in flight at once. */
+function heldUpstream(): () => Promise<void> {
+  let release: () => void = () => undefined;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  mockFetch.mockImplementation(async () => {
+    await gate;
+    return ok(NOT_ASSIGNED);
+  });
+  return async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    release();
+  };
+}
+
+beforeEach(async () => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(T0);
+  vi.resetModules();
+  delete (globalThis as Record<symbol, unknown>)[LIMITERS_KEY];
+  mockFetch.mockReset().mockResolvedValue(ok(NOT_ASSIGNED));
+  vi.mocked(requireUpsrtcAccess).mockReset();
+  snapshotHolder.view = fleetOf(60);
+  route = await import('@/app/api/upsrtc/depot/route/[routeName]/route');
+});
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllEnvs();
+});
+
+describe('route lookups charged per call to the schedule server', () => {
+  it('charges a lookup whose first date answers one call', async () => {
+    mockFetch.mockResolvedValue(ok(scheduleFixture));
+    expect((await call('R_0')).status).toBe(200);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(used(limiters().identity, identityKey('person'), perIdentityPerMinute)).toBe(1);
+    expect(used(limiters().process, 'all', perProcessPerMinute)).toBe(1);
   });
 
-  it('charges each miss the most upstream calls a lookup can make', () => {
-    expect(SCHEDULE_MAX_UPSTREAM_CALLS).toBeGreaterThan(1);
-    expect(lookupsPerIdentity).toBeGreaterThan(0);
+  it('charges a lookup that needs three dates three calls', async () => {
+    expect((await call('R_0')).status).toBe(200);
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+    expect(used(limiters().identity, identityKey('person'), perIdentityPerMinute)).toBe(3);
   });
 
-  it('limits cache misses per identity with 429, Retry-After and the fixed body', async () => {
-    vi.mocked(routeProfileNeedsFetch).mockReturnValue(true);
-    for (let i = 0; i < lookupsPerIdentity; i += 1) expect((await call()).status).toBe(200);
-    vi.mocked(getRouteProfile).mockClear();
-    const limited = await call();
+  it('charges nothing for a cache hit, however many', async () => {
+    await call('R_0');
+    for (let i = 0; i < perIdentityPerMinute * 2; i += 1) {
+      expect((await call('R_0')).status).toBe(200);
+    }
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+    expect(used(limiters().identity, identityKey('person'), perIdentityPerMinute)).toBe(3);
+  });
+
+  it('stops at a refused second call with a 429, caches nothing, succeeds later', async () => {
+    await call('R_0'); // builds the limiters
+    limiters().identity.take(identityKey('person'), perIdentityPerMinute - 4);
+    mockFetch.mockClear();
+    const limited = await call('R_1');
+    expect(mockFetch).toHaveBeenCalledTimes(1);
     expect(limited.status).toBe(429);
     expect(limited.headers.get('cache-control')).toBe('no-store');
     const seconds = Number(limited.headers.get('retry-after'));
@@ -91,27 +163,65 @@ describe('route profile upstream throttle', () => {
       error: 'Too many requests',
       retryAfterSeconds: seconds,
     });
-    expect(getRouteProfile).not.toHaveBeenCalled();
-    // Another identity still fetches.
-    signedInAs('someone-else');
-    expect((await call()).status).toBe(200);
+    // Nothing was cached as an answer: asked again at once, it is refused, not served.
+    expect((await call('R_1')).status).toBe(429);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    vi.setSystemTime(T0 + windowMs);
+    expect((await call('R_1')).status).toBe(200);
+    // Every date asked again: the stopped lookup's first answer was not kept either.
+    expect(mockFetch).toHaveBeenCalledTimes(4);
   });
 
-  it('limits cache misses from all identities together', async () => {
-    vi.mocked(routeProfileNeedsFetch).mockReturnValue(true);
-    // A fresh process window, each miss from a new identity: some misses pass, and the
-    // window closes within the stated ceiling (a miss may be charged more than one call).
-    let passed = 0;
-    let status = 200;
-    for (let i = 0; i <= perProcessPerMinute && status === 200; i += 1) {
-      signedInAs(`crowd-${i}`);
-      status = (await call()).status;
-      if (status === 200) passed += 1;
-    }
-    expect(passed).toBeGreaterThan(0);
-    expect(passed).toBeLessThanOrEqual(perProcessPerMinute);
-    expect(status).toBe(429);
-    vi.mocked(routeProfileNeedsFetch).mockReturnValue(false);
-    expect((await call()).status).toBe(200);
+  it('never lets lookups in flight together pass the limit per identity', async () => {
+    const release = heldUpstream();
+    const lookups = Array.from({ length: 10 }, (_, i) => call(`R_${i}`));
+    await release();
+    const statuses = (await Promise.all(lookups)).map((r) => r.status);
+    expect(mockFetch).toHaveBeenCalledTimes(perIdentityPerMinute);
+    expect(statuses).toContain(429);
+    expect(statuses.every((s) => s === 200 || s === 429)).toBe(true);
+  });
+
+  it('never lets lookups in flight together pass the limit per trusted address', async () => {
+    vi.stubEnv('DEPOT_TRUSTED_IP_HEADER', ADDRESS_HEADER);
+    const release = heldUpstream();
+    const lookups = Array.from({ length: 20 }, (_, i) => call(`R_${i}`, `p${i}`, '10.0.0.7'));
+    await release();
+    const statuses = (await Promise.all(lookups)).map((r) => r.status);
+    expect(mockFetch).toHaveBeenCalledTimes(perAddressPerMinute);
+    expect(statuses).toContain(429);
+  });
+
+  it('never lets lookups in flight together pass the limit for the process', async () => {
+    const release = heldUpstream();
+    const lookups = Array.from({ length: 50 }, (_, i) => call(`R_${i}`, `p${i}`));
+    await release();
+    const statuses = (await Promise.all(lookups)).map((r) => r.status);
+    expect(mockFetch).toHaveBeenCalledTimes(perProcessPerMinute);
+    expect(statuses).toContain(429);
+  });
+
+  it('answers 503 past the deadline; a lookup the limit then stops caches nothing', async () => {
+    vi.useRealTimers();
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+    vi.setSystemTime(T0);
+    await call('R_0'); // builds the limiters
+    limiters().identity.take(identityKey('person'), perIdentityPerMinute - 4);
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    mockFetch.mockReset().mockImplementation(async () => {
+      await gate;
+      return ok(NOT_ASSIGNED);
+    });
+    const pending = call('R_1');
+    await vi.advanceTimersByTimeAsync(ROUTE_LOOKUP_DEADLINE_MS);
+    expect((await pending).status).toBe(503);
+    // The first date answers after the deadline; its fallback is refused.
+    release();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    vi.setSystemTime(T0 + windowMs);
+    expect((await call('R_1')).status).toBe(200);
+    expect(mockFetch).toHaveBeenCalledTimes(4);
   });
 });
