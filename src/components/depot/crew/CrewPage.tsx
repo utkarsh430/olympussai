@@ -7,12 +7,12 @@ import { ErrorPanel, LoadingBlock, StaleStrip } from '@/components/depot/shell/D
 import { StatePanel } from '@/components/depot/shell/StatePanel';
 import {
   crewDisclosure,
-  crossReferenceSentence,
   EMPTY_CREW_REMEDY,
   emptyCrewSentence,
   modelledStatement,
   SOURCES_HREF,
 } from '@/lib/depot/crew/crewPageModel';
+import { modelledDayLine } from '@/lib/depot/modelledDayLine';
 import { DEPOT_NOT_FOUND_MESSAGE } from '@/hooks/useDepotDetail';
 import { useDepotCrew } from '@/hooks/useDepotCrew';
 import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/usePolledJson';
@@ -86,7 +86,8 @@ export function CrewPage({ provenance }: CrewPageProps) {
       </>
     );
   }
-  const modelledDay = crossReferenceSentence({
+  // The ONE modelled-day formula every page on the modelled day prints.
+  const modelledDay = modelledDayLine({
     scheduled: detail.data?.outshed.coverage ?? null,
     duties: data.day.duties,
     routes: data.day.routes,
