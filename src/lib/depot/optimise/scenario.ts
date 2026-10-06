@@ -18,7 +18,29 @@ import type {
   TransferPlan,
 } from './types';
 
-const PERCENT = 100;
+/** Ratios are held in basis points and surges in hundredths of a percent, so all maths is integer. */
+const BASIS_POINTS = 10_000;
+const HUNDREDTHS_OF_PERCENT = 100;
+const FULL_SCALE = 10_000;
+
+/**
+ * Spare buses for a peak: the exact ceiling of peak * ratio. The ratio is
+ * rounded to whole basis points first, so float noise such as
+ * 100 * 0.07 = 7.000000000000001 cannot add a bus.
+ */
+function spareFor(peak: number, ratio: number): number {
+  const numerator = peak * Math.round(ratio * BASIS_POINTS);
+  return Math.floor((numerator + BASIS_POINTS - 1) / BASIS_POINTS);
+}
+
+/**
+ * Peak after a surge given in hundredths of a percent, rounded to a whole bus
+ * with an exact half rounding up. Integer arithmetic keeps true halves exact.
+ */
+function surgedPeak(peak: number, surgeHundredths: number): number {
+  const scaled = peak * (FULL_SCALE + surgeHundredths);
+  return Math.max(0, Math.floor((2 * scaled + FULL_SCALE) / (2 * FULL_SCALE)));
+}
 
 /** Clamps a finite value into [min, max]; non-finite input falls back to `fallback`. */
 function clamp(
@@ -40,7 +62,7 @@ function clamp(
 }
 
 function recompute(b: DepotBalance, available: number, peak: number, ratio: number): DepotBalance {
-  const spareTarget = Math.ceil(peak * ratio);
+  const spareTarget = spareFor(peak, ratio);
   const required = peak + spareTarget;
   return {
     ...b,
@@ -94,7 +116,7 @@ export function runScenario(base: readonly DepotBalance[], scenario: Scenario): 
       (fleetDelta.get(adj.depotId) ?? 0) + Math.trunc(adj.deltaBuses || 0),
     );
   }
-  const surgeFactor = new Map<string, number>();
+  const surgeHundredths = new Map<string, number>();
   for (const surge of scenario.demandSurges ?? []) {
     if (!isDepot(surge.depotId)) {
       notes.push(`Demand surge for ${surge.depotId} ignored: not an operating depot`);
@@ -108,7 +130,10 @@ export function runScenario(base: readonly DepotBalance[], scenario: Scenario): 
       0,
       notes,
     );
-    surgeFactor.set(surge.depotId, (surgeFactor.get(surge.depotId) ?? 1) * (1 + percent / PERCENT));
+    surgeHundredths.set(
+      surge.depotId,
+      (surgeHundredths.get(surge.depotId) ?? 0) + Math.round(percent * HUNDREDTHS_OF_PERCENT),
+    );
   }
 
   const balances = base.map((b): DepotBalance => {
@@ -120,7 +145,7 @@ export function runScenario(base: readonly DepotBalance[], scenario: Scenario): 
         `Fleet adjustment for ${b.depotId} limited to ${delta}: available cannot go below 0`,
       );
     }
-    const peak = Math.max(0, Math.round(b.peakRequirement * (surgeFactor.get(b.depotId) ?? 1)));
+    const peak = surgedPeak(b.peakRequirement, surgeHundredths.get(b.depotId) ?? 0);
     return recompute({ ...b, fleet: b.fleet + delta }, b.available + delta, peak, ratio);
   });
 
