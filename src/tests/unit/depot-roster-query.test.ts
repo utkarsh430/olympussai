@@ -121,7 +121,7 @@ describe('drawerFacts', () => {
     const value = (label: string): string | undefined => facts.find((f) => f.label === label)?.value;
     expect(value('Location')).toBe(busLocationText(row!.bus));
     expect(value('Location')).toBe('Away, 14 km from yard');
-    expect(value('Scheduled start')).toBe('Mon 05 Oct, 08:51');
+    expect(value('Scheduled start')).toBe('5 Oct 2026, 08:51');
     expect(value('State')).toBe('Standing');
     expect(value('Last heard')).toBe('not heard 1 h 27 min');
     expect(JSON.stringify(facts)).not.toMatch(/\d{4}-\d{2}-\d{2}T/);

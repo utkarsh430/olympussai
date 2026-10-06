@@ -4,6 +4,7 @@ import DepotRosterPage from '@/app/(protected)/project/depots/d/[depotId]/roster
 import { RosterTable } from '@/components/depot/roster/RosterTable';
 import type { DepotBusView } from '@/lib/depot/api';
 import { drawerFacts } from '@/lib/depot/roster/drawerFacts';
+import type { RosterTier } from '@/lib/depot/roster/rosterColumns';
 import { buildRosterRows } from '@/lib/depot/roster/rosterModel';
 
 const hooks = vi.hoisted(() => ({
@@ -155,18 +156,19 @@ describe('the roster page, as the reader meets it', () => {
   it('keeps an earlier day schedule with its date, muted, and says why in the title', async () => {
     const doc = await render();
     const muted = doc.querySelector('[data-testid="roster-earlier-day"]');
-    expect(muted?.textContent).toBe('Mon 05 Oct, 13:46');
+    expect(muted?.textContent).toBe('5 Oct 2026, 13:46');
     expect(muted?.className).toContain('text-depot-faint');
     expect(muted?.parentElement?.getAttribute('title')).toContain("earlier day's schedule");
     expect(doc.body.textContent).toContain('08:51');
   });
 
-  it('drops RUNNING when no row has a value, and keeps it when one does', async () => {
-    const headers = async (): Promise<string> =>
-      Array.from((await render()).querySelectorAll('th')).map((th) => th.textContent).join('|');
-    expect(await headers()).not.toContain('Running');
+  it('never shows RUNNING as a column, even when a row has a value (the drawer has it)', async () => {
     setDetail(dataState([bus({ delayMinutes: 7 }), UNHEARD]));
-    expect(await headers()).toContain('Running');
+    const doc = await render();
+    const headers = Array.from(doc.querySelectorAll('th')).map((th) => th.textContent);
+    expect(headers).not.toContain('Running');
+    const facts = drawerFacts(buildRosterRows([bus({ delayMinutes: 7 })])[0]!);
+    expect(facts.find((fact) => fact.label === 'Running')?.value).toBe('7 min late');
   });
 
   it('sets each column to its width and drops nothing at 1440', async () => {
@@ -219,7 +221,7 @@ describe('the roster page, as the reader meets it', () => {
 });
 
 describe('the roster table at a phone', () => {
-  it('keeps registration, the state square and the short location; the word is in the title', () => {
+  function table(tier: RosterTier): Document {
     const rows = buildRosterRows([bus(), UNHEARD]);
     const markup = renderToStaticMarkup(
       <RosterTable
@@ -227,22 +229,59 @@ describe('the roster table at a phone', () => {
         feedNow={FEED_NOW}
         selectedRegistration={null}
         onOpen={() => {}}
-        phone
-        showRunning={false}
+        tier={tier}
       />,
     );
-    const doc = new DOMParser().parseFromString(markup, 'text/html');
-    expect(Array.from(doc.querySelectorAll('th')).map((th) => th.textContent)).toEqual([
-      'Registration',
-      'State',
-      'Location',
-    ]);
+    return new DOMParser().parseFromString(markup, 'text/html');
+  }
+  const headers = (doc: Document): (string | null)[] =>
+    Array.from(doc.querySelectorAll('th')).map((th) => th.textContent);
+
+  it('keeps registration, the state square AND its word, and the short location', () => {
+    const doc = table('phone');
+    expect(headers(doc)).toEqual(['Registration', 'State', 'Location']);
     const cells = Array.from(doc.querySelectorAll('tbody tr:nth-child(2) td'));
     expect(cells.map((cell) => cell.textContent)).toEqual(['UP14AB2000', 'On road', '34 km']);
     expect(cells[1]?.getAttribute('title')).toBe('On road, no schedule in feed');
-    expect(doc.querySelector('[data-testid="depot-bus-state"] .sr-only')?.textContent).toBeTruthy();
+    // The word is on screen, not only read out: a square alone is colour alone.
+    expect(cells[1]?.querySelector('.sr-only')).toBeNull();
+    expect(cells[1]?.querySelector('[aria-hidden]')).not.toBeNull();
     expect(doc.body.textContent).toContain('Yard');
     expect(doc.body.textContent).not.toContain('Other depot');
+  });
+
+  it('drops RUNNING everywhere and SCHEDULED START below 1280; LAST HEARD stays at 1024 and 800', () => {
+    expect(headers(table('wide'))).toEqual([
+      'Registration',
+      'State',
+      'Location',
+      'Route',
+      'Scheduled start',
+      'Last heard',
+      'Flags',
+    ]);
+    expect(headers(table('medium'))).toEqual([
+      'Registration',
+      'State',
+      'Location',
+      'Route',
+      'Last heard',
+      'Flags',
+    ]);
+    const narrow = table('narrow');
+    expect(headers(narrow)).toEqual(['Registration', 'State', 'Location', 'Last heard']);
+    expect(narrow.querySelector('tbody tr:nth-child(2) td:nth-child(3)')?.textContent).toBe('34 km');
+  });
+
+  it('writes FLAGS in its short words, with the full words in the title', () => {
+    const rows = buildRosterRows([bus({ mainPowerOn: false, tamperCode: '7' })]);
+    const markup = renderToStaticMarkup(
+      <RosterTable rows={rows} feedNow={FEED_NOW} selectedRegistration={null} onOpen={() => {}} tier="wide" />,
+    );
+    const doc = new DOMParser().parseFromString(markup, 'text/html');
+    const flags = doc.querySelector('tbody tr:nth-child(1) td:last-child');
+    expect(flags?.textContent).toBe('Power off +1');
+    expect(flags?.getAttribute('title')).toBe('Main power off; Tamper code 7');
   });
 });
 
