@@ -37,7 +37,7 @@ const FACTS: readonly CopilotFact[] = [
 const ok = (text: string): boolean =>
   renderDraft({ headline: 'Depot briefing', paragraphs: [text] }, FACTS).ok;
 
-/** Ruling S49 M1: every draft the review showed passing, and the forms the ruling names. */
+/** Drafts that once passed the figure rules, and the near-figure forms the window refuses. */
 const M1_DRAFTS: readonly string[] = [
   // a / an + noun after a figure: a rate
   'The network has {{fact:dark}} a depot.',
@@ -86,7 +86,7 @@ const M1_DRAFTS: readonly string[] = [
   '{{fact:pct}} deficit.',
 ];
 
-describe('ruling S49 M1: the review drafts', () => {
+describe('figure window: the listed drafts', () => {
   it.each(M1_DRAFTS)('refuses %j', (text) => {
     expect(ok(text)).toBe(false);
   });
@@ -145,7 +145,7 @@ const CASES = BASES.flatMap((base, b) =>
     .map((slot) => [`sentence ${b + 1}, slot ${slot}`, base, slot, b === 0] as const),
 );
 
-describe('ruling S49 M1: any word within two words of a figure', () => {
+describe('figure window: any word within two words of a figure', () => {
   it.each(BASES)('has a valid base sentence %j', (base) => {
     expect(ok(base.text)).toBe(true);
     expect(okOwnFacts(base.text)).toBe(true);
@@ -182,7 +182,7 @@ describe('ruling S49 M1: any word within two words of a figure', () => {
 });
 
 /** The reviewed lists, written out: a change to the source lists must change this test too. */
-describe('ruling S49 M1: the reviewed window lists', () => {
+describe('figure window: the window word lists', () => {
   it('match the reviewed copy', () => {
     expect([...BEFORE_FIGURE_WORDS].sort().join(' ')).toBe(
       'account against already although and are as at away buses by count cover coverage covers ' +

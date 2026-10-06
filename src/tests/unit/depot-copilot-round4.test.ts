@@ -64,10 +64,10 @@ pehla pahla doosra dusra teesra tisra shunya sifar darjan
 `
   .trim()
   .split(/\s+/);
-/** "do" stays as the English verb (ruling S38 item 15); nothing else on the probe list may pass. */
+/** "do" stays as the English verb; nothing else on the probe list may pass. */
 const PROBE_ALLOWED: readonly string[] = ['do'];
 
-describe('vocabulary endings (S38 items 6 and 15)', () => {
+describe('vocabulary endings', () => {
   const accepted = builtForms().filter(isVocabularyWord);
   const excluded = new Set(EXCLUDED_QUANTITY_WORDS);
 
@@ -98,7 +98,7 @@ describe('vocabulary endings (S38 items 6 and 15)', () => {
   });
 });
 
-describe('what the model may write around a figure (S38)', () => {
+describe('what the model may write around a figure', () => {
   const REFUSED: readonly string[] = [
     // The review's passing inputs.
     'Demand triply exceeds {{fact:a}}.',
@@ -190,7 +190,7 @@ describe('what the model may write around a figure (S38)', () => {
   });
 });
 
-describe('paragraph cap for providers (S38 item 13)', () => {
+describe('paragraph cap for providers', () => {
   const draft = (n: number): { headline: string; paragraphs: string[] } => ({
     headline: 'Network briefing',
     paragraphs: Array.from({ length: n }, () => 'The fleet is steady.'),
@@ -203,7 +203,7 @@ describe('paragraph cap for providers (S38 item 13)', () => {
   });
 });
 
-describe('system prompt states the rules (S38 item 12)', () => {
+describe('system prompt states the rules', () => {
   const prompt = buildSystemPrompt('briefing');
 
   it('lists every restricted word and the provider paragraph cap', () => {

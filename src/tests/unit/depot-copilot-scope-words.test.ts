@@ -3,7 +3,7 @@ import { renderDraft } from '@/lib/depot/copilot/render';
 import type { CopilotFact } from '@/lib/depot/copilot/types';
 
 /*
- * Round 9, item 3 (closing review M-A): a figure is as of the feed time, for
+ * A figure is as of the feed time, for
  * the scope its fact names, so no quantifier or period word may stand anywhere
  * in its clause, not only within two words of it.
  */

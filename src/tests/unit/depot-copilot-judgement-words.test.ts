@@ -4,7 +4,7 @@ import { VOCABULARY_WORDS, isVocabularyWord } from '@/lib/depot/copilot/vocabula
 import type { CopilotFact } from '@/lib/depot/copilot/types';
 
 /*
- * Round 9, item 1 (closing review M-B): no cause is ever stated for a fuel
+ * No cause is ever stated for a fuel
  * variance, and no person is ever blamed or characterised. The words that exist
  * only to do that, or to raise a safety or urgency alarm, are not in the closed
  * vocabulary; the three the scripted writer needs stand only inside their phrase.

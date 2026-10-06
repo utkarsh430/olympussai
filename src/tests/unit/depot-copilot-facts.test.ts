@@ -503,7 +503,7 @@ function allRequests(data: AnswerData = makeData()): [string, CopilotRequest][] 
 const proseOf = (r: CopilotRequest): string =>
   [r.scriptedDraft.headline, ...r.scriptedDraft.paragraphs].join('\n');
 
-/** The scripted writer's sentences the round 7 sentence rules except, by pattern. */
+/** The scripted writer's sentences the sentence rules except, by pattern. */
 function verbLedPatterns(): string[] {
   const recommendations = new Set<string>();
   for (const [, request] of allRequests()) {
@@ -519,7 +519,7 @@ function verbLedPatterns(): string[] {
   return [...recommendations].sort();
 }
 
-describe('round 7 sentence rules: the reviewed sentence lists', () => {
+describe('sentence rules: the listed sentences', () => {
   it('list every sentence the writer opens with a bare verb, and nothing else', () => {
     expect(verbLedPatterns()).toEqual([...RECOMMENDATION_SENTENCES].sort());
   });
@@ -531,7 +531,7 @@ describe('round 7 sentence rules: the reviewed sentence lists', () => {
   });
 });
 
-/** The fact each one-measure answer leads with (round 8 A). */
+/** The fact each one-measure answer leads with. */
 const MEASURE_FACT: Readonly<Record<DepotMeasure, string>> = {
   dark: 'depot.dark',
   offRoad: 'depot.off_road',
@@ -545,7 +545,7 @@ const MEASURE_FACT: Readonly<Record<DepotMeasure, string>> = {
   visitors: 'depot.visitors',
 };
 
-describe('round 8 A: one measure at a depot', () => {
+describe('one measure at a depot', () => {
   it.each(DEPOT_MEASURES)('%s leads with its own figure', (measure) => {
     const request = buildAnswer({ kind: 'depotMeasure', depotId: '101', measure }, makeData());
     expect(request.scriptedDraft.paragraphs[0]).toContain(`{{fact:${MEASURE_FACT[measure]}}}`);
@@ -570,7 +570,7 @@ describe('round 8 A: one measure at a depot', () => {
   });
 });
 
-describe('round 8 A: no title repeats a name', () => {
+describe('no title repeats a name', () => {
   const data = makeData();
   const nameOf = (id: string): string =>
     data.network.depots.find((d) => d.id === id)?.name ?? id;
@@ -1142,7 +1142,7 @@ describe('singular and plural counts agree with their verb', () => {
   });
 });
 
-describe('every figure carries its own noun (S38 items 8 to 11)', () => {
+describe('every figure carries its own noun', () => {
   const BARE_NUMBER = /^[\p{N}.,\s\u2014-]+$/u;
   const variants: [string, CopilotRequest][] = [
     ...allRequests(),
@@ -1184,7 +1184,7 @@ describe('every figure carries its own noun (S38 items 8 to 11)', () => {
   });
 });
 
-/** Round 9, item 4 (closing review M-A): a figure never stands under another depot's name. */
+/** A figure never stands under another depot's name. */
 describe('M-A: a figure beside another depot name', () => {
   const DEPOT_REASON = "Draft puts a figure beside another depot's name";
   const comparison = buildAnswer(

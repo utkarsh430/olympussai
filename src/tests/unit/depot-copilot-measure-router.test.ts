@@ -4,7 +4,7 @@ import { scriptedRoute } from '@/lib/depot/copilot/router/scriptedRouter';
 import { interpretQuery } from '@/lib/depot/copilot/service/interpret';
 
 /**
- * Round 8 A: a question for ONE measure at a named depot is that measure at that
+ * A question for ONE measure at a named depot is that measure at that
  * depot, not the depot's summary (browser capture: "How many buses are dark at
  * KAUSHAMBI right now?" was understood as "A summary of KAUSHAMBI").
  */
@@ -72,7 +72,7 @@ const TABLE: readonly (readonly [string, CopilotQuery, string])[] = [
   ],
 ];
 
-describe('round 8 A: one measure at a named depot', () => {
+describe('one measure at a named depot', () => {
   it('has at least thirty phrasings', () => {
     expect(TABLE.length).toBeGreaterThanOrEqual(30);
   });

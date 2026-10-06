@@ -79,7 +79,7 @@ const HOSTILE: readonly string[] = [
   'Over a decade.',
   'Within a fortnight.',
   'Umpteen buses.',
-  // Words the review noted and the ruling keeps out
+  // Words the grammar keeps out
   'The punctuality score is high.',
   'Both depots are steady.',
   'The second depot is weak.',

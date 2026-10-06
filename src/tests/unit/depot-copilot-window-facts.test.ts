@@ -13,7 +13,7 @@ import { buildDepotDetail } from '@/lib/depot/live/depotView';
 import { buildNetworkResponse } from '@/lib/depot/live/networkView';
 import { formatFeedTime } from '@/lib/depot/format';
 
-/** Review I7: the copilot states the index's window, and a held yard as held. */
+/** The copilot states the index's window, and a held yard as held. */
 
 const rows = normalizeDepotRows(liveFixture).rows;
 const VIEW = {
