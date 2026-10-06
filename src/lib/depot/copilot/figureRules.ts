@@ -11,6 +11,7 @@ import {
   SENTENCE_END_MARK,
   VALUE_LIST_MARK,
 } from '@/lib/depot/copilot/limits';
+import { windowProblem, type WindowProblem } from '@/lib/depot/copilot/figureWindow';
 import { reducesToAny } from '@/lib/depot/copilot/vocabulary';
 
 export type Token =
@@ -30,7 +31,8 @@ export type FigureProblem =
   | 'joined_placeholders'
   | 'figure_link'
   | 'figure_unit'
-  | 'figure_qualifier';
+  | 'figure_qualifier'
+  | WindowProblem;
 
 type EdgesOf = (id: string) => FactEdges;
 type Word = Extract<Token, { kind: 'word' }>;
@@ -112,5 +114,9 @@ function betweenProblem(tokens: readonly Token[], edgesOf: EdgesOf): FigureProbl
 
 /** The first problem with how figures sit among the words, or null. */
 export function figureProblem(tokens: readonly Token[], edgesOf: EdgesOf): FigureProblem | null {
-  return betweenProblem(tokens, edgesOf) ?? neighbourProblem(tokens, edgesOf);
+  return (
+    betweenProblem(tokens, edgesOf) ??
+    neighbourProblem(tokens, edgesOf) ??
+    windowProblem(tokens, (id) => edgesOf(id).figure)
+  );
 }

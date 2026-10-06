@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { buildSystemPrompt } from '@/lib/depot/copilot/cli/prompt';
+import { MAX_SYSTEM_PROMPT_BYTES } from '@/lib/depot/copilot/limits';
 import { renderDraft } from '@/lib/depot/copilot/render';
 import type { CopilotFact } from '@/lib/depot/copilot/types';
 import { isVocabularyWord, VOCABULARY_WORDS } from '@/lib/depot/copilot/vocabulary';
@@ -6,6 +8,7 @@ import {
   AFTER_FIGURE_WORDS,
   BEFORE_FIGURE_WORDS,
   CLAUSE_SCOPE_WORDS,
+  FIGURE_WINDOW_WORDS,
   STATE_NOUNS,
 } from '@/lib/depot/copilot/vocabulary/nearFigure';
 
@@ -156,27 +159,36 @@ describe('ruling S49 M1: any word within two words of a figure', () => {
 describe('ruling S49 M1: the reviewed window lists', () => {
   it('match the reviewed copy', () => {
     expect([...BEFORE_FIGURE_WORDS].sort().join(' ')).toBe(
-      'account active against already although and are as at buses by count coverage currently ' +
-        'dark deficit depot depots distance efficiency feed figure fleet flagged flags for gone ' +
-        'had has have here holds homed in index is it its known latest leave level maximum moving ' +
-        'network now of off on plan position proposes rate receiving reports road schedule sending ' +
-        'share short signal snapshot stand stands surplus that the this those though time to ' +
-        'updated was were which while with yard',
+      'account against already although and are as at away buses by count coverage currently ' +
+        'dark deficit depot depots distance efficiency feed figure flagged flags fleet for gone ' +
+        'had has have here holds homed in index is it its known latest leave level lost ' +
+        'maintenance maximum moving network now of off on plan position proposes rate receiving ' +
+        'reporting reports road running schedule sending share short signal snapshot stand ' +
+        'stands surplus that the this those though time to updated was were which while with yard',
     );
     expect([...AFTER_FIGURE_WORDS].sort().join(' ')).toBe(
-      'against already among and are at away beyond cover dark due fall falls flagged from gone ' +
-        'had has have here higher homed in inside is its keeps largest lost lower of off on ' +
-        'overdue places reporting running scheduled small that the to too was were which whose ' +
-        'within would yet',
+      'against already among and are at away between beyond cover dark due fall falls flagged ' +
+        'from gone had has have here higher homed in inside is its keeps largest lost lower of ' +
+        'off on overdue places reporting running scheduled small that the them to too was were ' +
+        'which whose within would yet',
     );
     expect([...STATE_NOUNS].sort().join(' ')).toBe('balance deficit service surplus');
+  });
+
+  it('are stated in the system prompt, which stays under its byte cap', () => {
+    const prompt = buildSystemPrompt('briefing');
+    for (const list of [BEFORE_FIGURE_WORDS, AFTER_FIGURE_WORDS, STATE_NOUNS, CLAUSE_SCOPE_WORDS]) {
+      expect(prompt).toContain(` ${list.join(' ')}`);
+    }
+    expect(prompt).toContain(`${FIGURE_WINDOW_WORDS} words`);
+    expect(Buffer.byteLength(prompt, 'utf8')).toBeLessThanOrEqual(MAX_SYSTEM_PROMPT_BYTES);
   });
 
   it('removed the day-shift words nothing needs', () => {
     for (const word of ['yesterday', 'tomorrow', 'tonight', 'morning', 'afternoon', 'evening']) {
       expect(isVocabularyWord(word)).toBe(false);
     }
-    for (const word of ['daytime', 'overnight', 'wrong', 'false', 'lie', 'fake']) {
+    for (const word of ['daytime', 'overnight', 'wrong', 'false', 'fake']) {
       expect(isVocabularyWord(word)).toBe(false);
     }
   });

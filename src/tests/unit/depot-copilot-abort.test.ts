@@ -21,9 +21,9 @@ const fs: BinaryFs = {
 const REQUEST: CopilotRequest = {
   task: 'briefing',
   scopeLabel: 'the network',
-  facts: [{ id: 'a', label: 'A', text: '12', provenance: 'live' }],
+  facts: [{ id: 'a', label: 'A', text: '12 buses', provenance: 'live' }],
   guidance: 'g',
-  scriptedDraft: { headline: 'Network', paragraphs: ['{{fact:a}} buses.'] },
+  scriptedDraft: { headline: 'Network', paragraphs: ['The fleet is {{fact:a}}.'] },
 };
 
 function silentChild(): ChildLike & { readonly kill: ReturnType<typeof vi.fn> } {
