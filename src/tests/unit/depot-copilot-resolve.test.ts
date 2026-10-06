@@ -567,6 +567,17 @@ describe('createClaudeCliProvider', () => {
     expect(tryAcquire).not.toHaveBeenCalled();
   });
 
+  it('rejects an unknown task as request_rejected, spending nothing', async () => {
+    const spawn = vi.fn<SpawnLike>(fakeSpawn(() => undefined));
+    const tryAcquire = vi.fn(() => true);
+    const provider = providerWith(spawn, {}, { limiter: { tryAcquire } });
+    const bogus = { ...REQUEST, task: 'bogus' } as unknown as CopilotRequest;
+    await expect(provider.draft(bogus)).rejects.toMatchObject({ reason: 'request_rejected' });
+    expect(spawn).not.toHaveBeenCalled();
+    expect(tryAcquire).not.toHaveBeenCalled();
+    expect(CLI_MAX_BUDGET_USD).toBe(0.25);
+  });
+
   it('reports budget_exhausted without spawning when the call budget is used', async () => {
     const spawn = vi.fn<SpawnLike>(fakeSpawn(() => undefined));
     const provider = providerWith(spawn, {}, { limiter: { tryAcquire: () => false } });
