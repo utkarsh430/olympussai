@@ -8,7 +8,7 @@ import { ErrorPanel, StaleNotice } from '@/components/depot/shell/DataStates';
 import { Pager } from '@/components/depot/shell/LongLists';
 import { SectionLabel } from '@/components/depot/shell/SectionLabel';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
-import { DEPOTS_ROOT } from '@/lib/depot/nav';
+import { SOURCES_PATH } from '@/lib/depot/nav';
 import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/useDepotNetwork';
 import { formatCount } from '@/lib/depot/format';
 import { PAGE_ROWS, pageRange } from '@/lib/depot/listPaging';
@@ -116,7 +116,7 @@ export function RosterPage() {
           sentence={emptyRosterSentence(data, error !== null)}
           remedy="Buses appear here as soon as the feed homes one at this depot."
           action={
-            <Link className="depot-link" href={`${DEPOTS_ROOT}/sources`}>
+            <Link className="depot-link" href={SOURCES_PATH}>
               Data sources
             </Link>
           }

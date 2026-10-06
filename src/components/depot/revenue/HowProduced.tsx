@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { HowProduced as ClosingDisclosure } from '@/components/depot/shell/HowProduced';
-
-const SOURCES_PATH = '/project/depots/sources';
+import { SOURCES_PATH } from '@/lib/depot/nav';
 
 /**
  * The closing disclosure of the fuel and revenue pages: what the page

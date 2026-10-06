@@ -3,8 +3,7 @@ import { requireProjectSession } from '@/lib/auth/server';
 import { RoutesPage } from '@/components/depot/routes/RoutesPage';
 import { PageHeader } from '@/components/depot/shell/PageHeader';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
-
-const ROUTES_PATH = '/project/depots/routes';
+import { ROUTES_PATH } from '@/lib/depot/nav';
 
 /** Every route in the live feed, and which depot should run each one to cut empty running. */
 export default async function DepotRoutesPage() {

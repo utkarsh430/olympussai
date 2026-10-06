@@ -10,7 +10,6 @@ import {
   EMPTY_CREW_REMEDY,
   emptyCrewSentence,
   modelledStatement,
-  SOURCES_HREF,
 } from '@/lib/depot/crew/crewPageModel';
 import { modelledDayLine } from '@/lib/depot/modelledDayLine';
 import { DEPOT_NOT_FOUND_MESSAGE } from '@/lib/depot/scopeState';
@@ -20,6 +19,7 @@ import { AvailabilityHero } from './AvailabilityHero';
 import { CrewHeader, type CrewProvenance } from './CrewHeader';
 import { RosterSection } from './RosterSection';
 import { UncoveredShifts } from './UncoveredShifts';
+import { SOURCES_PATH } from '@/lib/depot/nav';
 
 /** Placeholder footprint: coverage line, bars, then the two sections. */
 const LOADING_ROWS = 10;
@@ -74,7 +74,7 @@ export function CrewPage({ provenance }: CrewPageProps) {
             sentence={emptyCrewSentence(data.operatingDate)}
             remedy={EMPTY_CREW_REMEDY}
             action={
-              <Link href={SOURCES_HREF} className="depot-link">
+              <Link href={SOURCES_PATH} className="depot-link">
                 Data sources
               </Link>
             }

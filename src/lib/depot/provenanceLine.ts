@@ -2,7 +2,7 @@ import type { UpstreamSource } from '@/models/canonical';
 import { isFeedQuiet } from './feedChip';
 import { formatCount, formatFeedTime } from './format';
 import { PROVENANCE_LABEL } from './labels';
-import { DEPOTS_ROOT } from './nav';
+import { SOURCES_PATH } from './nav';
 import { scoreWindowSentence, type WindowWordsInput } from './score/windowWords';
 
 /**
@@ -134,8 +134,6 @@ export function sentenceSegments(
 type FeedState =
   | { readonly kind: 'fresh' | 'stale' | 'sample' | 'quiet'; readonly time: string }
   | { readonly kind: 'unavailable' | 'waiting' };
-
-const SOURCES_PATH = `${DEPOTS_ROOT}/sources`;
 
 /** Data sources, opened at the replacing feed's section when the page names one. */
 function sourcesLink(feedId: string | undefined): ProvenanceLink {

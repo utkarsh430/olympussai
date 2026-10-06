@@ -36,10 +36,8 @@ import { REVENUE_MODEL_PARAMS } from '@/lib/depot/sim/revenueConfig';
 import { EconomicsBreakdown } from './EconomicsBreakdown';
 import { EconomicsGrid } from './EconomicsGrid';
 import { breakdownButtonName } from '@/lib/depot/revenue/economicsLayout';
+import { LEAGUE_PATH, ROUTES_PATH, SOURCES_PATH } from '@/lib/depot/nav';
 
-const LEAGUE_PATH = '/project/depots/league';
-const ROUTES_PATH = '/project/depots/routes';
-const SOURCES_PATH = '/project/depots/sources';
 const HOW_ID = 'economics-how';
 const REPLACED_BY = 'each of the fuel issue, odometer, ticketing and route master feeds';
 

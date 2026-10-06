@@ -1,7 +1,6 @@
 import { requireProjectSession } from '@/lib/auth/server';
 import { EconomicsPage } from '@/components/depot/economics/EconomicsPage';
-
-const ECONOMICS_PATH = '/project/depots/economics';
+import { ECONOMICS_PATH } from '@/lib/depot/nav';
 
 /**
  * Operating depots ranked by the modelled Depot Economics Index within peer groups.

@@ -26,7 +26,7 @@ import {
   emptyBoardSentence,
   matchingNotes,
 } from '@/lib/depot/duties/dutyPageModel';
-import { DEPOTS_ROOT } from '@/lib/depot/nav';
+import { DEPOTS_ROOT, SOURCES_PATH } from '@/lib/depot/nav';
 import { DutiesHeader } from './DutiesHeader';
 import { DutyBoard } from './DutyBoard';
 
@@ -111,7 +111,7 @@ function useDutyBody(depotId: string): {
         testId="depot-empty"
         sentence={emptyBoardSentence(data.operatingDate)}
         remedy={emptyDutiesSentence(data)}
-        action={<Link href={`${DEPOTS_ROOT}/sources`} className="depot-link">Data sources</Link>}
+        action={<Link href={SOURCES_PATH} className="depot-link">Data sources</Link>}
       />
     );
     return { body: <>{stale}<div className="depot-stack">{empty}<HowProduced data={data} /></div></> };

@@ -1,8 +1,7 @@
 import { requireProjectSession } from '@/lib/auth/server';
 import { SourcesRegistry } from '@/components/depot/sources/SourcesRegistry';
 import { PageHeader } from '@/components/depot/shell/PageHeader';
-
-const SOURCES_PATH = '/project/depots/sources';
+import { SOURCES_PATH } from '@/lib/depot/nav';
 
 /** Where each figure comes from: live feeds, how well they are populated, and feeds still awaited. */
 export default async function DepotSourcesPage() {

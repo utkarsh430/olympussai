@@ -1,6 +1,6 @@
 import { formatCount } from '@/lib/depot/format';
 import { BUS_KIND_SEVERITY, DEPOT_EXCEPTION_KINDS } from '@/lib/depot/exceptions/config';
-import { DEPOTS_ROOT } from '@/lib/depot/nav';
+import { EXCEPTIONS_PATH } from '@/lib/depot/nav';
 import { exceptionRows, type ExceptionKindRow } from './overviewModel';
 import type {
   BusExceptionKind,
@@ -94,5 +94,5 @@ export function exceptionGroups(counts: Readonly<Record<ExceptionKind, number>>)
 
 /** The exceptions page, filtered to one kind. */
 export function exceptionKindHref(kind: ExceptionKind): string {
-  return `${DEPOTS_ROOT}/exceptions?kind=${encodeURIComponent(kind)}`;
+  return `${EXCEPTIONS_PATH}?kind=${encodeURIComponent(kind)}`;
 }

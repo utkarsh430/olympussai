@@ -20,10 +20,12 @@ import { modelledDayLine } from '@/lib/depot/modelledDayLine';
 import { ClassTable } from './ClassTable';
 import { FlaggedList } from './FlaggedList';
 import { RouteTable } from './RouteTable';
+import { SOURCES_PATH } from '@/lib/depot/nav';
+import { feedAnchor } from '@/lib/depot/sources/sourcesModel';
 
 /** Placeholder footprint: the band, then the stand-out table, the class table and the routes. */
 const LOADING_ROWS = 14;
-const FUEL_SOURCES_HREF = '/project/depots/sources#feed-fuel';
+const FUEL_SOURCES_HREF = `${SOURCES_PATH}#${feedAnchor('fuel')}`;
 
 /** A modelled day with no distance run: no band and no modelled-day line, one panel. */
 function isEmptyDay(data: FuelResponse): boolean {

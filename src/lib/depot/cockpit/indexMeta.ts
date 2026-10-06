@@ -1,4 +1,4 @@
-import { DEPOTS_ROOT } from '@/lib/depot/nav';
+import { LEAGUE_PATH } from '@/lib/depot/nav';
 import type { ScoreWindow } from '@/lib/depot/score/types';
 import { scoreWindowShort, type WindowWordsInput } from '@/lib/depot/score/windowWords';
 import type { CockpitHeader } from './cockpitTypes';
@@ -17,8 +17,6 @@ export interface IndexMeta {
   readonly reason: string | null;
   readonly href: string;
 }
-
-const LEAGUE_HREF = `${DEPOTS_ROOT}/league`;
 
 /**
  * With no window on the response, or this depot summed over one snapshot, the shared
@@ -40,7 +38,7 @@ export function indexMeta(
 ): IndexMeta {
   if (!header.ranked || header.index === null) {
     const label = 'Index not ranked';
-    return { label, shortLabel: label, reason: header.unrankedReason, href: LEAGUE_HREF };
+    return { label, shortLabel: label, reason: header.unrankedReason, href: LEAGUE_PATH };
   }
   const parts = [`Index ${header.index.toFixed(1)}`];
   if (header.rank !== null && header.peerCount !== null) {
@@ -52,5 +50,5 @@ export function indexMeta(
       ? `Index ${header.index.toFixed(1)} · rank ${header.rank}/${header.peerCount}`
       : `Index ${header.index.toFixed(1)}`;
   parts.push(scoreWindowShort(windowFor(window, depotSamples), feedNow));
-  return { label: parts.join(' · '), shortLabel, reason: null, href: LEAGUE_HREF };
+  return { label: parts.join(' · '), shortLabel, reason: null, href: LEAGUE_PATH };
 }

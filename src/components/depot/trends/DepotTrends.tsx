@@ -12,12 +12,12 @@ import { useDepotForecast } from '@/hooks/useDepotForecast';
 import { AvailabilityPanel } from './AvailabilityPanel';
 import { ForecastBlock } from './ForecastBlock';
 import { MetricChooser } from './MetricChooser';
+import { DEPOTS_ROOT } from '@/lib/depot/nav';
 
 const AVAILABLE: MetricKey = 'available';
 const REQUIREMENT_NOTE =
   "The requirement is the fleet distribution's modelled number of buses the depot needs; the " +
   'forecast is of buses available. Neither side is measured today.';
-const NETWORK_ROOT = '/project/depots';
 
 export interface DepotTrendsProps {
   readonly metric: MetricKey;
@@ -41,7 +41,7 @@ export function DepotTrends({ metric }: DepotTrendsProps) {
       <div data-testid="trends-unknown-depot">
         <EmptyState>
           No depot has the id {depotId} in the current feed.{' '}
-          <Link href={NETWORK_ROOT} className="depot-link">
+          <Link href={DEPOTS_ROOT} className="depot-link">
             Back to the network overview
           </Link>
         </EmptyState>

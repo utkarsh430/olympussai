@@ -20,8 +20,6 @@ export const ROSTER_NOTE =
 export const SLOT_NOTE =
   'Slot numbers only reflect the order in which the roster picked them and say nothing about a person.';
 
-export const SOURCES_HREF = '/project/depots/sources';
-
 export const AVAILABILITY_ORDER: readonly CrewAvailability[] = [
   'available',
   'weekly_off',

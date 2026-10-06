@@ -4,6 +4,7 @@ import DepotCrewPage from '@/app/(protected)/project/depots/d/[depotId]/crew/pag
 import * as crewModel from '@/lib/depot/crew/crewPageModel';
 import { DEPOT_NOT_FOUND_MESSAGE } from '@/lib/depot/scopeState';
 import { bannedOnScreen } from './depot-guard-rendered';
+import { SOURCES_PATH } from '@/lib/depot/nav';
 
 const hooks = vi.hoisted(() => ({ crew: null as unknown }));
 
@@ -213,7 +214,7 @@ describe('crew C, a unit with no duties', () => {
     expect(text).toContain('for 6 Oct 2026');
     expect(text).toContain(crewModel.EMPTY_CREW_REMEDY);
     const link = [...page.querySelectorAll('a')].find(
-      (a) => a.textContent === 'Data sources' && a.getAttribute('href') === crewModel.SOURCES_HREF,
+      (a) => a.textContent === 'Data sources' && a.getAttribute('href') === SOURCES_PATH,
     );
     expect(link).toBeDefined();
     // the panel says the date once; the provenance line adds no second no-duties sentence

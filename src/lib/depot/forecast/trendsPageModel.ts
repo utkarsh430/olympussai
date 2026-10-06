@@ -13,7 +13,6 @@ import { METRIC_LABEL, metricInfo } from './wording';
 
 export const TREND_METRIC_PARAM = 'metric';
 export const DEFAULT_TREND_METRIC: MetricKey = 'onRoadShare';
-export const NETWORK_TRENDS_PATH = '/project/depots/trends';
 
 /** Every metric the history offers, in the forecast module's order. */
 export const TREND_METRICS: readonly MetricKey[] = Object.keys(METRIC_LABEL) as MetricKey[];

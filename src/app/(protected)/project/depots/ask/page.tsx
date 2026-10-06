@@ -2,8 +2,7 @@ import { requireProjectSession } from '@/lib/auth/server';
 import { AskPanel } from '@/components/depot/copilot/AskPanel';
 import { HowProduced } from '@/components/depot/shell/HowProduced';
 import { PageHeader } from '@/components/depot/shell/PageHeader';
-
-const ASK_PATH = '/project/depots/ask';
+import { ASK_PATH } from '@/lib/depot/nav';
 
 /**
  * Rankings, depot summaries and exceptions are computed from the live feed;

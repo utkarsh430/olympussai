@@ -3,8 +3,7 @@ import { requireProjectSession } from '@/lib/auth/server';
 import { ExceptionCentre } from '@/components/depot/exceptions/ExceptionCentre';
 import { LoadingBlock } from '@/components/depot/shell/DataStates';
 import { PageHeader } from '@/components/depot/shell/PageHeader';
-
-const EXCEPTIONS_PATH = '/project/depots/exceptions';
+import { EXCEPTIONS_PATH } from '@/lib/depot/nav';
 
 /** Depots and buses that need attention, described with the numbers behind them. */
 export default async function DepotExceptionsPage() {

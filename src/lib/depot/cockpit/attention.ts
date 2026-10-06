@@ -2,7 +2,7 @@ import type { DepotDetailResponse } from '@/lib/depot/api';
 import { depotHref } from '@/lib/depot/depotNav';
 import { formatCount } from '@/lib/depot/format';
 import { DARK_AFTER_MIN, REPORTING_WINDOW_MIN } from '@/lib/depot/infer/thresholds';
-import { DEPOTS_ROOT } from '@/lib/depot/nav';
+import { EXCEPTIONS_PATH } from '@/lib/depot/nav';
 import { hasTamperCode, notHeardText } from '@/lib/depot/roster/rosterModel';
 import { rosterFilterHref } from '@/lib/depot/roster/rosterQuery';
 
@@ -59,7 +59,7 @@ export function buildAttention(detail: DepotDetailResponse, depotId: string): At
       count: emergency,
       text: `${buses(emergency)} ${verb(emergency, 'raises', 'raise')} the emergency flag`,
       // The exception centre owns the emergency list; narrowed to this depot.
-      href: `${DEPOTS_ROOT}/exceptions?kind=emergency&depot=${encodeURIComponent(depotId)}`,
+      href: `${EXCEPTIONS_PATH}?kind=emergency&depot=${encodeURIComponent(depotId)}`,
       destination: 'Exceptions',
     },
     {
