@@ -66,14 +66,27 @@ function minutesFor(
 }
 
 /** Overdue first, then due, upcoming, unknown, departed, ended; by scheduled time within each. */
+/** Most overdue first: an unknown overdue time sorts after every known one. */
+function compareOverdue(a: TrackerRow, b: TrackerRow): number {
+  if (a.minutes === b.minutes) return 0;
+  if (a.minutes === null) return 1;
+  if (b.minutes === null) return -1;
+  return b.minutes - a.minutes;
+}
+
+function compareRows(a: TrackerRow, b: TrackerRow): number {
+  const byState = OUTSHED_ORDER.indexOf(a.state) - OUTSHED_ORDER.indexOf(b.state);
+  if (byState !== 0) return byState;
+  return (
+    (a.state === 'overdue' ? compareOverdue(a, b) : 0) ||
+    a.scheduledStart.localeCompare(b.scheduledStart) ||
+    a.registrationNumber.localeCompare(b.registrationNumber, 'en')
+  );
+}
+
+/** Overdue (most overdue first), due, upcoming, unknown, departed, ended; by time within each. */
 export function buildTracker(rows: readonly OutshedRow[], feedNow: string | null): TrackerRow[] {
-  return [...rows]
-    .sort(
-      (a, b) =>
-        OUTSHED_ORDER.indexOf(a.state) - OUTSHED_ORDER.indexOf(b.state) ||
-        a.scheduledStart.localeCompare(b.scheduledStart) ||
-        a.registrationNumber.localeCompare(b.registrationNumber, 'en'),
-    )
+  return rows
     .map((row) => ({
       key: `${row.registrationNumber}:${row.scheduledStart}`,
       registrationNumber: row.registrationNumber,
@@ -83,13 +96,43 @@ export function buildTracker(rows: readonly OutshedRow[], feedNow: string | null
       state: row.state,
       label: OUTSHED_STATE_LABEL[row.state],
       ...minutesFor(row, feedNow),
-    }));
+    }))
+    .sort(compareRows);
 }
 
-/** "31 of 142 buses carry a schedule for today." */
-export function coverageSentence(coverage: Coverage): string {
-  if (coverage.of === 0) return 'This depot has no buses, so none carries a schedule for today.';
+/** Below this share of the fleet carrying a schedule, the tracker says who it cannot see. */
+export const THIN_SCHEDULE_SHARE = 0.5;
+const FEED_DATE_PATTERN = /^[0-9]{4}-[0-9]{2}-[0-9]{2}/;
+
+/** YYYY-MM-DD as written in the feed's own clock; null without one. */
+export function feedDateOf(feedNow: string | null): string | null {
+  return feedNow === null ? null : (FEED_DATE_PATTERN.exec(feedNow)?.[0] ?? null);
+}
+
+function forFeedDate(feedDate: string | null): string {
+  return feedDate === null ? 'for the feed date' : `for the feed date, ${feedDate}`;
+}
+
+/**
+ * "31 of 142 buses carry a schedule for the feed date, 2026-10-06." When few do,
+ * a second sentence says the rest are invisible here, so a short list is never
+ * read as all of the depot's departures.
+ */
+export function coverageSentence(coverage: Coverage, feedDate: string | null): string {
+  if (coverage.of === 0) {
+    return 'This depot has no buses, so none carries a schedule for the feed date.';
+  }
   const noun = coverage.of === 1 ? 'bus' : 'buses';
   const verb = coverage.n === 1 || coverage.of === 1 ? 'carries' : 'carry';
-  return `${formatCount(coverage.n)} of ${formatCount(coverage.of)} ${noun} ${verb} a schedule for today.`;
+  const first = `${formatCount(coverage.n)} of ${formatCount(coverage.of)} ${noun} ${verb} a schedule ${forFeedDate(feedDate)}.`;
+  const rest = coverage.of - coverage.n;
+  if (coverage.n === 0 || coverage.n / coverage.of >= THIN_SCHEDULE_SHARE) return first;
+  return `${first} Only these buses can be tracked: the other ${formatCount(rest)} ${
+    rest === 1 ? 'carries' : 'carry'
+  } no schedule for that date, so their departures are not shown.`;
+}
+
+/** The tracker's empty state. */
+export function noSchedulesSentence(feedDate: string | null): string {
+  return `No bus carries a schedule ${forFeedDate(feedDate)}, so there are no departures to track.`;
 }

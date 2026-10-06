@@ -78,6 +78,8 @@ export interface CockpitModel {
   readonly board: StatusBoard;
   readonly tracker: readonly TrackerRow[];
   readonly coverageSentence: string;
+  /** The tracker's empty state, naming the feed date. */
+  readonly noSchedulesSentence: string;
   readonly hasSchedules: boolean;
   readonly exceptions: readonly ExceptionLine[];
   readonly visitors: readonly VisitorRow[];

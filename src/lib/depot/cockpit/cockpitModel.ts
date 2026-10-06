@@ -15,7 +15,7 @@ import type { DepotScore } from '@/lib/depot/score/types';
 import type { DepotSummary } from '@/lib/depot/types';
 import type { CockpitHeader, CockpitModel, ExceptionLine, VisitorRow } from './cockpitTypes';
 import { buildBoard, describeYard } from './statusBoard';
-import { buildTracker, coverageSentence } from './outshedTracker';
+import { buildTracker, coverageSentence, feedDateOf, noSchedulesSentence } from './outshedTracker';
 
 /**
  * What a depot manager sees first on a shift: the cockpit's figures, derived
@@ -97,11 +97,13 @@ function buildVisitors(visitors: readonly VisitorBus[]): VisitorRow[] {
 
 export function buildCockpit(detail: DepotDetailResponse): CockpitModel {
   const yard = describeYard(detail.yard);
+  const feedDate = feedDateOf(detail.feedNow);
   return {
     header: buildHeader(detail.depot, detail.score),
     board: buildBoard(detail.depot, detail.buses, yard),
     tracker: buildTracker(detail.outshed.rows, detail.feedNow),
-    coverageSentence: coverageSentence(detail.outshed.coverage),
+    coverageSentence: coverageSentence(detail.outshed.coverage, feedDate),
+    noSchedulesSentence: noSchedulesSentence(feedDate),
     hasSchedules: detail.outshed.rows.length > 0,
     exceptions: buildExceptions(detail.exceptions),
     visitors: buildVisitors(detail.visitors),
