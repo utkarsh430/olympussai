@@ -76,14 +76,28 @@ export function trendsHref(path: string, metric: MetricKey): string {
   return `${path}?${params.toString()}`;
 }
 
+const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/** A YYYY-MM-DD that names a real calendar day, so a printed date is never "NaN". */
+function isRealDate(value: string): boolean {
+  const match = ISO_DATE.exec(value);
+  if (match === null) return false;
+  const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+}
+
 /** The trend of a series too short or broken to have one: why, in words. */
 export function noTrendSentence(result: Exclude<TrendResult, { status: 'ok' }>): string {
   if (result.status === 'invalid_input') {
     return 'No trend: the history for this measure could not be read.';
   }
   if (result.missingDate !== null) {
+    const gap = isRealDate(result.missingDate)
+      ? `the history is missing ${formatDate(result.missingDate, true)}`
+      : 'the history has a gap';
     return (
-      `No trend yet: the history is missing ${formatDate(result.missingDate, true)}, ` +
+      `No trend yet: ${gap}, ` +
       `so only the ${result.historyDays} days since count, and a trend needs ${result.required}.`
     );
   }
