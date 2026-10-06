@@ -1,3 +1,5 @@
+import { SectionLabel } from '@/components/depot/shell/SectionLabel';
+import { StatePanel } from '@/components/depot/shell/StatePanel';
 import Link from 'next/link';
 import { PEER_GROUP_LABEL } from '@/lib/depot/labels';
 import { depotLink } from '@/lib/depot/network/mapWords';
@@ -92,14 +94,18 @@ export function RankedStrip({ rows, selectedId, onSelect }: RankedStripProps) {
 
   return (
     <section aria-labelledby="depot-ranked-heading" data-testid="depot-ranked-strip">
-      <h2 id="depot-ranked-heading" className="depot-section-label">
-        Efficiency index · highest and lowest operating depots
-      </h2>
+      <SectionLabel
+        id="depot-ranked-heading"
+        label="Efficiency index · highest and lowest operating depots"
+      />
       {top.length === 0 ? (
-        <p className="depot-prose" data-testid="depot-ranked-empty">
-          No depot can be ranked on this snapshot: a depot needs at least {MIN_FLEET_FOR_RANK} buses
-          in the feed to be compared with its peers.
-        </p>
+        <StatePanel
+          kind="not-ranked"
+          rows={5}
+          testId="depot-ranked-empty"
+          sentence={`No depot can be ranked on this snapshot: a depot needs at least ${MIN_FLEET_FOR_RANK} buses in the feed to be compared with its peers.`}
+          remedy="A depot is ranked once enough of its buses report."
+        />
       ) : (
         <>
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
