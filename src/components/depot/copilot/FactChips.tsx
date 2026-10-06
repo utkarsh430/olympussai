@@ -26,28 +26,30 @@ export function FactChips({ facts }: FactChipsProps) {
       <button
         type="button"
         aria-expanded={open}
-        aria-controls={listId}
+        aria-controls={open ? listId : undefined}
         onClick={() => setOpen((value) => !value)}
         className="depot-label cursor-pointer select-none text-left hover:text-depot-ink"
       >
         Figures used: {facts.length}
       </button>
-      <ul id={listId} hidden={!open} className="mt-2 flex flex-col gap-1">
-        {rows.map((fact, index) => (
-          <li
-            key={`${fact.id}-${index}`}
-            className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-depot-line py-1"
-          >
-            <span className="min-w-0 break-words font-mono text-[12px] text-depot-muted">
-              {fact.label}
-            </span>
-            <span className="min-w-0 break-words font-mono text-[13px] tabular-nums text-depot-ink">
-              {fact.text}
-            </span>
-            <ProvenanceBadge provenance={fact.provenance} />
-          </li>
-        ))}
-      </ul>
+      {open ? (
+        <ul id={listId} className="mt-2 flex flex-col gap-1">
+          {rows.map((fact, index) => (
+            <li
+              key={`${fact.id}-${index}`}
+              className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-depot-line py-1"
+            >
+              <span className="min-w-0 break-words font-mono text-[12px] text-depot-muted">
+                {fact.label}
+              </span>
+              <span className="min-w-0 break-words font-mono text-[13px] tabular-nums text-depot-ink">
+                {fact.text}
+              </span>
+              <ProvenanceBadge provenance={fact.provenance} />
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   );
 }

@@ -68,6 +68,9 @@ describe('model text is rendered literally', () => {
         ]}
       />,
     );
+    await act(async () => {
+      container.querySelector('button')?.click();
+    });
     expectInert();
   });
 
@@ -96,16 +99,21 @@ describe('small component behaviour', () => {
       <FactChips facts={[{ id: 'a', label: 'L', text: 'T', provenance: 'live' }]} />,
     );
     const button = container.querySelector('button') as HTMLButtonElement;
-    const list = container.querySelector('ul') as HTMLElement;
     expect(button.textContent).toBe('Figures used: 1');
     expect(button.getAttribute('aria-expanded')).toBe('false');
-    expect(button.getAttribute('aria-controls')).toBe(list.id);
-    expect(list.hidden).toBe(true);
+    // Collapsed means absent: a display utility would beat the `hidden` attribute.
+    expect(container.querySelector('ul')).toBeNull();
+    expect(button.hasAttribute('aria-controls')).toBe(false);
     await act(async () => {
       button.click();
     });
+    const list = container.querySelector('ul') as HTMLElement;
     expect(button.getAttribute('aria-expanded')).toBe('true');
-    expect(list.hidden).toBe(false);
+    expect(button.getAttribute('aria-controls')).toBe(list.id);
+    await act(async () => {
+      button.click();
+    });
+    expect(container.querySelector('ul')).toBeNull();
   });
 
   it('CopilotText can take focus on its headline', async () => {
