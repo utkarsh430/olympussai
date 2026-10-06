@@ -1,5 +1,7 @@
 import { formatCount, formatShare } from '@/lib/depot/format';
+import { MIN_FLEET_FOR_RANK } from '@/lib/depot/score/config';
 import type { DepotSummary, NetworkKpis, Provenance } from '@/lib/depot/types';
+import type { UnrankedSummary } from './overviewModel';
 
 /**
  * Words and layout for the overview's figures and table. A **unit** is any
@@ -172,4 +174,21 @@ export function tableCap(total: number, expanded: boolean): TableCap {
   if (total <= TABLE_ROW_CAP) return { capped: false, shown: total, toggle: null };
   if (expanded) return { capped: false, shown: total, toggle: `Show first ${TABLE_ROW_CAP}` };
   return { capped: true, shown: TABLE_ROW_CAP, toggle: `Show all ${formatCount(total)}` };
+}
+
+function counted(n: number, one: string, many: string): string {
+  return `${formatCount(n)} ${n === 1 ? one : many}`;
+}
+
+/** "25 units are not ranked: 1 operating depot with fewer than 10 buses, 24 other units." */
+export function unrankedSentence(summary: UnrankedSummary): string {
+  const parts = [
+    summary.fleetTooSmall > 0
+      ? `${counted(summary.fleetTooSmall, 'operating depot', 'operating depots')} with fewer than ${MIN_FLEET_FOR_RANK} buses`
+      : null,
+    summary.notADepot > 0 ? counted(summary.notADepot, 'other unit', 'other units') : null,
+    summary.unscored > 0 ? `${formatCount(summary.unscored)} without a score` : null,
+  ].filter((part): part is string => part !== null);
+  const verb = summary.total === 1 ? 'is' : 'are';
+  return `${counted(summary.total, 'unit', 'units')} ${verb} not ranked: ${parts.join(', ')}.`;
 }

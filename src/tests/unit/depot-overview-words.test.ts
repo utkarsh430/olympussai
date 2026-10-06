@@ -7,6 +7,7 @@ import {
   tableColumnKeys,
   tableHeading,
   unitCounts,
+  unrankedSentence,
 } from '@/lib/depot/network/overviewWords';
 import type { DepotKind, DepotSummary, NetworkKpis } from '@/lib/depot/types';
 
@@ -128,5 +129,22 @@ describe('table wording', () => {
     expect(tableCap(143, false)).toEqual({ capped: true, shown: 25, toggle: 'Show all 143' });
     expect(tableCap(143, true)).toEqual({ capped: false, shown: 143, toggle: 'Show first 25' });
     expect(tableCap(24, false)).toEqual({ capped: false, shown: 24, toggle: null });
+  });
+});
+
+describe('unrankedSentence', () => {
+  it('says which units are not ranked, in the shared terms', () => {
+    expect(
+      unrankedSentence({ total: 25, fleetTooSmall: 1, notADepot: 24, unscored: 0 }),
+    ).toBe('25 units are not ranked: 1 operating depot with fewer than 10 buses, 24 other units.');
+    expect(unrankedSentence({ total: 1, fleetTooSmall: 0, notADepot: 1, unscored: 0 })).toBe(
+      '1 unit is not ranked: 1 other unit.',
+    );
+    expect(unrankedSentence({ total: 3, fleetTooSmall: 3, notADepot: 0, unscored: 0 })).toBe(
+      '3 units are not ranked: 3 operating depots with fewer than 10 buses.',
+    );
+    expect(unrankedSentence({ total: 2, fleetTooSmall: 0, notADepot: 0, unscored: 2 })).toBe(
+      '2 units are not ranked: 2 without a score.',
+    );
   });
 });
