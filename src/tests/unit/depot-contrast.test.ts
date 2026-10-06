@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import colors from 'tailwindcss/colors';
 import config from '../../../tailwind.config';
 
 /**
@@ -53,8 +54,17 @@ function contrast(text: Rgba, surface: Rgba): number {
 }
 
 const PAGE = parse(depot.page);
+/**
+ * The page where the shell's backdrop (`.depot-shell::before` in globals.css) is
+ * brightest: the ambient glow's centre (0.08) under a grid line (0.033).
+ */
+const BACKDROP_PEAK = over(
+  parse('rgba(63, 240, 255, 0.033)'),
+  over(parse('rgba(34, 217, 245, 0.08)'), PAGE),
+);
 const SURFACES: Readonly<Record<string, Rgba>> = {
   page: PAGE,
+  'backdrop peak': BACKDROP_PEAK,
   surface: over(parse(depot.surface), PAGE),
   bar: over(parse(depot.bar), PAGE),
   raised: over(parse(depot.raised), PAGE),
@@ -70,10 +80,12 @@ const TEXT: Readonly<Record<string, string>> = {
   'alert-amber': palette.alert.amber,
   'alert-crimson': palette.alert.crimson,
   'alert-green': palette.alert.green,
+  /* The quiet REFERENCE tag. */
+  'slate-400': colors.slate[400],
 };
 
 /** The tones that print a word on their own wash (provenance and feed tags). */
-const TAG_TONES = ['holo-glow', 'alert-amber', 'alert-crimson', 'alert-green', 'depot-muted'];
+const TAG_TONES = ['holo-glow', 'alert-amber', 'alert-crimson', 'alert-green', 'slate-400'];
 
 describe('depot palette contrast', () => {
   for (const [textName, textColour] of Object.entries(TEXT)) {
