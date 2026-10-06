@@ -336,6 +336,38 @@ const QUERIES: readonly CopilotQuery[] = [
   { kind: 'unsupported' },
 ];
 
+const ALL_ONE: Partial<StateMix> = { inService: 0, onRoad: 1, standing: 0, dark: 1, offRoad: 1 };
+
+/** Every network count exactly one, so each singular verb form is rendered. */
+function oneEachNetwork(): DepotNetworkResponse {
+  const net = makeNetwork({ counts: { long_dark: 1 } });
+  return {
+    ...net,
+    kpis: {
+      ...net.kpis,
+      reporting: fig(1),
+      onRoad: fig(1, 'derived'),
+      noSignal: fig(1),
+      underMaintenance: fig(1),
+    },
+  };
+}
+
+/** Every depot count exactly one, a one-bus yard and a single depot-level exception. */
+function oneEachDetail(): DepotDetailResponse {
+  const base = makeDetail({
+    withExceptions: true,
+    depot: makeDepot('101', 'KANPUR', 'depot', ALL_ONE),
+  });
+  const yard = {
+    value: { lat: 26.4, lng: 80.3, radiusM: 300, parked: 40, inCluster: 1 },
+    provenance: 'derived' as const,
+  };
+  return { ...base, yard, exceptions: { depot: base.exceptions.depot, bus: [] } };
+}
+
+const UNSUPPORTED_REASONS = [undefined, 'out_of_scope', 'people', 'ambiguous_depot'] as const;
+
 function allRequests(data: AnswerData = makeData()): [string, CopilotRequest][] {
   const dist = data.distribution ?? makeDistribution();
   const first = data.details?.['101'] ?? makeDetail();
@@ -405,6 +437,22 @@ function allRequests(data: AnswerData = makeData()): [string, CopilotRequest][] 
       ),
     ],
     ['transfer', buildTransferRationale(transfer, dist)],
+    [
+      'transfer beyond the maximum distance',
+      buildTransferRationale(transfer, {
+        ...dist,
+        rebalanceParams: { ...dist.rebalanceParams, maxTransferKm: 100 },
+      }),
+    ],
+    ['network, every count one', buildNetworkBriefing(oneEachNetwork())],
+    ['depot, every count one', buildDepotBriefing(oneEachDetail())],
+    ...UNSUPPORTED_REASONS.map((reason): [string, CopilotRequest] => [
+      `unsupported, ${reason ?? 'no reason'}`,
+      buildAnswer(
+        reason === undefined ? { kind: 'unsupported' } : { kind: 'unsupported', reason },
+        data,
+      ),
+    ]),
     ['transfer without balances', buildTransferRationale(transfer, { ...dist, balances: [] })],
     ...QUERIES.map((q): [string, CopilotRequest] => [
       `${q.kind} ${JSON.stringify(q)}`,
@@ -677,6 +725,25 @@ describe('answers', () => {
     expect(prose.length).toBeLessThan(600);
   });
 
+  it('words an unsupported answer by its reason', () => {
+    const prose = (reason?: 'out_of_scope' | 'people' | 'ambiguous_depot'): string =>
+      proseOf(
+        buildAnswer(
+          reason === undefined ? { kind: 'unsupported' } : { kind: 'unsupported', reason },
+          data,
+        ),
+      );
+    expect(prose('ambiguous_depot')).toContain(
+      "That name matches more than one depot. Use the depot's full name.",
+    );
+    expect(prose('ambiguous_depot')).not.toMatch(/people/i);
+    expect(prose('people')).toContain('Questions about people are outside that scope.');
+    for (const generic of [prose(), prose('out_of_scope')]) {
+      expect(generic).toContain('can answer questions about');
+      expect(generic).not.toMatch(/people|matches more than one/i);
+    }
+  });
+
   it('says an answer is unavailable instead of inventing one', () => {
     const request = buildAnswer(
       { kind: 'transfersFor', depotId: '101' },
@@ -826,6 +893,13 @@ describe('hostile text in data', () => {
 });
 
 describe('singular and plural counts agree with their verb', () => {
+  it('says "this item" for one exception and "these items" for several', () => {
+    const one = paragraphsOf(buildDepotBriefing(oneEachDetail())).join(' ');
+    expect(one).toContain('A closer look at this item could be worthwhile.');
+    const many = paragraphsOf(buildDepotBriefing(makeDetail({ withExceptions: true }))).join(' ');
+    expect(many).toContain('A closer look at these items could be worthwhile.');
+  });
+
   const fleetLine = (o: Partial<StateMix>): string | undefined =>
     paragraphsOf(
       buildDepotBriefing(makeDetail({ depot: makeDepot('101', 'KANPUR', 'depot', o) })),

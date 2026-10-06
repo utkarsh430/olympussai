@@ -1,5 +1,10 @@
 import type { CopilotQuery, RankMetric } from '@/lib/depot/copilot/queries';
-import { UNSUPPORTED_QUERY, metricHigherIsBetter } from '@/lib/depot/copilot/queries';
+import {
+  AMBIGUOUS_DEPOT_QUERY,
+  OUT_OF_SCOPE_QUERY,
+  PEOPLE_QUERY,
+  metricHigherIsBetter,
+} from '@/lib/depot/copilot/queries';
 import { resolveDepot, type DepotRef } from '@/lib/depot/copilot/router/resolveDepot';
 import { sanitizeQuestion } from '@/lib/depot/copilot/router/sanitize';
 
@@ -13,9 +18,12 @@ const PEOPLE =
   /\b(crew|crews|drivers?|driving|driven|drives|conductors?|operators?|workers?|staff|employees?|personnel|manpower|people|persons?|individuals?|duty|duties|shifts?|rosters?|managers?|supervisors?|technicians?|mechanics?|attendance|salary|salaries)\b/;
 /**
  * No catalogue query answers "who" about people, so a question that opens with it is
- * declined, unless it carries a ranking cue ("who has the most dark buses" ranks depots).
+ * declined, unless it carries a ranking cue and a depot, bus or fleet noun ("who has the most
+ * dark buses" ranks depots; "who is the best performer" asks about people).
  */
 const LEADING_WHO = /^(who|whom|whose)\b/;
+/** A depot, bus or fleet noun: what a leading "who" ranking question must be about. */
+const FLEET_NOUN = /\b(depots?|bus|buses|fleets?)\b/;
 const COMPARE = /\b(compare\w*|versus|vs|against|differ\w*)\b/;
 const TRANSFER =
   /\b(transfers?|transferr\w*|moves?|moved|moving|send\w*|reallocat\w*|redistribut\w*|rebalanc\w*|lend\w*|borrow\w*)\b/;
@@ -164,15 +172,37 @@ function wantsOtherThanNetwork(text: string): boolean {
   return [...text.matchAll(NAMED_AFTER_PREPOSITION)].some((m) => !SCOPE_WORDS.has(m[1] ?? ''));
 }
 
-/** A word or word pair that begins the names of several depots: a name, but not a clear one. */
+const STOP_WORDS = new Set('all any are can how new the was what who and for not'.split(' '));
+const QUESTION_PATTERNS = [
+  NETWORK,
+  EXCEPTION,
+  DEFICIT,
+  SURPLUS,
+  RANKING,
+  TRANSFER,
+  OUTSHED,
+  COMPARE,
+];
+
+/**
+ * A question word that is the whole first word of several depot names ("meerut" for
+ * MEERUT CITY and MEERUT ROAD): a name, but not a clear one. Words the question
+ * patterns already use, and stop words, are never taken as names.
+ */
 function namesAmbiguousDepot(text: string, depots: readonly DepotRef[]): boolean {
   const words = text.match(/[a-z0-9]+/g) ?? [];
-  const phrases = words.flatMap((w, i) => [w, words[i + 1] ? `${w} ${words[i + 1]}` : '']);
-  return phrases.some(
-    (p) =>
-      p.length >= MIN_NAME_CHARS &&
-      depots.filter((d) => d.name.toLowerCase().startsWith(p)).length > 1,
+  return words.some(
+    (w) =>
+      w.length >= MIN_NAME_CHARS &&
+      !STOP_WORDS.has(w) &&
+      !QUESTION_PATTERNS.some((pattern) => pattern.test(w)) &&
+      depots.filter((d) => d.name.toLowerCase().match(/[a-z0-9]+/)?.[0] === w).length > 1,
   );
+}
+
+/** The refusal for a question that needed a depot it could not pin down. */
+function declined(text: string, depots: readonly DepotRef[]): CopilotQuery {
+  return namesAmbiguousDepot(text, depots) ? AMBIGUOUS_DEPOT_QUERY : OUT_OF_SCOPE_QUERY;
 }
 
 function limitFrom(text: string): number {
@@ -210,8 +240,11 @@ export function scriptedRoute(
 ): CopilotQuery {
   const clean = sanitizeQuestion(question);
   const text = clean.toLowerCase();
-  if (text === '' || PEOPLE.test(text)) return UNSUPPORTED_QUERY;
-  if (LEADING_WHO.test(text) && !RANKING.test(text)) return UNSUPPORTED_QUERY;
+  if (text === '') return OUT_OF_SCOPE_QUERY;
+  if (PEOPLE.test(text)) return PEOPLE_QUERY;
+  if (LEADING_WHO.test(text) && !(RANKING.test(text) && FLEET_NOUN.test(text))) {
+    return PEOPLE_QUERY;
+  }
 
   const scope = depots.some((d) => d.id === scopeDepotId) ? scopeDepotId : undefined;
   const named = findDepots(text, depots);
@@ -221,11 +254,11 @@ export function scriptedRoute(
       : named;
   const needsDepot = (build: (id: string) => CopilotQuery): CopilotQuery => {
     const id = first ?? scope;
-    return id === undefined ? UNSUPPORTED_QUERY : build(id);
+    return id === undefined ? declined(text, depots) : build(id);
   };
 
   if (COMPARE.test(text) || (first !== undefined && second !== undefined)) {
-    if (first === undefined || second === undefined) return UNSUPPORTED_QUERY;
+    if (first === undefined || second === undefined) return declined(text, depots);
     return { kind: 'compareDepots', depotA: first, depotB: second };
   }
   if (TRANSFER.test(text)) return needsDepot((depotId) => ({ kind: 'transfersFor', depotId }));
@@ -251,5 +284,5 @@ export function scriptedRoute(
   if (NETWORK.test(text) && !wantsOtherThanNetwork(text) && !namesAmbiguousDepot(text, depots)) {
     return { kind: 'networkSummary' };
   }
-  return UNSUPPORTED_QUERY;
+  return declined(text, depots);
 }

@@ -46,7 +46,7 @@ describe('scriptedRoute with a scope depot', () => {
   });
 
   it('still declines questions about people', () => {
-    expect(scriptedRoute('Which drivers at this depot are late?', DEPOTS, '102')).toEqual({
+    expect(scriptedRoute('Which drivers at this depot are late?', DEPOTS, '102')).toMatchObject({
       kind: 'unsupported',
     });
   });
@@ -55,11 +55,11 @@ describe('scriptedRoute with a scope depot', () => {
     for (const question of ['Give me a summary of this depot.', 'Any exceptions?']) {
       expect(scriptedRoute(question, DEPOTS, '999')).toEqual(scriptedRoute(question, DEPOTS));
     }
-    expect(scriptedRoute('Any exceptions?', DEPOTS, '999')).toEqual({ kind: 'unsupported' });
+    expect(scriptedRoute('Any exceptions?', DEPOTS, '999')).toMatchObject({ kind: 'unsupported' });
   });
 
   it('declines "this depot" with no scope, as before', () => {
-    expect(scriptedRoute('What exceptions does this depot have?', DEPOTS)).toEqual({
+    expect(scriptedRoute('What exceptions does this depot have?', DEPOTS)).toMatchObject({
       kind: 'unsupported',
     });
   });
