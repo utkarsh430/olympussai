@@ -35,6 +35,11 @@ export interface DepotFeedEnvelope {
   readonly fetchedAt: string;
   readonly source: UpstreamSource;
   readonly stale: boolean;
+  /**
+   * Sent only when above zero: rows whose receive time was later than the server's own
+   * clock allows, ignored when the feed clock was read. The feed clock may then lag.
+   */
+  readonly feedClockAheadRows?: number;
 }
 
 /** GET /api/upsrtc/depot/network */

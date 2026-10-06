@@ -40,6 +40,7 @@ export function createLiveFleetRepository(
         fetchedAt: snapshot.fetchedAt,
         source,
         stale: staleForDepots(result, now()),
+        feedClockAheadRows: snapshot.feedClockAheadRows,
         recordCount: snapshot.recordCount,
       };
     },

@@ -224,12 +224,14 @@ export function resetAnalysisForTests(): void {
  * request and stale last-good on the next.
  */
 export function feedEnvelope(view: FleetSnapshotView): DepotFeedEnvelope {
-  return {
+  const envelope: DepotFeedEnvelope = {
     feedNow: view.feedNow,
     fetchedAt: view.fetchedAt,
     source: view.source,
     stale: view.stale,
   };
+  const ahead = view.feedClockAheadRows ?? 0;
+  return ahead > 0 ? { ...envelope, feedClockAheadRows: ahead } : envelope;
 }
 
 /**

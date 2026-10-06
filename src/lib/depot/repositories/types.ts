@@ -25,6 +25,11 @@ export interface FleetSnapshotView {
   readonly source: UpstreamSource;
   readonly stale: boolean;
   readonly recordCount: number;
+  /**
+   * Rows whose receive time was later than the server's own clock allows and were ignored
+   * when the feed clock was read. Above zero, the feed clock may lag the newest report.
+   */
+  readonly feedClockAheadRows?: number;
 }
 
 export interface FleetRepository {
