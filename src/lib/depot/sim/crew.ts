@@ -19,6 +19,14 @@ export const CREW_PER_SHIFT: Readonly<Record<CrewRole, number>> = {
   conductor: 1.4,
 };
 
+/**
+ * Slots every role gets on top of the ratio. With very few slots the absence
+ * draw is a handful of coin flips, so a small depot looks badly short on a bad
+ * date: an artefact of small numbers, not a finding about the depot. A depot
+ * with no shifts models no crew at all.
+ */
+export const CREW_RESERVE_SLOTS = 2;
+
 /** Seeded share of slots in each non-available state; the rest are available. */
 export const ABSENCE_SHARES: Readonly<Record<Exclude<CrewAvailability, 'available'>, number>> = {
   weekly_off: 0.14, // one rest day in seven
@@ -76,7 +84,10 @@ export function modelCrew(
   const rng = new SeededRandom(seedFor(depot.id, operatingDate, 'crew'));
   const crew: CrewSlot[] = [];
   for (const role of ROLES) {
-    const strength = Math.max(shiftCount, Math.ceil(shiftCount * CREW_PER_SHIFT[role]));
+    const strength =
+      shiftCount === 0
+        ? 0
+        : Math.max(shiftCount, Math.ceil(shiftCount * CREW_PER_SHIFT[role])) + CREW_RESERVE_SLOTS;
     for (let number = 1; number <= strength; number += 1) {
       // Both draws are always taken so the stream stays aligned.
       const availability = drawAvailability(rng);
