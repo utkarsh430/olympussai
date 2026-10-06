@@ -76,6 +76,11 @@ function prune(store: YardMemoryStore, feedMs: number): void {
   for (const [id] of oldestFirst.slice(0, excess)) store.byDepot.delete(id);
 }
 
+export interface YardContinuityOptions {
+  /** The recorded fixture: the rule alone; the memory is neither read nor written. */
+  readonly fixture?: boolean;
+}
+
 /**
  * The yards every page uses on this snapshot: the single-snapshot yards with
  * continuity applied. Returns a new map; `ruleYards` is not changed.
@@ -85,9 +90,12 @@ export function applyYardContinuity(
   rows: readonly DepotBusRow[],
   ruleYards: ReadonlyMap<string, Yard>,
   feedNow: string | null,
+  options: YardContinuityOptions = {},
 ): ReadonlyMap<string, Yard> {
   const feedMs = feedNow === null ? Number.NaN : Date.parse(feedNow);
-  if (feedNow === null || Number.isNaN(feedMs)) return new Map(ruleYards);
+  if (feedNow === null || Number.isNaN(feedMs) || options.fixture === true) {
+    return new Map(ruleYards);
+  }
   const last = store.lastFeedMs;
   const writes = last === null || feedMs > last;
   const isRepeat = feedMs === last;
