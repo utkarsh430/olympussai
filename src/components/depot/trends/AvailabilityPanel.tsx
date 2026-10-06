@@ -6,6 +6,7 @@ import {
   BOTH_MODELLED_NOTE,
   compareAvailability,
   type AvailabilityComparison,
+  type RequirementInput,
 } from '@/lib/depot/forecast/availabilityComparison';
 import { formatCount } from '@/lib/depot/format';
 import type { DepotDistributionState } from '@/hooks/useDepotDistribution';
@@ -21,10 +22,19 @@ export interface AvailabilityPanelProps {
   readonly distribution: DepotDistributionState;
 }
 
-function Figures({ comparison }: { readonly comparison: Extract<AvailabilityComparison, { status: 'ok' }> }) {
+interface FiguresProps {
+  readonly comparison: Extract<AvailabilityComparison, { status: 'ok' }>;
+  readonly requirement: RequirementInput;
+}
+
+function Figures({ comparison, requirement }: FiguresProps) {
   return (
     <FigureBand label="Available buses against the requirement">
-      <Figure label="Requirement" value={formatCount(comparison.required)} caption="buses" />
+      <Figure
+        label="Requirement"
+        value={formatCount(comparison.required)}
+        caption={`${formatCount(requirement.peakRequirement)} at peak + ${formatCount(requirement.spareTarget)} spare`}
+      />
       <Figure
         label={`Forecast, next ${comparison.horizonDays} days`}
         value={`${formatCount(comparison.lowest)} to ${formatCount(comparison.highest)}`}
@@ -67,10 +77,10 @@ export function AvailabilityPanel({ depotId, available, distribution }: Availabi
       available.data.sentences.unavailable,
     );
     body =
-      comparison.status === 'ok' ? (
+      comparison.status === 'ok' && balance !== null ? (
         <div className="flex flex-col gap-2" data-testid="trends-availability" title={comparison.sentence}>
-          <Figures comparison={comparison} />
-          <p className="font-sans text-xs text-depot-muted">{BOTH_MODELLED_NOTE}</p>
+          <Figures comparison={comparison} requirement={balance} />
+          <p className="depot-caption">{BOTH_MODELLED_NOTE}</p>
         </div>
       ) : (
         <div data-testid="trends-availability">

@@ -46,16 +46,30 @@ function columnsFor(data: DepotTrendsResponse): readonly Column<TrendTableRow>[]
     {
       key: 'week',
       header: headers.week,
+      unit: headers.unit,
       align: 'right',
       sortValue: (row) => row.week,
-      render: (row) => row.weekText,
+      render: (row) => row.weekSigned,
+    },
+    {
+      key: 'weekWord',
+      header: headers.weekWord,
+      render: (row) => row.weekWord,
     },
     {
       key: 'fourWeeks',
       header: headers.fourWeeks,
+      unit: headers.unit,
       align: 'right',
       sortValue: (row) => row.fourWeeks,
-      render: (row) => row.fourWeeksText,
+      render: (row) => row.fourWeeksSigned,
+    },
+    {
+      key: 'fourWeeksWord',
+      header: headers.fourWeeksWord,
+      render: (row) => row.fourWeeksWord,
+      title: (row) =>
+        row.fourWeeksWord === 'TOO SHORT' ? 'Too little history for a change over 4 weeks' : undefined,
     },
   ];
 }
@@ -110,7 +124,9 @@ export function UnitTrendTable({ data }: UnitTrendTableProps) {
         freezeFirstColumn
         overflowCue
       />
-      <Pager page={range.page} total={sorted.length} pageSize={TREND_ROW_CAP} onPage={setPage} />
+      {sorted.length > TREND_ROW_CAP ? (
+        <Pager page={range.page} total={sorted.length} pageSize={TREND_ROW_CAP} onPage={setPage} />
+      ) : null}
     </div>
   );
 }

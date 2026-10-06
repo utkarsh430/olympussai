@@ -5,6 +5,7 @@
  * new history metric appears here without a second list to update.
  */
 import { depotHref } from '../depotNav';
+import type { ForecastSentences } from './api';
 import type { MetricKey } from '../sim/types';
 import { formatDate } from './chartScale';
 import { FOUR_WEEK_DAYS, type TrendResult } from './trend';
@@ -24,6 +25,23 @@ export const MODELLED_HISTORY_NOTE =
   'Every history on this page is MODELLED: it is generated until a database of real history ' +
   'exists, and the same charts will then show measured history. Only the last point of each ' +
   'line, the live value, comes from the feed today.';
+
+/**
+ * The closing disclosure's paragraphs about the chart: what the history is, then the
+ * method, the typical error and the horizon with the band's meaning, in the words the
+ * response carries. A forecast is never drawn without these, and they stand here, not
+ * under the chart, where one caption line says the error and the trends.
+ */
+export function chartDisclosureParagraphs(
+  sentences: Pick<ForecastSentences, 'method' | 'error' | 'horizon'> | null,
+): readonly string[] {
+  const forecast = sentences === null ? [] : [sentences.method, sentences.error, sentences.horizon];
+  return [MODELLED_HISTORY_NOTE, ...forecast.filter((s): s is string => s !== null)];
+}
+
+/** Said under the "no forecast" state: what changes it. */
+export const NO_FORECAST_REMEDY =
+  'A forecast appears once the history is long enough and has no gap.';
 
 export interface MetricOption {
   readonly key: MetricKey;
@@ -58,14 +76,28 @@ export function trendsHref(path: string, metric: MetricKey): string {
   return `${path}?${params.toString()}`;
 }
 
+const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/** A YYYY-MM-DD that names a real calendar day, so a printed date is never "NaN". */
+function isRealDate(value: string): boolean {
+  const match = ISO_DATE.exec(value);
+  if (match === null) return false;
+  const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+}
+
 /** The trend of a series too short or broken to have one: why, in words. */
 export function noTrendSentence(result: Exclude<TrendResult, { status: 'ok' }>): string {
   if (result.status === 'invalid_input') {
     return 'No trend: the history for this measure could not be read.';
   }
   if (result.missingDate !== null) {
+    const gap = isRealDate(result.missingDate)
+      ? `the history is missing ${formatDate(result.missingDate, true)}`
+      : 'the history has a gap';
     return (
-      `No trend yet: the history is missing ${formatDate(result.missingDate, true)}, ` +
+      `No trend yet: ${gap}, ` +
       `so only the ${result.historyDays} days since count, and a trend needs ${result.required}.`
     );
   }

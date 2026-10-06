@@ -60,21 +60,58 @@ describe('network Trends page', () => {
     expect(markup.match(/aria-current="page"/g)).toHaveLength(1);
   });
 
-  it('says once that the history is generated and keeps the MODELLED tag to the chart', () => {
+  it('says once that the history is generated and tags only the chart and the unit list', () => {
     const markup = renderToStaticMarkup(<NetworkTrends metric="onRoadShare" />);
     const page = text(markup);
-    // The sentence now lives in the closed disclosure; the provenance line is the header's.
+    // The sentence lives in the closed disclosure; the provenance line is the header's.
     expect(page.match(/generated until a database of real history exists/g)).toHaveLength(1);
     expect(markup).toContain('How these figures are produced');
-    expect(page).toContain('On-road share: trend and forecast, MODELLED');
-    expect(page.match(/Trend: [a-z0-9. ]+ over 7 days/g)).toHaveLength(1);
-    expect(page).toContain('judged on the last four weeks');
+    // Rewritten for the round-2 decisions: the tag moved from the title text to the section
+    // label's pill, and the sentences under the chart became one caption line (below).
+    expect(page).toContain('On-road share: trend and forecast');
+    expect(page).not.toContain('trend and forecast, MODELLED');
     expect(page).toContain('Every unit');
     expect(page).not.toContain('Every unit, MODELLED');
     expect(page).toContain('Trends of on-road share: all 2 units');
-    // No other tag: the table's headers and caption carry none.
+    // Visible page only (the closed disclosure removed): the chart's tag and the list's tag.
+    const visible = text(markup.replace(/<details[\s\S]*<\/details>/, ''));
+    expect(visible.match(/MODELLED/g)).toHaveLength(2);
+    expect(visible).toMatch(/On-road share: trend and forecast\s+MODELLED/);
+    expect(visible).toMatch(/Every unit · 2\s+MODELLED/);
+    // No tag in the table's headers or caption.
     expect(markup.match(/<th[^>]*>[^<]*MODELLED/g)).toBeNull();
     expect(page.toLowerCase()).not.toContain('simulated');
+  });
+
+  it('prints one caption line and the legend in four plain words under the chart', () => {
+    const markup = renderToStaticMarkup(<NetworkTrends metric="onRoadShare" />);
+    const page = text(markup);
+    for (const label of ['History', 'Forecast', '80% band', 'Now (live)']) {
+      expect(page).toContain(label);
+    }
+    expect(page).not.toMatch(/Forecast, MODELLED|History, MODELLED|Live value, LIVE/);
+    const caption = markup.match(/data-testid="trends-caption"[^>]*>([^<]*)</)?.[1] ?? '';
+    expect(caption).toMatch(/ over 4 weeks · .* over 7 days · forecast within /);
+    // The 4-week trend is said once in the caption, and no "Trend:" sentence stands beside it.
+    expect(caption.match(/over 4 weeks/g)).toHaveLength(1);
+    expect(page.match(/Trend: [a-z0-9. ]+ over (7 days|4 weeks)/g)).toBeNull();
+  });
+
+  it('says MODELLED once in the text equivalent and keeps the live value in it', () => {
+    const markup = renderToStaticMarkup(<NetworkTrends metric="onRoadShare" />);
+    const label = markup.match(/role="img" aria-label="([^"]*)"/)?.[1] ?? '';
+    expect(label.match(/MODELLED/g)).toHaveLength(1);
+    expect(label).toContain('LIVE value');
+  });
+
+  it('never shows a forecast without its band, its horizon, its method and its error in words', () => {
+    const markup = renderToStaticMarkup(<NetworkTrends metric="onRoadShare" />);
+    const page = text(markup);
+    expect(page).toContain('80% band');
+    expect(page).toContain('Forecast for the next 14 days.');
+    expect(page).toMatch(/Forecast by weekly smoothing|Forecast repeats the same weekday/);
+    expect(page).toContain('typically within');
+    expect(markup).toMatch(/data-testid="trends-caption"[^>]*>[^<]*forecast within/);
   });
 
   it('links each unit to its own Trends page with a text equivalent for its sparkline', () => {
@@ -89,8 +126,12 @@ describe('network Trends page', () => {
     expect(page).toContain(
       'No forecast: it needs at least 28 days of history and this series has 20.',
     );
-    // 20 days is enough for a trend, so none of the not-established panels shows.
+    // 20 days is enough for a trend; the one state panel says the forecast is missing, and
+    // no forecast is drawn: no band in the legend, no horizon, no error in the caption.
     expect(page).not.toContain('No trend yet');
+    expect(page).not.toContain('80% band');
+    expect(page).not.toContain('forecast within');
+    expect(page).not.toContain('Forecast for the next');
   });
 
   it('holds the footprint while loading, and offers Retry with a title on failure', () => {

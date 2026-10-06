@@ -34,17 +34,17 @@ export interface TrendTableRow {
   readonly fourWeeks: number | null;
   readonly weekText: string;
   readonly fourWeeksText: string;
+  /** The change alone, "+1.0" or "−1.1" (units are in the column header); "—" when none. */
+  readonly weekSigned: string;
+  readonly fourWeeksSigned: string;
+  /** UP, STEADY or DOWN by the shared dead band, "TOO SHORT" or "—". */
+  readonly weekWord: string;
+  readonly fourWeeksWord: string;
 }
 
 export const TREND_ROW_CAP = 25;
 const NO_VALUE = '—';
 const MINUS = '−';
-
-const UNIT_WORDS: Readonly<Record<TrendUnit, string>> = {
-  percentage_points: 'percentage points',
-  points: 'points',
-  buses: 'buses',
-};
 
 const DECIMALS: Readonly<Record<TrendUnit, number>> = {
   percentage_points: 1,
@@ -90,6 +90,27 @@ function fourWeeksText(row: TrendRow, unit: TrendUnit): string {
   return `${trend.direction} ${Math.abs(trend.fourWeeks).toFixed(DECIMALS[unit])}`;
 }
 
+const WORD: Readonly<Record<TrendDirection, string>> = { up: 'UP', steady: 'STEADY', down: 'DOWN' };
+const TOO_SHORT_WORD = 'TOO SHORT';
+
+function weekSigned(row: TrendRow, unit: TrendUnit): string {
+  return row.trend === null ? NO_VALUE : signed(row.trend.week, unit);
+}
+
+function fourWeeksSigned(row: TrendRow, unit: TrendUnit): string {
+  return row.trend?.fourWeeks == null ? NO_VALUE : signed(row.trend.fourWeeks, unit);
+}
+
+function weekWord(row: TrendRow, metric: MetricKey): string {
+  const direction = weekDirection(row, metric);
+  return direction === null ? NO_VALUE : WORD[direction];
+}
+
+function fourWeeksWord(row: TrendRow): string {
+  if (row.trend === null) return NO_VALUE;
+  return row.trend.fourWeeks === null ? TOO_SHORT_WORD : WORD[row.trend.direction];
+}
+
 /** A sparkline's text equivalent; a unit missing from the response has no trend. */
 export function unitSparkLabel(
   metricLabel: string,
@@ -115,20 +136,38 @@ export function trendTableRows(
     fourWeeks: row.trend?.fourWeeks ?? null,
     weekText: weekText(row, trendUnit, metric.key),
     fourWeeksText: fourWeeksText(row, trendUnit),
+    weekSigned: weekSigned(row, trendUnit),
+    fourWeeksSigned: fourWeeksSigned(row, trendUnit),
+    weekWord: weekWord(row, metric.key),
+    fourWeeksWord: fourWeeksWord(row),
   }));
 }
 
 export interface TrendColumnHeaders {
   readonly spark: string;
   readonly week: string;
+  readonly weekWord: string;
   readonly fourWeeks: string;
+  readonly fourWeeksWord: string;
+  /** Printed after each signed-change header, so the cells hold bare numbers. */
+  readonly unit: string;
 }
 
+const UNIT_SHORT: Readonly<Record<TrendUnit, string>> = {
+  percentage_points: 'pp',
+  points: 'points',
+  buses: 'buses',
+};
+
 export function trendColumnHeaders(unit: TrendUnit, days: number): TrendColumnHeaders {
+  const weeks = FOUR_WEEK_DAYS / WEEK_DAYS;
   return {
     spark: `Last ${days} days`,
-    week: `Change over ${WEEK_DAYS} days, ${UNIT_WORDS[unit]}`,
-    fourWeeks: `Over ${FOUR_WEEK_DAYS / WEEK_DAYS} weeks, ${UNIT_WORDS[unit]}`,
+    week: `Over ${WEEK_DAYS} days`,
+    weekWord: `Trend, ${WEEK_DAYS} days`,
+    fourWeeks: `Over ${weeks} weeks`,
+    fourWeeksWord: `Trend, ${weeks} weeks`,
+    unit: UNIT_SHORT[unit],
   };
 }
 

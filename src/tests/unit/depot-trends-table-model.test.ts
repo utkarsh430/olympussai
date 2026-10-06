@@ -71,10 +71,15 @@ describe('trend table rows', () => {
   });
 
   it('names the unit in each column header, with no tag on the page default', () => {
+    // Rewritten: the unit moved into its own header field (the table prints it after the
+    // header, bare signed numbers in the cells) and the direction word got its own column.
     expect(trendColumnHeaders(ON_ROAD.trendUnit, 30)).toEqual({
       spark: 'Last 30 days',
-      week: 'Change over 7 days, percentage points',
-      fourWeeks: 'Over 4 weeks, percentage points',
+      week: 'Over 7 days',
+      weekWord: 'Trend, 7 days',
+      fourWeeks: 'Over 4 weeks',
+      fourWeeksWord: 'Trend, 4 weeks',
+      unit: 'pp',
     });
   });
 });
