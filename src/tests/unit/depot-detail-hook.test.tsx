@@ -5,6 +5,9 @@ import { useDepotDetail } from '@/hooks/useDepotDetail';
 import type { PolledState } from '@/hooks/usePolledJson';
 import type { DepotDetailResponse } from '@/lib/depot/api';
 
+// A 401 sends the browser to sign in; jsdom cannot navigate, so the redirect is a stand-in.
+vi.mock('@/lib/depot/signInRedirect', () => ({ redirectToSignIn: vi.fn() }));
+
 interface PendingCall {
   readonly url: string;
   readonly respond: (status: number, body?: unknown) => void;

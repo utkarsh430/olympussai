@@ -12,6 +12,9 @@ import {
 import type { BusPageQuery } from '@/lib/depot/exceptions/busPage';
 import type { DepotExceptionsResponse } from '@/lib/depot/api';
 
+// A 401 sends the browser to sign in; jsdom cannot navigate, so the redirect is a stand-in.
+vi.mock('@/lib/depot/signInRedirect', () => ({ redirectToSignIn: vi.fn() }));
+
 interface PendingCall {
   readonly url: string;
   readonly init: RequestInit;
