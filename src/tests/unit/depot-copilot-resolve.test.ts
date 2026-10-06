@@ -64,9 +64,13 @@ function engine(cli: CopilotProvider | null, setting: 'auto' | 'claude-cli' | 's
 
 describe('config', () => {
   it('exposes the documented limits', () => {
-    expect([CLI_CONCURRENCY, CLI_QUEUE, CLI_TIMEOUT_MS, CLI_MAX_OUTPUT_BYTES, CLI_COOLDOWN_MS]).toEqual(
-      [2, 2, 45_000, 1_048_576, 600_000],
-    );
+    expect([
+      CLI_CONCURRENCY,
+      CLI_QUEUE,
+      CLI_TIMEOUT_MS,
+      CLI_MAX_OUTPUT_BYTES,
+      CLI_COOLDOWN_MS,
+    ]).toEqual([2, 2, 45_000, 1_048_576, 600_000]);
   });
 
   it.each([
@@ -108,7 +112,11 @@ describe('createCopilotEngine', () => {
 
   it('uses scripted with not_selected when no CLI provider exists', async () => {
     const out = await engine(null).instance.generate(REQUEST);
-    expect(out).toMatchObject({ provider: 'scripted', fellBack: false, fallbackReason: 'not_selected' });
+    expect(out).toMatchObject({
+      provider: 'scripted',
+      fellBack: false,
+      fallbackReason: 'not_selected',
+    });
   });
 
   it('returns the rendered CLI draft when it validates', async () => {
@@ -129,22 +137,26 @@ describe('createCopilotEngine', () => {
     expect(out.generatedAt).toBe(new Date(1_000_000).toISOString());
   });
 
-  it.each(['not_installed', 'not_authenticated', 'usage_limit', 'timeout', 'invalid_output', 'error'] as const)(
-    'falls back to scripted on %s and starts the cool-down',
-    async (reason) => {
-      const cli = cliThatFails(reason);
-      const { instance } = engine(cli);
-      const first = await instance.generate(REQUEST);
-      expect(first).toMatchObject({ provider: 'scripted', fellBack: true, fallbackReason: reason });
-      const second = await instance.generate(REQUEST);
-      expect(second).toMatchObject({
-        provider: 'scripted',
-        fellBack: true,
-        fallbackReason: 'cooling_down',
-      });
-      expect(cli.draft).toHaveBeenCalledTimes(1);
-    },
-  );
+  it.each([
+    'not_installed',
+    'not_authenticated',
+    'usage_limit',
+    'timeout',
+    'invalid_output',
+    'error',
+  ] as const)('falls back to scripted on %s and starts the cool-down', async (reason) => {
+    const cli = cliThatFails(reason);
+    const { instance } = engine(cli);
+    const first = await instance.generate(REQUEST);
+    expect(first).toMatchObject({ provider: 'scripted', fellBack: true, fallbackReason: reason });
+    const second = await instance.generate(REQUEST);
+    expect(second).toMatchObject({
+      provider: 'scripted',
+      fellBack: true,
+      fallbackReason: 'cooling_down',
+    });
+    expect(cli.draft).toHaveBeenCalledTimes(1);
+  });
 
   it('retries the CLI once the cool-down has expired', async () => {
     const cli = cliThatFails('timeout');
@@ -160,7 +172,10 @@ describe('createCopilotEngine', () => {
   it('does not start a cool-down for busy', async () => {
     const cli = cliThatFails('busy');
     const { instance } = engine(cli);
-    expect(await instance.generate(REQUEST)).toMatchObject({ fellBack: true, fallbackReason: 'busy' });
+    expect(await instance.generate(REQUEST)).toMatchObject({
+      fellBack: true,
+      fallbackReason: 'busy',
+    });
     expect((await instance.generate(REQUEST)).fallbackReason).toBe('busy');
     expect(cli.draft).toHaveBeenCalledTimes(2);
   });
@@ -203,7 +218,9 @@ describe('createCopilotEngine', () => {
       scriptedDraft: { headline: 'Head', paragraphs: ['Has 7 digits'] },
     };
     await expect(engine(null).instance.generate(bad)).rejects.toThrow(/rationale/);
-    await expect(engine(cliThatFails('timeout')).instance.generate(bad)).rejects.toThrow(/rationale/);
+    await expect(engine(cliThatFails('timeout')).instance.generate(bad)).rejects.toThrow(
+      /rationale/,
+    );
   });
 });
 
@@ -320,7 +337,9 @@ describe('createClaudeCliProvider', () => {
       stdout.emit('data', JSON.stringify({ is_error: true, result: 'Claude usage limit reached' }));
       child.emit('close', 0);
     });
-    await expect(providerWith(spawn).draft(REQUEST)).rejects.toMatchObject({ reason: 'usage_limit' });
+    await expect(providerWith(spawn).draft(REQUEST)).rejects.toMatchObject({
+      reason: 'usage_limit',
+    });
   });
 
   it('throws CopilotFailure with the runner reason (not_installed)', async () => {

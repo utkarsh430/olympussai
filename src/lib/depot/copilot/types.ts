@@ -55,3 +55,14 @@ export interface CopilotProvider {
   readonly id: CopilotProviderId;
   draft(request: CopilotRequest): Promise<CopilotDraft>;
 }
+
+/** A provider could not produce a draft; `reason` says why, for the fallback. */
+export class CopilotFailure extends Error {
+  constructor(
+    readonly reason: FallbackReason,
+    detail?: string,
+  ) {
+    super(detail ? `${reason}: ${detail}` : reason);
+    this.name = 'CopilotFailure';
+  }
+}
