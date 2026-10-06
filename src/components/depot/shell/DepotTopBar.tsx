@@ -33,7 +33,7 @@ export function DepotTopBar() {
       >
         <span
           data-testid="depot-brand"
-          className="flex shrink-0 items-center whitespace-nowrap font-display text-sm uppercase tracking-[0.14em] text-depot-ink"
+          className="depot-brand flex shrink-0 items-center whitespace-nowrap font-display text-sm uppercase tracking-[0.14em]"
         >
           <Warehouse className="h-5 w-5 sm:hidden" aria-hidden />
           <span className="max-sm:sr-only">Depot Management</span>

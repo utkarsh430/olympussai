@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Children } from 'react';
 import { FIGURE_ROWS_CLASSES, figureBandGridClasses } from '@/lib/depot/shell/figureBandLayout';
+import { DEPOT_MEANING_TONE, DEPOT_TONE_CLASS, type DepotMeaning } from '@/lib/depot/palette';
 import type { Provenance } from '@/lib/depot/types';
 import { ProvenanceBadge } from './ProvenanceBadge';
 
@@ -41,7 +42,7 @@ export function FigureBand({ label, children, tag }: FigureBandProps) {
   return (
     <div className="depot-band mb-6 min-w-0 overflow-hidden border-y border-depot-line">
       {tag ? (
-        <div data-testid="depot-figure-band-head" className="mt-2 depot-tag-row gap-2">
+        <div data-testid="depot-figure-band-head" className="depot-tag-row mt-2 gap-2">
           <span className="depot-label truncate leading-4">{label}</span>
           <ProvenanceBadge provenance={tag} pill />
         </div>
@@ -79,6 +80,11 @@ export interface FigureProps {
    * assistive technology. The closing disclosure keeps the explanation too.
    */
   readonly title?: string;
+  /**
+   * What the figure measures, which sets its colour from the palette's meaning table
+   * (`DEPOT_MEANING_TONE`): a plain count is cyan. The label always says it in words.
+   */
+  readonly tone?: DepotMeaning;
   /** Makes the whole figure a link (a count that leads to its list). */
   readonly href?: string;
   /** Makes the whole figure a toggle button (a count that filters the page); see `pressed`. */
@@ -108,6 +114,7 @@ const clampShare = (share: number): number =>
  */
 export function Figure(props: FigureProps) {
   const { label, value, caption, tag, share, hero = false, title, href, onPress, pressed } = props;
+  const toneClass = DEPOT_TONE_CLASS[DEPOT_MEANING_TONE[props.tone ?? 'count']];
   // Inside a link or a button only phrasing content is valid, so the parts are spans there.
   const interactive = href !== undefined || onPress !== undefined;
   const Row = interactive ? 'span' : 'div';
@@ -120,7 +127,9 @@ export function Figure(props: FigureProps) {
       </Row>
       <Row
         className={`mt-1.5 block break-words ${
-          hero ? 'depot-hero-numeral' : `font-mono tabular-nums text-holo-glow ${BAND_VALUE_SIZE}`
+          hero
+            ? 'depot-hero-numeral'
+            : `depot-figure-value font-mono tabular-nums ${BAND_VALUE_SIZE}`
         }`}
       >
         {value}
@@ -147,7 +156,7 @@ export function Figure(props: FigureProps) {
   return (
     <li
       title={title}
-      className={`min-w-0 list-none border-l border-depot-line px-4 lg:w-[192px] lg:flex-none xl:w-[200px] min-[1440px]:w-[232px] ${FIGURE_ROWS_CLASSES}`}
+      className={`depot-figure ${toneClass} ${hero ? 'depot-figure-hero' : ''}min-w-0 list-none border-l border-depot-line px-4 lg:w-[192px] lg:flex-none xl:w-[200px] min-[1440px]:w-[232px] ${FIGURE_ROWS_CLASSES}`}
     >
       {href !== undefined ? (
         <Link href={href} className={`${INTERACTIVE} ${FIGURE_ROWS_CLASSES}`}>

@@ -105,6 +105,31 @@ export const DEPOT_MEANING_TONE: Readonly<Record<DepotMeaning, DepotTone>> = {
   threshold: 'crimson',
 };
 
+/**
+ * The class that sets a tone's `--depot-tone` (globals.css), spelt out so Tailwind keeps
+ * the rules: a figure, a bar fill or a rail group draws its accent, wash and glow from it.
+ */
+export const DEPOT_TONE_CLASS: Readonly<Record<DepotTone | 'gold', string>> = {
+  cyan: 'depot-tone-cyan',
+  green: 'depot-tone-green',
+  amber: 'depot-tone-amber',
+  slate: 'depot-tone-slate',
+  crimson: 'depot-tone-crimson',
+  teal: 'depot-tone-teal',
+  gold: 'depot-tone-gold',
+};
+
+/**
+ * Each rail category's own colour, so a reader learns where they are: the depot's pages
+ * green, Network cyan, Intelligence teal, System the brand gold. Structure, not status.
+ */
+export function navGroupToneClass(heading: string, isDepotGroup: boolean): string {
+  if (isDepotGroup) return DEPOT_TONE_CLASS.green;
+  if (heading === 'Intelligence') return DEPOT_TONE_CLASS.teal;
+  if (heading === 'System') return DEPOT_TONE_CLASS.gold;
+  return DEPOT_TONE_CLASS.cyan;
+}
+
 /** A meaning's colour as a value (chart and map attributes). */
 export function meaningColour(meaning: DepotMeaning): string {
   return DEPOT_TONE_COLOUR[DEPOT_MEANING_TONE[meaning]];
