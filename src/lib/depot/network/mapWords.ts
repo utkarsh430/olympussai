@@ -1,5 +1,7 @@
 import { depotHref } from '@/lib/depot/depotNav';
 import { formatCount } from '@/lib/depot/format';
+import { PEER_GROUP_LABEL } from '@/lib/depot/labels';
+import type { PeerGroupId } from '@/lib/depot/score/types';
 import { UNASSIGNED_DEPOT_ID, type DepotSummary } from '@/lib/depot/types';
 import { formatIndex, rankedIndex, unrankedReason, type DepotRow } from './overviewModel';
 
@@ -59,4 +61,9 @@ export function unpositionedSentence(missing: number): string {
   return missing === 1
     ? '1 unit has no positioned buses and is not on the map.'
     : `${formatCount(missing)} units have no positioned buses and are not on the map.`;
+}
+
+/** "Rank 1 of 41 in its peer group (Small fleets)": 41 is the peer group, not every depot. */
+export function peerRankLine(rank: number, peerCount: number, group: PeerGroupId): string {
+  return `Rank ${rank} of ${peerCount} in its peer group (${PEER_GROUP_LABEL[group]})`;
 }

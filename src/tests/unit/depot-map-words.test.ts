@@ -4,6 +4,7 @@ import {
   depotLink,
   lowestOperatingDepot,
   markerLabel,
+  peerRankLine,
   positionNote,
   unpositionedSentence,
 } from '@/lib/depot/network/mapWords';
@@ -103,5 +104,11 @@ describe('unpositionedSentence', () => {
     expect(unpositionedSentence(0)).toBe('Every unit has at least one positioned bus.');
     expect(unpositionedSentence(1)).toBe('1 unit has no positioned buses and is not on the map.');
     expect(unpositionedSentence(3)).toBe('3 units have no positioned buses and are not on the map.');
+  });
+});
+
+describe('peerRankLine', () => {
+  it('says the rank is within the peer group, so the count is not read as all depots', () => {
+    expect(peerRankLine(1, 41, 'small')).toBe('Rank 1 of 41 in its peer group (Small fleets)');
   });
 });

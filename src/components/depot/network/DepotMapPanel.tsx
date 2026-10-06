@@ -1,12 +1,13 @@
 import Link from 'next/link';
 import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
 import { formatCount, formatShare } from '@/lib/depot/format';
-import { DEPOT_KIND_LABEL, PEER_GROUP_LABEL, RANK_REASON_LABEL } from '@/lib/depot/labels';
+import { DEPOT_KIND_LABEL, RANK_REASON_LABEL } from '@/lib/depot/labels';
 import { indexBand } from '@/lib/depot/map/nodeStyle';
 import {
   LOWEST_OPERATING_LABEL,
   depotLink,
   lowestOperatingDepot,
+  peerRankLine,
   positionNote,
 } from '@/lib/depot/network/mapWords';
 import {
@@ -49,8 +50,7 @@ function Ranking({ row }: { readonly row: DepotRow }) {
       </p>
       {score.rank !== null && score.peerCount !== null && score.peerGroup ? (
         <p className="mt-1 text-[13px] text-depot-muted">
-          Rank {score.rank} of {score.peerCount} in its peer group (
-          {PEER_GROUP_LABEL[score.peerGroup]})
+          {peerRankLine(score.rank, score.peerCount, score.peerGroup)}
         </p>
       ) : null}
     </>
