@@ -96,11 +96,10 @@ export function ScopeSwitcher() {
       event.preventDefault();
       const option = visible[active];
       if (option) select(option);
-    } else if (event.key === 'Escape') {
+    } else if (event.key === 'Escape' || event.key === 'Tab') {
+      // Tab too: the field unmounts as the list closes, so focus must land somewhere known.
       event.preventDefault();
       close(true);
-    } else if (event.key === 'Tab') {
-      close(false);
     }
   };
 
