@@ -124,7 +124,7 @@ describe('summariseDepots', () => {
 
   it('fills the state mix from bus state classification', () => {
     const rows = [
-      makeRow({ speedKmph: 30, routeName: 'R1' }),
+      makeRow({ speedKmph: 30, routeName: 'R1', scheduledStart: '2026-10-06T08:00:00.000Z' }),
       makeRow({ speedKmph: 30 }),
       makeRow({ speedKmph: 0 }),
       makeRow({ vehicleStatus: 'no_signal' }),
