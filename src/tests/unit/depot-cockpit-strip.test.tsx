@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { AttentionStrip } from '@/components/depot/cockpit/AttentionStrip';
-import { BRIEFING_BODY, BriefingRow } from '@/components/depot/cockpit/BriefingRow';
+import { BriefingRow } from '@/components/depot/cockpit/BriefingRow';
 import type { CopilotScope } from '@/lib/depot/copilot/wire';
 import type { AttentionLine } from '@/lib/depot/cockpit/attention';
 
@@ -38,9 +38,10 @@ describe('the attention strip', () => {
       <BriefingRow scope={{ kind: 'depot', depotId: '20' } as CopilotScope} feedNow={null} />,
     );
     const doc = new DOMParser().parseFromString(markup, 'text/html');
+    // The card is embedded (it draws no label and no headline), not hidden with CSS: a
+    // hidden headline could still take focus and be read.
     const body = doc.querySelector('[data-testid="depot-briefing-row"] > div[hidden]');
-    expect(body?.className.split(/\s+/)).toEqual(expect.arrayContaining(BRIEFING_BODY.split(' ')));
-    expect(BRIEFING_BODY).toBe('[&_h2]:hidden [&_h3]:hidden');
+    expect(body?.className).not.toContain('[&_h');
     expect(doc.querySelectorAll('h2')).toHaveLength(1);
   });
 

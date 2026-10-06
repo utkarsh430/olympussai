@@ -5,7 +5,6 @@ import { BriefingCard } from '@/components/depot/copilot/BriefingCard';
 import type { CopilotScope } from '@/lib/depot/copilot/wire';
 
 /** Hides the card's own label (h2) and the text's headline (h3) under the row's header. */
-export const BRIEFING_BODY = '[&_h2]:hidden [&_h3]:hidden';
 
 /**
  * The depot briefing as one collapsed row. Opening it mounts the briefing card in
@@ -39,10 +38,12 @@ export function BriefingRow({
           {open ? 'Close briefing' : 'Open briefing'}
         </button>
       </div>
-      {/* One heading per opened panel: the row's label is the header, so the card's own
-          label and its headline are not drawn and the box starts with the paragraphs. */}
-      <div id={bodyId} hidden={!open} className={`pb-3 ${BRIEFING_BODY}`}>
-        {mounted ? <BriefingCard scope={scope} title="Depot briefing" currentFeedTime={feedNow} /> : null}
+      {/* One heading per opened panel: the row's label is the header, so the card is embedded
+          (no label of its own, no headline) and the box starts with the paragraphs. */}
+      <div id={bodyId} hidden={!open} className="pb-3">
+        {mounted ? (
+          <BriefingCard scope={scope} title="Depot briefing" currentFeedTime={feedNow} embedded />
+        ) : null}
       </div>
     </section>
   );
