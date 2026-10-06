@@ -17,7 +17,16 @@ export interface FeedChipData {
   readonly feedNow: string | null;
   /** When the server built the answer: a real ISO instant, unlike `feedNow`. */
   readonly fetchedAt: string;
+  /** Rows stamped later than the server's own clock allows (sent only above zero). */
+  readonly feedClockAheadRows?: number;
+  /** The response's rows: what the ahead count is a share of. */
+  readonly recordCount?: number;
 }
+
+/** From this share of a response's rows stamped ahead, the feed clock may lag (P4). */
+export const FEED_CLOCK_AHEAD_WARN_SHARE = 0.01;
+/** Never fewer ahead rows than this before the chip warns, however small the response. */
+export const FEED_CLOCK_AHEAD_WARN_MIN_ROWS = 20;
 
 export interface FeedChipInput {
   readonly data: FeedChipData | null;
