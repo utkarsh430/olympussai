@@ -39,7 +39,7 @@ export function capacityFigure(view: CapacityView, pending: boolean): CapacityFi
   if (inYard === null) {
     return {
       value: `${formatCount(fleet)} of ${formatCount(bays)}`,
-      caption: 'fleet against modelled bays',
+      caption: 'fleet only',
       share: bays > 0 ? fleet / bays : undefined,
       title: fleetOnlyCapacitySentence(fleet, bays),
     };
@@ -54,7 +54,7 @@ export function capacityFigure(view: CapacityView, pending: boolean): CapacityFi
         : `${formatCount(-free)} over`;
   return {
     value: `${formatCount(used)} of ${formatCount(bays)}`,
-    caption: `modelled bays in use; ${tail}`,
+    caption: tail,
     share: bays > 0 ? used / bays : undefined,
     title: `${capacitySentence({ bays, inYard, visiting })} ${visitingSentence(visiting)}`,
   };
