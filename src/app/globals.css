@@ -278,6 +278,15 @@
     @apply border-holo-glow bg-depot-raised text-holo-glow;
   }
 
+  /* Top-bar actions: a flat hairline button, no tint, glow or transition on anything
+     but colour. The command centre's HUD button stays for the main app. */
+  .depot-bar-button {
+    @apply inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-[3px]
+      border border-depot-line px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.12em]
+      text-depot-muted transition-colors hover:border-depot-muted hover:text-depot-ink
+      disabled:cursor-not-allowed disabled:opacity-40;
+  }
+
   /* Provenance and feed tags: flat, 3px radius, always carry a word. */
   .depot-tag {
     @apply inline-flex items-center gap-1.5 whitespace-nowrap rounded-[3px] border px-1.5 py-0.5
