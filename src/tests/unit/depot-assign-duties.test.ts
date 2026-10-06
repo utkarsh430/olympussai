@@ -11,7 +11,8 @@ function bus(
   state: BusOpState = 'standing',
   location: BusLocation = 'in_yard',
 ): DepotBusView {
-  return { registrationNumber: reg, state, location } as unknown as DepotBusView;
+  // Heard a minute ago: a standing bus is eligible only on a recent report (ruling S47).
+  return { registrationNumber: reg, state, location, gpsAgeMin: 1, notHeardMin: null } as unknown as DepotBusView;
 }
 
 function duty(i: number, serviceClass: ServiceClass = 'ordinary', hours = 8): Duty {
@@ -52,23 +53,17 @@ describe('assignDuties', () => {
       { registrationNumber: 'B', reason: 'dark' },
       { registrationNumber: 'C', reason: 'not_in_yard' },
       { registrationNumber: 'D', reason: 'not_in_yard' },
-      { registrationNumber: 'E', reason: 'not_in_yard' },
     ]);
-    expect(plan.assignments[0]).toEqual({
-      dutyId: 'D-000',
-      registrationNumber: 'F',
-      reason: 'assigned',
-    });
-    expect(plan.assignments[1]).toEqual({
-      dutyId: 'D-001',
-      registrationNumber: null,
-      reason: 'no_eligible_bus',
-    });
-    expect(plan.unassignedDuties).toBe(1);
+    // A bus in service is out working, so it is eligible wherever it is (ruling S47).
+    expect(new Set(plan.assignments.map((a) => a.registrationNumber))).toEqual(new Set(['E', 'F']));
+    expect(new Set(plan.assignments.map((a) => a.busStanding))).toEqual(
+      new Set(['on_road', 'in_yard']),
+    );
+    expect(plan.unassignedDuties).toBe(0);
     expect(plan.spareBuses).toEqual([]);
   });
 
-  it('never assigns a class mismatch and treats a bus missing from the fleet as ordinary', () => {
+  it('prefers the duty’s own class and treats a bus missing from the fleet as ordinary', () => {
     const fleet = fleetOf([['X1', 'express', 3]]);
     const plan = assignDuties(
       [duty(0, 'ordinary'), duty(1, 'express')],
@@ -76,9 +71,10 @@ describe('assignDuties', () => {
       fleet,
     );
     expect(plan.assignments.map((a) => a.registrationNumber)).toEqual(['Y', 'X1']);
+    // Class is a cost tier, not a bar (ruling S47): a duty is never left idle for it.
     const lone = assignDuties([duty(0, 'premium')], [bus('Y'), bus('X1')], fleet);
-    expect(lone.assignments[0]?.reason).toBe('no_eligible_bus');
-    expect(lone.spareBuses).toEqual(['X1', 'Y']);
+    expect(lone.assignments[0]?.reason).toBe('assigned');
+    expect(lone.spareBuses).toHaveLength(1);
     expect(lone.excluded).toEqual([]);
   });
 
@@ -112,7 +108,7 @@ describe('assignDuties', () => {
     expect([...plan.spareBuses].sort()).toEqual(plan.spareBuses);
   });
 
-  it('never uses an excluded or class-mismatched bus, and never a bus twice (random)', () => {
+  it('never uses an excluded bus, never a bus twice, and fills every duty it can (random)', () => {
     const classes: ServiceClass[] = ['ordinary', 'express', 'ac', 'premium'];
     const states: BusOpState[] = ['standing', 'off_road', 'dark', 'on_road'];
     const locs: BusLocation[] = ['in_yard', 'in_yard', 'away', 'unknown'];
@@ -136,9 +132,9 @@ describe('assignDuties', () => {
     for (const a of plan.assignments) {
       if (a.registrationNumber === null) continue;
       expect(excluded.has(a.registrationNumber)).toBe(false);
-      const d = duties.find((x) => x.id === a.dutyId);
-      expect(fleet.get(a.registrationNumber)?.serviceClass).toBe(d?.serviceClass);
     }
+    const eligible = buses.length - excluded.size;
+    expect(taken.length).toBe(Math.min(duties.length, eligible));
     expect(plan.unassignedDuties).toBe(
       plan.assignments.filter((a) => a.registrationNumber === null).length,
     );
@@ -233,7 +229,7 @@ describe('assignDuties with no yard established', () => {
     expect(plan.excluded).toEqual([]);
   });
 
-  it('still holds out off-road, dark, moving, quiet and clockless buses, one reason each', () => {
+  it('holds out off-road, dark, quiet and clockless buses; a moving bus is out working', () => {
     const buses = [
       heard('X', 'off_road', 2),
       heard('D', 'dark', 2),
@@ -243,13 +239,12 @@ describe('assignDuties with no yard established', () => {
       heard('N', 'standing', null),
     ];
     const plan = assignDuties([duty(0)], buses, fleetOf([]), NO_YARD);
-    expect(plan.unassignedDuties).toBe(1);
+    expect(plan.unassignedDuties).toBe(0);
+    expect(['M', 'S']).toContain(plan.assignments[0]?.registrationNumber);
     expect(plan.excluded).toEqual([
       { registrationNumber: 'D', reason: 'dark' },
-      { registrationNumber: 'M', reason: 'not_in_yard' },
       { registrationNumber: 'N', reason: 'not_in_yard' },
       { registrationNumber: 'Q', reason: 'not_in_yard' },
-      { registrationNumber: 'S', reason: 'not_in_yard' },
       { registrationNumber: 'X', reason: 'off_road' },
     ]);
   });

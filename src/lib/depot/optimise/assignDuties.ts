@@ -1,5 +1,11 @@
 import type { DepotBusView } from '../api';
-import type { AssignmentPlan, Duty, DutyAssignment, Ineligibility } from '../duties/types';
+import type {
+  AssignmentPlan,
+  BusStandingNow,
+  Duty,
+  DutyAssignment,
+  Ineligibility,
+} from '../duties/types';
 import type { ModelledBus, ServiceClass } from '../sim/types';
 import { isRecentlyHeard } from '../infer/busState';
 import { hungarian } from './hungarian';
@@ -38,6 +44,12 @@ export interface AssignDutiesOptions {
    * the reporting window is eligible. Defaults to true (location decides).
    */
   readonly yardEstablished?: boolean;
+  /**
+   * Minutes past midnight on the feed clock. A duty that has started by then
+   * prefers a bus on the road; one still to start prefers a standing bus. Null
+   * or absent: no duty is treated as started.
+   */
+  readonly feedMinute?: number | null;
 }
 
 /** Standing, on a report recent enough to say where the bus is standing now. */
@@ -48,28 +60,94 @@ function isStandingNow(bus: DepotBusView): boolean {
 }
 
 /**
- * Exactly one reason, by precedence: off road, then dark, then away from the
- * yard. With no yard, `not_in_yard` instead means "not standing on a recent report".
+ * How an eligible bus stands now, or why it is not eligible: off the road and
+ * dark never; in service or on the road always (it is out working); a standing
+ * bus only on a recent report (yard or not: an old report cannot say where it
+ * stands now, which `not_in_yard` covers) and, when a yard is established,
+ * only in it.
  */
-function exclusionOf(bus: DepotBusView, yardEstablished: boolean): Exclusion | null {
+function standingOf(bus: DepotBusView, yardEstablished: boolean): BusStandingNow | Exclusion {
   if (bus.state === 'off_road') return 'off_road';
   if (bus.state === 'dark') return 'dark';
-  const available = yardEstablished ? bus.location === 'in_yard' : isStandingNow(bus);
-  return available ? null : 'not_in_yard';
+  if (bus.state === 'in_service' || bus.state === 'on_road') return 'on_road';
+  if (!isStandingNow(bus)) return 'not_in_yard';
+  if (!yardEstablished) return 'standing';
+  return bus.location === 'in_yard' ? 'in_yard' : 'not_in_yard';
+}
+
+interface Candidate {
+  readonly bus: DepotBusView;
+  readonly standing: BusStandingNow;
+}
+
+/** The pair's cost in tiers, highest first; each tier but the last is 0 or 1. */
+function tiersOf(duty: Duty, candidate: Candidate, ctx: CostContext): readonly number[] {
+  const { bus, standing } = candidate;
+  const onRoad = standing === 'on_road';
+  const modelled = ctx.fleet.get(bus.registrationNumber);
+  const started = ctx.feedMinute !== null && duty.startMin <= ctx.feedMinute;
+  const age =
+    modelled !== undefined && Number.isFinite(modelled.ageYears) ? modelled.ageYears : ctx.fallbackAge;
+  return [
+    onRoad ? 0 : 1,
+    bus.routeName === duty.routeName ? 0 : 1,
+    (modelled?.serviceClass ?? DEFAULT_CLASS) === duty.serviceClass ? 0 : 1,
+    started === onRoad ? 0 : 1,
+    Math.round(age * Math.round((duty.endMin - duty.startMin) / MINUTES_PER_HOUR)),
+  ];
+}
+
+interface CostContext {
+  readonly fleet: ReadonlyMap<string, ModelledBus>;
+  readonly fallbackAge: number;
+  readonly feedMinute: number | null;
 }
 
 /**
- * Proposes which bus runs which duty: an exact minimum-cost matching. Buses
- * that are off road, dark or not in the yard are excluded first, each with one
- * reason. A pairing across service classes is forbidden. Cost is
- * `ageYears x round(durationHours)`, so longer duties prefer younger buses and
- * wear is spread. The matching never fails: duties without a bus are reported
- * as `no_eligible_bus`, and eligible buses without a duty as spare.
- * Deterministic whatever the order of `buses` (they are sorted by registration;
- * a repeated registration throws a RangeError). A bus missing from the fleet
- * master counts as ordinary and is costed at the master's median age, so
- * unknown buses are neither always preferred nor always avoided for the longest
- * duties. With `yardEstablished: false` location is ignored (see the option).
+ * Weights that make the tiers lexicographic: each tier's weight exceeds the
+ * most every lower tier can add up to over a whole matching (`pairs` pairs),
+ * so no number of lower-tier savings can pay for one higher-tier cost. The
+ * weights grow as (pairs + 1)^4 x (largest base + 1): for a depot of 400 buses
+ * and a base of 20 years x 20 hours that is about 1e13, and the matching's
+ * total about 4e15, both below 2^53 (9e15), so every sum is exact. Should a
+ * depot ever be large enough to pass that, the base tier (age x hours, the
+ * least important) is dropped rather than letting a sum lose precision.
+ */
+function tierWeights(pairs: number, largestBase: number): readonly number[] {
+  const build = (base: number): number[] => {
+    const weights = [1];
+    let reach = pairs * base;
+    for (let tier = 0; tier < TIERS - 1; tier += 1) {
+      const weight = reach + 1;
+      weights.unshift(weight);
+      reach += pairs * weight;
+    }
+    return weights;
+  };
+  const full = build(largestBase);
+  const top = (full[0] as number) * (pairs + 1) * (pairs + 1);
+  return top < Number.MAX_SAFE_INTEGER ? full : [...build(0).slice(0, -1), 0];
+}
+
+const TIERS = 5;
+
+/**
+ * Proposes which bus runs which duty: an exact minimum-cost matching (ruling
+ * S47). Buses off the road or dark, and standing buses that are not known to
+ * be in the yard now, are excluded first, each with one reason. Every other
+ * pairing is allowed and costed in lexicographic tiers:
+ *  1. a bus on the road (in service or not) before a standing one, so when
+ *     there are fewer duties than buses the buses left over are standing ones;
+ *  2. a bus reporting the duty's route live takes that route's duty;
+ *  3. a bus of the duty's service class;
+ *  4. time fit: a duty started by the feed time on a bus on the road, a duty
+ *     still to start on a standing bus;
+ *  5. `ageYears x round(durationHours)`, so longer duties prefer younger buses;
+ *     then the matcher's fixed scan order over buses sorted by registration.
+ * A bus missing from the fleet master counts as ordinary at the master's
+ * median age. The matching never fails: duties without a bus are reported as
+ * `no_eligible_bus`, eligible buses without a duty as spare. Deterministic
+ * whatever the order of `buses`; a repeated registration throws a RangeError.
  * Recommendation only.
  */
 export function assignDuties(
@@ -87,40 +165,41 @@ export function assignDuties(
     seen.add(bus.registrationNumber);
   }
   const sorted = [...buses].sort((a, b) => compare(a.registrationNumber, b.registrationNumber));
-  const fallbackAge = medianAge(fleet);
-
   const excluded: { registrationNumber: string; reason: Ineligibility }[] = [];
-  const eligible: DepotBusView[] = [];
+  const eligible: Candidate[] = [];
   for (const bus of sorted) {
-    const reason = exclusionOf(bus, yardEstablished);
-    if (reason === null) eligible.push(bus);
-    else excluded.push({ registrationNumber: bus.registrationNumber, reason });
+    const standing = standingOf(bus, yardEstablished);
+    if (standing === 'on_road' || standing === 'in_yard' || standing === 'standing') {
+      eligible.push({ bus, standing });
+    } else excluded.push({ registrationNumber: bus.registrationNumber, reason: standing });
   }
-
-  const cost = duties.map((duty) => {
-    const hours = Math.round((duty.endMin - duty.startMin) / MINUTES_PER_HOUR);
-    return eligible.map((bus) => {
-      const modelled = fleet.get(bus.registrationNumber);
-      if ((modelled?.serviceClass ?? DEFAULT_CLASS) !== duty.serviceClass) return Infinity;
-      const age =
-        modelled !== undefined && Number.isFinite(modelled.ageYears)
-          ? modelled.ageYears
-          : fallbackAge;
-      return Math.round(age * hours);
-    });
-  });
+  const ctx = { fleet, fallbackAge: medianAge(fleet), feedMinute: options.feedMinute ?? null };
+  const tiers = duties.map((duty) => eligible.map((c) => tiersOf(duty, c, ctx)));
+  const largestBase = tiers.reduce(
+    (most, row) => row.reduce((m, t) => Math.max(m, t[TIERS - 1] as number), most),
+    0,
+  );
+  const weights = tierWeights(Math.min(duties.length, eligible.length), largestBase);
+  const cost = tiers.map((row) =>
+    row.map((t) => t.reduce((sum, value, i) => sum + value * (weights[i] as number), 0)),
+  );
   const { rowToCol } = hungarian(cost);
 
   const assignments: DutyAssignment[] = duties.map((duty, row) => {
     const matched = eligible[rowToCol[row] ?? -1];
     return matched !== undefined
-      ? { dutyId: duty.id, registrationNumber: matched.registrationNumber, reason: 'assigned' }
-      : { dutyId: duty.id, registrationNumber: null, reason: 'no_eligible_bus' };
+      ? {
+          dutyId: duty.id,
+          registrationNumber: matched.bus.registrationNumber,
+          reason: 'assigned',
+          busStanding: matched.standing,
+        }
+      : { dutyId: duty.id, registrationNumber: null, reason: 'no_eligible_bus', busStanding: null };
   });
   const used = new Set(rowToCol.filter((c) => c >= 0));
   return {
     assignments,
-    spareBuses: eligible.filter((_, col) => !used.has(col)).map((b) => b.registrationNumber),
+    spareBuses: eligible.filter((_, col) => !used.has(col)).map((c) => c.bus.registrationNumber),
     excluded,
     unassignedDuties: rowToCol.filter((c) => c < 0).length,
   };

@@ -41,10 +41,19 @@ export interface TimetableRepository {
 
 export type Ineligibility = 'off_road' | 'dark' | 'not_in_yard' | 'class_mismatch';
 
+/**
+ * How a bus with a duty stands now, by its live state: out on the road (in
+ * service or not), standing in the depot's yard, or standing where location
+ * cannot be judged because the depot has no yard established.
+ */
+export type BusStandingNow = 'on_road' | 'in_yard' | 'standing';
+
 export interface DutyAssignment {
   readonly dutyId: string;
   readonly registrationNumber: string | null;
   readonly reason: 'assigned' | 'no_eligible_bus';
+  /** How the duty's bus stands now; null when the duty has no bus. */
+  readonly busStanding: BusStandingNow | null;
 }
 
 export interface AssignmentPlan {
