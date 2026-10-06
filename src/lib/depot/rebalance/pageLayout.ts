@@ -18,7 +18,11 @@ export interface PlanFigure {
   readonly caption: string;
 }
 
-/** The before and after figures of the plan, as the four figures of one band. */
+/**
+ * The before and after figures of the plan, as the five figures of one band: both sides
+ * of the plan (short depots, spare buses in the network), what it moves, what the moves
+ * cost in empty running, and how much of the shortfall it covers.
+ */
 export function planFigures(s: PlanSummary): readonly PlanFigure[] {
   const shortBefore = s.coveredDeficit + s.uncoveredDeficit;
   return [
@@ -27,6 +31,12 @@ export function planFigures(s: PlanSummary): readonly PlanFigure[] {
       label: 'Short depots',
       value: `${formatCount(s.before.depotsInDeficit)} → ${formatCount(s.after.depotsInDeficit)}`,
       caption: 'before → after the plan',
+    },
+    {
+      key: 'spare',
+      label: 'Spare buses',
+      value: `${formatCount(s.before.totalSurplus)} → ${formatCount(s.after.totalSurplus)}`,
+      caption: 'network, before → after',
     },
     {
       key: 'moved',

@@ -310,6 +310,28 @@ describe('page layout', () => {
   });
 });
 
+describe('provenance tags on the visible page (ruling S51)', () => {
+  it('tags every figure of the generated before-and-after band MODELLED', async () => {
+    await render(<Distribution data={response()} state={{ error: null }} />);
+    const band = container.querySelector('[data-testid="rebalance-summary"]');
+    const figures = band?.querySelectorAll('li') ?? [];
+    expect(figures).toHaveLength(5);
+    for (const figure of figures) {
+      expect(figure.querySelector('[data-provenance="modelled"]')?.textContent).toMatch(
+        /modelled/i,
+      );
+    }
+  });
+
+  it('tags the recommended transfers section label MODELLED', async () => {
+    await render(<Distribution data={response()} state={{ error: null }} />);
+    const heading = container.querySelector('#rebalance-map-heading');
+    expect(heading?.textContent).toMatch(/^Recommended transfers/);
+    const label = heading?.closest('[data-testid="depot-section-label"]');
+    expect(label?.querySelector('[data-provenance="modelled"]')).not.toBeNull();
+  });
+});
+
 describe('transfer table preview', () => {
   const many = Array.from({ length: 12 }, (_, i) => ({ ...ROW, id: `t${i}` }));
   const props = { selectedId: null, onSelect: () => {}, onDecide: () => {} };
