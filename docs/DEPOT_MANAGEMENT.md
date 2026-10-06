@@ -153,22 +153,53 @@ views (src/lib/depot/live/*View.ts) ──► route handlers (src/app/api/upsrtc
 
 - **One upstream fetch, two projections.** The map route and the depot module read the
   same `LiveSnapshot`, so a depot count and a map pin always describe one payload.
-- **Snapshot chain.** Live upstream, then the fresh cache (`LIVE_CACHE_TTL_MS = 15_000`),
-  then last-known-good, then the saved sample (section 4.1). `NEXT_PUBLIC_DEMO_MODE=1`
-  forces the saved sample.
-- **When the depot pages call the feed stale (ruling S57).** The shared snapshot flags every
-  answer served after a failed refresh as stale. The depot pages do not: the fleet
-  repository (`src/lib/depot/repositories/liveFleetRepository.ts`) reports last-good data
-  as stale only when it is older than `LAST_GOOD_FRESH_MS = 90_000` (90 s) by its fetch
-  time, or when its age cannot be known; the saved sample is always stale.
-- **The feed chip** (`src/lib/depot/feedChip.ts`) reads `LIVE`, `STALE`, `CHECK CLOCK` or
-  `FIXTURE`, never which cache layer answered. `CHECK CLOCK` means the feed is live but at
+- **Snapshot chain** (`src/lib/upsrtc/liveSnapshot.ts`). Live upstream, then the fresh cache
+  (`LIVE_CACHE_TTL_MS = 15_000`), then last-known-good, then the saved sample (section 4.1).
+  `NEXT_PUBLIC_DEMO_MODE=1` forces the saved sample. A fetch's age, the cache TTL and the
+  feed clock's ceiling are timed from when the answer arrived, not from when it was asked.
+  - **Back-off.** After a failed refresh no new upstream call is made for
+    `LIVE_RETRY_BACKOFF_MS = 20_000` (20 s): every request in that span is answered at once
+    with what the failure fell back to (last-good, else the sample). A success clears it.
+  - **Young data served while refreshing.** The depot path (the fleet repository) asks for
+    last-good data up to `LAST_GOOD_FRESH_MS = 90_000` (90 s) old: when the cache has expired
+    but last-good is that young, it is answered at once (`source: 'cache'`) and one refresh
+    runs in the background (single-flight; a failed background refresh is logged). Depot
+    pages therefore usually show data about one poll old, under its own feed time. The
+    command centre's routes do not ask for this and wait for the refresh as before.
+  - **Short replies.** A reply whose depot rows are fewer than
+    `MIN_ROWS_SHARE_OF_LAST_GOOD = 0.5` of last-good's is treated as a failed refresh (it
+    backs off and is logged like one), so a partial payload is never served as live. The
+    `SHORT_REPLIES_BEFORE_ACCEPTED = 3`rd short reply in a row is accepted as the fleet's new
+    size, so a fleet that really shrinks is not held at its old size for ever. A reply with
+    no bus rows is always refused.
+  - **Log lines.** Each change of what is served is logged once per process, never per
+    request (`src/lib/serverLog.ts`, scope `live-snapshot`): "serving last good data instead
+    of live data: <reason>" (or "the saved sample"), and on recovery the notice "upstream
+    recovered; serving live data again instead of …". An address in the reason is replaced
+    by "(address withheld)".
+- **The depot projection's rows** (`src/lib/upsrtc/depotNormalizer.ts`). Registrations are
+  upper-cased; a text field longer than `MAX_ROW_TEXT_CHARS = 128` becomes empty, and a row
+  whose registration is longer is refused. A registration that appears more than once gives
+  one row, chosen by the map's own rule so the map and the depot pages pick the same row: a
+  row with a position fix beats one without; among equals only a strictly newer report time
+  replaces the row kept; the first wins a tie.
+- **When the depot pages call the feed stale.** The shared snapshot flags every answer served
+  after a failed refresh, or from last-good while refreshing, as stale. The depot pages do
+  not: the fleet repository (`src/lib/depot/repositories/liveFleetRepository.ts`) reports
+  last-good data as stale only when it is older than `LAST_GOOD_FRESH_MS` (90 s) by its
+  fetch time, or when its age cannot be known; the saved sample is always stale.
+- **The feed chip** (`src/lib/depot/feedChip.ts`) reads `LIVE`, `STALE`, `FEED QUIET`,
+  `CHECK CLOCK` or `FIXTURE`, never which cache layer answered. `FEED QUIET · HH:MM` means the
+  feed's newest report is more than `FEED_QUIET_AFTER_MIN = 10` minutes older than the last
+  fetch (a frozen upstream). A page whose own request has failed after a success reads
+  `STALE` at its figures' feed time. Order: stale or sample, a page request failing, quiet,
+  check clock, live. `CHECK CLOCK` means the feed is live but at
   least `FEED_CLOCK_AHEAD_WARN_SHARE = 0.01` of the response's rows, and at least
   `FEED_CLOCK_AHEAD_WARN_MIN_ROWS = 20`, were stamped ahead of the feed clock's ceiling, so
   the feed clock may lag. A page shows its stale notice only once the data is older than
   `STALE_NOTICE_AFTER_MS` (5 minutes, same file) by the browser clock; before that the chip
   and the provenance line carry it alone.
-- **The feed clock (ruling S56a).** `feedNow` is the newest receive time that is not later
+- **The feed clock.** `feedNow` is the newest receive time that is not later
   than the snapshot's own fetch time read in Indian time plus `FEED_CLOCK_MAX_LEAD_MIN = 5`
   minutes (`deriveFeedClock` in `src/lib/upsrtc/depotNormalizer.ts`). Rows stamped beyond
   that are ignored for the clock, counted, and sent as `feedClockAheadRows` (only when above
@@ -207,23 +238,31 @@ phone number.
    `isValidRouteName` (`src/lib/depot/ids.ts`), and strict query parsers that refuse
    unknown or repeated parameters.
 3. Fixed error bodies; the underlying error is logged server-side through `logDepotError`
-   and never returned.
+   (`src/lib/serverLog.ts`, one bounded line) and never returned.
 4. `Cache-Control: no-store` on every response (`jsonResponse` in `src/lib/upsrtc/respond.ts`),
    with opportunistic gzip.
 5. Bodies are memoised per snapshot (`memoiseBody` in `live/analysis.ts`, keyed weakly on
-   the analysis, which is keyed on the identity of the rows array); the feed envelope
+   the analysis, which is keyed on the identity of the rows array); bodies that depend on
+   query parameters (history, trends, forecast) are held per query in a map bounded to
+   `MAX_QUERY_BODIES_PER_SNAPSHOT = 64` per snapshot, oldest out (`live/queryMemo.ts`), and
+   an unknown depot's 404 is never held. The feed envelope
    (`feedNow`, `fetchedAt`, `source`, `stale`) is built per request by `feedEnvelope`, so
    the same rows can be reported fresh on one request and stale on the next.
 6. No view calls the upstream. The only depot route that can is the route-profile route,
-   and only on a cache miss (section 7.9).
+   and only on a cache miss (section 7.9). It reads the feed through the fleet repository,
+   like every other depot route.
 7. `runtime = 'nodejs'`, `dynamic = 'force-dynamic'`, `maxDuration = 30` (45 for the copilot).
 
 ### API routes
 
 All under `src/app/api/upsrtc/depot/`, all `GET` except the copilot. Unless stated, errors
 are `401` (no session), `400 {"error":"Invalid depot id"}` or `400 {"error":"Invalid query"}`,
-`404 {"error":"Depot not found"}`, `503 {"error":"Depot data unavailable"}`. Payload types are
-in `src/lib/depot/api.ts` and the domain `api.ts` files.
+`404 {"error":"Depot not found"}`, `503 {"error":"Depot data unavailable"}`. Every response
+except the copilot's carries the feed envelope (`DepotFeedEnvelope`: `feedNow`, `fetchedAt`,
+`source`, `stale`, and `feedClockAheadRows` only when above zero), built for that request.
+A `depotId` filter on `exceptions`, `routes`, `allocation` or `history` that is well formed but
+not in the feed answers the fixed `404 {"error":"Depot not found"}`. Payload types are in
+`src/lib/depot/api.ts` and the domain `api.ts` files.
 
 | Route | Returns | Query and validation |
 | --- | --- | --- |
@@ -231,10 +270,10 @@ in `src/lib/depot/api.ts` and the domain `api.ts` files.
 | `exceptions` | Depot exceptions, counts, bus severity counts, one page of bus exceptions | `kind` (one of the four bus kinds), `depotId`, `offset`, `limit` ≤ 100 (`BUS_PAGE_MAX_LIMIT`); strict |
 | `distribution` | Supply and modelled requirement per depot, the transfer plan | none |
 | `routes` | One page of routes in the feed with derived columns | paging, sort `dir`, filters; `limit` default 25, max 100 (`src/lib/depot/routes/routeQuery.ts`); strict |
-| `allocation` | The route-to-depot plan over cached profiles, filtered and paged per request | parsed by `parseAllocationQuery` (routeQuery.ts); strict |
-| `route/[routeName]` | One route profile (stops, terminals, length) | `isValidRouteName` → `400 {"error":"Invalid route name"}`; cache misses rate-limited → `429 {"error":"Too many requests","retryAfterSeconds":n}`; `503 {"error":"Route data unavailable"}` |
+| `allocation` | The route-to-depot plan over cached profiles, filtered and paged per request; `plannedAt` is the feed time of the snapshot the held plan was made on (null when that snapshot had no feed clock) | parsed by `parseAllocationQuery` (routeQuery.ts); strict |
+| `route/[routeName]` | One route profile (stops, terminals, length) with the feed envelope of the snapshot it read; `fetchedAt` is that snapshot's fetch time | `isValidRouteName` → `400 {"error":"Invalid route name"}`; calls to the schedule server rate-limited, one slot per call → `429 {"error":"Too many requests","retryAfterSeconds":n}` with `Retry-After`; `503 {"error":"Route data unavailable"}`, also after `ROUTE_LOOKUP_DEADLINE_MS = 25_000` |
 | `economics` | The modelled economics index, network and per depot | none |
-| `history` | A daily series for one metric | `metric` (onRoadShare, offRoadRate, darkRate, index, available), `scope` network or depot, `depotId` when scope is depot, `days` 7–180 default 30 (`live/historyView.ts`); `404` "No value for this metric" / "No index for this depot" |
+| `history` | A daily series for one metric, with the feed envelope; `available` points carry `ceiling` (the fleet) | `metric` (onRoadShare, offRoadRate, darkRate, index, available), `scope` network or depot, `depotId` when scope is depot, `days` 7–180 default 30 (`live/historyView.ts`); `404` "No value for this metric" / "No index for this depot" |
 | `trends` | History with trend words for many units | strict parser in `live/trendsView.ts`, `days` 7–90 default 30 |
 | `forecast` | Trend and forecast for one series | the history query plus one `horizon` (`live/forecastView.ts`) |
 | `[depotId]` | One depot's detail: summary, buses, yard, outshedding, exceptions | depot id |
@@ -244,7 +283,7 @@ in `src/lib/depot/api.ts` and the domain `api.ts` files.
 | `[depotId]/crew` | Anonymous slots, shifts, coverage, uncovered shifts with reasons | depot id |
 | `[depotId]/fuel` | Fuel per bus, route and class; flagged buses | depot id |
 | `[depotId]/revenue` | Trips, boardings and revenue per route | depot id |
-| `copilot` (POST) | A briefing, rationale or answer | origin, body, limits and deadline enforced in `src/lib/depot/copilot/service/`; see [`DEPOT_COPILOT_OPERATIONS.md`](DEPOT_COPILOT_OPERATIONS.md) |
+| `copilot` (POST) | A briefing, rationale or answer; `dataSource` (`last_good` or `sample`) when not on the live feed | origin, body, limits and deadline enforced in `src/lib/depot/copilot/service/`; see [`DEPOT_COPILOT_OPERATIONS.md`](DEPOT_COPILOT_OPERATIONS.md) |
 
 ## 5. Repositories and the composition root
 
