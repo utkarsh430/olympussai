@@ -249,7 +249,8 @@ describe('buildYardModel', () => {
     expect(m.established).toBe(false);
     expect(m.points).toEqual([]);
     expect(m.basis).toMatch(/could not be established/i);
-    expect(m.rule).toMatch(/six parked buses/);
+    expect(m.rule).toMatch(/at least 6 parked buses/);
+    expect(m.rule).toMatch(/at least 25% of the depot's parked buses/);
     expect(m.parkedWithPosition).toBe(1);
     expect(m.allGroups.flatMap((g) => g.buses)).toHaveLength(3);
   });

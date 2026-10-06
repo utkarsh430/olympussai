@@ -1,13 +1,7 @@
 import type { DepotBusView } from '@/lib/depot/api';
 import { formatCount } from '@/lib/depot/format';
 import type { BusLocation, Yard } from '@/lib/depot/infer/types';
-import {
-  YARD_CELL_M,
-  YARD_DOMINANCE_RATIO,
-  YARD_MAX_SPAN_CELLS,
-  YARD_MIN_CLUSTER,
-  YARD_MIN_SHARE,
-} from '@/lib/depot/infer/yard';
+import { YARD_RULE_SENTENCE } from '@/lib/depot/infer/yardRuleText';
 import { BUS_LOCATION_LABEL, BUS_STATE_LABEL } from '@/lib/depot/labels';
 import type { BusOpState, DepotSummary, Figure, StateMix } from '@/lib/depot/types';
 import type { StatusBoard, YardStatus } from './cockpitTypes';
@@ -23,16 +17,10 @@ const STATE_KEYS: readonly (readonly [BusOpState, keyof StateMix])[] = [
 ];
 const LOCATIONS: readonly BusLocation[] = ['in_yard', 'at_other_yard', 'away', 'unknown'];
 
-const PERCENT = 100;
-const METRES_PER_KM = 1000;
-
-// Built from the inference's own constants so the sentence cannot drift from the rule.
+// The rule is worded once, beside the inference's constants.
 const NO_YARD_SENTENCE =
-  `No yard is established for this depot, so standing buses cannot be placed in it: a yard is ` +
-  `claimed only when at least ${YARD_MIN_CLUSTER} parked buses stand together in one connected ` +
-  `place that holds at least ${YARD_MIN_SHARE * PERCENT}% of the depot's parked buses, ` +
-  `${YARD_DOMINANCE_RATIO} times as many as any other place, and is no more than ` +
-  `${(YARD_MAX_SPAN_CELLS * YARD_CELL_M) / METRES_PER_KM} km across.`;
+  'No yard is established for this depot, so standing buses cannot be placed in it. ' +
+  YARD_RULE_SENTENCE;
 
 export function describeYard(yard: Figure<Yard | null>): YardStatus {
   if (yard.value === null) return { established: false, sentence: NO_YARD_SENTENCE };

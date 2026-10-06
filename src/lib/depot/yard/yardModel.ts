@@ -5,6 +5,7 @@ import { lastHeardText } from '@/lib/depot/roster/rosterModel';
 import { MOVING_SPEED_KMPH } from '@/lib/depot/infer/thresholds';
 import type { Yard } from '@/lib/depot/infer/types';
 import type { BusOpState } from '@/lib/depot/types';
+import { YARD_RULE_SENTENCE } from '@/lib/depot/infer/yardRuleText';
 
 /** Fixed order for every state grouping, busiest operational state first. */
 export const YARD_STATE_ORDER: readonly BusOpState[] = [
@@ -37,10 +38,7 @@ export const DISPLAY_RADIUS_FACTOR = 4;
 export const AWAY_LIST_CAP = 15;
 
 const UNKNOWN_HOME_LABEL = 'Home depot not known';
-const RULE_TEXT =
-  'A yard is claimed only when at least six parked buses with a position stand together, ' +
-  "those buses are at least half of the depot's parked buses, and the group is clearly " +
-  'larger than any rival group of parked buses.';
+const RULE_TEXT = YARD_RULE_SENTENCE;
 
 export interface StateGroup<T> {
   readonly state: BusOpState;
