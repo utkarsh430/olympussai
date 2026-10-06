@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_NEXT, PROTECTED_ROOTS, sanitizeNext } from '@/lib/auth/redirect';
+import {
+  DEFAULT_NEXT,
+  MAX_NEXT_LENGTH,
+  PROTECTED_ROOTS,
+  sanitizeNext,
+} from '@/lib/auth/redirect';
 
 describe('sanitizeNext', () => {
   it('falls back to the default for empty input', () => {
@@ -50,5 +55,20 @@ describe('sanitizeNext', () => {
 
   it('normalises traversal that stays inside a protected root', () => {
     expect(sanitizeNext('/project/depots/d/../league')).toBe('/project/depots/league');
+  });
+
+  it('falls back for a value that is not a string instead of throwing', () => {
+    // A repeated `next` parameter reaches the login page as an array.
+    expect(sanitizeNext(['/project/depots', '//evil.example'])).toBe(DEFAULT_NEXT);
+    expect(sanitizeNext(42)).toBe(DEFAULT_NEXT);
+    expect(sanitizeNext({ next: '/project/depots' })).toBe(DEFAULT_NEXT);
+  });
+
+  it('accepts a target up to the length cap and falls back beyond it', () => {
+    const prefix = '/project/depots/league?q=';
+    const atCap = prefix + 'a'.repeat(MAX_NEXT_LENGTH - prefix.length);
+    expect(atCap).toHaveLength(MAX_NEXT_LENGTH);
+    expect(sanitizeNext(atCap)).toBe(atCap);
+    expect(sanitizeNext(`${atCap}a`)).toBe(DEFAULT_NEXT);
   });
 });
