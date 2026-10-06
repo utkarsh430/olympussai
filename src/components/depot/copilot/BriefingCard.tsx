@@ -76,10 +76,14 @@ function BriefingBody({
 
       {state.status === 'idle' ? (
         <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
-          <p className="depot-prose max-w-prose">
-            A briefing is a short written summary of the latest figures. It is advisory: it
-            describes and recommends, it does not instruct.
-          </p>
+          {/* Embedded in a briefing row, the row's own line already says what a briefing is
+              and that it is advisory, and stays in view; the card does not say it twice. */}
+          {embedded ? null : (
+            <p className="depot-prose max-w-prose">
+              A briefing is a short written summary of the latest figures. It is advisory: it
+              describes and recommends, it does not instruct.
+            </p>
+          )}
           <button type="button" onClick={write} className="hud-button">
             Write briefing
           </button>

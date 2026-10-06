@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { AttentionStrip } from '@/components/depot/cockpit/AttentionStrip';
 import { BriefingRow } from '@/components/depot/cockpit/BriefingRow';
+import { BriefingCard } from '@/components/depot/copilot/BriefingCard';
 import type { CopilotScope } from '@/lib/depot/copilot/wire';
 import type { AttentionLine } from '@/lib/depot/cockpit/attention';
 
@@ -66,6 +67,22 @@ describe('the attention strip', () => {
     const body = doc.querySelector('[data-testid="depot-briefing-row"] > div[hidden]');
     expect(body?.className).not.toContain('[&_h');
     expect(doc.querySelectorAll('h2')).toHaveLength(1);
+  });
+
+  it('explains what a briefing is once, in the row, and keeps the advisory sentence there', () => {
+    const markup = renderToStaticMarkup(
+      <BriefingRow scope={{ kind: 'depot', depotId: '20' } as CopilotScope} feedNow={null} />,
+    );
+    const text = new DOMParser().parseFromString(markup, 'text/html').body.textContent ?? '';
+    expect(text.match(/short written summary/g)).toHaveLength(1);
+    expect(text).toContain('Advisory: it describes, it does not instruct.');
+    // Opened, the embedded card offers Write and does not explain itself again.
+    const card = renderToStaticMarkup(
+      <BriefingCard scope={{ kind: 'depot', depotId: '20' } as CopilotScope} title="Depot briefing" currentFeedTime={null} embedded />,
+    );
+    const cardText = new DOMParser().parseFromString(card, 'text/html').body.textContent ?? '';
+    expect(cardText).toContain('Write briefing');
+    expect(cardText).not.toContain('short written summary');
   });
 
   it('wraps a line on a phone instead of cutting it; truncates only from 640px', () => {
