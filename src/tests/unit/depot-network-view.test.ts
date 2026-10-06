@@ -132,15 +132,24 @@ describe('buildNetworkResponse', () => {
     ]);
   });
 
-  it('returns the same object for the same fetchedAt and source', () => {
-    const first = buildNetworkResponse(fixtureView());
-    expect(buildNetworkResponse(fixtureView())).toBe(first);
-    const later = buildNetworkResponse(fixtureView({ fetchedAt: '2026-10-06T08:00:20.000Z' }));
-    expect(later).not.toBe(first);
-    const cached = buildNetworkResponse(
-      fixtureView({ fetchedAt: '2026-10-06T08:00:20.000Z', source: 'cache' }),
-    );
-    expect(cached).not.toBe(later);
+  it('passes stale through per request while sharing the body built for the rows', () => {
+    const fresh = buildNetworkResponse(fixtureView({ source: 'cache', stale: false }));
+    const lastGood = buildNetworkResponse(fixtureView({ source: 'cache', stale: true }));
+    expect(fresh.stale).toBe(false);
+    expect(lastGood.stale).toBe(true);
+    expect(lastGood.depots).toBe(fresh.depots);
+    expect(lastGood.scores).toBe(fresh.scores);
+    expect(lastGood.kpis).toBe(fresh.kpis);
+    expect(lastGood.coverage).toBe(fresh.coverage);
+  });
+
+  it('passes source and fetchedAt through without rebuilding the body', () => {
+    const live = buildNetworkResponse(fixtureView({ source: 'live' }));
+    const cached = buildNetworkResponse(fixtureView({ source: 'cache', fetchedAt: 'later' }));
+    expect([live.source, cached.source, cached.fetchedAt]).toEqual(['live', 'cache', 'later']);
+    expect(cached.depots).toBe(live.depots);
+    const next = buildNetworkResponse(fixtureView({ rows: [...fixtureRows] }));
+    expect(next.depots).not.toBe(live.depots);
   });
 });
 

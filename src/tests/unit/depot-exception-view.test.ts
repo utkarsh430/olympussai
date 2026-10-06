@@ -59,10 +59,11 @@ describe('buildExceptionsResponse', () => {
     expect(res.report).toBe(analyseSnapshot(view).report);
   });
 
-  it('returns the same object for the same fetchedAt and source', () => {
-    const first = buildExceptionsResponse(fixtureView());
-    expect(buildExceptionsResponse(fixtureView())).toBe(first);
-    expect(buildExceptionsResponse(fixtureView({ source: 'fixture' }))).not.toBe(first);
+  it('passes stale through per request while sharing the report built for the rows', () => {
+    const fresh = buildExceptionsResponse(fixtureView({ source: 'cache', stale: false }));
+    const lastGood = buildExceptionsResponse(fixtureView({ source: 'cache', stale: true }));
+    expect([fresh.stale, lastGood.stale]).toEqual([false, true]);
+    expect(lastGood.report).toBe(fresh.report);
   });
 
   it('agrees with the network counts', () => {
