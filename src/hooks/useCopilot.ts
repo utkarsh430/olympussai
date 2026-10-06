@@ -6,6 +6,7 @@ import {
   type CopilotFailureKind,
 } from '@/lib/depot/copilot/ui/copilotClient';
 import type { CopilotApiRequest, CopilotApiResponse } from '@/lib/depot/copilot/wire';
+import { redirectToSignIn } from '@/lib/depot/signInRedirect';
 
 const COUNTDOWN_STEP_MS = 1000;
 
@@ -77,6 +78,8 @@ export function useCopilot(): CopilotHook {
           });
         } else {
           apply({ status: 'failed', kind: result.kind });
+          // The session has ended: send the user to sign in, back to this page after.
+          if (result.kind === 'session_expired') redirectToSignIn();
         }
       });
     },
