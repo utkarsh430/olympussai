@@ -1,5 +1,6 @@
 import type { CopilotRequest, CopilotText } from '@/lib/depot/copilot/types';
 import type {
+  CopilotAnswerScope,
   CopilotAnswerTable,
   CopilotApiResponse,
   CopilotPublicNotice,
@@ -11,6 +12,7 @@ export interface PublicExtras {
   readonly claudeMissed: boolean;
   readonly interpretedAs?: string;
   readonly table?: CopilotAnswerTable;
+  readonly answerScope?: CopilotAnswerScope;
   /** Server-written, for a stale snapshot: appended here, outside the cache. */
   readonly staleSentence?: string;
 }
@@ -47,5 +49,6 @@ export function toPublicResponse(
       .map((f) => ({ id: f.id, label: f.label, text: f.text, provenance: f.provenance })),
     ...(extras.interpretedAs !== undefined ? { interpretedAs: extras.interpretedAs } : {}),
     ...(extras.table !== undefined ? { table: extras.table } : {}),
+    ...(extras.answerScope !== undefined ? { answerScope: extras.answerScope } : {}),
   };
 }

@@ -1,6 +1,7 @@
 import type { DepotDetailResponse } from '@/lib/depot/api';
 import { buildAnswer } from '@/lib/depot/copilot/facts/answers';
 import { buildDepotBriefing } from '@/lib/depot/copilot/facts/depot';
+import { cleanName } from '@/lib/depot/copilot/facts/format';
 import { buildNetworkBriefing } from '@/lib/depot/copilot/facts/network';
 import { buildTransferRationale } from '@/lib/depot/copilot/facts/transfer';
 import type { CopilotQuery } from '@/lib/depot/copilot/queries';
@@ -68,12 +69,27 @@ function prepareAsk(question: string, scope: CopilotScope, view: FleetSnapshotVi
   });
   const nameOf = (id: string): string => depots.find((d) => d.id === id)?.name ?? id;
   const table = answerTable(query, request.facts);
+  const answerScope = answerScopeOf(query, nameOf);
   return {
     ok: true,
     request,
     interpretedAs: interpretQuery(query, nameOf),
     ...(table ? { table } : {}),
+    ...(answerScope ? { answerScope } : {}),
   };
+}
+
+/** Round 8 A: the scope the answer is about, from the typed query; none for a refusal. */
+function answerScopeOf(
+  query: CopilotQuery,
+  nameOf: (id: string) => string,
+): CopilotAnswerScope | undefined {
+  if (query.kind === 'unsupported') return undefined;
+  const ids = depotIdsOf(query);
+  const depots = ids.map((depotId) => ({ depotId, depotName: cleanName(nameOf(depotId)) }));
+  const [only] = depots;
+  if (depots.length === 1 && only) return { kind: 'depot', ...only };
+  return depots.length > 1 ? { kind: 'depots', depots } : { kind: 'network' };
 }
 
 /**

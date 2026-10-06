@@ -120,6 +120,7 @@ export async function answerCopilot(
   const extras = {
     interpretedAs: prepared.interpretedAs,
     table: prepared.table,
+    answerScope: prepared.answerScope,
     staleSentence: call.staleSentence,
   };
   const missed = runtime.usesClaude || runtime.claudeExpected;
