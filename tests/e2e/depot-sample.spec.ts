@@ -666,3 +666,70 @@ test.describe('9. the route drawer on the sample', () => {
     await expect(opener).toBeFocused();
   });
 });
+
+/** Pages that call the sample live today, each with what is wrong. */
+const LIVE_DEFECTS: Readonly<Record<string, string>> = {
+  '/project/depots/trends':
+    'the trends chart calls the sample\'s latest value "Now (live)" and "LIVE value"',
+  '/project/depots/d/[depotId]/trends':
+    'the trends chart calls the sample\'s latest value "Now (live)" and "LIVE value"',
+  '/project/depots/league': 'each index trend says it ends "on the live value" on the sample',
+  '/project/depots/routes': 'the routes table caption says "Every route in the live feed"',
+};
+
+/**
+ * Every sentence on the page, in its text, titles and labels, that uses the word live, except
+ * inside the feed chip (which says the sample is not the live feed), the footer disclaimer
+ * (checked on its own below) and the data-source registry (which names each source's kind).
+ */
+async function liveClaims(page: DepotPage): Promise<string[]> {
+  return page.evaluate(() => {
+    const excluded = Array.from(
+      document.querySelectorAll(
+        '[data-testid="depot-feed-status"], [data-testid="footer-disclaimer"], [data-testid="depot-feed-registry"]',
+      ),
+    );
+    const inExcluded = (el: Element): boolean => excluded.some((box) => box.contains(el));
+    let text = document.body.innerText;
+    for (const box of excluded) text = text.split((box as HTMLElement).innerText).join('\n');
+    const attributes = Array.from(document.querySelectorAll('[title], [aria-label]'))
+      .filter((el) => !inExcluded(el))
+      .flatMap((el) => [el.getAttribute('title') ?? '', el.getAttribute('aria-label') ?? '']);
+    return [...text.split('\n'), ...attributes].filter((line) => /\blive\b/i.test(line));
+  });
+}
+
+test.describe('10. the sample is never presented as live', () => {
+  test.skip(!E2E_PIN, `SKIPPED: ${PIN_MISSING}`);
+
+  for (const template of PAGE_TEMPLATES) {
+    test(`${template} says the data is the sample, not the live feed`, async ({ page, sample }) => {
+      await openPage(page, template.replace(DEPOT_SEGMENT, sample.depotId), PAGE_HEADING[template]);
+
+      const chip = page.getByTestId('depot-feed-status');
+      await expect(chip).toHaveAttribute('data-tone', 'fixture');
+      await expect(chip).toHaveAttribute('title', 'Sample data, not the live feed');
+      await expect(chip).toContainText(/fixture/i);
+      await expect(page.getByTestId('depot-provenance-line')).toContainText(
+        template === '/project/depots/sources' ? 'not from the feed' : 'sample data',
+      );
+    });
+
+    test(`${template} never calls the sample live`, async ({ page, sample }) => {
+      test.fixme(template in LIVE_DEFECTS, LIVE_DEFECTS[template]);
+      await openPage(page, template.replace(DEPOT_SEGMENT, sample.depotId), PAGE_HEADING[template]);
+
+      expect(await liveClaims(page)).toEqual([]);
+    });
+  }
+
+  test('the footer disclaimer does not call the sample live', async ({ page, sample }) => {
+    test.fixme(
+      true,
+      'the footer says "Vehicle positions and schedules are live UPSRTC data" on the sample',
+    );
+    expect(sample.depotId).toBeTruthy();
+    await openPage(page, '/project/depots', 'Network overview');
+    await expect(page.getByTestId('footer-disclaimer')).not.toContainText(/\blive\b/i);
+  });
+});
