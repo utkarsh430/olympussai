@@ -131,17 +131,24 @@ describe('buildRevenueResponse', () => {
   it('carries the mixed-class pricing rule as a note a page can print', async () => {
     const { notes } = await build(world());
     expect(notes).toContain(MIXED_CLASS_NOTE);
-    expect(MIXED_CLASS_NOTE).toMatch(/most numerous class/);
+    // Ruling S41: a route's class is the one its duties carry, taken from the route's name,
+    // and its seats are those of the buses that ran it on the modelled day.
+    expect(MIXED_CLASS_NOTE).toMatch(/the class its name states \(ordinary when it states none\)/);
+    expect(MIXED_CLASS_NOTE).toMatch(/average across the buses that ran it/);
   });
 
-  it('withholds earnings per kilometre with the reason when no length is known', async () => {
+  it('gives earnings per kilometre on every route that ran, on a modelled length when none is known', async () => {
+    // Ruling S39: no withholding for an unknown length. Each route runs on a MODELLED typical
+    // length, earnings are revenue over the day's service km, and the coverage says 0 of 2 real.
     const { summary, routes } = await build(world());
-    expect(summary.earningsPerKm).toBeNull();
     expect(summary.lengthCoverage).toEqual({ n: 0, of: 2 });
+    expect(summary.modelledLengthRevenueShare).toBe(1);
+    expect(summary.earningsPerKm).toBe(Math.round((summary.revenue / summary.serviceKm) * 100) / 100);
     for (const r of routes) {
-      expect(r.earningsPerKm).toBeNull();
-      expect(r.earningsWithheld).toBe('unknown_length');
-      expect(r.lengthProvenance).toBeNull();
+      expect(r.lengthProvenance).toBe('modelled');
+      expect(r.trips).toBeGreaterThan(0);
+      expect(r.earningsWithheld).toBeNull();
+      expect(r.earningsPerKm).toBe(Math.round((r.revenue / r.serviceKm) * 100) / 100);
     }
   });
 
@@ -156,7 +163,9 @@ describe('buildRevenueResponse', () => {
     expect(known?.earningsPerKm).not.toBeNull();
     expect(known?.provenance).toBe('modelled');
     expect(summary.lengthCoverage).toEqual({ n: 1, of: 2 });
-    expect(routes.find((r) => r.routeName === 'Lucknow - Sitapur')?.lengthProvenance).toBeNull();
+    // The other route keeps a MODELLED typical length; the derived one is the profile's own.
+    expect(routes.find((r) => r.routeName === 'Lucknow - Sitapur')?.lengthProvenance).toBe('modelled');
+    expect(known?.serviceKm).toBe((known?.trips ?? 0) * LENGTH_KM * 2);
   });
 
   it('tags every figure modelled; only a route length is ever derived', async () => {
