@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { MapFallback } from '@/components/map/MapFallback';
+import { MapUnavailable } from '@/components/depot/shell/MapUnavailable';
 import { MAP_DARK_STYLE } from '@/lib/constants';
 import { BUS_STATE_LABEL } from '@/lib/depot/labels';
 import { onMapsAuthFailure } from '@/lib/maps/authFailure';
@@ -233,11 +233,7 @@ export function YardMap({ model }: YardMapProps) {
         </div>
       ) : null}
       {status === 'error' ? (
-        <MapFallback
-          status="error"
-          message={errorMessage}
-          onRetry={() => window.location.reload()}
-        />
+        <MapUnavailable message={errorMessage} onRetry={() => window.location.reload()} />
       ) : null}
       {status === 'ready' && hovered ? (
         <div
