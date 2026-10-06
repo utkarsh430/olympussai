@@ -1,7 +1,9 @@
-import { formatCount } from '../format';
+import { formatCount, formatPlainDate } from '../format';
 import { REPORTING_WINDOW_MIN } from '../infer/thresholds';
-import type { DutyBoardResponse } from './api';
-import { heldOutParts } from './dutyBoardModel';
+import { modelledDayLine } from '../modelledDayLine';
+import type { Coverage } from '../types';
+import type { BoardDuty, DutyBoardResponse } from './api';
+import { crossReferenceSentence, heldOutParts } from './dutyBoardModel';
 import { matchedCaption, recencySentence, spareCaption } from './dutyStanding';
 
 const plural = (n: number, one: string, many: string): string => (n === 1 ? one : many);
@@ -109,6 +111,33 @@ export function matchingNotes(
 ): readonly string[] {
   const unmatched = unmatchedLine(response);
   return [...(unmatched === null ? [] : [unmatched]), ...eligibilityNotes(response)];
+}
+
+/**
+ * The provenance line's modelled-day extension: the ONE formula every page on the modelled
+ * day prints (`modelledDayLine`), with the plain date and the feed's schedule coverage.
+ */
+export function dutiesModelledDay(input: {
+  readonly operatingDate: string;
+  readonly duties: readonly Pick<BoardDuty, 'routeName'>[];
+  readonly scheduled: Coverage | null;
+}): string {
+  return modelledDayLine({
+    operatingDate: input.operatingDate,
+    duties: input.duties.length,
+    routes: new Set(input.duties.map((duty) => duty.routeName)).size,
+    scheduled: input.scheduled,
+  });
+}
+
+/** The empty board's one "no duties" sentence, dated in the plain form ("6 Oct 2026"). */
+export function emptyBoardSentence(operatingDate: string): string {
+  return crossReferenceSentence({
+    scheduled: null,
+    duties: 0,
+    routes: 0,
+    operatingDate: formatPlainDate(operatingDate),
+  });
 }
 
 export function duplicateRowsSentence(dropped: number | undefined): string | null {

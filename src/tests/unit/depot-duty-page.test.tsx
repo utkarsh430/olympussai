@@ -16,6 +16,12 @@ vi.mock('@/components/depot/data/DepotNetworkProvider', () => ({
     error: null,
   }),
 }));
+vi.mock('@/components/depot/data/DepotDetailProvider', () => ({
+  useDepotDetailContext: (): unknown => ({
+    depotId: '20',
+    data: { outshed: { coverage: { n: 8, of: 200 } } },
+  }),
+}));
 
 const BASE: DutyBoardResponse = {
   feedNow: '2026-10-06T10:00:00Z',
@@ -103,14 +109,54 @@ describe('the duty page in every state (guard X1)', () => {
     expect(text(markup)).not.toContain('Assigned');
   });
 
+  // Rewritten for round 3: the ONE modelled-day formula (modelledDayLine) with the plain
+  // date and the feed's schedule coverage; the raw ISO date never reaches the screen.
   it('puts the dated modelled-day sentence in the provenance line, and nowhere else', async () => {
     setHook({ data: BASE });
     const markup = await renderPage();
     const context = markup.slice(markup.indexOf('depot-provenance-context'));
-    expect(text(context)).toContain(
-      'This page is built on the modelled day for 2026-10-06, rebuilt from the live fleet as of the feed time: 1 duty on 1 route.',
-    );
-    expect(text(markup).split('This page is built on')).toHaveLength(2);
+    const sentence =
+      'Built on the modelled day for 6 Oct 2026: 1 duty on 1 route; the feed schedules 8 of 200 buses.';
+    expect(text(context)).toContain(sentence);
+    expect(text(markup).split('Built on the modelled day')).toHaveLength(2);
+  });
+
+  it.each(STATES)('puts no raw ISO date in any text, title or aria-label (%s)', async (_n, p) => {
+    setHook(p);
+    const markup = await renderPage();
+    expect(text(markup)).not.toMatch(/\d{4}-\d{2}-\d{2}/);
+    const attributes = [...markup.matchAll(/(?:title|aria-label)="([^"]*)"/g)].map((m) => m[1]);
+    expect(attributes.join(' ')).not.toMatch(/\d{4}-\d{2}-\d{2}/);
+  });
+
+  // R2-m4: each state's body is pinned, not only the header.
+  it('loading: the board footprint with its words', async () => {
+    setHook({ loading: true });
+    const markup = await renderPage();
+    expect(markup).toContain('data-testid="duties-loading"');
+    expect(text(markup)).toContain('Loading the duty figures');
+    expect(text(markup)).toContain('Loading the timeline');
+  });
+
+  it('error: what failed, what to do, Retry and a way back', async () => {
+    setHook({ error: 'Depot data unavailable' });
+    const markup = await renderPage();
+    const body = text(markup);
+    expect(markup).toContain('data-testid="depot-error"');
+    expect(body).toContain('Could not load duties');
+    expect(body).toContain('Retry');
+    expect(body).toContain('Back to the network overview');
+    expect(markup).toContain('href="/project/depots"');
+  });
+
+  it('not found: names the id and links back to the network overview', async () => {
+    setHook({ error: DEPOT_NOT_FOUND_MESSAGE });
+    const markup = await renderPage();
+    expect(markup).toContain('data-testid="duties-unknown"');
+    expect(text(markup)).toContain('No depot has the id 20 in the current feed.');
+    expect(text(markup)).toContain('Back to the network overview');
+    expect(markup).toContain('href="/project/depots"');
+    expect(text(markup)).not.toContain('Retry');
   });
 
   it('gives an empty board one "no duties" sentence with its cause and a way on', async () => {
