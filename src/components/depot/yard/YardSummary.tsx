@@ -15,9 +15,10 @@ export interface YardFiguresProps {
 }
 
 /**
- * The one strip above the map: in the yard, visiting, away and capacity. The page
- * default is DERIVED (the yard is inferred); only capacity, set against modelled
- * bays, carries its own tag. With no yard, the in/away split does not exist.
+ * The one strip above the map: in the yard (every bus of the depot inside the circle,
+ * whatever its state), visiting, away and capacity. The page is MIXED; capacity, set
+ * against modelled bays, is the band's one generated figure and carries its own tag
+ * (none while it is only a dash). With no yard, the in/away split does not exist.
  */
 export function YardFigures({ model, capacity, baysPending }: YardFiguresProps) {
   const cap = capacityFigure(capacity, baysPending);
