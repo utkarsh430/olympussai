@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import {
   MAX_ARC_PX,
   MIN_ARC_PX,
