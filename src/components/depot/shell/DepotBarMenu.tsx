@@ -38,7 +38,7 @@ export function DepotBarMenu() {
       {open ? (
         <div
           id={panelId}
-          className="absolute inset-x-0 top-full z-50 flex flex-wrap items-center gap-2 border-b border-depot-line bg-depot-page px-4 py-3"
+          className="absolute inset-x-0 top-full z-50 flex flex-wrap items-center gap-2 border-b border-depot-line bg-depot-page px-4 py-3 sm:px-6"
         >
           <Link href="/project/upsrtc" className="depot-bar-button">
             <ArrowLeft className="h-3.5 w-3.5" aria-hidden />

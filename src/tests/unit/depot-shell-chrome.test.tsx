@@ -93,4 +93,14 @@ describe('the top bar', () => {
     );
     expect(classes(menu.getByTestId('depot-sign-out'))).not.toContain('depot-bar-button-quiet');
   });
+
+  it('opens the menu panel under the bar, aligned to the bar row at 640 to 899px', () => {
+    render(<DepotTopBar />);
+    act(() => within(screen.getByTestId('depot-bar-menu')).getByRole('button').click());
+    const menu = within(screen.getByTestId('depot-bar-menu'));
+    const panel = menu.getByRole('link', { name: /Operations/ }).parentElement;
+    expect(classes(panel)).toEqual(
+      expect.arrayContaining(['absolute', 'top-full', 'px-4', 'sm:px-6']),
+    );
+  });
 });
