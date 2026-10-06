@@ -257,7 +257,10 @@
 
   /* Data table: scrolls sideways inside its own frame, never the page. */
   .depot-table-frame {
-    @apply max-h-[70vh] overflow-auto rounded-md border border-depot-line bg-depot-page;
+    /* relative: the frame must be the containing block for absolutely positioned
+       children (screen-reader-only text in rows), or they escape its clipping
+       and make the whole page scroll sideways. */
+    @apply relative max-h-[70vh] overflow-auto rounded-md border border-depot-line bg-depot-page;
   }
 
   .depot-table {
