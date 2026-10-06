@@ -5,7 +5,8 @@ import {
   inferYard,
   inferYards,
   YARD_MIN_RADIUS_M,
-  YARD_MAX_RADIUS_M,
+  YARD_CELL_M,
+  YARD_RADIUS_PAD_M,
 } from '@/lib/depot/infer/yard';
 
 const ORIGIN = { lat: 26.85, lng: 80.95 };
@@ -128,13 +129,12 @@ describe('inferYard', () => {
     expect(inferYard(at('A', 10, ORIGIN, 2))!.radiusM).toBe(YARD_MIN_RADIUS_M);
   });
 
-  it('clamps the radius to the maximum when the cluster is wider than the cap', () => {
-    // 3x3 cells of 150 m admit points up to ~225 m out; a 90th percentile near
-    // that plus padding stays under the cap, so check the cap as an upper bound.
+  it('sizes a wide cluster from its spread, within what the 3x3 cell block allows', () => {
+    const blockDiagonalM = 3 * Math.SQRT2 * YARD_CELL_M;
     const yard = inferYard(at('A', 40, ORIGIN, 220));
     expect(yard).not.toBeNull();
-    expect(yard!.radiusM).toBeLessThanOrEqual(YARD_MAX_RADIUS_M);
     expect(yard!.radiusM).toBeGreaterThan(YARD_MIN_RADIUS_M);
+    expect(yard!.radiusM).toBeLessThanOrEqual(blockDiagonalM + YARD_RADIUS_PAD_M);
   });
 
   it('is deterministic on shuffled input', () => {

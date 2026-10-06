@@ -11,8 +11,14 @@ export const YARD_MIN_CLUSTER = 6;
 export const YARD_MIN_SHARE = 0.5;
 /** A yard is never claimed smaller than a few bays. */
 export const YARD_MIN_RADIUS_M = 120;
-/** ...nor larger than a big depot with its approach road. */
-export const YARD_MAX_RADIUS_M = 600;
+/*
+ * There is deliberately no maximum radius. The cluster is the winning 150 m cell
+ * plus its eight neighbours, a 3x3 block, so every member and therefore the
+ * cluster mean lie inside it, and no member is farther from the centre than the
+ * block's diagonal (3 * sqrt(2) * YARD_CELL_M, about 636 m). The radius is the
+ * 90th-percentile distance plus YARD_RADIUS_PAD_M, so the cell size already
+ * bounds it; a separate cap could never take effect.
+ */
 /** Margin beyond the 90th-percentile bus so edge bays still count as inside. */
 export const YARD_RADIUS_PAD_M = 40;
 
@@ -115,10 +121,7 @@ export function inferYard(rows: readonly DepotBusRow[]): Yard | null {
     .map((c) => Math.hypot(c.point.x - centre.x, c.point.y - centre.y))
     .sort((a, b) => a - b);
   const p90 = distances[Math.ceil(RADIUS_PERCENTILE * distances.length) - 1] ?? 0;
-  const radiusM = Math.min(
-    YARD_MAX_RADIUS_M,
-    Math.max(YARD_MIN_RADIUS_M, Math.round(p90 + YARD_RADIUS_PAD_M)),
-  );
+  const radiusM = Math.max(YARD_MIN_RADIUS_M, Math.round(p90 + YARD_RADIUS_PAD_M));
 
   const { lat, lng } = fromMetres(centre, originLat, originLng);
   return { lat, lng, radiusM, parked: candidates.length, inCluster: cluster.length };
