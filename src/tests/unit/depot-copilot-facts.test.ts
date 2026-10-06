@@ -18,140 +18,11 @@ import type { DepotBalance } from '@/lib/depot/optimise/types';
 import type { DeiComponent, DepotScore } from '@/lib/depot/score/types';
 import type { DepotKind, DepotSummary, Figure, Provenance, StateMix } from '@/lib/depot/types';
 
-// ---- a local checker for the stricter allowlist rules ---------------------
+// ---- shared bounds ----------------------------------------------------------
 
-const QUANTITY_STEMS = [
-  'zero',
-  'two',
-  'three',
-  'four',
-  'five',
-  'six',
-  'seven',
-  'eight',
-  'nine',
-  'ten',
-  'eleven',
-  'twelve',
-  'thirteen',
-  'fourteen',
-  'fifteen',
-  'sixteen',
-  'seventeen',
-  'eighteen',
-  'nineteen',
-  'twenty',
-  'thirty',
-  'forty',
-  'fifty',
-  'sixty',
-  'seventy',
-  'eighty',
-  'ninety',
-  'hundred',
-  'thousand',
-  'lakh',
-  'crore',
-  'million',
-  'billion',
-  'trillion',
-  'dozen',
-  'score',
-  'couple',
-  'pair',
-  'both',
-  'several',
-  'majority',
-  'minority',
-  'most',
-  'once',
-  'twice',
-  'thrice',
-  'single',
-  'double',
-  'triple',
-  'quadruple',
-  'half',
-  'halves',
-  'third',
-  'quarter',
-  'fifth',
-  'tenth',
-  'first',
-  'second',
-  'twelfth',
-  'twentieth',
-  'thirtieth',
-  'fortieth',
-  'fiftieth',
-  'sixtieth',
-  'seventieth',
-  'eightieth',
-  'ninetieth',
-  'nil',
-  'nought',
-  'naught',
-  'handful',
-  'percent',
-  'percentage',
-  'per\\s+cent',
-];
-const QUANTITY = new RegExp(`\\b(?:${QUANTITY_STEMS.join('|')})(?:s|es|ed|th|ths|fold)?\\b`, 'i');
 const PLACEHOLDER = /\{\{fact:[a-z0-9][a-z0-9_.-]{0,63}\}\}/g;
-const ALLOWED_PROSE = /^[A-Za-z .,;:'"()-]*$/;
-const BOUNDARY = /[ .,;:()'"-]/;
-const TOUCHING_PLACEHOLDERS = /\}\}[.,;:()'"-]*\{\{fact:/;
-const PUNCTUATION_BEFORE_PLACEHOLDER = /(^|[ (])[-.,]\{\{fact:/;
-const RUN_TOGETHER_NUMBER =
-  /(twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred)(one|two|three|four|five|six|seven|eight|nine)/i;
-const SINGLE_LETTER_RUN = /\b[A-Za-z](?:[ -][A-Za-z]\b){2,}/;
 const MAX_FACTS = 60;
 const MAX_FACT_TEXT = 120;
-
-function violations(text: string): string[] {
-  const found: string[] = [];
-  const bare = text.replace(PLACEHOLDER, ' ');
-  if (!ALLOWED_PROSE.test(bare)) found.push('character outside the allowlist');
-  for (const m of text.matchAll(PLACEHOLDER)) {
-    const at = m.index ?? 0;
-    const before = text[at - 1];
-    const after = text[at + m[0].length];
-    if (before !== undefined && !BOUNDARY.test(before))
-      found.push('placeholder against a character');
-    if (after !== undefined && !BOUNDARY.test(after)) found.push('placeholder against a character');
-  }
-  if (TOUCHING_PLACEHOLDERS.test(text)) found.push('placeholders only punctuation apart');
-  if (PUNCTUATION_BEFORE_PLACEHOLDER.test(text)) found.push('punctuation before a placeholder');
-  if (RUN_TOGETHER_NUMBER.test(bare)) found.push('number words run together');
-  if (SINGLE_LETTER_RUN.test(bare)) found.push('run of single letters');
-  const quantity = QUANTITY.exec(bare);
-  if (quantity) found.push(`quantity word: ${quantity[0]}`);
-  if (/\b[IVXLCDM]{2,}\b/.test(bare)) found.push('roman-numeral-like word');
-  if (/www\.|:\/\/|mailto|javascript|\.[A-Za-z]/i.test(bare)) found.push('link-like text');
-  return found;
-}
-
-describe('local allowlist checker', () => {
-  it('flags what the stricter renderer will refuse', () => {
-    const bad = [
-      'about 50%',
-      'most of it',
-      'MIX of buses',
-      'a٣b',
-      'x{{fact:a.b}}y',
-      'one.two',
-      'halves',
-      'deserves a second look',
-      'go first',
-      '{{fact:a.b}},{{fact:c.d}}',
-      'x -{{fact:a.b}}',
-      'twentyfive',
-      'a b c',
-    ];
-    for (const text of bad) expect(violations(text), text).not.toEqual([]);
-    expect(violations('Fine prose: {{fact:a.b}}, and (one) more.')).toEqual([]);
-  });
-});
 
 // ---- factories ---------------------------------------------------------------
 
@@ -546,16 +417,13 @@ const proseOf = (r: CopilotRequest): string =>
 
 describe('scripted drafts', () => {
   it.each(allRequests())(
-    '%s renders through renderDraft and obeys the allowlist',
+    '%s renders through renderDraft, the one source of the draft rules',
     (_label, request) => {
       const rendered = renderDraft(request.scriptedDraft, request.facts);
       expect(rendered).toMatchObject({ ok: true });
       if (!rendered.ok) return;
       const ids = new Set(request.facts.map((f) => f.id));
       expect(rendered.usedFactIds.every((id) => ids.has(id))).toBe(true);
-      for (const text of [request.scriptedDraft.headline, ...request.scriptedDraft.paragraphs]) {
-        expect(violations(text), text).toEqual([]);
-      }
       expect(proseOf(request).replace(PLACEHOLDER, ' ')).not.toMatch(/\d/);
     },
   );
@@ -926,14 +794,17 @@ describe('hostile text in data', () => {
     }
   });
 
-  it('is substituted verbatim and never re-scanned', () => {
+  it('is substituted in sanitised form and never re-scanned', () => {
     const rendered = renderDraft(
       buildDepotBriefing(makeDetail({ depot: makeDepot('101', HOSTILE) })).scriptedDraft,
       buildDepotBriefing(makeDetail({ depot: makeDepot('101', HOSTILE) })).facts,
     );
     expect(rendered.ok).toBe(true);
     if (!rendered.ok) return;
-    expect(rendered.headline).toContain('{{fact:x}} <b>7 three</b> http://evil.test `rm`');
+    // The sanitiser strips braces, angle brackets and backticks from fact text,
+    // so the inner placeholder survives only as inert words and is never expanded.
+    expect(rendered.headline).toContain('fact:x b7 three/b http://evil.test rm');
+    expect(rendered.headline).not.toMatch(/[{}<>`]/);
     expect(rendered.usedFactIds).not.toContain('x');
   });
 });
