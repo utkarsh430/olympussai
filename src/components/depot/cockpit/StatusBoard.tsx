@@ -1,6 +1,7 @@
 import { describeMix, statusSegments } from '@/components/depot/network/StatusMixBar';
 import { EmptyState } from '@/components/depot/shell/DataStates';
 import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
+import { CockpitWeekTrend } from '@/components/depot/trends/WeekTrend';
 import type { StatusBoard as StatusBoardModel } from '@/lib/depot/cockpit/cockpitModel';
 import { formatCount, formatShare } from '@/lib/depot/format';
 import type { StatusMix } from '@/lib/depot/types';
@@ -90,6 +91,7 @@ export function StatusBoard({ board, status }: StatusBoardProps) {
             <dd className="mt-2 text-[11px] text-depot-muted">
               {formatShare(cell.count, board.fleet)} of fleet
             </dd>
+            {cell.state === 'on_road' ? <CockpitWeekTrend /> : null}
           </div>
         ))}
       </dl>
