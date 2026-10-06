@@ -1,7 +1,6 @@
 import { requireProjectSession } from '@/lib/auth/server';
 import { LeagueTable } from '@/components/depot/league/LeagueTable';
 import { PageHeader } from '@/components/depot/shell/PageHeader';
-import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
 
 const LEAGUE_PATH = '/project/depots/league';
 
@@ -15,9 +14,8 @@ export default async function DepotLeaguePage() {
       <PageHeader
         title="League table"
         description="One snapshot of the live feed, compared within peer groups of similar fleet size."
-      >
-        <ProvenanceBadge provenance="derived" />
-      </PageHeader>
+        provenance="derived"
+      />
       <LeagueTable />
     </>
   );

@@ -1,7 +1,6 @@
 import { requireProjectSession } from '@/lib/auth/server';
 import { ExceptionCentre } from '@/components/depot/exceptions/ExceptionCentre';
 import { PageHeader } from '@/components/depot/shell/PageHeader';
-import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
 
 const EXCEPTIONS_PATH = '/project/depots/exceptions';
 
@@ -15,9 +14,8 @@ export default async function DepotExceptionsPage() {
       <PageHeader
         title="Exceptions"
         description="Depots and buses that stand out on the latest live snapshot, each with the figures that put it here."
-      >
-        <ProvenanceBadge provenance="derived" />
-      </PageHeader>
+        provenance="derived"
+      />
       <ExceptionCentre />
     </>
   );

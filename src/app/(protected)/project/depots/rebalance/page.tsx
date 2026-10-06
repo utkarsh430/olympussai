@@ -1,7 +1,6 @@
 import { requireProjectSession } from '@/lib/auth/server';
 import { RebalancePage } from '@/components/depot/rebalance/RebalancePage';
 import { PageHeader } from '@/components/depot/shell/PageHeader';
-import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
 
 const REBALANCE_PATH = '/project/depots/rebalance';
 
@@ -15,9 +14,8 @@ export default async function FleetDistributionPage() {
       <PageHeader
         title="Fleet distribution"
         description="For every depot, the buses it has against the buses it needs, and the transfers between depots that the optimiser recommends."
-      >
-        <ProvenanceBadge provenance="modelled" />
-      </PageHeader>
+        provenance="modelled"
+      />
       <RebalancePage />
     </>
   );
