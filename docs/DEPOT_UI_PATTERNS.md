@@ -63,9 +63,34 @@ amber, DERIVED and FIXTURE cyan, REFERENCE slate; the feed chip's STALE, FEED QU
 CLOCK amber. Bus states: green in service, cyan on the road, amber standing, slate dark,
 crimson off the road. Every one is also a word.
 
-Glow is `box-shadow` or `text-shadow` only, never a filter or a size change, and nothing
-moves. `depot-contrast.test.ts` holds every text colour to 4.5:1 on every depot surface,
-the brightest point of the backdrop included; check it when a token changes.
+### Colour meanings
+
+Cyan on navy is the base; the dashboard's second colours each say one thing, the same on
+every page. The one table is `DEPOT_MEANING_TONE` in `src/lib/depot/palette.ts` (with
+`meaningColour`, `meaningTextClass` and `meaningToneClass`); what each page's figures
+measure is in `src/lib/depot/figureTones.ts`. `depot-palette.test.ts` holds both.
+
+| Meaning | Tone |
+|---|---|
+| In service; a change that is better (where more is clearly better) | green |
+| On the road; a plain count; information; chart history | cyan |
+| Standing; warning; the chart's "now" marker | amber |
+| Dark | slate |
+| Off the road; critical; a change that is worse; a threshold | crimson |
+| Modelled money and energy (fuel, cost, revenue); forecasts; transfer arcs | teal |
+
+Structure, not status: the rail's categories have their own colour (the depot's pages green,
+Network cyan, Intelligence teal, System gold), and the brand mark and sign-out are the
+brand gold. A figure takes a tone with `<Figure tone="…">`: a short lit accent under the
+band's rule, a faint wash and the value in the tone; bars and balance bars brighten along
+their length; the title runs cyan to teal; the live feed chip breathes and panels brighten
+on hover (both stop under reduced motion). The tones are CSS variables (`depot-tone-*` in
+`globals.css`), so no depot component writes a colour literal.
+
+Glow is `box-shadow`, `text-shadow` or (on the title only) a drop shadow, never a size
+change. `depot-contrast.test.ts` holds every text colour to 4.5:1 on every depot surface,
+the brightest point of the backdrop and each tone's strongest wash included; check it when
+a token changes.
 
 ## Prose and notes
 
