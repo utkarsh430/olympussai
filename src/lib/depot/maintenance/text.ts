@@ -90,11 +90,9 @@ export function preventiveGuard(): string {
   );
 }
 
-/** The distance cell: kilometres to the next service, a minus sign when past it. */
+/** The distance cell: kilometres to the next service, the module's minus sign when past it. */
 export function kmToNextCell(kmToNextService: number): string {
-  return kmToNextService < 0
-    ? `\u2212${formatCount(-kmToNextService)}`
-    : formatCount(kmToNextService);
+  return formatCount(kmToNextService);
 }
 
 const NOT_A_RECORD = '; not a workshop record';

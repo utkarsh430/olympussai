@@ -49,7 +49,7 @@ describe('the stand-out variance reads in one direction', () => {
     expect(formatVariance(18.84, 15)).toBe('+18.8%');
     expect(formatVariance(15.04, 15)).toBe('+15.04%');
     expect(formatVariance(15.001, 15)).toBe('+15.01%');
-    expect(formatVariance(-3, 15)).toBe('-3.0%');
+    expect(formatVariance(-3, 15)).toBe('−3.0%');
   });
 
   it('says no bus stands out in the same direction, with no "today"', () => {

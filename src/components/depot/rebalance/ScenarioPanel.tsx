@@ -1,5 +1,6 @@
 'use client';
 
+import { signedWhole } from '@/lib/depot/format';
 import type { PlanInForce } from '@/lib/depot/rebalance/fieldsInForce';
 import { FIELD_LABELS } from '@/lib/depot/rebalance/scenarioFields';
 import {
@@ -39,7 +40,7 @@ export interface ScenarioPanelProps {
 
 /** Sign and magnitude of a non-zero whole number; the form drops a zero entry first. */
 function signedNonZero(n: number): string {
-  return n > 0 ? `+${n}` : `−${Math.abs(n)}`;
+  return signedWhole(n);
 }
 
 /**

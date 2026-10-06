@@ -1,4 +1,4 @@
-import { formatCount } from '@/lib/depot/format';
+import { MINUS, formatCount } from '@/lib/depot/format';
 import type { DepotScore } from '@/lib/depot/score/types';
 import type { DepotSummary } from '@/lib/depot/types';
 import { differenceDirection, formatRate, type DifferenceDirection } from './leagueModel';
@@ -12,7 +12,6 @@ import { roundOneDecimal } from '@/lib/depot/stats/rounding';
 
 const DASH = '—';
 const SEP = ' · ';
-const MINUS = '−';
 
 export type DifferenceUnit = 'pp' | 'pts';
 

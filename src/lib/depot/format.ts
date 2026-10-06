@@ -3,16 +3,29 @@ import { MINUTES_PER_DAY, MINUTES_PER_HOUR, MS_PER_DAY } from '@/lib/depot/units
 import { roundToDecimals } from '@/lib/depot/stats/rounding';
 
 const DASH = '—';
-/** The typographic minus the pages print before a negative figure. */
-const MINUS = '−';
+/**
+ * The typographic minus the pages print before a negative figure. Every negative figure
+ * shown to a person takes this one sign, through `formatCount`, `formatOneDecimal`,
+ * `signFor` and the signed formatters below; sorting and data values are untouched.
+ */
+export const MINUS = '−';
 const PERCENT = 100;
 const FEED_TIME_PATTERN = /^\d{4}-\d{2}-\d{2}[T ](\d{2}):(\d{2})/;
 const MAX_HOUR = 23;
 const MAX_MINUTE = 59;
 
-/** Whole-number count with the Indian digit grouping used across the app. */
+/**
+ * Whole-number count with the Indian digit grouping used across the app. A negative count
+ * takes the true minus ("−1,000"), not the hyphen the number formatter writes.
+ */
 export function formatCount(n: number): string {
-  return formatNumber(n);
+  return n < 0 ? `${MINUS}${formatNumber(-n)}` : formatNumber(n);
+}
+
+/** The sign before a figure: "+" above zero, the true minus below, nothing at zero. */
+export function signFor(n: number): string {
+  if (n > 0) return '+';
+  return n < 0 ? MINUS : '';
 }
 
 const TENTHS = 10;

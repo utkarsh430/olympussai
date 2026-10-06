@@ -1,6 +1,10 @@
 import { formatRupeesPerKm } from './revenuePageModel';
 import type { EconomicsComponentKey } from './types';
 import { roundToDecimals } from '@/lib/depot/stats/rounding';
+import { MINUS } from '@/lib/depot/format';
+
+/** The shared minus, kept here for the explanations that import it with this file's figures. */
+export { MINUS };
 
 /*
  * How the economics page writes a component: its label, its value, and the
@@ -8,7 +12,6 @@ import { roundToDecimals } from '@/lib/depot/stats/rounding';
  */
 
 export const DASH = '—';
-export const MINUS = '−';
 export const PERCENT = 100;
 
 export interface ComponentSpec {

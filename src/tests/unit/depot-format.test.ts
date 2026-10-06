@@ -1,5 +1,9 @@
+import { readdirSync, readFileSync } from 'node:fs';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+  MINUS,
+  signFor,
   formatCount,
   formatFeedTime,
   formatOneDecimal,
@@ -11,6 +15,34 @@ describe('formatCount', () => {
   it('uses Indian digit grouping', () => {
     expect(formatCount(1234567)).toBe('12,34,567');
     expect(formatCount(0)).toBe('0');
+  });
+});
+
+describe('one minus sign for every negative figure', () => {
+  it('writes a negative count with the true minus, as every signed figure is written', () => {
+    expect(formatCount(-1000)).toBe('−1,000');
+    expect(formatCount(-1234567)).toBe('−12,34,567');
+    expect(signFor(-2)).toBe(MINUS);
+    expect(signFor(3)).toBe('+');
+    expect(signFor(0)).toBe('');
+  });
+
+  it('keeps the minus in one place: no other module file writes its own', () => {
+    const roots = ['src/lib/depot', 'src/components/depot'].map((dir) => path.resolve(dir));
+    const files = roots.flatMap((root) =>
+      readdirSync(root, { recursive: true, encoding: 'utf8' })
+        .filter((name) => /\.tsx?$/.test(name))
+        .map((name) => path.join(root, name)),
+    );
+    const own = files.filter((file) => {
+      if (file.endsWith(path.join('lib', 'depot', 'format.ts'))) return false;
+      const code = readFileSync(file, 'utf8')
+        .split('\n')
+        .filter((line) => !/^\s*(\*|\/\/|\/\*)/.test(line))
+        .join('\n');
+      return /['"`]−|\\u2212/.test(code);
+    });
+    expect(own).toEqual([]);
   });
 });
 
