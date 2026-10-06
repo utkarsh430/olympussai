@@ -11,7 +11,7 @@ vi.mock('next/navigation', () => ({
   notFound: (): never => notFoundMock(),
 }));
 
-const requireProjectSession = vi.fn(async (_path: string): Promise<void> => undefined);
+const requireProjectSession = vi.fn<(path: string) => Promise<void>>(async () => undefined);
 vi.mock('@/lib/auth/server', () => ({
   requireProjectSession: (path: string): Promise<void> => requireProjectSession(path),
 }));
