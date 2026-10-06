@@ -291,6 +291,7 @@ describe('buildParkingResponse', () => {
     expect(noYard.state).toBe('no_yard');
     expect(noYard.order).toBeNull();
     expect(noYard.droppedRows).toBe(0);
+    resetAnalysisForTests();
     expect(parking(parked()).state).toBe('planned');
   });
 
