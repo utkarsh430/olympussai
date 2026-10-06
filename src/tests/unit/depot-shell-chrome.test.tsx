@@ -55,6 +55,18 @@ describe('the top bar', () => {
     expect(bar).toContain('sm:h-[var(--depot-bar-h)]');
   });
 
+  it('marks the product with a 20px glyph below 640px, never initials, and names it in words', () => {
+    render(<DepotTopBar />);
+    const brand = screen.getByTestId('depot-brand');
+    expect(brand.textContent).toBe('Depot Management');
+    expect(brand.textContent).not.toContain('DM');
+    const glyph = brand.querySelector('svg');
+    expect(glyph?.getAttribute('aria-hidden')).toBe('true');
+    expect(classes(glyph)).toEqual(expect.arrayContaining(['h-5', 'w-5', 'sm:hidden']));
+    const name = screen.getByText('Depot Management');
+    expect(classes(name)).toContain('max-sm:sr-only');
+  });
+
   it('keeps Operations and Sign out behind the Menu below 900px, and inline from 900px', () => {
     render(<DepotTopBar />);
     const menu = classes(screen.getByTestId('depot-bar-menu'));

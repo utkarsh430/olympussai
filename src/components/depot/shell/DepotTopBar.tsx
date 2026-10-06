@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Warehouse } from 'lucide-react';
 import { DepotBarMenu } from './DepotBarMenu';
 import { DepotSignOut } from './DepotSignOut';
 import { FeedStatus } from './FeedStatus';
@@ -12,6 +12,9 @@ import { ScopeSwitcher } from './ScopeSwitcher';
  * (feed chip, Operations, Sign out). It is one row at every width: A takes the free
  * width and truncates the switcher, B keeps its natural width at the right.
  *
+ * - Below 640px the mark is a 20px glyph and the name is read to screen readers only:
+ *   the 13px wordmark beside the chip and the Menu leaves no room for the scope at 360px.
+ *   From 640px the wordmark is shown.
  * - Below 900px Operations and Sign out sit behind one Menu button, so nothing in the
  *   bar can push the page sideways at 360px. Below 640px the bar scrolls away; from
  *   640px it sticks at 3.25rem, the same row as on a phone.
@@ -27,10 +30,11 @@ export function DepotTopBar() {
         data-testid="depot-top-bar-scope"
         className="flex min-w-0 flex-1 items-center gap-2 sm:gap-4"
       >
-        <span className="shrink-0 whitespace-nowrap font-display text-sm uppercase tracking-[0.14em] text-depot-ink">
-          <span aria-hidden className="sm:hidden">
-            DM
-          </span>
+        <span
+          data-testid="depot-brand"
+          className="flex shrink-0 items-center whitespace-nowrap font-display text-sm uppercase tracking-[0.14em] text-depot-ink"
+        >
+          <Warehouse className="h-5 w-5 sm:hidden" aria-hidden />
           <span className="max-sm:sr-only">Depot Management</span>
         </span>
         <div className="min-w-0">
