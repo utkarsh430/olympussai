@@ -72,9 +72,9 @@ export function locationIgnoredSentence(
 }
 
 const BEFORE_FIRST_DUTY_YARD =
-  'Before the first departure: buses are matched as they stand in the yard. No duty has started, so only a bus standing in the yard is eligible, and being out on the road or the feed time does not count.';
+  'Before the first departure: buses in the yard are matched to the earliest duties; buses still out take the ones after.';
 const BEFORE_FIRST_DUTY_NO_YARD =
-  'Before the first departure: no duty has started, so how buses stand now does not count. No yard is established for this depot, so every bus that is not off the road or dark is eligible.';
+  'Before the first departure: standing buses are matched to the earliest duties; buses still out take the ones after.';
 const RECENCY_AND_YARD =
   `A bus not heard in the last ${REPORTING_WINDOW_MIN} minutes is held out of the matching, ` +
   'moving or standing; a standing bus must also be in the yard.';
@@ -87,18 +87,20 @@ type EligibilityContext = Pick<
 
 /**
  * How eligibility was judged, true for the plan's mode, the feed clock and the yard
- * (rulings S55, S62). Before the first duty only the yard counts; with no clock no
+ * (rulings S55, S62b). Before the first duty the yard buses take the earliest duties,
+ * said first; eligibility is then judged as on the feed clock. With no clock no
  * recency window is claimed (review m-d); with no yard location is not claimed.
  */
 export function eligibilityNotes(response: EligibilityContext): readonly string[] {
   const noYard = response.eligibilityIgnoredLocation === true;
-  if (response.planMode === 'before_first_duty') {
-    return [noYard ? BEFORE_FIRST_DUTY_NO_YARD : BEFORE_FIRST_DUTY_YARD];
-  }
+  const mode =
+    response.planMode === 'before_first_duty'
+      ? [noYard ? BEFORE_FIRST_DUTY_NO_YARD : BEFORE_FIRST_DUTY_YARD]
+      : [];
   const noClock = response.recencyNotJudged === true;
   const location = noYard ? locationIgnoredSentence(true, noClock) : null;
-  if (!noClock) return [location ?? RECENCY_AND_YARD];
-  return [recencySentence(true), location ?? YARD_ONLY].filter(
+  if (!noClock) return [...mode, location ?? RECENCY_AND_YARD];
+  return [...mode, recencySentence(true), location ?? YARD_ONLY].filter(
     (note): note is string => note !== null,
   );
 }
