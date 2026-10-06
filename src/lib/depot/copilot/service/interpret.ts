@@ -2,6 +2,7 @@ import type { CopilotQuery, DepotMeasure, RankMetric } from '@/lib/depot/copilot
 import { cleanName } from '@/lib/depot/copilot/facts/format';
 import type { CopilotFact } from '@/lib/depot/copilot/types';
 import type { CopilotAnswerTable } from '@/lib/depot/copilot/wire';
+import type { Provenance } from '@/lib/depot/types';
 
 /**
  * The "interpreted as" line and the result table for an answered question.
@@ -61,16 +62,38 @@ export function interpretQuery(query: CopilotQuery, nameOf: (depotId: string) =>
   }
 }
 
+/** Most qualified first: a column mixing kinds of figure is labelled by the least measured. */
+const PROVENANCE_ORDER: readonly Provenance[] = ['modelled', 'derived', 'reference', 'live'];
+
+interface ListColumns {
+  readonly rows: readonly (readonly string[])[];
+  /** The figure column's provenance, from the facts that fill it; null when no row exists. */
+  readonly valueProvenance: Provenance | null;
+}
+
 /** Rows `<prefix>.<n>.name` and `<prefix>.<n>.<valueKey>`, in order, while both exist. */
-function rowsFrom(facts: readonly CopilotFact[], prefix: string, valueKey: string): string[][] {
-  const text = new Map(facts.map((f) => [f.id, f.text] as const));
-  const rows: string[][] = [];
+function rowsFrom(facts: readonly CopilotFact[], prefix: string, valueKey: string): ListColumns {
+  const byId = new Map(facts.map((f) => [f.id, f] as const));
+  const rows: (readonly string[])[] = [];
+  const seen = new Set<Provenance>();
   for (let n = 1; ; n += 1) {
-    const name = text.get(`${prefix}.${n}.name`);
-    const value = text.get(`${prefix}.${n}.${valueKey}`);
-    if (name === undefined || value === undefined) return rows;
-    rows.push([name, value]);
+    const name = byId.get(`${prefix}.${n}.name`);
+    const value = byId.get(`${prefix}.${n}.${valueKey}`);
+    if (name === undefined || value === undefined) {
+      return { rows, valueProvenance: PROVENANCE_ORDER.find((p) => seen.has(p)) ?? null };
+    }
+    rows.push([name.text, value.text]);
+    seen.add(value.provenance);
   }
+}
+
+/** A depot-name column (not a figure, so no provenance) beside one figure column. */
+function nameAndFigure(heading: string, list: ListColumns): CopilotAnswerTable {
+  return {
+    columns: ['Depot', heading],
+    rows: list.rows,
+    provenance: [null, list.valueProvenance],
+  };
 }
 
 /** A table for the list queries; none for a single answer or an empty list. */
@@ -80,14 +103,11 @@ export function answerTable(
 ): CopilotAnswerTable | undefined {
   let table: CopilotAnswerTable | undefined;
   if (query.kind === 'rankDepots') {
-    table = {
-      columns: ['Depot', METRIC_LABEL[query.metric]],
-      rows: rowsFrom(facts, 'rank', 'value'),
-    };
+    table = nameAndFigure(METRIC_LABEL[query.metric], rowsFrom(facts, 'rank', 'value'));
   } else if (query.kind === 'depotsInDeficit') {
-    table = { columns: ['Depot', 'Short by'], rows: rowsFrom(facts, 'list', 'size') };
+    table = nameAndFigure('Short by', rowsFrom(facts, 'list', 'size'));
   } else if (query.kind === 'depotsInSurplus') {
-    table = { columns: ['Depot', 'Spare'], rows: rowsFrom(facts, 'list', 'size') };
+    table = nameAndFigure('Spare', rowsFrom(facts, 'list', 'size'));
   }
   return table && table.rows.length > 0 ? table : undefined;
 }

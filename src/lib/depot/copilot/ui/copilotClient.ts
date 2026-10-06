@@ -81,6 +81,16 @@ function isFact(value: unknown): boolean {
   );
 }
 
+/** Optional: when sent, one known provenance (or null for a name column) per column. */
+function isColumnProvenance(value: unknown, width: number): boolean {
+  return (
+    value === undefined ||
+    (Array.isArray(value) &&
+      value.length === width &&
+      value.every((p) => p === null || PROVENANCES.some((known) => known === p)))
+  );
+}
+
 /** Every row has exactly one cell per column, so the table is always rectangular. */
 function isTable(value: unknown): boolean {
   if (!isRecord(value) || !isStringArray(value.columns)) return false;
@@ -88,6 +98,7 @@ function isTable(value: unknown): boolean {
   const rows = value.rows;
   return (
     width <= MAX_TABLE_COLUMNS &&
+    isColumnProvenance(value.provenance, width) &&
     value.columns.every((heading) => heading.length <= MAX_TABLE_HEADING_CHARS) &&
     Array.isArray(rows) &&
     rows.length <= MAX_TABLE_ROWS &&
