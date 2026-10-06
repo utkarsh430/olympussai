@@ -68,6 +68,15 @@ describe('decision slice', () => {
     expect(MAX_STORED_DECISIONS).toBeGreaterThanOrEqual(250);
   });
 
+  it('parses at most the cap, keeping the newest, from an oversized store', () => {
+    const newest = stored();
+    const rest = Array.from({ length: MAX_STORED_DECISIONS + 50 }, () => stored());
+    const raw = JSON.stringify({ v: 1, dropped: 0, events: [newest, ...rest] });
+    const slice = parseDecisionSlice(raw);
+    expect(slice.events).toHaveLength(MAX_STORED_DECISIONS);
+    expect(slice.events[0]?.id).toBe(newest.id);
+  });
+
   it('reads malformed or foreign data as an empty slice and skips bad entries', () => {
     for (const raw of [null, '', 'not json', '[]', '{"events":"x"}', '{"v":9,"events":[]}']) {
       expect(parseDecisionSlice(raw)).toEqual(EMPTY_SLICE);

@@ -2,6 +2,8 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Distribution, RESET_ANNOUNCEMENT } from '@/components/depot/rebalance/RebalancePage';
+import { DecisionTrail } from '@/components/depot/rebalance/DecisionTrail';
+import type { TrailItem } from '@/lib/depot/rebalance/decisionEvents';
 import { TransferTable } from '@/components/depot/rebalance/TransferTable';
 import type { DepotDistributionResponse } from '@/lib/depot/api';
 import type { DepotBalance, TransferPlan } from '@/lib/depot/optimise/types';
@@ -118,6 +120,43 @@ describe('fleet distribution page', () => {
     await act(async () => button('Reset to the server plan').click());
     expect(document.activeElement?.id).toBe('rebalance-sandbox-heading');
     expect(container.textContent).toContain(RESET_ANNOUNCEMENT);
+  });
+});
+
+describe('decision trail keys', () => {
+  it('renders entries that share an id without a duplicate-key warning', async () => {
+    const item: TrailItem = {
+      eventId: 'same',
+      at: '2026-10-06T08:00:00Z',
+      transferId: ROW.id,
+      fromDepotId: 'agra',
+      fromDepotName: 'Agra',
+      toDepotId: 'kanpur',
+      toDepotName: 'Kanpur',
+      buses: 5,
+      operatingDate: '2026-10-06',
+      scenario: null,
+      scenarioLabel: null,
+      note: '',
+      decision: 'approved',
+      undoes: null,
+      undoable: false,
+      undone: false,
+      superseded: false,
+    };
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await render(
+      <DecisionTrail
+        trail={{ baseline: [item, item, item], scenario: [] }}
+        operatingDate="2026-10-06"
+        onUndo={() => {}}
+        capacityNote={null}
+      />,
+    );
+    const warned = errors.mock.calls.some((call) => String(call[0]).includes('same key'));
+    errors.mockRestore();
+    expect(warned).toBe(false);
+    expect(container.querySelectorAll('[data-testid="rebalance-trail"] li')).toHaveLength(3);
   });
 });
 

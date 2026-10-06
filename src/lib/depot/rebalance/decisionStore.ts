@@ -44,7 +44,8 @@ export function parseDecisionSlice(raw: string | null): DecisionSlice {
   if (!isRecord(parsed) || parsed.v !== SLICE_VERSION || !Array.isArray(parsed.events)) {
     return EMPTY_SLICE;
   }
-  const events = parsed.events.filter(
+  // Newest first, so slicing before the checks bounds the work a damaged store can cause.
+  const events = parsed.events.slice(0, MAX_STORED_DECISIONS).filter(
     (e: unknown): e is AuditEvent => isRecord(e) && parseDecisionEvent(e) !== null,
   );
   const dropped = parsed.dropped;
