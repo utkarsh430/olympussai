@@ -18,6 +18,7 @@ import {
 } from '@/lib/depot/rebalance/decisionWording';
 import { busesWord, type TransferDecisionKind } from '@/lib/depot/rebalance/rebalanceModel';
 import { serverInForce } from '@/lib/depot/rebalance/fieldsInForce';
+import { TRANSFER_SPLIT_CLASSES } from '@/lib/depot/rebalance/pageLayout';
 import { BASELINE_FORM } from '@/lib/depot/rebalance/scenarioForm';
 import type { TransferRow } from '@/lib/depot/rebalance/transferModel';
 import { BalanceSummary } from './BalanceSummary';
@@ -140,8 +141,8 @@ export function Distribution({
           tag="modelled"
           note="Largest first; select one to see why and to decide"
         />
-        <div className="flex min-w-0 flex-col gap-6 xl:grid xl:grid-cols-[minmax(0,45fr)_minmax(0,55fr)] xl:items-start">
-          <div className="order-1 min-w-0 xl:order-2">
+        <div className={TRANSFER_SPLIT_CLASSES.grid}>
+          <div className={TRANSFER_SPLIT_CLASSES.table}>
             <TransferSection
               view={view}
               selectedId={selected?.id ?? null}
@@ -157,7 +158,7 @@ export function Distribution({
               {announcement}
             </p>
           </div>
-          <div className="order-2 min-w-0 xl:order-1">
+          <div className={TRANSFER_SPLIT_CLASSES.map}>
             <TransferMap
               geometry={view.geometry}
               selectedId={selected?.id ?? null}

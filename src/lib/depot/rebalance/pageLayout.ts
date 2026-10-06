@@ -1,6 +1,19 @@
 import { formatCount } from '@/lib/depot/format';
 import { busesWord, type BalanceRow, type PlanSummary } from './rebalanceModel';
 
+/**
+ * The transfers block's classes: the map and the table side by side from 1440 (table 55%,
+ * on the right), the table first and full width below it. The breakpoint is written out
+ * because Tailwind reads class names literally; a test ties it to `TRANSFER_SPLIT_FROM_PX`.
+ */
+export const TRANSFER_SPLIT_CLASSES = {
+  grid:
+    'flex min-w-0 flex-col gap-6 min-[1440px]:grid ' +
+    'min-[1440px]:grid-cols-[minmax(0,45fr)_minmax(0,55fr)] min-[1440px]:items-start',
+  table: 'order-1 min-w-0 min-[1440px]:order-2',
+  map: 'order-2 min-w-0 min-[1440px]:order-1',
+} as const;
+
 /** Transfers shown before "Show all N"; the plan is the hero, not a wall of rows. */
 export const TRANSFER_PREVIEW = 10;
 /** Depots shown in the every-depot table before "Show all N": the deepest shortfalls. */

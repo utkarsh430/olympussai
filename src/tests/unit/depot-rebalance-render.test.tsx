@@ -8,6 +8,7 @@ import { TransferTable } from '@/components/depot/rebalance/TransferTable';
 import type { DepotDistributionResponse } from '@/lib/depot/api';
 import type { DepotBalance, TransferPlan } from '@/lib/depot/optimise/types';
 import type { TransferRow } from '@/lib/depot/rebalance/transferModel';
+import { TRANSFER_SPLIT_FROM_PX } from '@/lib/depot/rebalance/transferColumns';
 
 // The map needs Google Maps; these tests are about the table, the sandbox and the status line.
 vi.mock('@/components/depot/rebalance/TransferMap', () => ({ TransferMap: () => null }));
@@ -541,14 +542,16 @@ describe('decision trail', () => {
 });
 
 describe('transfer plan split', () => {
-  it('puts the table in 55% and the map in 45% at xl, the table first below xl', async () => {
+  it('puts the table in 55% and the map in 45% from 1440, the table first below it', async () => {
     await render(<Distribution data={response()} state={{ error: null }} />);
     const table = container.querySelector('[data-testid="rebalance-transfers"]');
-    const grid = table?.closest('[class*="xl:grid-cols"]');
-    expect(grid?.className).toContain('xl:grid-cols-[minmax(0,45fr)_minmax(0,55fr)]');
+    const split = `min-[${TRANSFER_SPLIT_FROM_PX}px]:`;
+    const grid = table?.closest('[class*="grid-cols"]');
+    expect(grid?.className).toContain(`${split}grid-cols-[minmax(0,45fr)_minmax(0,55fr)]`);
+    expect(grid?.className).not.toMatch(/(^|\s)xl:/);
     const tableColumn = [...(grid?.children ?? [])].find((c) => c.contains(table ?? null));
     expect(tableColumn?.className).toContain('order-1');
-    expect(tableColumn?.className).toContain('xl:order-2');
+    expect(tableColumn?.className).toContain(`${split}order-2`);
   });
 });
 

@@ -1,3 +1,4 @@
+import { contentWidthAt } from '@/lib/depot/shell/geometry';
 import { describe, expect, it } from 'vitest';
 import {
   balancePreview,
@@ -12,6 +13,7 @@ import {
   spareBeforeAfter,
   TRANSFER_COLUMNS,
   TRANSFER_TABLE_PX,
+  TRANSFER_SPLIT_FROM_PX,
   transferFrameInnerPx,
 } from '@/lib/depot/rebalance/transferColumns';
 import type { BalanceRow, PlanSummary } from '@/lib/depot/rebalance/rebalanceModel';
@@ -133,8 +135,16 @@ describe('transfer table columns at 1440', () => {
     expect(TRANSFER_COLUMNS.at(-1)).toMatchObject({ label: '', widthPx: 24 });
     expect(TRANSFER_COLUMNS[0]?.widthPx).toBe(224);
     expect(TRANSFER_TABLE_PX).toBe(616);
-    expect(transferFrameInnerPx()).toBe(622);
-    expect(TRANSFER_TABLE_PX).toBeLessThanOrEqual(transferFrameInnerPx());
+    expect(transferFrameInnerPx(1440)).toBe(622);
+  });
+
+  it.each([1440, 1280, 1024, 800])('cuts no transfer column at %i px', (viewportPx) => {
+    expect(TRANSFER_TABLE_PX).toBeLessThanOrEqual(transferFrameInnerPx(viewportPx));
+  });
+
+  it('puts the table above the map at 1280, where the split would cut a column', () => {
+    expect(TRANSFER_SPLIT_FROM_PX).toBeGreaterThan(1280);
+    expect(transferFrameInnerPx(1280)).toBe(contentWidthAt(1280) - 2);
   });
 
   it('says the giver and receiver figures before and after in one sentence, never below zero', () => {
