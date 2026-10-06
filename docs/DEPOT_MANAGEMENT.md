@@ -327,6 +327,7 @@ first.
 | Rolling score window | `score/windowStore.ts` | 20 min of feed time, ≤ 120 samples per depot, ≤ 1,000 depots |
 | Yard memory | `infer/yardMemory.ts` | 12 h hold, ≤ 1,000 depots |
 | Held peak on-road shares (the requirement's basis) | `live/peakShareHold.ts` | one number per depot for one operating date, ≤ 1,000 depots |
+| Held peak requirements (the floor of each depot's peak) | `live/peakRequirementHold.ts` | one number per depot for one operating date, ≤ 1,000 depots |
 | The modelled day and duty plan | `live/operatingDayView.ts` | one slot per analysis, held per snapshot |
 | Memoised analyses and view bodies | `live/analysis.ts`, `live/queryMemo.ts` | held weakly per snapshot; ≤ 64 query bodies per snapshot |
 | Route-profile cache | `routes/routeCatalogue.ts` | ≤ 2,000 routes, keyed on route and the feed's operating date; negative answers 10 min; failures not cached |
@@ -339,12 +340,12 @@ Consequences: a restart or cold start empties all of it. The score window then s
 with one sample and screens say "from one snapshot at HH:MM", then "over the last N
 minutes" with N the minutes the samples actually span, until the window is full; yards are decided again from single snapshots, and the
 cockpit says "This server has decided this depot's yard on N snapshots so far"; the held
-peak shares start again from the next snapshot, so the first snapshots after a restart can
-set them and a server restarted in the evening models a smaller day than one that saw the
-morning peak; the allocation plan is made afresh; the route
+peak shares and held peak requirements start again from the next snapshot, so the first
+snapshots after a restart can set them and a server restarted in the evening models a smaller
+day than one that saw the morning peak; the allocation plan is made afresh; the route
 catalogue is empty until users load details again; the copilot's limits and budget reset.
 With several instances, each holds its own copy: two requests can be scored over different
-windows, see different held yards, different held peak shares (so a different modelled day
+windows, see different held yards, different held peak shares and peak requirements (so a different modelled day
 and transfer plan until each instance has seen the peak), allocation plans made at
 different feed times, and different cached routes, and every limit and the
 copilot's Claude budget multiply by the number of instances. A shared store (for example
@@ -523,11 +524,31 @@ those maxima. The windowed share is the `onRoad` component the efficiency index 
 on the analysis as `requirementShares`, which the modelled day (`live/operatingDayView.ts`)
 and the fleet distribution (`live/distributionView.ts`) both read. "Peak requirement" is
 therefore the depot's busiest window so far today: the modelled day and the transfer plan
-can still change until the morning peak has passed (a depot rises with its own busiest
-window and can dip a little when its peers' median rises) and then hold; they do not shrink in the evening
-as buses come home. A later operating date (the feed's, `operatingDateOf`) starts afresh; a
+can still rise until the morning peak has passed and then hold; they do not shrink in the
+evening as buses come home.
+
+**The peak requirement does not fall during the day unless fewer buses are available than it
+needs.** Holding the shares was not enough: the computed peak, round(available × utilisation),
+still moved by one in both directions between snapshots a minute apart, because the feed's
+list for a depot can gain or lose a row (so available moves by one; on the saved full-fleet
+sample one row moves the peak of 34 of the 40 largest depots) and a peer whose share rises
+lifts the peer median and lowers every other depot's utilisation (15 peers rising lowered the
+peaks of 76 other depots). So each snapshot's computed peak is floored by the highest
+peak computed for that depot earlier in the operating date, and that floor is capped at what
+is available now (fleet − off-road), so a real, large loss of buses still shows. The floors
+are kept by `live/peakRequirementHold.ts` (the same daily-maximum rule as the shares,
+`live/dailyMaxima.ts`), offered each snapshot once when it is first analysed; the floored
+balances (spare target, required and balance = available − required, recomputed from the
+floored peak with available live) are carried on the analysis as `requirement`, and the
+modelled day and the fleet distribution both read them (`requirementBalances` in
+`live/heldRequirement.ts`). `modelBalances` stays pure and takes the floors as an optional
+map. The day's duty total is the peak exactly (section 7.10), so it holds with it; only the
+split of those duties across the routes seen and the buses matched to them follow each
+snapshot. The parking order's later-day plan is for another date and reads no floor.
+
+A later operating date (the feed's, `operatingDateOf`) starts afresh; a
 snapshot of an earlier date, one with no date and the saved sample read their own windowed
-shares and leave the maxima as they were. A depot
+shares and leave the maxima (and the held peaks) as they were. A depot
 with no held value reads its single-snapshot share, then the peer median. On a cold server
 with one sample it equals the single-snapshot requirement, so the first snapshots after a
 restart can set the day's maxima; the maxima are per server (section 6). Fleet and off-road counts are still read from each snapshot, so available
@@ -634,9 +655,10 @@ board says where the spare buses stand. Each assignment records how its bus stan
   taken, and tiers 1, 2 and 5 drop: how buses stand now says nothing about that day.
 
 A feed with no clock, or a depot with no duties, plans `as_of_feed_time`. The day is
-recomputed from each snapshot; because the requirement reads the busiest window so far today
-(section 7.8), its duty count can still change until the morning peak has passed, or when
-buses go off the road, but does not shrink in the evening as buses come home;
+recomputed from each snapshot, but its duty count is the held peak requirement (section 7.8):
+it can still rise until the morning peak has passed, and falls during the day only when fewer
+buses are available than it needs; it does not shrink in the evening as buses come home, and
+a row the feed drops or a peer's rising share no longer moves it;
 it is worded "as of the feed time" and would become fixed only when a real timetable is
 supplied.
 
@@ -756,7 +778,7 @@ answers. In summary (detail, settings and limits in
 
 | Folder | Holds |
 | --- | --- |
-| `live/` | Snapshot analysis, aggregation, the held peak on-road shares, the bounded query memo, the feed-time hold of the allocation plan, and one view builder per API route |
+| `live/` | Snapshot analysis, aggregation, the held peak on-road shares and peak requirements, the bounded query memo, the feed-time hold of the allocation plan, and one view builder per API route |
 | `infer/` | Bus state, location, yard inference and continuity, outshedding |
 | `score/`, `stats/` | Efficiency index, peer groups, rolling window; robust statistics (`stats/robust.ts`), the rounding helpers and `clamp` (`stats/rounding.ts`), text ordering (`stats/order.ts`) |
 | `exceptions/` | Depot and bus exceptions, paging |
