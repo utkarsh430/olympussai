@@ -188,13 +188,15 @@ describe('DutyBoard', () => {
     expect(body[0]).toContain('UP32A0001');
     expect(body[0]).toContain('Ordinary · Express bus');
     expect(body[0]).toContain('On the road');
-    const tagged = [...(table?.querySelectorAll('th') ?? [])].filter((th) =>
-      th.textContent?.includes('MODELLED'),
-    );
-    expect(tagged.map((th) => th.textContent?.replace('MODELLED', '').trim())).toEqual([
-      'State',
-      'Bus',
-    ]);
+    // Round 3 (R2-m2, S51): the section label's MODELLED covers the board, so no header
+    // repeats it; the one column that is not modelled, how the bus stands now, says so
+    // in its own header (DERIVED from the live feed). One MODELLED in the whole section.
+    const ths = [...(table?.querySelectorAll('th') ?? [])];
+    expect(ths.filter((th) => th.textContent?.includes('MODELLED'))).toHaveLength(0);
+    const derived = ths.filter((th) => th.textContent?.includes('DERIVED'));
+    expect(derived.map((th) => th.textContent?.replace('DERIVED', '').trim())).toEqual(['Bus now']);
+    expect(container.textContent?.match(/MODELLED/g)).toHaveLength(1);
+    expect(table?.querySelector('tbody')?.textContent).not.toMatch(/MODELLED|DERIVED/);
     expect(body[1]).toContain('Unmatched');
     expect(body[2]).toContain('23:00');
     expect(body[2]).toContain('02:00 next day');

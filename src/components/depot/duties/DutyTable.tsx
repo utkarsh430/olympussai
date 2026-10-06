@@ -17,8 +17,9 @@ export interface DutyTableProps {
 const DASH = '—';
 
 /**
- * State and Bus are the matching, a model beside a real registration on a MIXED page,
- * so their headers carry the MODELLED tag (ruling S51). Bus now is the bus's live state.
+ * The section label's MODELLED tag covers the board (ruling S51), so no header repeats
+ * it; Bus now, how the bus stands in the live feed, is the one column that is not
+ * modelled, and its header says so (DERIVED, review R2-m2).
  * The class cell names the bus's class only where it differs ("Ordinary · Express bus").
  */
 function buildColumns(depotId: string): readonly Column<BoardRow>[] {
@@ -35,25 +36,16 @@ function buildColumns(depotId: string): readonly Column<BoardRow>[] {
       render: (r) => formatMinute(r.startMin),
     },
     { key: 'end', header: 'End', render: (r) => formatMinute(r.endMin) },
-    {
-      key: 'state',
-      header: 'State',
-      tag: 'modelled',
-      render: (r) => r.stateWord,
-    },
+    { key: 'state', header: 'State', render: (r) => r.stateWord },
     {
       key: 'bus',
       header: 'Bus',
-      tag: 'modelled',
       title: (r) => (r.registrationNumber === null ? 'No bus is matched to this duty' : undefined),
       render: (r) =>
         r.registrationNumber === null ? (
           DASH
         ) : (
-          <Link
-            href={rosterBusHref(depotId, r.registrationNumber)}
-            className="text-holo-glow underline-offset-2 hover:underline"
-          >
+          <Link href={rosterBusHref(depotId, r.registrationNumber)} className="depot-table-link">
             {r.registrationNumber}
           </Link>
         ),
@@ -61,6 +53,7 @@ function buildColumns(depotId: string): readonly Column<BoardRow>[] {
     {
       key: 'now',
       header: 'Bus now',
+      tag: 'derived',
       title: (r) => (r.standingWord === null ? 'No bus is matched to this duty' : undefined),
       render: (r) => r.standingWord ?? DASH,
     },
