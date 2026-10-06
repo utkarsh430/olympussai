@@ -36,18 +36,26 @@ describe('the attention strip', () => {
     expect(filler?.getAttribute('aria-hidden')).not.toBeNull();
   });
 
-  it('sets five lines on one row from 1280px, each a stacked cell that wraps, the filler gone', () => {
+  it('sets five lines 3 + 2 from 640px and on one row from 1280px, each a stacked cell that wraps', () => {
     const strip = render(FIVE);
-    expect(strip.querySelector('ul')?.className).toContain('xl:grid-cols-5');
-    expect(strip.querySelector('[data-testid="depot-attention-filler"]')?.className).toContain('xl:hidden');
+    const list = strip.querySelector('ul')?.className.split(/\s+/) ?? [];
+    expect(list).toEqual(expect.arrayContaining(['sm:grid-cols-3', 'xl:grid-cols-5']));
+    expect(list).not.toContain('lg:grid-cols-2');
+    const filler = strip.querySelector('[data-testid="depot-attention-filler"]')?.className ?? '';
+    expect(filler).toContain('sm:block');
+    expect(filler).toContain('xl:hidden');
     const link = strip.querySelector('[data-testid="depot-attention-dark"]');
-    expect(link?.className).toContain('xl:flex-col');
-    expect(link?.querySelector('[title]')?.className).toContain('xl:whitespace-normal');
+    expect(link?.className).toContain('sm:flex-col');
+    expect(link?.querySelector('[title]')?.className).not.toContain('truncate');
   });
 
-  it('keeps six lines in two columns of three, never a row of five with an orphan', () => {
+  it('sets six lines three across in two rows, with no filler', () => {
     const six = [...FIVE, line('late', 3, 'departures are overdue')];
-    expect(render(six).querySelector('ul')?.className).not.toContain('xl:grid-cols-5');
+    const doc = render(six);
+    const list = doc.querySelector('ul')?.className.split(/\s+/) ?? [];
+    expect(list).toContain('sm:grid-cols-3');
+    expect(list).not.toContain('xl:grid-cols-5');
+    expect(doc.querySelector('[data-testid="depot-attention-filler"]')).toBeNull();
     expect(render(FIVE.slice(0, 4)).querySelector('ul')?.className).not.toContain('xl:grid-cols-5');
   });
 
@@ -85,8 +93,8 @@ describe('the attention strip', () => {
     expect(cardText).not.toContain('short written summary');
   });
 
-  it('wraps a line on a phone instead of cutting it; truncates only from 640px', () => {
-    const doc = render(FIVE);
+  it('wraps a line on a phone instead of cutting it; a line of two across truncates only from 640px', () => {
+    const doc = render(FIVE.slice(0, 4));
     const words = doc.querySelector('[data-testid="depot-attention-dark"] [title]');
     const classes = (words?.className ?? '').split(/\s+/);
     expect(classes).not.toContain('truncate');
