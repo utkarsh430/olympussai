@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   AVAILABILITY_ORDER,
   PEOPLE_SENTENCE,
+  HATCHED_AVAILABILITY,
   ROSTER_NOTE,
   SLOT_NOTE,
   availabilitySegments,
@@ -36,6 +37,11 @@ describe('crew page wording', () => {
     expect(SLOT_NOTE).toBe(
       'Slot numbers only reflect the order in which the roster picked them and say nothing about a person.',
     );
+  });
+
+  it('draws weekly off and leave differently without colour', () => {
+    expect(HATCHED_AVAILABILITY).toContain('leave');
+    expect(HATCHED_AVAILABILITY).not.toContain('weekly_off');
   });
 
   it('orders the segments and gives each a word, a count and a share', () => {

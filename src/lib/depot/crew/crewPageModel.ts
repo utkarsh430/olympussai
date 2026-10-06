@@ -46,6 +46,12 @@ const AVAILABILITY_PHRASE: Readonly<Record<CrewAvailability, string>> = {
   absent: 'absent',
 };
 
+/**
+ * Weekly off and leave are both greys and sit side by side in the bar, so
+ * leave alone is drawn hatched: the two differ by pattern, not only by tone.
+ */
+export const HATCHED_AVAILABILITY: readonly CrewAvailability[] = ['leave'];
+
 const PERCENT = 100;
 
 const plural = (n: number, one: string, many: string): string => (n === 1 ? one : many);

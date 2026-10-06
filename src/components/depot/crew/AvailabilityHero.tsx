@@ -1,6 +1,7 @@
 import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
 import type { AvailabilityCounts } from '@/lib/depot/crew/api';
 import {
+  HATCHED_AVAILABILITY,
   availabilitySegments,
   availabilityText,
   totalSlots,
@@ -20,6 +21,15 @@ const FILL: Readonly<Record<CrewAvailability, string>> = {
   training: 'bg-holo-glow/40',
   absent: 'border border-depot-muted bg-depot-raised',
 };
+
+/** 45 degree ink lines over the grey: a pattern that survives greyscale and colour blindness. */
+const HATCH_STYLE: React.CSSProperties = {
+  backgroundImage:
+    'repeating-linear-gradient(45deg, currentColor 0, currentColor 1.5px, transparent 1.5px, transparent 4px)',
+};
+
+const styleOf = (key: CrewAvailability): React.CSSProperties | undefined =>
+  HATCHED_AVAILABILITY.includes(key) ? HATCH_STYLE : undefined;
 
 const ROLES: readonly { readonly role: CrewRole; readonly title: string }[] = [
   { role: 'driver', title: 'Drivers' },
@@ -50,15 +60,17 @@ function RoleBar({ role, title, counts }: RoleBarProps) {
           .map((segment) => (
             <div
               key={segment.key}
-              className={`min-w-[2px] ${FILL[segment.key]}`}
-              style={{ flexGrow: segment.count, flexBasis: 0 }}
+              className={`min-w-[2px] text-depot-ink ${FILL[segment.key]}`}
+              style={{ ...styleOf(segment.key), flexGrow: segment.count, flexBasis: 0 }}
             />
           ))}
       </div>
       <ul className="mt-2 grid grid-cols-1 gap-x-4 gap-y-1 sm:grid-cols-2">
         {segments.map((segment) => (
           <li key={segment.key} className="flex min-w-0 items-center gap-2 font-mono text-[12px]">
-            <span aria-hidden className={`h-2.5 w-2.5 shrink-0 rounded-[2px] ${FILL[segment.key]}`} />
+            <span aria-hidden className={`h-2.5 w-2.5 shrink-0 rounded-[2px] text-depot-ink ${FILL[segment.key]}`}
+              style={styleOf(segment.key)}
+            />
             <span className="min-w-0 truncate text-depot-muted">{segment.label}</span>
             <span className="ml-auto tabular-nums text-depot-ink">{formatCount(segment.count)}</span>
           </li>
