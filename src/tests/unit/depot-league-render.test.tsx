@@ -1,3 +1,5 @@
+import { TrendCell } from '@/components/depot/league/LeagueCells';
+import type { TrendTableRow } from '@/lib/depot/forecast/trendsTableModel';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -217,5 +219,20 @@ describe('ScoreBreakdown', () => {
     expect(container.textContent).not.toContain('Computed');
     act(() => root.render(<ScoreBreakdown row={SMALL} />));
     expect(container.textContent).toContain('Fleet: 7 buses.');
+  });
+});
+
+describe('league trend cell (critique MUST 2)', () => {
+  it('reads sparkline then a right-aligned signed figure, never "steady, -0.3"', () => {
+    const trendRow = {
+      id: 'a', name: 'GARH', href: '#', values: [1, 2], sparkLabel: 'Index, GARH',
+      week: -0.1, fourWeeks: -0.3, weekText: 'steady, −0.1', fourWeeksText: 'steady, −0.3',
+      weekSigned: '−0.1', fourWeeksSigned: '−0.3', weekWord: 'STEADY', fourWeeksWord: 'STEADY',
+    } as unknown as TrendTableRow;
+    act(() => root.render(<TrendCell name="GARH" row={trendRow} />));
+    const figure = container.querySelector('[data-testid="league-trend-figure"]');
+    expect(figure?.textContent).toBe('−0.3');
+    expect(figure?.className).toContain('text-right');
+    expect(container.textContent).not.toContain('steady');
   });
 });
