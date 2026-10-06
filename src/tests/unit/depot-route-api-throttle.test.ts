@@ -21,6 +21,7 @@ vi.mock('@/lib/depot/repositories', () => ({
 import { requireUpsrtcAccess } from '@/lib/auth/authorize';
 import { fetchUpstream } from '@/lib/upsrtc/client';
 import { requestIdentity, ROUTE_PROFILE_FETCH_LIMITS } from '@/lib/depot/rateLimit';
+import { ROUTE_LOOKUP_DEADLINE_MS } from '@/lib/depot/routes/routeCatalogue';
 
 /**
  * The route lookup is limited in calls to the government's schedule server, and each
@@ -148,7 +149,7 @@ describe('route lookups charged per call to the schedule server', () => {
     expect(used(limiters().identity, identityKey('person'), perIdentityPerMinute)).toBe(3);
   });
 
-  it('stops at a refused second call with the 429, caches nothing, and succeeds later', async () => {
+  it('stops at a refused second call with a 429, caches nothing, succeeds later', async () => {
     await call('R_0'); // builds the limiters
     limiters().identity.take(identityKey('person'), perIdentityPerMinute - 4);
     mockFetch.mockClear();
@@ -198,5 +199,29 @@ describe('route lookups charged per call to the schedule server', () => {
     const statuses = (await Promise.all(lookups)).map((r) => r.status);
     expect(mockFetch).toHaveBeenCalledTimes(perProcessPerMinute);
     expect(statuses).toContain(429);
+  });
+
+  it('answers 503 past the deadline; a lookup the limit then stops caches nothing', async () => {
+    vi.useRealTimers();
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+    vi.setSystemTime(T0);
+    await call('R_0'); // builds the limiters
+    limiters().identity.take(identityKey('person'), perIdentityPerMinute - 4);
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    mockFetch.mockReset().mockImplementation(async () => {
+      await gate;
+      return ok(NOT_ASSIGNED);
+    });
+    const pending = call('R_1');
+    await vi.advanceTimersByTimeAsync(ROUTE_LOOKUP_DEADLINE_MS);
+    expect((await pending).status).toBe(503);
+    // The first date answers after the deadline; its fallback is refused.
+    release();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    vi.setSystemTime(T0 + windowMs);
+    expect((await call('R_1')).status).toBe(200);
+    expect(mockFetch).toHaveBeenCalledTimes(4);
   });
 });
