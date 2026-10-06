@@ -375,3 +375,50 @@ test.describe('4. a malformed depot id', () => {
     });
   }
 });
+
+/** The first whole number in a text, ignoring thousands separators. */
+function firstCount(text: string): number {
+  const match = /\d[\d,]*/.exec(text);
+  if (!match) throw new Error(`no count in "${text}"`);
+  return Number(match[0].replace(/,/g, ''));
+}
+
+test.describe('5. the cockpit opens the roster already filtered', () => {
+  test.skip(!E2E_PIN, `SKIPPED: ${PIN_MISSING}`);
+
+  test('each roster line on the cockpit opens the roster with that filter and count', async ({
+    page,
+    sample,
+  }) => {
+    const cockpit = `/project/depots/d/${sample.depotId}`;
+    await openPage(page, cockpit, 'Depot cockpit');
+    const links = page.locator('a[data-testid^="depot-attention-"][href*="/roster?"]');
+    await expect(links.first()).toBeVisible();
+    const targets = await links.evaluateAll((els) =>
+      els.map((el) => ({
+        href: el.getAttribute('href') ?? '',
+        text: (el as HTMLElement).innerText,
+      })),
+    );
+    expect(targets.length).toBeGreaterThanOrEqual(2);
+
+    for (const { href, text } of targets) {
+      await openPage(page, cockpit, 'Depot cockpit');
+      await page.locator(`a[data-testid^="depot-attention-"][href="${href}"]`).click();
+
+      await expect(page).toHaveURL((url) => `${url.pathname}${url.search}` === href);
+      await expect(page.getByRole('heading', { level: 1, name: 'Roster' })).toBeVisible();
+      const count = firstCount(text);
+      await expect(
+        page.getByText(new RegExp(`^${count} of \\d+ buses match the filters`)),
+      ).toBeAttached();
+      const state = new URL(href, 'http://x').searchParams.get('state');
+      if (state) {
+        const pressed = page
+          .getByRole('group', { name: 'State' })
+          .locator('button[aria-pressed="true"]');
+        await expect(pressed).toHaveCount(1);
+      }
+    }
+  });
+});
