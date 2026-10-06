@@ -570,6 +570,19 @@
     text-shadow: 0 0 12px rgb(var(--depot-tone) / 0.3);
   }
 
+  /* A depot's balance bar (fleet distribution): each side brightens away from the centre
+     line to its end, deficit crimson to the left, surplus cyan to the right, with a soft
+     glow. */
+  .depot-balance-short {
+    background-image: linear-gradient(270deg, rgba(255, 77, 94, 0.45), rgb(255, 77, 94));
+    box-shadow: 0 0 8px rgba(255, 77, 94, 0.45);
+  }
+
+  .depot-balance-spare {
+    background-image: linear-gradient(90deg, rgba(34, 217, 245, 0.45), rgb(34, 217, 245));
+    box-shadow: 0 0 8px rgba(34, 217, 245, 0.45);
+  }
+
   /* A segment of a stacked state bar (the cockpit's availability): its state's colour
      brightening towards its top edge. */
   .depot-bar-seg {
