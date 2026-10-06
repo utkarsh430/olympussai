@@ -10,6 +10,7 @@ import {
   paramsSentence,
   toTenths,
   unchangedReasonText,
+  DEAD_KM_MEANING,
   PROFILES_GROW_WITH_USE,
   RECOMMENDATION_ONLY,
   TRIP_MEANING,
@@ -195,10 +196,11 @@ describe('fixed sentences', () => {
   });
 
   it('explains trips, use-driven coverage and recommendation only, never "simulated"', () => {
-    for (const s of [TRIP_MEANING, PROFILES_GROW_WITH_USE, RECOMMENDATION_ONLY]) {
+    for (const s of [TRIP_MEANING, DEAD_KM_MEANING, PROFILES_GROW_WITH_USE, RECOMMENDATION_ONLY]) {
       expect(s.toLowerCase()).not.toContain('simulated');
     }
     expect(TRIP_MEANING).toContain('first stop');
+    expect(DEAD_KM_MEANING).toContain('first and last stops');
     expect(PROFILES_GROW_WITH_USE).toContain('one route at a time');
     expect(PROFILES_GROW_WITH_USE).toContain('never in bulk');
     expect(RECOMMENDATION_ONLY).toContain('no route is reassigned');
