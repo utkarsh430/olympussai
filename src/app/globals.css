@@ -205,27 +205,29 @@
   }
 
   /* Sticky layers, defined once. Every sticky element, scroll margin and max-height
-     in the depot module reads these instead of a literal 56px.
-       --depot-bar-h     the top bar's sticky height (0: it scrolls away below 640px;
-                         two rows from 640 to 899px; one row from 900px)
-       --depot-nav-h     the navigation strip's own height (auto in the rail form)
-       --depot-strip-h   how much of the stack the navigation strip adds when it sticks
-                         (640 to 899px only; the rail is beside the page from 900px)
-       --depot-sticky-top  where the first sticky layer inside <main> (the depot tabs, the
-                         fleet distribution strip) sticks: below the bar and the strip
-       --depot-subnav-h  the depot tabs' height; --depot-intro-h the fleet distribution strip's
+     in the depot module reads these instead of a literal height. One navigation strip
+     below 900px (no depot tabs since the design wave), the rail beside the page above.
+       --depot-bar-h     the top bar's sticky height: 0 below 640px (it scrolls away),
+                         5rem (two rows) from 640 to 899px, 3.5rem (one row) from 900px
+       --depot-nav-h     the strip's own height: 2.5rem; auto from 900px (the rail)
+       --depot-strip-h   how much the strip adds to the sticky stack: 2.5rem from 640 to
+                         899px only (below 640 it scrolls away; from 900 it is the rail)
+       --depot-sticky-top  where the first sticky layer inside <main> sticks (the fleet
+                         distribution strip): below the bar and the strip
+       --depot-subnav-h  0: the depot tabs are gone; kept so older calc()s still resolve
+       --depot-intro-h   the fleet distribution strip's height
        --depot-scroll-mt   scroll margin for a field that must not land under the stack
-       --depot-anchor-mt   scroll margin for a heading on a network page (below bar and strip);
-                         --depot-anchor-mt-depot the same on a depot page (also below the tabs)
-       --depot-panel-top   top of a side panel that sticks from 1280px (bar plus 1.5rem)
-       --depot-footer-h  the prototype disclaimer's collapsed height, reserved under <main> */
+       --depot-anchor-mt   scroll margin for a heading (below bar and strip);
+                         --depot-anchor-mt-depot is now the same value
+       --depot-panel-top   top of a side panel that sticks from 1280px
+       --depot-footer-h  0: the disclaimer is in the page flow, so no space is reserved */
   .depot-shell {
     --depot-bar-h: 0px;
     --depot-nav-h: 2.5rem;
     --depot-strip-h: 0px;
-    --depot-subnav-h: 2.5rem;
+    --depot-subnav-h: 0px;
     --depot-intro-h: 2.25rem;
-    --depot-footer-h: 2.25rem;
+    --depot-footer-h: 0px;
     --depot-sticky-top: calc(var(--depot-bar-h) + var(--depot-strip-h));
     --depot-scroll-mt: calc(var(--depot-sticky-top) + var(--depot-intro-h) + 1rem);
     --depot-anchor-mt: calc(var(--depot-sticky-top) + 0.5rem);
@@ -267,6 +269,11 @@
 
   .depot-title {
     @apply font-display text-xl font-semibold uppercase tracking-[0.12em] text-depot-ink;
+  }
+
+  /* The mono label above a page title (the depot's name on a depot page). */
+  .depot-eyebrow {
+    @apply mb-1 truncate font-mono text-[11px] uppercase tracking-[0.16em] text-depot-muted;
   }
 
   .depot-prose {
@@ -367,10 +374,48 @@
     @apply border-l-holo-glow;
   }
 
+  /* Rulings rows (DataTable `fixedRows`): a constant 36px, never wrapping; a long cell
+     truncates and DataTable puts its full text in `title`. */
+  .depot-table-fixed td {
+    @apply h-9 max-w-[18rem] overflow-hidden text-ellipsis whitespace-nowrap py-0;
+  }
+
+  /* Frozen first column (DataTable `freezeFirstColumn`): it keeps an opaque background so
+     the columns scrolling under it never show through; the header corner sits above both. */
+  .depot-table-frozen th:first-child,
+  .depot-table-frozen td:first-child {
+    @apply sticky left-0 border-r border-r-depot-line;
+  }
+
+  .depot-table-frozen td:first-child {
+    @apply z-[5] bg-depot-page;
+  }
+
+  .depot-table-frozen th:first-child {
+    @apply z-20;
+  }
+
+  .depot-table-frozen .depot-row-selectable:hover td:first-child,
+  .depot-table-frozen .depot-row-selected td:first-child {
+    @apply bg-depot-raised;
+  }
+
   /* Filter controls: 3px radius, hairline border, the global focus ring. */
   .depot-field {
     @apply rounded-[3px] border border-depot-line bg-depot-surface px-2 py-1.5 font-mono text-[13px]
       text-depot-ink;
+  }
+
+  /* Themed native controls (Controls.tsx): the dark colour scheme and the cyan accent,
+     so neither the box nor an open option list is browser-default white. */
+  .depot-checkbox {
+    @apply h-3.5 w-3.5 shrink-0 cursor-pointer rounded-[3px] accent-holo-glow;
+    color-scheme: dark;
+  }
+
+  .depot-select {
+    @apply cursor-pointer appearance-none truncate pr-7;
+    color-scheme: dark;
   }
 
   /* Index bar: a thin fill on a 0-100 track, with a tick at 50 (the peer median).

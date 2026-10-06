@@ -2,11 +2,10 @@
 
 import { useMemo } from 'react';
 import { useCopilot, type CopilotState } from '@/hooks/useCopilot';
-import { failureSentence, generatedAtText } from '@/lib/depot/copilot/ui/copilotView';
+import { failureSentence } from '@/lib/depot/copilot/ui/copilotView';
 import type { CopilotApiRequest, CopilotScope } from '@/lib/depot/copilot/wire';
 import { CopilotText } from './CopilotText';
-import { FactChips } from './FactChips';
-import { ProviderTag } from './ProviderTag';
+import { CopilotFooter } from './CopilotFooter';
 
 export interface BriefingCardProps {
   readonly scope: CopilotScope;
@@ -80,11 +79,13 @@ function BriefingBody({ scope, title }: BriefingCardProps) {
             headingLevel={3}
             focusOnMount
           />
-          <ProviderTag provider={state.response.provider} notice={state.response.notice} />
-          <p className="font-mono text-[12px] text-depot-faint">
-            {generatedAtText(state.response.generatedAt, state.response.cached)}
-          </p>
-          <FactChips facts={state.response.facts} />
+          <CopilotFooter
+            provider={state.response.provider}
+            notice={state.response.notice}
+            generatedAt={state.response.generatedAt}
+            cached={state.response.cached}
+            facts={state.response.facts}
+          />
           <div>
             <button type="button" onClick={write} className="hud-button">
               Write again

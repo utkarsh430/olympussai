@@ -1,71 +1,53 @@
 'use client';
 
-import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { isNavItemActive, type DepotNavGroup } from '@/lib/depot/nav';
-import { ScrollStrip } from './ScrollStrip';
+import { useDepotNetworkContext } from '@/components/depot/data/DepotNetworkProvider';
+import { railGroups, shellNav } from '@/lib/depot/shellModel';
+import { DepotNavStrip } from './DepotNavStrip';
+import { NavLinks } from './NavLinks';
 
 /**
- * Grouped navigation rail. A sticky column beside the content from 900px up;
- * below that it becomes a one-line strip under the top bar that scrolls sideways
- * inside itself (`ScrollStrip`: an arrow cap shows where more links follow, and the
- * active link is scrolled into view), so the page itself never scrolls sideways.
- * The strip sticks below the bar from 640px, at the height the shell's custom
- * properties give it (`--depot-bar-h`, `--depot-nav-h`); the rail sticks at the
- * bar's height and is capped at what remains of the viewport, so a short page
- * (the error state) is not pushed past the viewport by the footer. In the strip
- * the group labels are read to screen readers only and a hairline divides the
- * groups; in the rail the labels share the links' 16px inset. Focus rings are
- * drawn inside each link because the scroller's overflow would clip an outset ring.
+ * The shell's navigation (rulings, section 4), one model (`shellNav`) in two forms:
+ *
+ * - From 900px, the left rail: a sticky column beside the page, capped at what remains
+ *   of the viewport. In depot scope it leads with the depot's name as a group heading
+ *   and that depot's pages, then the network groups. There are no depot tabs.
+ * - Below 900px, ONE strip under the top bar (`DepotNavStrip`).
+ *
+ * Each form is `display: none` at the other's widths, so only one is ever in the
+ * accessibility tree and in the tab order. An unknown depot has no depot group.
  */
-export function DepotNav({ groups }: { readonly groups: readonly DepotNavGroup[] }) {
+export function DepotNav() {
   const pathname = usePathname() ?? '';
+  const { data } = useDepotNetworkContext();
+  const nav = shellNav(pathname, data?.depots ?? null);
 
   return (
-    <nav
-      aria-label="Depot management"
-      data-testid="depot-nav"
-      className="z-30 flex h-[var(--depot-nav-h)] shrink-0 border-b border-depot-line bg-depot-page sm:sticky sm:top-[var(--depot-bar-h)] min-[900px]:w-[200px] min-[900px]:self-start min-[900px]:border-b-0 min-[900px]:border-r min-[1280px]:w-[232px]"
-    >
-      <ScrollStrip
-        activeKey={pathname}
-        className="min-w-0 flex-1"
-        cueClassName="min-[900px]:hidden"
-        scrollClassName="flex h-full items-center gap-4 overflow-x-auto px-2 max-[899px]:[scrollbar-width:none] max-[899px]:[&::-webkit-scrollbar]:hidden min-[900px]:max-h-[calc(100dvh-var(--depot-bar-h))] min-[900px]:flex-col min-[900px]:items-stretch min-[900px]:gap-5 min-[900px]:overflow-x-hidden min-[900px]:overflow-y-auto min-[900px]:px-0 min-[900px]:py-5"
+    <>
+      <nav
+        aria-label="Depot management"
+        data-testid="depot-nav"
+        className="hidden shrink-0 border-r border-depot-line bg-depot-page min-[900px]:sticky min-[900px]:top-[var(--depot-bar-h)] min-[900px]:z-30 min-[900px]:block min-[900px]:max-h-[calc(100dvh-var(--depot-bar-h))] min-[900px]:w-[200px] min-[900px]:self-start min-[900px]:overflow-y-auto min-[1280px]:w-[232px]"
       >
-        {groups.map((group, position) => (
-          <div
-            key={group.heading}
-            className={`flex shrink-0 items-center min-[900px]:block ${
-              position > 0
-                ? 'border-l border-depot-line pl-4 min-[900px]:border-l-0 min-[900px]:pl-0'
-                : ''
-            }`}
-          >
-            <p className="depot-label sr-only min-[900px]:not-sr-only min-[900px]:mb-1.5 min-[900px]:px-4">
-              {group.heading}
-            </p>
-            <ul className="flex min-[900px]:block">
-              {group.items.map((item) => {
-                const active = isNavItemActive(pathname, item);
-                return (
-                  <li key={item.href}>
-                    <Link
-                      href={item.href}
-                      aria-current={active ? 'page' : undefined}
-                      className={`depot-nav-link whitespace-nowrap focus-visible:outline-offset-[-2px] ${
-                        active ? 'depot-nav-link-active' : ''
-                      }`}
-                    >
-                      {item.label}
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        ))}
-      </ScrollStrip>
-    </nav>
+        <div className="flex flex-col gap-5 py-5">
+          {railGroups(nav).map((group, position) => (
+            <div
+              key={`${position}-${group.heading}`}
+              data-testid={position === 0 && nav.depotGroup ? 'depot-nav-depot-group' : undefined}
+            >
+              <p
+                className={`depot-label mb-1.5 truncate px-4 ${
+                  position === 0 && nav.depotGroup ? 'text-depot-ink' : ''
+                }`}
+              >
+                {group.heading}
+              </p>
+              <NavLinks items={group.items} pathname={pathname} />
+            </div>
+          ))}
+        </div>
+      </nav>
+      <DepotNavStrip nav={nav} pathname={pathname} />
+    </>
   );
 }

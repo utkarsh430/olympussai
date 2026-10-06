@@ -1,7 +1,6 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DepotShell } from '@/components/depot/shell/DepotShell';
-import { DepotSubNav } from '@/components/depot/shell/DepotSubNav';
 
 vi.mock('next/navigation', () => ({
   usePathname: (): string => '/project/depots/d/49/yard',
@@ -35,10 +34,9 @@ function focusables(root: Element): readonly HTMLElement[] {
 }
 
 describe('DepotShell structure', () => {
-  it('puts the skip link first and the depot tabs first inside the page region', () => {
+  it('puts the skip link first, then the bar, then the depot group leading the rail', () => {
     const { container } = render(
       <DepotShell>
-        <DepotSubNav depotId="49" />
         <button type="button">First page control</button>
       </DepotShell>,
     );
@@ -46,11 +44,16 @@ describe('DepotShell structure', () => {
     expect(all[0]?.textContent).toBe('Skip to depot content');
     expect(all[0]?.getAttribute('href')).toBe('#depot-main');
 
+    const rail = screen.getByTestId('depot-nav');
+    expect(rail.querySelector('p')?.textContent).toBe('KAUSHAMBI');
+    expect(focusables(rail)[0]?.textContent).toBe('Cockpit');
+    // The bar comes before the navigation, the navigation before the page.
+    const order = all.map((el) => el.textContent);
+    expect(order.indexOf('Operations')).toBeLessThan(order.indexOf('Cockpit'));
+
     const main = container.querySelector('#depot-main');
     expect(main?.getAttribute('tabindex')).toBe('-1');
-    const inMain = focusables(main as Element);
-    expect(inMain[0]?.textContent).toBe('Cockpit');
-    expect(inMain.at(-1)?.textContent).toBe('First page control');
+    expect(focusables(main as Element).map((el) => el.textContent)).toEqual(['First page control']);
   });
 
   it('keeps the scope switcher and the feed chip in separate groups of the top bar', () => {
@@ -67,12 +70,33 @@ describe('DepotShell structure', () => {
     expect(actionGroup.contains(screen.getByTestId('depot-feed-status'))).toBe(true);
   });
 
-  it('reserves room under the page for the footer through the shell property', () => {
+  it('holds Operations and Sign out behind one menu button for phone widths', () => {
+    render(
+      <DepotShell>
+        <p>page</p>
+      </DepotShell>,
+    );
+    const menu = screen.getByTestId('depot-bar-menu');
+    const button = menu.querySelector('button') as HTMLButtonElement;
+    expect(button.getAttribute('aria-expanded')).toBe('false');
+    expect(menu.querySelectorAll('a')).toHaveLength(0);
+    act(() => button.click());
+    expect(button.getAttribute('aria-expanded')).toBe('true');
+    expect(menu.querySelector('a')?.getAttribute('href')).toBe('/project/upsrtc');
+    expect(menu.querySelector('[data-testid="depot-sign-out"]')).not.toBeNull();
+  });
+
+  it('keeps the disclaimer in the page flow after the content, with no space reserved', () => {
     const { container } = render(
       <DepotShell>
         <p>page</p>
       </DepotShell>,
     );
-    expect(container.querySelector('#depot-main')?.className).toContain('--depot-footer-h');
+    const main = container.querySelector('#depot-main') as HTMLElement;
+    const footer = screen.getByTestId('footer-disclaimer');
+    expect(main.className).not.toContain('--depot-footer-h');
+    expect(main.className).toContain('px-4 pb-10');
+    expect(main.compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(footer.className).not.toMatch(/\b(fixed|sticky)\b/);
   });
 });

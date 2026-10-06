@@ -20,7 +20,6 @@ export function FactChips({ facts }: FactChipsProps) {
   if (facts.length === 0) {
     return <p className="depot-prose">No figures were used for this text.</p>;
   }
-  const rows = groupFactsByProvenance(facts).flatMap((group) => group.facts);
   return (
     <div data-testid="copilot-facts" className="min-w-0">
       <button
@@ -32,24 +31,31 @@ export function FactChips({ facts }: FactChipsProps) {
       >
         Figures used: {facts.length}
       </button>
-      {open ? (
-        <ul id={listId} className="mt-2 flex flex-col gap-1">
-          {rows.map((fact, index) => (
-            <li
-              key={`${fact.id}-${index}`}
-              className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-depot-line py-1"
-            >
-              <span className="min-w-0 break-words font-mono text-[12px] text-depot-muted">
-                {fact.label}
-              </span>
-              <span className="min-w-0 break-words font-mono text-[13px] tabular-nums text-depot-ink">
-                {fact.text}
-              </span>
-              <ProvenanceBadge provenance={fact.provenance} />
-            </li>
-          ))}
-        </ul>
-      ) : null}
+      {open ? <FactList id={listId} facts={facts} /> : null}
     </div>
+  );
+}
+
+
+/** The figures as a list, grouped by provenance, each row with its provenance word. */
+export function FactList({ id, facts }: { readonly id: string; readonly facts: readonly CopilotFactView[] }) {
+  const rows = groupFactsByProvenance(facts).flatMap((group) => group.facts);
+  return (
+    <ul id={id} className="mt-2 flex flex-col gap-1">
+      {rows.map((fact, index) => (
+        <li
+          key={`${fact.id}-${index}`}
+          className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-depot-line py-1"
+        >
+          <span className="min-w-0 break-words font-mono text-[12px] text-depot-muted">
+            {fact.label}
+          </span>
+          <span className="min-w-0 break-words font-mono text-[13px] tabular-nums text-depot-ink">
+            {fact.text}
+          </span>
+          <ProvenanceBadge provenance={fact.provenance} />
+        </li>
+      ))}
+    </ul>
   );
 }
