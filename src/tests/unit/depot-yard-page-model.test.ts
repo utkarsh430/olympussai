@@ -122,6 +122,12 @@ describe('visitorRows', () => {
       ),
     ).toEqual(['A9', 'Z1', 'C1', 'B2']);
   });
+  it('keeps the home depot id, so a visitor links to its own depot roster', () => {
+    const row = visitorRows([
+      { registrationNumber: 'V1', homeDepotName: 'Agra', homeDepotId: '7', state: 'standing', position: null },
+    ])[0];
+    expect(row?.homeDepotId).toBe('7');
+  });
 });
 
 describe('buildParkingDiagram', () => {

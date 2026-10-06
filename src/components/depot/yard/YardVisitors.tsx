@@ -6,15 +6,17 @@ import { SectionLabel } from '@/components/depot/shell/SectionLabel';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
 import type { YardModel } from '@/lib/depot/yard/yardModel';
 import { VISITOR_CAP, visitorRows, type VisitorRow } from '@/lib/depot/yard/yardPageModel';
-import { CappedTable } from './YardTables';
+import { BusLink, CappedTable } from './YardTables';
 
-/** A visitor is on another depot's roster, so its registration is text, not a link here. */
+/** A visitor is on its home depot's roster: the registration links there, as AWAY's do here. */
 const VISITOR_COLUMNS: readonly Column<VisitorRow>[] = [
   {
     key: 'registration',
     header: 'Registration',
     width: '10rem',
-    render: (r) => r.registration,
+    render: (r) =>
+      r.homeDepotId === null ? r.registration : <BusLink depotId={r.homeDepotId} registration={r.registration} />,
+    title: (r) => r.registration,
     sortValue: (r) => r.registration,
   },
   { key: 'home', header: 'Home depot', render: (r) => r.homeDepot, sortValue: (r) => r.homeDepot },
