@@ -37,7 +37,7 @@ export function dutyFigures(
  * held out of the matching, of every class: "No bus for 116 duties: every
  * eligible bus has another duty. Held out of the matching: 12 not heard recently · …".
  * A duty is left without a bus only once every eligible bus has one, so when no duty has
- * a bus no bus was eligible, and the line says so (review m-e). Class is a preference,
+ * a bus no bus was eligible, and the line says so. Class is a preference,
  * not a bar, so no class is named. Null when every duty has a bus.
  */
 export function unmatchedLine(
@@ -92,7 +92,7 @@ type EligibilityContext = Pick<
  * How eligibility was judged, true for the plan's mode, the feed clock and the yard.
  * Before the first duty the yard buses take the earliest duties,
  * said first; eligibility is then judged as on the feed clock. With no clock no
- * recency window is claimed (review m-d); with no yard location is not claimed.
+ * recency window is claimed; with no yard location is not claimed.
  */
 export function eligibilityNotes(response: EligibilityContext): readonly string[] {
   const noYard = response.eligibilityIgnoredLocation === true;

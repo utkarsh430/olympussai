@@ -28,7 +28,7 @@ export const COST_SENTENCE =
 /**
  * Who `assignDuties` never matches, in every mode. Who else is held out depends on
  * the plan's mode, the feed clock and the yard, so the page's notes say it
- * (`eligibilityNotes`): a fixed sentence here could contradict them (review m-d).
+ * (`eligibilityNotes`): a fixed sentence here could contradict them.
  */
 export const ELIGIBILITY_SENTENCE = 'A bus off the road or dark is never matched to a duty.';
 

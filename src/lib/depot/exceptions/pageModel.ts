@@ -178,7 +178,7 @@ export function failedQuerySentence(reason: string): string {
 /**
  * Why the group counts and the total differ: a depot can hold more than one exception.
  * Counted from the very groups the page draws (after any kind filter), never from the raw
- * list, so the sentence and the severity groups add up at every moment (capture item 8).
+ * list, so the sentence and the severity groups add up at every moment.
  */
 export function depotScopeLine(groups: readonly DepotExceptionGroup[]): string {
   const exceptions = groups.reduce((n, g) => n + g.exceptions.length, 0);

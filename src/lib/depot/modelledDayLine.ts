@@ -6,7 +6,7 @@ import type { Coverage } from './types';
  * The provenance line's extension on EVERY page built on the modelled operating day (duty
  * board, crew, fuel and cost, revenue and ridership), worded once so they say it word for
  * word. No page builds this sentence itself.
- * Dated from the response's `operatingDate` (ruling: a page on the modelled day prints
+ * Dated from the response's `operatingDate` (a page on the modelled day prints
  * the date it is for), with the feed's schedule coverage from the depot detail.
  */
 

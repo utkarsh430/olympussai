@@ -1,5 +1,5 @@
 /*
- * The what-if fields show the value in force, never an empty box (capture report item 23):
+ * The what-if fields show the value in force, never an empty box:
  * the server plan's own parameters, or what the what-if already set for a depot. A field
  * left at, or put back to, that value changes nothing.
  */

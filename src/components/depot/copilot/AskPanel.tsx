@@ -50,7 +50,7 @@ export function AskPanel() {
   const chosen = depots.find((d) => d.id === scopeValue);
   const scope: CopilotScope = chosen ? { kind: 'depot', depotId: chosen.id } : { kind: 'network' };
   const scopeLabel = chosen ? chosen.name : 'Whole network';
-  // The last answer's scope and the form's never silently disagree (capture item 18).
+  // The last answer's scope and the form's never silently disagree.
   const mismatch = scopeMismatchLine(history[0]?.response.answerScope, {
     depotId: chosen ? chosen.id : null,
     label: scopeLabel,

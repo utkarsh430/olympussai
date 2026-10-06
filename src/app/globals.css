@@ -452,7 +452,7 @@
     @apply border-l-holo-glow;
   }
 
-  /* Rulings rows (DataTable `fixedRows`): a constant 36px, never wrapping; a long cell
+  /* Fixed rows (DataTable `fixedRows`): a constant 36px, never wrapping; a long cell
      truncates and DataTable puts its full text in `title`. */
   .depot-table-fixed td {
     @apply h-9 max-w-[18rem] overflow-hidden text-ellipsis whitespace-nowrap py-0;

@@ -53,7 +53,7 @@ function isAvailable(view: DepotBusView): boolean {
   return view.state !== 'off_road' && view.state !== 'dark';
 }
 
-/** Off the road or dark first; then held out of the matching (review m-g); else no duty left. */
+/** Off the road or dark first; then held out of the matching; else no duty left. */
 function idleReason(view: DepotBusView, heldOut: ReadonlySet<string>): DayIdleBus['reason'] {
   if (!isAvailable(view)) return 'unavailable';
   return heldOut.has(view.registrationNumber) ? 'held_out' : 'no_duty';
