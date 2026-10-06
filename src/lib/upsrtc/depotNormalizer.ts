@@ -29,11 +29,29 @@ type Rec = Record<string, unknown>;
 export interface NormalizeDepotResult {
   readonly rows: readonly DepotBusRow[];
   recordCount: number;
-  /** Non-records and rows without a registration. */
+  /** Non-records and rows without a usable registration. */
   rejectedRecordCount: number;
 }
 
 const DEPOT_ID_PATTERN = /^\d{1,6}$/;
+
+/**
+ * The longest text a row's field may carry. The feed's longest real field (a route
+ * description) is well under half of it; a longer value is garbage, and would be carried
+ * into every map key, list and response that names the bus, so the field is dropped (the
+ * row is refused when it is the registration) rather than cut to a value nobody sent.
+ */
+export const MAX_ROW_TEXT_CHARS = 128;
+
+function toText(value: unknown): string | null {
+  const text = toStringOrNull(value);
+  return text !== null && text.length <= MAX_ROW_TEXT_CHARS ? text : null;
+}
+
+/** One spelling per bus: `up77an2509` and `UP77AN2509` are the same registration. */
+function toRegistration(value: unknown): string | null {
+  return toText(value)?.toUpperCase() ?? null;
+}
 
 function roundOneDecimal(value: number): number {
   return Math.round(value * 10) / 10;
@@ -71,14 +89,14 @@ function toRow(raw: Rec, registrationNumber: string): DepotBusRow {
     gpsTimestamp: parseTimestamp(pick(raw, ['timestamp'])),
     receivedAt: parseTimestamp(pick(raw, ['receivedTime'])),
     depotId: toDepotId(pick(raw, ['home_depot'])),
-    depotName: toStringOrNull(pick(raw, ['depot_name'])),
+    depotName: toText(pick(raw, ['depot_name'])),
     vehicleStatus: toVehicleStatus(pick(raw, ['vehicle_status'])),
-    tripStatus: toStringOrNull(pick(raw, ['status'])),
-    routeId: toStringOrNull(pick(raw, ROUTE_ID_ALIASES)),
-    routeName: toStringOrNull(pick(raw, ROUTE_NAME_ALIASES)),
-    routeDescription: toStringOrNull(pick(raw, ['route_description'])),
-    journeyId: toStringOrNull(pick(raw, TRIP_ALIASES)),
-    journeyCode: toStringOrNull(pick(raw, ['vehicle_journey_code'])),
+    tripStatus: toText(pick(raw, ['status'])),
+    routeId: toText(pick(raw, ROUTE_ID_ALIASES)),
+    routeName: toText(pick(raw, ROUTE_NAME_ALIASES)),
+    routeDescription: toText(pick(raw, ['route_description'])),
+    journeyId: toText(pick(raw, TRIP_ALIASES)),
+    journeyCode: toText(pick(raw, ['vehicle_journey_code'])),
     scheduledStart: parseTimestamp(pick(raw, ['scheduled_start_time'])),
     scheduledEnd: parseTimestamp(pick(raw, ['scheduled_end_time'])),
     actualStart: parseTimestamp(pick(raw, ['actual_start_time'])),
@@ -86,35 +104,63 @@ function toRow(raw: Rec, registrationNumber: string): DepotBusRow {
     odometerRaw: toNumber(pick(raw, ['distance'])),
     mainPowerOn: toBooleanOrNull(raw['mainPowerStatus']),
     mainVoltage: toNumber(pick(raw, ['mainInputVoltage'])),
-    tamperCode: toStringOrNull(pick(raw, ['tamperAlert'])),
+    tamperCode: toText(pick(raw, ['tamperAlert'])),
     emergency: toBooleanOrNull(raw['emergencyStatus']),
   };
 }
 
-function gpsTime(row: DepotBusRow): number {
-  return row.gpsTimestamp ? Date.parse(row.gpsTimestamp) : -Infinity;
+/**
+ * The time fields the map projection (`normalizeLivePayload`) reads, in its order. Repeated
+ * registrations are decided by the same time, so both projections keep the same row.
+ */
+const MAP_TIME_ALIASES = ['timestamp', 'receivedTime', 'gps_timestamp', 'gpsTimestamp', 'time'];
+
+interface Candidate {
+  readonly row: DepotBusRow;
+  readonly hasFix: boolean;
+  readonly timeMs: number;
+}
+
+function toCandidate(raw: Rec, row: DepotBusRow): Candidate {
+  const time = parseTimestamp(pick(raw, MAP_TIME_ALIASES));
+  return {
+    row,
+    hasFix: row.latitude !== null && row.longitude !== null,
+    timeMs: time === null ? -Infinity : Date.parse(time),
+  };
+}
+
+/**
+ * The map keeps, among a registration's rows with a fix, the newest by its time, and the
+ * first on a tie; it never shows a row without a fix. So a row with a fix always beats
+ * one without, and otherwise only a strictly newer row replaces the one kept: the depot
+ * pages count the bus under the depot of the row whose pin the map shows. A bus with no
+ * fix in any row keeps its newest row in the same way.
+ */
+function replaces(incoming: Candidate, kept: Candidate): boolean {
+  if (incoming.hasFix !== kept.hasFix) return incoming.hasFix;
+  return incoming.timeMs > kept.timeMs;
 }
 
 export function normalizeDepotRows(payload: unknown): NormalizeDepotResult {
   const records = extractArray(payload);
-  const byReg = new Map<string, DepotBusRow>();
+  const byReg = new Map<string, Candidate>();
   let rejected = 0;
 
   for (const record of records) {
-    const registrationNumber = isRecord(record) ? toStringOrNull(pick(record, REG_ALIASES)) : null;
+    const registrationNumber = isRecord(record) ? toRegistration(pick(record, REG_ALIASES)) : null;
     if (!isRecord(record) || !registrationNumber) {
       rejected += 1;
       continue;
     }
 
-    const row = toRow(record, registrationNumber);
-    // Duplicate registrations: newest GPS timestamp wins, as in normalizeLivePayload.
-    const existing = byReg.get(registrationNumber);
-    if (!existing || gpsTime(row) > gpsTime(existing)) byReg.set(registrationNumber, row);
+    const candidate = toCandidate(record, toRow(record, registrationNumber));
+    const kept = byReg.get(registrationNumber);
+    if (!kept || replaces(candidate, kept)) byReg.set(registrationNumber, candidate);
   }
 
   return {
-    rows: [...byReg.values()],
+    rows: [...byReg.values()].map((candidate) => candidate.row),
     recordCount: records.length,
     rejectedRecordCount: rejected,
   };

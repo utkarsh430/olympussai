@@ -17,12 +17,22 @@ import { fetchUpstream } from '@/lib/upsrtc/client';
 import { loadFleetFixture } from '@/lib/upsrtc/fleetFixture';
 import {
   LIVE_CACHE_TTL_MS,
+  LIVE_RETRY_BACKOFF_MS,
   getLiveSnapshot,
   liveDiagnostics,
   resetLiveSnapshotForTests,
 } from '@/lib/upsrtc/liveSnapshot';
 
 const mockFetch = vi.mocked(fetchUpstream);
+
+// The wall clock stands still in this file: the snapshot times an answer from when it
+// arrives, and every expected time here assumes it arrives the moment it is asked for.
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+});
+afterEach(() => {
+  vi.useRealTimers();
+});
 const mockFleet = vi.mocked(loadFleetFixture);
 const T0 = 1_800_000_000_000;
 const liveFixtureLength = (liveFixture as unknown[]).length;
@@ -63,9 +73,14 @@ describe('getLiveSnapshot', () => {
     mockFetch.mockReset();
     mockFleet.mockClear();
     delete process.env.NEXT_PUBLIC_DEMO_MODE;
+    // Each change of what is served is logged; the lines are pinned in their own test file.
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
   });
 
   afterEach(() => {
+    vi.mocked(console.error).mockRestore();
+    vi.mocked(console.warn).mockRestore();
     if (originalDemo === undefined) delete process.env.NEXT_PUBLIC_DEMO_MODE;
     else process.env.NEXT_PUBLIC_DEMO_MODE = originalDemo;
   });
@@ -187,23 +202,25 @@ describe('getLiveSnapshot', () => {
     expect(liveDiagnostics.lastError).toBe('socket hang up');
 
     mockFetch.mockResolvedValueOnce(okResult(LIVE_PAYLOAD));
-    const recovered = await getLiveSnapshot(T0 + 1);
+    const recovered = await getLiveSnapshot(T0 + LIVE_RETRY_BACKOFF_MS);
     expect(recovered.source).toBe('live');
     expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 
   it('counts consecutive failures and resets them on success', async () => {
+    // Each retry comes after the back-off interval: inside it the upstream is not called.
+    const retry = (n: number): number => T0 + n * LIVE_RETRY_BACKOFF_MS;
     mockFetch.mockResolvedValue(failResult);
-    await getLiveSnapshot(T0);
-    await getLiveSnapshot(T0 + 1);
+    await getLiveSnapshot(retry(0));
+    await getLiveSnapshot(retry(1));
     expect(liveDiagnostics.consecutiveFailures).toBe(2);
     expect(liveDiagnostics.lastStatus).toBe(502);
 
     mockFetch.mockResolvedValue(okResult(LIVE_PAYLOAD));
-    await getLiveSnapshot(T0 + 2);
+    await getLiveSnapshot(retry(2));
     expect(liveDiagnostics.consecutiveFailures).toBe(0);
     expect(liveDiagnostics.lastError).toBeNull();
-    expect(liveDiagnostics.lastSuccessAt).toBe(new Date(T0 + 2).toISOString());
+    expect(liveDiagnostics.lastSuccessAt).toBe(new Date(retry(2)).toISOString());
   });
 
   describe('concurrent failure', () => {
@@ -234,7 +251,7 @@ describe('getLiveSnapshot', () => {
       expect(liveDiagnostics.consecutiveFailures).toBe(1);
 
       mockFetch.mockResolvedValueOnce(okResult(LIVE_PAYLOAD));
-      await getLiveSnapshot(T0 + 2);
+      await getLiveSnapshot(T0 + LIVE_RETRY_BACKOFF_MS);
       expect(mockFetch).toHaveBeenCalledTimes(2);
     });
 
@@ -270,7 +287,7 @@ describe('getLiveSnapshot', () => {
       expect(liveDiagnostics.lastError).toBe('socket hang up');
 
       mockFetch.mockResolvedValueOnce(okResult(LIVE_PAYLOAD));
-      const next = await getLiveSnapshot(T0 + 2);
+      const next = await getLiveSnapshot(T0 + LIVE_RETRY_BACKOFF_MS);
       expect(next.source).toBe('live');
       expect(mockFetch).toHaveBeenCalledTimes(2);
     });

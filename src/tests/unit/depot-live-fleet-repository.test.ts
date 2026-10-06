@@ -1,8 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { LiveSnapshotResult } from '@/lib/upsrtc/liveSnapshot';
+
+vi.mock('@/lib/upsrtc/liveSnapshot', () => ({ getLiveSnapshot: vi.fn() }));
+
+import { getLiveSnapshot } from '@/lib/upsrtc/liveSnapshot';
 import {
   LAST_GOOD_FRESH_MS,
   createLiveFleetRepository,
+  liveFleetRepository,
 } from '@/lib/depot/repositories/liveFleetRepository';
 
 const FETCHED_MS = Date.parse('2026-10-06T10:00:00.000Z');
@@ -73,5 +78,13 @@ describe('live fleet repository: when the depot pages call the feed stale', () =
 
   it('keeps the fresh limit at two of the feed\'s own periods or more', () => {
     expect(LAST_GOOD_FRESH_MS).toBeGreaterThanOrEqual(80_000);
+  });
+
+  it('asks the shared snapshot for young last-good data at once, up to the fresh limit', async () => {
+    vi.mocked(getLiveSnapshot).mockResolvedValueOnce(result('cache', true));
+    await liveFleetRepository.snapshot();
+    expect(getLiveSnapshot).toHaveBeenCalledWith(expect.any(Number), {
+      serveLastGoodWithinMs: LAST_GOOD_FRESH_MS,
+    });
   });
 });

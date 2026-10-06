@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { MAX_LOG_MESSAGE_CHARS, logDepotError } from '@/lib/depot/log';
+import { MAX_LOG_MESSAGE_CHARS, logDepotError, logDepotNotice } from '@/lib/depot/log';
 
 describe('logDepotError', () => {
   let errorSpy: ReturnType<typeof vi.spyOn>;
@@ -40,5 +40,22 @@ describe('logDepotError', () => {
     expect(message).toHaveLength(MAX_LOG_MESSAGE_CHARS);
     expect(message.endsWith('…')).toBe(true);
     expect(message).not.toContain('\n');
+  });
+});
+
+describe('logDepotNotice', () => {
+  let warnSpy: ReturnType<typeof vi.spyOn>;
+  beforeEach(() => {
+    warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  });
+  afterEach(() => warnSpy.mockRestore());
+
+  it('writes one bounded warning line in the same form as an error', () => {
+    logDepotNotice('scope-n', 'feed\nrecovered');
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy).toHaveBeenCalledWith('[depot:scope-n] feed recovered');
+    logDepotNotice('scope-n', 'x'.repeat(MAX_LOG_MESSAGE_CHARS * 2));
+    const line = String(warnSpy.mock.calls[1]?.[0]);
+    expect(line.length).toBe('[depot:scope-n] '.length + MAX_LOG_MESSAGE_CHARS);
   });
 });
