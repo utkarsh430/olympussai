@@ -3,6 +3,7 @@ import { formatCount } from '@/lib/depot/format';
 import { BUS_EXCEPTION_KINDS, DEPOT_EXCEPTION_KINDS } from '@/lib/depot/exceptions/config';
 import { EXCEPTION_KIND_LABEL } from '@/lib/depot/exceptions/describe';
 import type { ExceptionKind } from '@/lib/depot/exceptions/types';
+import { exceptionKindMeaning } from '@/lib/depot/figureTones';
 
 
 /** While a depot's own bus counts have not arrived the figure is a dash, never the network's. */
@@ -38,6 +39,7 @@ export function ExceptionCounts({
           title={count === null ? PENDING_TITLE : undefined}
           onPress={() => onToggle(kind)}
           pressed={selected === kind}
+          tone={exceptionKindMeaning(kind)}
         />
       );
     });

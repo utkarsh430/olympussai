@@ -13,6 +13,7 @@ import {
 } from '@/lib/depot/network/exceptionScope';
 import type { ExceptionKindRow } from '@/lib/depot/network/overviewModel';
 import type { ExceptionKind, ExceptionSeverity } from '@/lib/depot/exceptions/types';
+import { exceptionKindMeaning } from '@/lib/depot/figureTones';
 
 /** The band's own top rule is dropped: the rule sits above the label, as on /exceptions. */
 const BAND = 'border-t border-depot-line pt-2 [&>div]:border-t-0';
@@ -38,6 +39,7 @@ function KindBand({ label, rows }: { readonly label: string; readonly rows: read
             label={row.label}
             value={formatCount(row.count)}
             href={exceptionKindHref(row.kind)}
+            tone={exceptionKindMeaning(row.kind)}
           />
         ))}
       </FigureBand>
