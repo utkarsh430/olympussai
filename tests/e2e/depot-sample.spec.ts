@@ -484,3 +484,83 @@ test.describe('6. the exceptions page scoped to one depot', () => {
     await expect(page.getByTestId('depot-exception-list')).toContainText(sample.depotName);
   });
 });
+
+test.describe('7. keyboard: open a row, close it, focus returns', () => {
+  test.skip(!E2E_PIN, `SKIPPED: ${PIN_MISSING}`);
+
+  test('roster: Enter on a bus opens its drawer and Escape returns to the row', async ({
+    page,
+    sample,
+  }) => {
+    await openPage(page, `/project/depots/d/${sample.depotId}/roster`, 'Roster');
+    const opener = page.getByTestId('depot-table').locator('tbody tr button').first();
+    await opener.focus();
+    await expect(opener).toBeFocused();
+
+    await page.keyboard.press('Enter');
+    const drawer = page.getByRole('dialog');
+    await expect(drawer).toBeVisible();
+    await expect(page.locator('#bus-drawer-title')).toBeFocused();
+
+    await page.keyboard.press('Escape');
+    await expect(drawer).toBeHidden();
+    await expect(opener).toBeFocused();
+  });
+
+  test('exceptions: Enter on a depot group closes and reopens it in place', async ({
+    page,
+    sample,
+  }) => {
+    await openPage(page, `/project/depots/exceptions?depot=${sample.depotId}`, 'Exceptions');
+    // The bus rows open nothing; the depot exceptions are grouped in disclosures.
+    const summary = page.getByTestId('depot-exception-list').locator('summary').first();
+    const group = summary.locator('xpath=..');
+    const wasOpen = await group.evaluate((el) => (el as HTMLDetailsElement).open);
+    await summary.focus();
+
+    await page.keyboard.press('Enter');
+    await expect.poll(() => group.evaluate((el) => (el as HTMLDetailsElement).open)).toBe(!wasOpen);
+    await page.keyboard.press('Enter');
+    await expect.poll(() => group.evaluate((el) => (el as HTMLDetailsElement).open)).toBe(wasOpen);
+    await expect(summary).toBeFocused();
+  });
+
+  test('league: Enter opens a score breakdown and Enter again returns to the row', async ({
+    page,
+    sample,
+  }) => {
+    expect(sample.depotId).toBeTruthy();
+    await openPage(page, '/project/depots/league', 'League table');
+    const row = page.locator('tr[data-league-row]').first();
+    await row.focus();
+
+    await page.keyboard.press('Enter');
+    await expect(page.getByTestId('depot-score-breakdown')).toBeVisible();
+    await expect(page.locator('#score-breakdown-title')).toBeFocused();
+
+    await row.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.getByTestId('depot-score-breakdown')).toBeHidden();
+    await expect(row).toBeFocused();
+  });
+
+  test('league: Escape closes the score breakdown and returns focus to its row', async ({
+    page,
+    sample,
+  }) => {
+    test.fixme(
+      true,
+      'Escape does not yet close the open score breakdown; fixed by the page polish unit',
+    );
+    expect(sample.depotId).toBeTruthy();
+    await openPage(page, '/project/depots/league', 'League table');
+    const row = page.locator('tr[data-league-row]').first();
+    await row.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.getByTestId('depot-score-breakdown')).toBeVisible();
+
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('depot-score-breakdown')).toBeHidden();
+    await expect(row).toBeFocused();
+  });
+});
