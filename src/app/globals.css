@@ -292,6 +292,11 @@
     @apply mt-7 sm:mt-10;
   }
 
+  /* A child's own bottom margin (a band's mb-6) is dropped: the stack spaces it. */
+  .depot-stack > * {
+    @apply !mb-0;
+  }
+
   .depot-note {
     @apply font-sans text-[13px] leading-[18px] text-depot-muted;
   }

@@ -23,6 +23,7 @@ describe('shared vertical rhythm', () => {
   it('stacks sections 40px apart, 28px on a phone', () => {
     expect(rule('.depot-stack > * + *')).toContain('mt-7');
     expect(rule('.depot-stack > * + *')).toContain('sm:mt-10');
+    expect(rule('.depot-stack > *')).toContain('!mb-0');
   });
 
   it('puts 16px between a section hairline and its label, then 12px to the content', () => {
