@@ -7,6 +7,7 @@ import {
   DISPLAY_RADIUS_FACTOR,
   YARD_STATE_ORDER,
   buildYardModel,
+  formatHeardAgo,
 } from '@/lib/depot/yard/yardModel';
 
 const YARD: Yard = { lat: 18.5, lng: 73.8, radiusM: 200, parked: 44, inCluster: 38 };
@@ -70,6 +71,16 @@ const SAMPLE = response(
     { registrationNumber: 'V3', homeDepotId: null, homeDepotName: null, state: 'standing' },
   ],
 );
+
+describe('formatHeardAgo', () => {
+  it('words the GPS age and survives missing values', () => {
+    expect(formatHeardAgo(4)).toBe('heard 4 min ago');
+    expect(formatHeardAgo(0.2)).toBe('heard just now');
+    expect(formatHeardAgo(135)).toBe('heard 2 h 15 min ago');
+    expect(formatHeardAgo(null)).toBe('no GPS time');
+    expect(formatHeardAgo(Number.NaN)).toBe('no GPS time');
+  });
+});
 
 describe('buildYardModel', () => {
   it('groups buses in the yard by state in fixed order with counts', () => {

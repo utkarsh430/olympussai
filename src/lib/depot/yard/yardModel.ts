@@ -143,6 +143,18 @@ function basisSentence(yard: Yard | null, coverage: { n: number; of: number } | 
   return `Learned from where this depot's buses park: ${sample.n} of ${sample.of} parked buses stand together.`;
 }
 
+const MIN_PER_HOUR = 60;
+
+/** "heard 4 min ago"; says so plainly when the bus has no usable GPS age. */
+export function formatHeardAgo(ageMin: number | null): string {
+  if (ageMin === null || !Number.isFinite(ageMin) || ageMin < 0) return 'no GPS time';
+  if (ageMin < 1) return 'heard just now';
+  if (ageMin < MIN_PER_HOUR) return `heard ${Math.round(ageMin)} min ago`;
+  const hours = Math.floor(ageMin / MIN_PER_HOUR);
+  const rest = Math.round(ageMin - hours * MIN_PER_HOUR);
+  return `heard ${hours} h ${rest} min ago`;
+}
+
 /**
  * Everything the yard page shows, derived from one depot response. Pure. Visitors carry
  * no position in the response, so only the depot's own buses can be map points.
