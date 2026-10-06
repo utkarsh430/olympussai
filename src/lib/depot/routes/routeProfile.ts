@@ -2,8 +2,7 @@ import { haversineKm } from '../infer/geo';
 import type { CanonicalSchedule, CanonicalStop } from '@/models/canonical';
 import type { RouteProfile, RouteStop } from './types';
 import { MINUTES_PER_DAY } from '@/lib/depot/units';
-
-const TIME_PATTERN = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/;
+import { parseWallClockMinutes, positionsFitTimetable } from './timetableFit';
 
 type LocatedStop = RouteStop & { readonly lat: number; readonly lng: number };
 
@@ -21,18 +20,6 @@ function toRouteStop(stop: Readonly<CanonicalStop>): RouteStop {
 const isLocated = (stop: RouteStop): stop is LocatedStop =>
   stop.lat !== null && stop.lng !== null;
 
-/** Minutes after midnight for an `HH:MM:SS` wall-clock string, else null. */
-function parseWallClockMinutes(value: string | null): number | null {
-  if (value === null) return null;
-  const match = TIME_PATTERN.exec(value.trim());
-  if (!match) return null;
-  const hours = Number(match[1]);
-  const minutes = Number(match[2]);
-  const seconds = Number(match[3] ?? 0);
-  if (hours > 23 || minutes > 59 || seconds > 59) return null;
-  return hours * 60 + minutes + seconds / 60;
-}
-
 /** Last minus first scheduled time; a negative gap is an overnight run. */
 function durationMin(first: RouteStop | null, last: RouteStop | null): number | null {
   const start = parseWallClockMinutes(first?.scheduled ?? null);
@@ -40,6 +27,25 @@ function durationMin(first: RouteStop | null, last: RouteStop | null): number | 
   if (start === null || end === null) return null;
   const gap = end - start;
   return Math.round(gap < 0 ? gap + MINUTES_PER_DAY : gap);
+}
+
+interface FittedStops {
+  readonly stops: readonly RouteStop[];
+  readonly mislocated: number;
+}
+
+/**
+ * The stops with every position that does not fit the timetable dropped, so the
+ * length, the terminals and every reader of a stop's position see one located set.
+ */
+function withFittingPositions(stops: readonly RouteStop[]): FittedStops {
+  const located = stops.filter(isLocated);
+  const fits = positionsFitTimetable(located);
+  const misfits = new Set<RouteStop>(located.filter((_, index) => !fits[index]));
+  return {
+    stops: stops.map((stop) => (misfits.has(stop) ? { ...stop, lat: null, lng: null } : stop)),
+    mislocated: misfits.size,
+  };
 }
 
 function straightLineLengthKm(stops: readonly RouteStop[]): number | null {
@@ -55,15 +61,17 @@ function straightLineLengthKm(stops: readonly RouteStop[]): number | null {
 
 /**
  * Pure: derives a route profile from one bus's schedule. Stops with no usable
- * position stay in the list (they are real stops) but are skipped for length,
- * so a `0,0` placeholder can never inflate the distance.
+ * position, or with a position that does not fit the timetable, stay in the list
+ * (they are real stops) but are skipped for length and terminals, so neither a
+ * `0,0` placeholder nor a same-named place elsewhere can inflate the distance.
  */
 export function buildRouteProfile(
   schedule: Readonly<CanonicalSchedule>,
   sampledFrom: string,
   operatingDate: string,
 ): RouteProfile {
-  const stops = [...schedule.stops].sort((a, b) => a.sequence - b.sequence).map(toRouteStop);
+  const given = [...schedule.stops].sort((a, b) => a.sequence - b.sequence).map(toRouteStop);
+  const { stops, mislocated } = withFittingPositions(given);
   const origin = stops[0] ?? null;
   const destination = stops[stops.length - 1] ?? null;
   return {
@@ -77,7 +85,8 @@ export function buildRouteProfile(
     origin,
     destination,
     stops,
-    unlocatedStops: stops.filter((stop) => !isLocated(stop)).length,
+    unlocatedStops: given.filter((stop) => !isLocated(stop)).length,
+    mislocatedStops: mislocated,
     scheduledDurationMin: durationMin(origin, destination),
     lengthKm: straightLineLengthKm(stops),
     sampledFrom,

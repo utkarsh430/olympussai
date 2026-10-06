@@ -25,6 +25,7 @@ const PROFILE: RouteProfile = {
   destination: stop(3, 'Sitapur', 27.5, '10:30:00'),
   stops: [stop(1, 'Charbagh', 26.8, '08:00:00'), stop(2, 'Bakshi', null, null), stop(3, 'Sitapur', 27.5, '10:30:00')],
   unlocatedStops: 1,
+  mislocatedStops: 0,
   scheduledDurationMin: 150,
   lengthKm: 80,
   sampledFrom: 'UP32R1',

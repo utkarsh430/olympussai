@@ -18,6 +18,7 @@ function profile(stops: readonly RouteStop[], confirmed = true): RouteProfile {
     destination: stops[stops.length - 1] ?? null,
     stops,
     unlocatedStops: stops.filter((s) => s.lat === null).length,
+    mislocatedStops: 0,
     scheduledDurationMin: null,
     lengthKm: null,
     sampledFrom: 'UP00',
