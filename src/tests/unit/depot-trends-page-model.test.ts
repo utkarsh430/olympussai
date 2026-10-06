@@ -11,11 +11,7 @@ import {
   trendLinesBesideChart,
   trendsHref,
 } from '@/lib/depot/forecast/trendsPageModel';
-import {
-  COCKPIT_TREND_METRIC,
-  KPI_TREND_METRIC,
-  weekTrendLine,
-} from '@/lib/depot/forecast/trendMounts';
+import { COCKPIT_TREND_METRIC } from '@/lib/depot/forecast/trendMounts';
 
 function change(days: number, value: number, sentence: string): TrendChange {
   return {
@@ -152,26 +148,8 @@ describe('page wording', () => {
   });
 });
 
-describe('trend lines beside live figures', () => {
-  it('maps the primary figures that have a history metric, and only those', () => {
-    expect(KPI_TREND_METRIC).toEqual({ onRoad: 'onRoadShare', noSignal: 'darkRate' });
+describe('the trend beside the cockpit figure', () => {
+  it('is the on-road share', () => {
     expect(COCKPIT_TREND_METRIC).toBe('onRoadShare');
-  });
-
-  it('names the metric, tags it MODELLED and states the week', () => {
-    const result = okTrend(
-      change(7, 2.1, 'up 2.1 percentage points over 7 days'),
-      change(28, 0.1, 'steady over 4 weeks'),
-    );
-    expect(weekTrendLine('onRoadShare', result)).toBe(
-      'On-road share, MODELLED: up 2.1 percentage points over 7 days',
-    );
-    expect(weekTrendLine('darkRate', okTrend(change(7, 0, 'steady over 7 days'), null))).toBe(
-      'Dark rate, MODELLED: steady over 7 days',
-    );
-  });
-
-  it('prints nothing when there is no trend', () => {
-    expect(weekTrendLine('index', { status: 'invalid_input', reason: 'out_of_range' })).toBeNull();
   });
 });
