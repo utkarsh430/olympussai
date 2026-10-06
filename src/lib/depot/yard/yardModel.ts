@@ -5,6 +5,7 @@ import type { Yard } from '@/lib/depot/infer/types';
 import type { BusOpState } from '@/lib/depot/types';
 import { YARD_RULE_SENTENCE } from '@/lib/depot/infer/yardRuleText';
 import { compareText } from '@/lib/depot/stats/order';
+import { DEPOT_PALETTE } from '@/lib/depot/palette';
 
 /** Fixed order for every state grouping, busiest operational state first. */
 export const YARD_STATE_ORDER: readonly BusOpState[] = [
@@ -16,19 +17,18 @@ export const YARD_STATE_ORDER: readonly BusOpState[] = [
 ];
 
 /**
- * One hue per operational state for a near-black surface (`#02040a`). Checked with the
- * dataviz validator: chroma, adjacent-pair separation under colour-vision deficiency
- * and 3:1 contrast pass; the lightness band is the design system's light-surface band,
- * which these dark-surface steps sit just above. The state is always also written as a
+ * One colour per operational state, in the command centre's status colours: green in
+ * service, cyan on the road, amber standing, slate dark, crimson off the road. All five
+ * clear 3:1 on the page and stay apart in hue. The state is always also written as a
  * word, so colour never carries it alone. Exported so the cockpit and roster can reuse
  * the same hues.
  */
 export const BUS_STATE_COLOUR: Readonly<Record<BusOpState, string>> = {
-  in_service: '#3fb68b',
-  on_road: '#5aa9e6',
-  standing: '#e0b04a',
-  dark: '#a79bff',
-  off_road: '#e5624d',
+  in_service: DEPOT_PALETTE.green,
+  on_road: DEPOT_PALETTE.glow,
+  standing: DEPOT_PALETTE.amber,
+  dark: DEPOT_PALETTE.slate,
+  off_road: DEPOT_PALETTE.crimson,
 };
 
 /** Buses are drawn out to this many yard radii; further out is not on the map. */

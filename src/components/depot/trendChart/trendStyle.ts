@@ -1,24 +1,25 @@
+import { DEPOT_PALETTE } from '@/lib/depot/palette';
+
 /**
- * Chart colours as values, for the SVG attributes Recharts writes. They are
- * the brief's tokens (tailwind.config.ts `depot` and `holo`), restated
- * because a chart library cannot read a Tailwind class. One hue for the one
- * metric: modelled history in the quiet de-emphasis grey, the live value and
- * forecast in the accent. History, live and forecast are told apart by line
+ * Chart colours as values, for the SVG attributes Recharts writes, taken from
+ * the depot palette (the command centre's tokens) because a chart library cannot
+ * read a Tailwind class. One hue for the one metric: modelled history in the
+ * quieter label cyan, the live value and forecast in the accent. History, live and forecast are told apart by line
  * style and a word, never by colour alone.
  */
 export const TREND_COLOUR = {
   /** depot-muted: the quieter tone for modelled history. */
-  history: '#9bb0c7',
+  history: DEPOT_PALETTE.label,
   /** holo-glow: the live point, the forecast line and its band. */
-  accent: '#3ff0ff',
+  accent: DEPOT_PALETTE.glow,
   /** depot-line: hairline grid. */
-  grid: 'rgba(63, 240, 255, 0.12)',
-  /** depot-muted: axis text that must be read at 11px (about 9:1 on the page). */
-  axisText: '#9bb0c7',
+  grid: DEPOT_PALETTE.line,
+  /** depot-muted: axis text that must be read at 11px (about 7:1 on the page). */
+  axisText: DEPOT_PALETTE.label,
   /** depot-faint: the "now" marker, recessive. */
-  now: '#6b84a0',
+  now: DEPOT_PALETTE.faint,
   /** depot-page: the ring around the live marker. */
-  surface: '#02040a',
+  surface: DEPOT_PALETTE.page,
 } as const;
 
 /** The band is a wash of the accent, never a solid block. */

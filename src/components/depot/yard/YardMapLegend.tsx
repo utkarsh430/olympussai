@@ -1,5 +1,6 @@
 import { BUS_STATE_LABEL } from '@/lib/depot/labels';
 import { BUS_STATE_COLOUR, YARD_STATE_ORDER } from '@/lib/depot/yard/yardModel';
+import { DEPOT_PALETTE } from '@/lib/depot/palette';
 
 const SWATCH_PX = 12;
 const CENTRE = SWATCH_PX / 2;
@@ -12,14 +13,14 @@ function Dot({ colour, hollow }: { readonly colour: string; readonly hollow: boo
         cy={CENTRE}
         r={hollow ? 4 : 3.5}
         fill={hollow ? 'none' : colour}
-        stroke={hollow ? colour : '#02040a'}
+        stroke={hollow ? colour : DEPOT_PALETTE.page}
         strokeWidth={hollow ? 1.5 : 1}
       />
     </svg>
   );
 }
 
-const MARK_COLOUR = '#c7d2e0';
+const MARK_COLOUR = DEPOT_PALETTE.ink;
 
 /**
  * The map's key, on a 90% surface chip inside the map's bottom-left from 640px, above the

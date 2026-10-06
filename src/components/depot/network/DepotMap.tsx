@@ -15,6 +15,7 @@ import { markerLabel } from '@/lib/depot/network/mapWords';
 import { FIT_PADDING_PX, SINGLE_NODE_ZOOM, refitOnResize } from '@/lib/depot/map/overviewMapView';
 import { removeMapListeners } from '@/lib/maps/listeners';
 import { useDepotMap, type DepotMapStatus } from './useDepotMap';
+import { DEPOT_PALETTE } from '@/lib/depot/palette';
 
 /** One drawn depot. Not `Node`, which would shadow the DOM type. */
 interface DepotMarker {
@@ -24,7 +25,8 @@ interface DepotMarker {
   readonly listeners: ReadonlyArray<google.maps.MapsEventListener | undefined>;
 }
 
-const SELECTED_STROKE = '#3ff0ff';
+/** Near-white ink, not cyan: the index bands are the cyan ramp, so the ring must differ. */
+const SELECTED_STROKE = DEPOT_PALETTE.ink;
 const SELECTED_STROKE_WEIGHT = 2.5;
 const SELECTED_Z = 5000;
 
