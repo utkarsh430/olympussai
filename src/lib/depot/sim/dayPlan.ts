@@ -1,5 +1,5 @@
 import type { DepotBusView } from '../api';
-import type { AssignmentPlan, Duty, PlanNow } from '../duties/types';
+import type { AssignmentPlan, Duty, PlanMode, PlanNow } from '../duties/types';
 import { assignDuties } from '../optimise/assignDuties';
 import type { DepotSummary } from '../types';
 import { modelDuties } from './duties';
@@ -22,6 +22,8 @@ export interface DutyPlan {
   readonly buses: readonly DepotBusView[];
   readonly fleet: ReadonlyMap<string, ModelledBus>;
   readonly plan: AssignmentPlan;
+  /** Which of the three ways the plan was made (`PlanMode`, rulings S55, S62). */
+  readonly mode: PlanMode;
   /** True when the depot has no yard, so eligibility ignored location. */
   readonly locationIgnored: boolean;
   /** True when the feed has no clock, so recency did not decide eligibility (ruling S55). */
@@ -120,6 +122,7 @@ export function planDay(input: DayPlanInput): DutyPlan {
     buses,
     fleet,
     plan,
+    mode: input.now.kind === 'later_day' ? 'later_day' : 'as_of_feed_time',
     locationIgnored: !input.yardEstablished,
     recencyNotJudged: input.now.kind === 'no_feed_clock',
     duplicateRowsDropped: dropped,

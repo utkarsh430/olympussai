@@ -60,6 +60,20 @@ export type PlanNow =
   | { readonly kind: 'later_day' };
 
 /**
+ * Which of the three ways a plan was made (rulings S55, S62). There is one plan
+ * per snapshot, depot and date, and it is in exactly one of them:
+ *  - `as_of_feed_time`: the feed's own date once its first duty has started
+ *    (or a feed with no clock, which cannot be placed before a duty): buses are
+ *    ranked by how they stand now, out working first, and fitted to the feed time;
+ *  - `before_first_duty`: the feed's own date before its first duty starts. The
+ *    day has not begun, so buses are matched as they stand in the yard, exactly
+ *    as for a later day; the night parking order reads this same plan;
+ *  - `later_day`: a date after the feed's (the night parking order's, once the
+ *    feed's day has begun). It covers only the buses in the yard.
+ */
+export type PlanMode = 'as_of_feed_time' | 'before_first_duty' | 'later_day';
+
+/**
  * How a bus with a duty stands now, by its live state: out on the road (in
  * service or not), standing in the depot's yard, or standing where location
  * cannot be judged because the depot has no yard established.

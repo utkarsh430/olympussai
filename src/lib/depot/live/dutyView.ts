@@ -96,6 +96,7 @@ function buildBody(
     counts,
     eligibilityIgnoredLocation: planned.locationIgnored,
     recencyNotJudged: planned.recencyNotJudged,
+    planMode: planned.mode,
     duplicateRowsDropped: planned.duplicateRowsDropped,
   };
 }
