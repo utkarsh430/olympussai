@@ -1,7 +1,7 @@
 import { CLI_WINDOW, CLI_WINDOW_FAILURES, type ProviderSetting } from '@/lib/depot/copilot/config';
 import { monotonicNow } from '@/lib/depot/copilot/limiter';
 import { renderDraft } from '@/lib/depot/copilot/render';
-import { logDepotError } from '@/lib/depot/log';
+import { logDepotError } from '@/lib/serverLog';
 import { describeCopilotError, withheldStrings } from '@/lib/depot/copilot/errorText';
 import {
   CopilotFailure,

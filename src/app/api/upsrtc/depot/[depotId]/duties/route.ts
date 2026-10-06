@@ -3,7 +3,7 @@ import { jsonResponse } from '@/lib/upsrtc/respond';
 import { requireUpsrtcAccess, unauthorizedResponse } from '@/lib/auth/authorize';
 import { isValidDepotId } from '@/lib/depot/ids';
 import { getRepositories } from '@/lib/depot/repositories';
-import { logDepotError } from '@/lib/depot/log';
+import { logDepotError } from '@/lib/serverLog';
 import { buildDutyBoard } from '@/lib/depot/live/dutyView';
 
 export const runtime = 'nodejs';

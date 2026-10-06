@@ -3,7 +3,7 @@ import { jsonResponse } from '@/lib/upsrtc/respond';
 import { requireUpsrtcAccess, unauthorizedResponse } from '@/lib/auth/authorize';
 import { getRepositories } from '@/lib/depot/repositories';
 import { buildAllocationResponse, parseAllocationQuery } from '@/lib/depot/live/allocationView';
-import { logDepotError } from '@/lib/depot/log';
+import { logDepotError } from '@/lib/serverLog';
 import { DEPOT_NOT_FOUND, depotFilterKnown } from '@/lib/depot/live/analysis';
 
 export const runtime = 'nodejs';

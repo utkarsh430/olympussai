@@ -2,7 +2,7 @@ import type { NextRequest, NextResponse } from 'next/server';
 import { isSameOrigin } from '@/lib/auth/origin';
 import type { FleetSnapshotView } from '@/lib/depot/repositories/types';
 import { requestLimitChecks } from '@/lib/depot/copilot/service/allowance';
-import { logDepotError } from '@/lib/depot/log';
+import { logDepotError } from '@/lib/serverLog';
 import { withheldStrings } from '@/lib/depot/copilot/errorText';
 import { logCopilotFailure } from '@/lib/depot/copilot/service/failureLog';
 import { requestAddress, requestIdentity, takeAll, type IdentityClaims } from '@/lib/depot/rateLimit';

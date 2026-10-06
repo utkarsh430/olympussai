@@ -32,9 +32,9 @@ import {
 } from '@/lib/depot/copilot/resolve';
 import { createCallLimiter } from '@/lib/depot/copilot/limiter';
 import { renderDraft } from '@/lib/depot/copilot/render';
-import { logDepotError } from '@/lib/depot/log';
+import { logDepotError } from '@/lib/serverLog';
 
-vi.mock('@/lib/depot/log', () => ({ logDepotError: vi.fn() }));
+vi.mock('@/lib/serverLog', () => ({ logDepotError: vi.fn() }));
 import { createSemaphore } from '@/lib/depot/copilot/semaphore';
 import {
   CopilotFailure,

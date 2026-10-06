@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { MAX_LOG_MESSAGE_CHARS, logDepotError, logDepotNotice } from '@/lib/depot/log';
+import { MAX_LOG_MESSAGE_CHARS, logDepotError, logDepotNotice } from '@/lib/serverLog';
 
 describe('logDepotError', () => {
   let errorSpy: ReturnType<typeof vi.spyOn>;

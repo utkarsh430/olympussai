@@ -1,6 +1,6 @@
 import type { DepotBusView, DepotDetailResponse } from '../api';
 import type { Lane } from '../duties/types';
-import { logDepotError } from '../log';
+import { logDepotError } from '@/lib/serverLog';
 import type { FleetSnapshotView } from '../repositories/types';
 import { planParking } from '../optimise/parkingOrder';
 import { modelDepotMaster } from '../sim/depotMaster';

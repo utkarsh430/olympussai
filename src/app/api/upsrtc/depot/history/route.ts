@@ -3,7 +3,7 @@ import { jsonResponse } from '@/lib/upsrtc/respond';
 import { requireUpsrtcAccess, unauthorizedResponse } from '@/lib/auth/authorize';
 import { getRepositories } from '@/lib/depot/repositories';
 import { buildHistoryResponse, parseHistoryQuery } from '@/lib/depot/live/historyView';
-import { logDepotError } from '@/lib/depot/log';
+import { logDepotError } from '@/lib/serverLog';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';

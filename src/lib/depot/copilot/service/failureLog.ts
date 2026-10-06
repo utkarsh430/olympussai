@@ -1,7 +1,7 @@
 import { describeCopilotError, withheldStrings } from '@/lib/depot/copilot/errorText';
 import { LOG_SCOPE } from '@/lib/depot/copilot/service/constants';
 import type { CopilotRuntime } from '@/lib/depot/copilot/service/runtime';
-import { logDepotError } from '@/lib/depot/log';
+import { logDepotError } from '@/lib/serverLog';
 
 /**
  * One log line for a copilot failure: the stage's reason code, the writer the runtime

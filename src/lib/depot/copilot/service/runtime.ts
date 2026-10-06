@@ -37,7 +37,7 @@ import {
   LOG_SCOPE,
 } from '@/lib/depot/copilot/service/constants';
 import { createInflightCalls, type InflightCalls } from '@/lib/depot/copilot/service/inflight';
-import { logDepotError } from '@/lib/depot/log';
+import { logDepotError } from '@/lib/serverLog';
 import { createWindowLimiter, type WindowLimiter } from '@/lib/depot/rateLimit';
 
 /** Everything the route shares between requests. Built once per process. */

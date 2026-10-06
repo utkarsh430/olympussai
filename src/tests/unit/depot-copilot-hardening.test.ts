@@ -22,7 +22,7 @@ import {
   type CopilotRequest,
 } from '@/lib/depot/copilot/types';
 
-vi.mock('@/lib/depot/log', () => ({ logDepotError: vi.fn() }));
+vi.mock('@/lib/serverLog', () => ({ logDepotError: vi.fn() }));
 
 const REQUEST: CopilotRequest = {
   task: 'briefing',
