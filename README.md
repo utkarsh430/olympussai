@@ -1358,7 +1358,7 @@ npm run lint         # ESLint (next lint)
 npm run typecheck    # tsc --noEmit, strict
 npm run test         # Vitest — 243 unit tests, no network required
 npm run test:watch   # Vitest in watch mode
-npm run test:e2e     # Playwright — 32 specs (starts the app via npm run start; E2E_PORT overrides port 3000)
+npm run test:e2e     # Playwright — 32 specs (starts the app via npm run start; E2E_HOST / E2E_PORT override localhost:3000)
 npm run format       # Prettier over src/**/*.{ts,tsx,css} and docs/**/*.md
 ```
 
@@ -1384,9 +1384,11 @@ and that each scenario's two runs diverge in the documented direction.
 
 ### End-to-end (Playwright) — 32 specs across 2 files
 
-The suite serves the production build on port 3000 by default. Set `E2E_PORT`
-to use another port when 3000 is taken, for example
-`E2E_PORT=3210 npm run test:e2e` (the build must exist first: `npm run build`).
+The suite serves the production build at `http://localhost:3000` by default;
+`localhost` is the origin the Google Maps key authorises. Set `E2E_PORT` to use
+another port when 3000 is taken, for example
+`E2E_PORT=3210 npm run test:e2e` (the build must exist first: `npm run build`),
+and `E2E_HOST` to use another host (Maps refuses the key on unauthorised origins).
 
 Run at **2259×1271**, which is the effective CSS viewport of a 1920-wide
 display at the ~85% browser zoom the dashboard is actually used at.
@@ -1462,7 +1464,7 @@ affect the build toolchain only, and do not reach runtime.
 | `npm run lint` | ESLint |
 | `npm run typecheck` | `tsc --noEmit`, strict |
 | `npm run test` / `test:watch` | Vitest |
-| `npm run test:e2e` | Playwright (`E2E_PORT` overrides the default port 3000) |
+| `npm run test:e2e` | Playwright (`E2E_HOST` / `E2E_PORT` override the default `localhost:3000`) |
 | `npm run format` | Prettier over source and docs |
 | `npm run inspect:api` | Probe both UPSRTC endpoints and print an empirical report |
 | `npm run generate-pin-hash -- <pin>` | bcrypt hash (cost 12) for `PROJECT_PIN_HASH`; hash to stdout, guidance to stderr |
