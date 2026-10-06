@@ -10,7 +10,8 @@ import {
   type BusFuelDay,
 } from '@/lib/depot/fuel/types';
 import { modelFuelDay } from '@/lib/depot/sim/fuel';
-import { modelBus } from '@/lib/depot/sim/fleetMaster';
+import { modelOperatingDay } from '@/lib/depot/sim/operatingDay';
+import type { DepotSummary } from '@/lib/depot/types';
 import { seedFor } from '@/lib/depot/sim/seed';
 import { SeededRandom } from '@/lib/simulation/seededRandom';
 import type { DepotBusView } from '@/lib/depot/api';
@@ -314,12 +315,19 @@ describe('analyseFuel: counts and ordering', () => {
     const expected = ['10', '9', 'B', 'Z', 'a', 'b'];
     expect(result.perBus.map((b) => b.registrationNumber)).toEqual(expected);
     expect(result.perRoute.map((r) => r.key)).toEqual(expected.map((r) => `r${r}`));
+    // S41: the fuel day is the operating day's buses that ran, still in code-point order.
     const fuel = modelFuelDay(
-      regs.map((r) => ({ registrationNumber: r, state: 'on_road', routeName: null })) as never,
-      new Map(),
-      '2026-10-06',
+      modelOperatingDay({
+        depot: { id: '1', name: 'D', kind: 'depot', fleet: 6 } as unknown as DepotSummary,
+        buses: regs.map((r) => ({ registrationNumber: r, state: 'on_road', routeName: 'R_EXP_1' })) as never,
+        peakRequirement: regs.length,
+        realLengthKm: new Map(),
+        operatingDate: '2026-10-06',
+      }),
     );
-    expect(fuel.map((d) => d.registrationNumber)).toEqual(expected);
+    const ran = new Set(fuel.map((d) => d.registrationNumber));
+    expect(ran.size).toBeGreaterThan(1);
+    expect(fuel.map((d) => d.registrationNumber)).toEqual(expected.filter((r) => ran.has(r)));
   });
 });
 
@@ -342,17 +350,23 @@ describe('analyseFuel: totals', () => {
       state: i % 9 === 0 ? 'off_road' : 'on_road',
       routeName: ['PUNE_EXP_X', 'AKOLA_ORD_Y', 'MUM_VOLVO_AC', null][i % 4] ?? null,
     })) as unknown as DepotBusView[];
-    const fleet = new Map(
-      buses.map((b) => [b.registrationNumber, modelBus(b.registrationNumber, b.routeName)]),
-    );
-    const result = analyseFuel(modelFuelDay(buses, fleet, '2026-10-06'), 91.37);
+    // S41: fuel reads the depot's one modelled day; only the buses that ran burn fuel.
+    const day = modelOperatingDay({
+      depot: { id: '1', name: 'D', kind: 'depot', fleet: 60 } as unknown as DepotSummary,
+      buses,
+      peakRequirement: 40,
+      realLengthKm: new Map([['PUNE_EXP_X', 120]]),
+      operatingDate: '2026-10-06',
+    });
+    expect(day.runs.length).toBeGreaterThan(0);
+    const result = analyseFuel(modelFuelDay(day), 91.37);
     const tenths = (n: number): number => Math.round(n * 10);
     const litres = result.perBus.reduce((s, b) => s + tenths(b.fuelLitres), 0);
     const cost = result.perBus.reduce((s, b) => s + b.cost, 0);
     for (const rows of [result.perClass, result.perRoute]) {
       expect(rows.reduce((s, r) => s + tenths(r.fuelLitres), 0)).toBe(litres);
       expect(rows.reduce((s, r) => s + r.cost, 0)).toBe(cost);
-      expect(rows.reduce((s, r) => s + r.busCount, 0)).toBe(60);
+      expect(rows.reduce((s, r) => s + r.busCount, 0)).toBe(day.runs.length);
     }
     expect(tenths(result.depot.fuelLitres)).toBe(litres);
     expect(result.depot.cost).toBe(cost);
