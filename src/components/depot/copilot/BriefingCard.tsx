@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { useCopilot } from '@/hooks/useCopilot';
+import { useCopilot, type CopilotState } from '@/hooks/useCopilot';
 import { failureSentence, generatedAtText } from '@/lib/depot/copilot/ui/copilotView';
 import type { CopilotApiRequest, CopilotScope } from '@/lib/depot/copilot/wire';
 import { CopilotText } from './CopilotText';
@@ -22,6 +22,23 @@ function scopeKey(scope: CopilotScope): string {
   return scope.kind === 'depot' ? `depot:${scope.depotId}` : 'network';
 }
 
+/** The short string the always-mounted live region carries; the text itself is not announced. */
+function statusText(state: CopilotState): string {
+  switch (state.status) {
+    case 'loading':
+      return 'Writing the briefing';
+    case 'done':
+      return 'Briefing ready';
+    case 'failed':
+      // The live countdown is shown on screen but not announced every second.
+      return state.kind === 'rate_limited'
+        ? 'Too many requests. Please wait.'
+        : failureSentence(state.kind);
+    case 'idle':
+      return '';
+  }
+}
+
 function BriefingBody({ scope, title }: BriefingCardProps) {
   const { state, request } = useCopilot();
   const body = useMemo<CopilotApiRequest>(() => ({ task: 'briefing', scope }), [scope]);
@@ -30,6 +47,9 @@ function BriefingBody({ scope, title }: BriefingCardProps) {
   return (
     <section aria-label={title} className="depot-panel min-w-0 p-4" data-testid="briefing-card">
       <h2 className="depot-label">{title}</h2>
+      <p role="status" className="sr-only" data-testid="briefing-status">
+        {statusText(state)}
+      </p>
 
       {state.status === 'idle' ? (
         <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
@@ -44,10 +64,10 @@ function BriefingBody({ scope, title }: BriefingCardProps) {
       ) : null}
 
       {state.status === 'loading' ? (
-        <div role="status" aria-busy="true" className="mt-3 flex flex-col gap-2">
+        <div aria-hidden className="mt-3 flex flex-col gap-2">
           <p className="font-mono text-[13px] text-depot-muted">Writing…</p>
           {PLACEHOLDER_ROWS_PX.map((height, index) => (
-            <div key={index} aria-hidden className="depot-skeleton" style={{ height }} />
+            <div key={index} className="depot-skeleton" style={{ height }} />
           ))}
         </div>
       ) : null}
@@ -58,6 +78,7 @@ function BriefingBody({ scope, title }: BriefingCardProps) {
             headline={state.response.headline}
             paragraphs={state.response.paragraphs}
             headingLevel={3}
+            focusOnMount
           />
           <ProviderTag provider={state.response.provider} notice={state.response.notice} />
           <p className="font-mono text-[12px] text-depot-faint">
@@ -73,7 +94,7 @@ function BriefingBody({ scope, title }: BriefingCardProps) {
       ) : null}
 
       {state.status === 'failed' ? (
-        <div role="alert" className="mt-3 flex flex-wrap items-center justify-between gap-3">
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
           <p className="depot-prose">{failureSentence(state.kind, state.secondsRemaining)}</p>
           {RETRYABLE.includes(state.kind) ? (
             <button

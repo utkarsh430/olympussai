@@ -160,8 +160,9 @@ describe('useCopilot', () => {
     expect(hook().state).toEqual({ status: 'idle' });
   });
 
-  it('aborts on unmount and does not update afterwards', async () => {
+  it('aborts on unmount, and a late response afterwards causes no error', async () => {
     stubFetch(false);
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     await mount();
     await ask();
     await unmount();
@@ -170,6 +171,8 @@ describe('useCopilot', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
+    expect(errors).not.toHaveBeenCalled();
+    errors.mockRestore();
   });
 
   it('counts down a rate limit, refuses requests meanwhile, then returns to idle', async () => {

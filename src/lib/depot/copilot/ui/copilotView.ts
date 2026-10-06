@@ -84,6 +84,30 @@ export function validateQuestion(raw: string): QuestionCheck {
   return { ok: true, question, remaining };
 }
 
+const NETWORK_EXAMPLES: readonly string[] = [
+  'Which five depots rank highest on the efficiency index?',
+  'Give me a summary of the network.',
+  'Which depots are short of buses?',
+  'Which depots have spare buses?',
+];
+const MAX_EXAMPLE_NAME_CHARS = 80;
+
+/**
+ * Example questions for the chosen scope. A depot question is offered only
+ * when a depot is chosen, and it names that depot, so an example never refers
+ * to "this depot" while the whole network is selected.
+ */
+export function exampleQuestions(depotName: string | null): readonly string[] {
+  if (depotName === null) return NETWORK_EXAMPLES;
+  const name = depotName.slice(0, MAX_EXAMPLE_NAME_CHARS);
+  return [
+    `Give me a summary of ${name}.`,
+    `What exceptions does ${name} have?`,
+    `Which transfers involve ${name}?`,
+    'Which depots are short of buses?',
+  ];
+}
+
 export interface FactGroup {
   readonly provenance: Provenance;
   readonly facts: readonly CopilotFactView[];

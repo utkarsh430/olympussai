@@ -1,5 +1,17 @@
 import type { Provenance } from '@/lib/depot/types';
+import {
+  MAX_FACTS,
+  MAX_FACT_LABEL_CHARS,
+  MAX_FACT_TEXT_CHARS,
+  MAX_PARAGRAPHS,
+  MAX_RENDERED_HEADLINE_CHARS,
+  MAX_RENDERED_PARAGRAPH_CHARS,
+} from '../limits';
 import type { CopilotApiRequest, CopilotApiResponse } from '../wire';
+
+/** Generous ceilings on an answer table: the widest query lists a handful of columns. */
+export const MAX_TABLE_COLUMNS = 12;
+export const MAX_TABLE_ROWS = 200;
 
 /**
  * Browser side of `POST /api/upsrtc/depot/copilot`. Pure apart from `fetch`;
@@ -46,38 +58,61 @@ function isStringArray(value: unknown): value is readonly string[] {
   return Array.isArray(value) && value.every((item) => typeof item === 'string');
 }
 
+/** A text of 1..max characters. */
+function isText(value: unknown, max: number): value is string {
+  return typeof value === 'string' && value.length > 0 && value.length <= max;
+}
+
 function isFact(value: unknown): boolean {
   return (
     isRecord(value) &&
     typeof value.id === 'string' &&
     typeof value.label === 'string' &&
+    value.label.length <= MAX_FACT_LABEL_CHARS &&
     typeof value.text === 'string' &&
+    value.text.length <= MAX_FACT_TEXT_CHARS &&
     PROVENANCES.some((p) => p === value.provenance)
   );
 }
 
+/** Every row has exactly one cell per column, so the table is always rectangular. */
 function isTable(value: unknown): boolean {
+  if (!isRecord(value) || !isStringArray(value.columns)) return false;
+  const width = value.columns.length;
+  const rows = value.rows;
   return (
-    isRecord(value) &&
-    isStringArray(value.columns) &&
-    Array.isArray(value.rows) &&
-    value.rows.every(isStringArray)
+    width <= MAX_TABLE_COLUMNS &&
+    Array.isArray(rows) &&
+    rows.length <= MAX_TABLE_ROWS &&
+    rows.every((row) => isStringArray(row) && row.length === width)
   );
 }
 
-/** Strict about types, lenient about extra keys. */
+function isParagraphs(value: unknown): value is readonly string[] {
+  return (
+    isStringArray(value) &&
+    value.length >= 1 &&
+    value.length <= MAX_PARAGRAPHS &&
+    value.every((p) => p.length <= MAX_RENDERED_PARAGRAPH_CHARS)
+  );
+}
+
+/** Strict about types and bounds, lenient about extra keys. */
 function isCopilotResponse(value: unknown): value is CopilotApiResponse {
   if (!isRecord(value)) return false;
   return (
-    typeof value.headline === 'string' &&
-    isStringArray(value.paragraphs) &&
+    isText(value.headline, MAX_RENDERED_HEADLINE_CHARS) &&
+    isParagraphs(value.paragraphs) &&
     PROVIDERS.some((p) => p === value.provider) &&
     NOTICES.some((n) => n === value.notice) &&
     typeof value.generatedAt === 'string' &&
     typeof value.cached === 'boolean' &&
     Array.isArray(value.facts) &&
+    value.facts.length <= MAX_FACTS &&
     value.facts.every(isFact) &&
-    (value.interpretedAs === undefined || typeof value.interpretedAs === 'string') &&
+    (value.interpretedAs === undefined ||
+      (typeof value.interpretedAs === 'string' &&
+        value.interpretedAs.length <= MAX_RENDERED_PARAGRAPH_CHARS)) &&
     (value.table === undefined || isTable(value.table))
   );
 }

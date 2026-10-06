@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  exampleQuestions,
   failureSentence,
   generatedAtText,
   groupFactsByProvenance,
@@ -96,6 +97,28 @@ describe('validateQuestion', () => {
   it('uses the singular for one character over', () => {
     const over = validateQuestion('a'.repeat(MAX_QUESTION_CHARS + 1));
     expect(over.ok === false && over.message).toContain('1 character ');
+  });
+});
+
+describe('exampleQuestions', () => {
+  it('offers network questions only, none about "this depot", for the whole network', () => {
+    const examples = exampleQuestions(null);
+    expect(examples).toHaveLength(4);
+    for (const example of examples) expect(example.toLowerCase()).not.toContain('this depot');
+    expect(examples.join(' ')).toContain('short of buses');
+  });
+
+  it('names the chosen depot in depot questions', () => {
+    const examples = exampleQuestions('Kurla');
+    expect(examples).toContain('Give me a summary of Kurla.');
+    expect(examples).toContain('What exceptions does Kurla have?');
+    for (const example of examples) expect(example.toLowerCase()).not.toContain('this depot');
+  });
+
+  it('stays within the question limit even for a very long depot name', () => {
+    for (const example of exampleQuestions('D'.repeat(500))) {
+      expect(example.length).toBeLessThanOrEqual(MAX_QUESTION_CHARS);
+    }
   });
 });
 
