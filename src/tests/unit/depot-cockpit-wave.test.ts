@@ -58,7 +58,7 @@ describe('buildAttention', () => {
           bus('D', { notHeardMin: 87 }),
           bus('E', { tamperCode: '7' }),
         ],
-        outshed: { rows: [{ state: 'overdue' } as OutshedRow], coverage: { n: 1, of: 5 } },
+        outshed: { rows: [{ state: 'overdue' } as OutshedRow], coverage: { n: 1, of: 5 } } as DepotDetailResponse['outshed'],
         exceptions: { depot: [], bus: [busException('F', 'emergency', 'critical')] },
       }),
       '49',
@@ -81,7 +81,7 @@ describe('buildAttention', () => {
     const attention = buildAttention(
       detail({
         buses: [bus('A', { mainPowerOn: false, state: 'dark', tamperCode: '7' }), bus('B', { state: 'off_road' }), bus('C', { notHeardMin: 50 })],
-        outshed: { rows: [{ state: 'overdue' } as OutshedRow], coverage: { n: 1, of: 1 } },
+        outshed: { rows: [{ state: 'overdue' } as OutshedRow], coverage: { n: 1, of: 1 } } as DepotDetailResponse['outshed'],
         exceptions: { depot: [], bus: [busException('F', 'emergency', 'critical')] },
       }),
       '49',

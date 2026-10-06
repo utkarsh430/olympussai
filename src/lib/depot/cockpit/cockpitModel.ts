@@ -14,6 +14,10 @@ import {
 import type { DepotScore } from '@/lib/depot/score/types';
 import type { DepotSummary } from '@/lib/depot/types';
 import type { CockpitHeader, CockpitModel, ExceptionLine, VisitorRow } from './cockpitTypes';
+import { buildAttention } from './attention';
+import { availabilitySegments, availabilityText, standingLine } from './availability';
+import { depotExceptionLines, groupBusExceptions } from './exceptionGroups';
+import { indexLine } from './indexLine';
 import { buildBoard, describeYard } from './statusBoard';
 import { buildTracker, coverageSentence, feedDateOf, noSchedulesSentence } from './outshedTracker';
 
@@ -98,9 +102,19 @@ function buildVisitors(visitors: readonly VisitorBus[]): VisitorRow[] {
 export function buildCockpit(detail: DepotDetailResponse): CockpitModel {
   const yard = describeYard(detail.yard);
   const feedDate = feedDateOf(detail.feedNow);
+  const header = buildHeader(detail.depot, detail.score);
+  const board = buildBoard(detail.depot, detail.buses, yard);
   return {
-    header: buildHeader(detail.depot, detail.score),
-    board: buildBoard(detail.depot, detail.buses, yard),
+    header,
+    indexLine: indexLine(header, detail.scoreWindow, detail.feedNow),
+    attention: buildAttention(detail, detail.depot.id),
+    availability: availabilitySegments(board),
+    availabilityText: availabilityText(board),
+    standing: standingLine(board, detail.yard.value?.heldSince ?? null),
+    exceptionGroups: groupBusExceptions(detail.exceptions.bus, detail.depot.id),
+    depotExceptions: depotExceptionLines(detail.exceptions.depot, detail.scoreWindow, detail.feedNow),
+    visitorCount: detail.visitors.length,
+    board,
     tracker: buildTracker(detail.outshed.rows, detail.feedNow),
     coverageSentence: coverageSentence(detail.outshed.coverage, feedDate),
     noSchedulesSentence: noSchedulesSentence(feedDate),

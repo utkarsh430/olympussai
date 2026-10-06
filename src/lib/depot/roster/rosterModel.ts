@@ -108,7 +108,8 @@ export function notHeardText(bus: Pick<DepotBusView, 'notHeardMin'>): string | n
   return `not heard ${lastHeardText(minutes).replace(' ago', '')}`;
 }
 
-function hasTamperCode(bus: DepotBusView): boolean {
+/** A tamper code other than the feed's normal one. */
+export function hasTamperCode(bus: Pick<DepotBusView, 'tamperCode'>): boolean {
   return bus.tamperCode !== null && bus.tamperCode !== '' && bus.tamperCode !== NORMAL_TAMPER_CODE;
 }
 
