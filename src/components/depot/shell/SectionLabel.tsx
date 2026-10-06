@@ -22,7 +22,7 @@ export interface SectionLabelProps {
 }
 
 /**
- * The heading of every supporting section (rulings, section 3): mono 11px uppercase,
+ * The heading of every supporting section: mono 11px uppercase,
  * tracking 0.16em, a hairline above, an optional count and an optional note on the
  * right. No paragraph under it: an explanation goes in the page's closing disclosure.
  */

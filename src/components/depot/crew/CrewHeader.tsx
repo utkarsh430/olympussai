@@ -20,7 +20,7 @@ export interface CrewHeaderProps {
  * description whose second sentence is "Availability and rostering only. No individual
  * is assessed." (on the first screen whatever the page shows below), and the MODELLED
  * provenance line, whose second line is the shared modelled-day formula with "Data
- * sources" at its end (critique round 5, crew Must 1).
+ * sources" at its end.
  */
 export function CrewHeader({ provenance, modelledDay }: CrewHeaderProps) {
   return (

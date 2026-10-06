@@ -6,7 +6,7 @@ import { useDepotDetailContext } from '@/components/depot/data/DepotDetailProvid
 import { cockpitIndexMeta } from '@/lib/depot/cockpit/cockpitModel';
 
 /**
- * The efficiency index on the header's right (critique, cockpit Must 2): one mono meta
+ * The efficiency index on the header's right: one mono meta
  * line that links to the league, its window in the shared words. An unranked depot
  * gets the reason as a sentence. Nothing while the first response is pending.
  */

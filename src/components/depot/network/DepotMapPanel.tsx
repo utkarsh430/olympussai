@@ -56,8 +56,8 @@ function Ranking({ row }: { readonly row: DepotRow }) {
 }
 
 /**
- * Summary of the selected depot beside the map. It is fed by the shared
- * selection, so the ranked lists and the table fill it as well as the map.
+ * The link to the selected depot's own pages; nothing for the unassigned group,
+ * which has none.
  */
 function OpenDepot({ row }: { readonly row: DepotRow }) {
   const href = depotLink(row.depot);

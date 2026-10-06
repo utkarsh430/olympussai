@@ -52,7 +52,7 @@ function columnsFor(
           {row.name}
         </Link>
       ),
-      // What this width drops goes to the unit cell's title (critique §7).
+      // What this width drops goes to the unit cell's title.
       title: (row) => trendUnitTitle(row, shown, headers),
     },
     {

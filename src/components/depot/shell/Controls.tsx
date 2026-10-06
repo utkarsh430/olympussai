@@ -8,7 +8,7 @@ export interface CheckboxProps
 }
 
 /**
- * A themed checkbox (rulings, section 3: no browser-default white controls). The
+ * A themed checkbox (no browser-default white controls). The
  * native input is kept, so keyboard, form and screen-reader behaviour are the
  * browser's own; it is drawn in the dark colour scheme with the cyan accent.
  */
@@ -63,7 +63,7 @@ export interface FilterRowProps {
 }
 
 /**
- * The one filter-row pattern (design critique round 4, J): each control's label inline at
+ * The one filter-row pattern: each control's label inline at
  * its left in mono 11px, every control 32px high, the row wrapping on a narrow column.
  * League, routes and exceptions share it; a page puts it directly above its table.
  */

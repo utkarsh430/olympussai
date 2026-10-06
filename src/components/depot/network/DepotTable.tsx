@@ -64,7 +64,7 @@ const COLUMNS: readonly (Column<DepotRow> & { readonly key: TableColumnKey })[] 
   {
     ...spec('name'),
     sortValue: (row) => row.depot.name,
-    // KIND is a muted suffix on a non-depot unit only (critique section 7), never a column.
+    // KIND is a muted suffix on a non-depot unit only, never a column.
     render: (row) =>
       row.depot.kind === 'depot' ? (
         row.depot.name

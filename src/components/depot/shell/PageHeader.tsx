@@ -21,7 +21,7 @@ export interface PageHeaderProps {
 }
 
 /**
- * Opening block of every depot page (rulings, section 1): optional mono label, the
+ * Opening block of every depot page: optional mono label, the
  * title as the page's only `h1` (display face, 20px), one sentence, controls on the
  * right of the title row, then the provenance line. Nothing else goes between it and
  * the hero. Controls wrap beneath the title on a narrow column.

@@ -28,9 +28,9 @@ const TABLE_LINK =
   'depot-table-link text-holo-glow underline-offset-2 hover:underline focus-visible:underline';
 
 /**
- * The section label's MODELLED tag covers the board (ruling S51), so no header repeats
+ * The section label's MODELLED tag covers the board, so no header repeats
  * it; Bus now, how the bus stands in the live feed, is the one column that is not
- * modelled, and its header says so (DERIVED, review R2-m2).
+ * modelled, and its header says so (DERIVED).
  * The class cell names the bus's class only where it differs ("Ordinary · Express bus").
  */
 function buildColumns(depotId: string): readonly Column<BoardRow>[] {

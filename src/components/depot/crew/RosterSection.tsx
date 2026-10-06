@@ -54,7 +54,7 @@ function RosterToggle({ open, onToggle }: { readonly open: boolean; readonly onT
 /**
  * The suggested roster, closed until "SHOW ›" in its label opens it, a page of 25 at a
  * time. Generated shifts and slots beside real routes, so the label carries the
- * MODELLED tag (ruling S51, review R2-I3): a cropped table still says what it is.
+ * MODELLED tag: a cropped table still says what it is.
  */
 export function RosterSection({ roster, total }: RosterSectionProps) {
   const [requested, setRequested] = useState(0);

@@ -22,7 +22,7 @@ const TIMELINE_ID = 'duty-timeline';
 /**
  * The frozen duty column: 96px on a phone (route code only; the times are in its
  * `title` and the row expander), 160px from 640px. The time area scrolls sideways
- * inside the frame beneath it (critique, Duties Must 5).
+ * inside the frame beneath it.
  */
 const LABEL_COLUMN = 'w-[96px] shrink-0 sm:w-[160px]';
 /** The grid starts after the label column and the track's 16px inset. */

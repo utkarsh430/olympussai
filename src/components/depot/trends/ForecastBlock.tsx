@@ -24,7 +24,7 @@ function stateSentence(data: NonNullable<DepotForecastState['data']>): string | 
  * The page's hero: one metric's MODELLED history ending on the live value, its forecast
  * with the band, and the one caption line (the shared chart, worded by `buildTrendsChartView`:
  * the history is generated beside a real unit, so the section label carries the one
- * MODELLED tag, ruling S51, and nothing under it repeats the word). When no forecast is
+ * MODELLED tag, and nothing under it repeats the word). When no forecast is
  * possible the chart still draws the history and one state panel says why, with the date
  * of a gap when a gap is the reason; a forecast is never drawn from too little history.
  */

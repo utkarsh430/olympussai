@@ -16,7 +16,7 @@ interface Entry {
   readonly relation: YardMapPoint['relation'];
 }
 
-/** The circle is fitted with 32px of map around it (critique, yard Must 3), at any width. */
+/** The circle is fitted with 32px of map around it, at any width. */
 const FIT_PADDING_PX = 32;
 const FALLBACK_ZOOM = 17;
 

@@ -25,7 +25,7 @@ export interface ShowAllButtonProps {
 }
 
 /**
- * The one "Show all N" (design critique round 4, F): a quiet text button with the
+ * The one "Show all N": a quiet text button with the
  * disclosure chevron, for any capped group. `ShowMore` uses it; a page that caps a table
  * or list itself (the overview's segments, the yard's lists) uses it directly.
  */

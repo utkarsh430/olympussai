@@ -63,7 +63,7 @@ export function BusExceptionTable({
 }: BusExceptionTableProps) {
   const plan = busColumnPlan(kind, rows);
   const lastSeen = useMemo(() => lastSeenColumn(feedNow), [feedNow]);
-  // Kind and severity are said once per group row, not on every row (critique MUST 3).
+  // Kind and severity are said once per group row, not on every row.
   const columns = [REGISTRATION, DEPOT, ...(plan.showCode ? [CODE] : []), lastSeen];
   const severityOf = new Map(rows.map((row) => [row.kind, row.severity]));
   return (

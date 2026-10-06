@@ -21,7 +21,7 @@ export interface NoticeProps {
 }
 
 /**
- * The page's one notice strip (rulings, section 3): a 2px left rule in the status
+ * The page's one notice strip: a 2px left rule in the status
  * colour on the surface, the status as a word, then sans 13px text. Never sticky. At
  * most one per page; anything else folds into the provenance line. Only a critical
  * notice interrupts a screen reader.

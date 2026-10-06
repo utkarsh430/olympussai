@@ -6,7 +6,7 @@ export interface DisclosureChevronProps {
 }
 
 /**
- * The one disclosure glyph (design critique round 4, G): the chevron "›", muted, never
+ * The one disclosure glyph: the chevron "›", muted, never
  * cyan, turned a quarter when open. Every disclosure uses it: the closing disclosure, a
  * collapsed section, a table row expander and "Show all N". Decorative: the control it
  * sits in carries `aria-expanded`.

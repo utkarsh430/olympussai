@@ -16,7 +16,7 @@ export interface SeverityMarkProps {
 }
 
 /**
- * A severity wherever one is shown (design critique round 4, H): a 6px square in the
+ * A severity wherever one is shown: a 6px square in the
  * status colour, then the word ("Critical", "Warning", "Info") from `labels.ts`. It
  * replaces the plain coloured word, the boxed badge and the lowercase phrase. Never the
  * colour alone, never a box. On a list grouped by severity, put it on the group label and

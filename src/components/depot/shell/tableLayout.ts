@@ -1,6 +1,5 @@
 /**
- * Pure arithmetic and wording for `DataTable`'s row treatment (design critique round 5,
- * section 5): the expander's chevron is the FIRST column and 24px wide; a frozen table
+ * Pure arithmetic and wording for `DataTable`'s row treatment: the expander's chevron is the FIRST column and 24px wide; a frozen table
  * freezes that column and the first data column together; a row that opens something is
  * itself the control and carries a name. Kept out of the component so it is tested
  * without a browser.
