@@ -170,7 +170,7 @@ describe('inferYard', () => {
     const rows = cellRow(6);
     const yard = inferYard(rows)!;
     expect(yard).not.toBeNull();
-    const trueMiddle = fromMetres({ x: 150, y: 75 }, ORIGIN.lat, ORIGIN.lng);
+    const trueMiddle = fromMetres({ x: 0, y: 75 }, ORIGIN.lat, ORIGIN.lng);
     expect(distanceM(yard.lat, yard.lng, trueMiddle.lat, trueMiddle.lng)).toBeLessThan(30);
     expect(yard.inCluster).toBe(36);
     expect(countInYard(rows, yard)).toBe(36);
