@@ -62,6 +62,7 @@ export function PageIntro({
             <button
               type="button"
               className="depot-link shrink-0 text-[11px]"
+              aria-label="Reset to the server plan: stop showing the what-if"
               onClick={onReset}
             >
               Reset to the server plan
