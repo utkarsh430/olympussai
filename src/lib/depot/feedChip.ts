@@ -254,9 +254,10 @@ export const FEED_UNAVAILABLE_NOTE = 'The feed is unavailable';
  * stale is the last good data. An omitted tag reads as derived.
  */
 export function headerProvenanceNote(
-  data: Omit<FeedChipData, 'fetchedAt'> | null,
+  data: (Omit<FeedChipData, 'fetchedAt'> & { readonly fetchedAt?: string }) | null,
   error: string | null,
   provenance: Provenance = 'derived',
+  page: PageRefreshState = { failed: false, since: null },
 ): string {
   if (provenance === 'reference') return 'Reference data, curated';
   if (!data) return error !== null ? FEED_UNAVAILABLE_NOTE : 'Waiting for the feed';
@@ -264,5 +265,12 @@ export function headerProvenanceNote(
   const time = formatFeedTime(data.feedNow);
   if (data.source === 'fixture') return `${lead.other} sample data, feed time ${time}`;
   if (data.stale || error !== null) return `${lead.other} the last good data, feed time ${time}`;
+  // Same order as the chip: the page's own request failing, then a quiet feed, then live.
+  if (page.failed) {
+    return `${lead.other} the last good data, feed time ${formatFeedTime(page.since)}`;
+  }
+  if (data.fetchedAt !== undefined && isFeedQuiet({ feedNow: data.feedNow, fetchedAt: data.fetchedAt })) {
+    return `${lead.other} a quiet feed, newest report ${time}`;
+  }
   return `${lead.fresh} ${time}`;
 }

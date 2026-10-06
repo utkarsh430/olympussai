@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { FEED_QUIET_AFTER_MIN, feedChip, feedLagMinutes } from '@/lib/depot/feedChip';
+import {
+  FEED_QUIET_AFTER_MIN,
+  feedChip,
+  feedLagMinutes,
+  headerProvenanceNote,
+} from '@/lib/depot/feedChip';
 import { provenanceLine } from '@/lib/depot/provenanceLine';
 
 // 14:02 on the feed's clock (Indian time behind a misleading Z) is 08:32 UTC.
@@ -35,6 +40,17 @@ describe('a feed whose newest report trails the fetch', () => {
     const both = chip(live(THIRTEEN_MIN_LATER), { feedClockAheadRows: 500, recordCount: 1000 });
     expect(both.text).toBe('FEED QUIET · 14:02');
     expect(both.title).toContain('the feed clock may lag');
+  });
+
+  it('the header note agrees with the chip, for a quiet feed and a failing page request', () => {
+    expect(headerProvenanceNote(live(THIRTEEN_MIN_LATER), null, 'live')).toBe(
+      'From a quiet feed, newest report 14:02',
+    );
+    expect(headerProvenanceNote(live(IN_STEP), null, 'live')).toBe('Live from the feed at 14:02');
+    const page = { failed: true, since: '2026-10-06T13:40:00Z' };
+    expect(headerProvenanceNote(live(IN_STEP), null, 'live', page)).toBe(
+      'From the last good data, feed time 13:40',
+    );
   });
 
   it('the provenance line agrees with the chip', () => {
