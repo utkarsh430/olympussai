@@ -232,6 +232,44 @@ describe('fetchBusSchedule (direct)', () => {
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps answering "not assigned" when a fallback date failed, unless asked to be strict', async () => {
+    const { fetchBusSchedule } = await import('@/lib/upsrtc/scheduleService');
+    mockFetch.mockImplementation(async (url) =>
+      new URL(url).searchParams.get('date') === TODAY ? ok(NOT_ASSIGNED) : fail,
+    );
+    const input = { regNum: REG, date: TODAY, tripId: null };
+    const lenient = await fetchBusSchedule(input, T0);
+    expect(lenient.source).toBe('live');
+    expect(lenient.schedule).toBeNull();
+    expect((await fetchBusSchedule(input, T0)).source).toBe('cache');
+    const calls = mockFetch.mock.calls.length;
+
+    // Strict: a date that did not answer means nobody knows, so it is a failure,
+    // and the partial answer cached above is not served as an answer either.
+    const strict = await fetchBusSchedule(input, T0, { requireEveryDateAnswered: true });
+    expect(strict.source).toBe('fixture');
+    expect(strict.message).toBe('Showing UPSRTC fixture fallback (HTTP 502).');
+    expect(mockFetch.mock.calls.length).toBeGreaterThan(calls);
+    // The failure was not cached: asking again calls the server again.
+    const again = mockFetch.mock.calls.length;
+    await fetchBusSchedule(input, T0, { requireEveryDateAnswered: true });
+    expect(mockFetch.mock.calls.length).toBeGreaterThan(again);
+  });
+
+  it('caches a strict "not assigned" when every date answered so', async () => {
+    const { fetchBusSchedule } = await import('@/lib/upsrtc/scheduleService');
+    mockFetch.mockResolvedValue(ok(NOT_ASSIGNED));
+    const input = { regNum: REG, date: TODAY, tripId: null };
+    const options = { requireEveryDateAnswered: true };
+    const first = await fetchBusSchedule(input, T0, options);
+    expect(first.source).toBe('live');
+    expect(first.schedule).toBeNull();
+    const second = await fetchBusSchedule(input, T0, options);
+    expect(second.source).toBe('cache');
+    expect(second.schedule).toBeNull();
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+  });
+
   it('holds at most its bound of lookups, forgetting the oldest first', async () => {
     const { fetchBusSchedule, SCHEDULE_CACHE_MAX_KEYS } = await import(
       '@/lib/upsrtc/scheduleService'

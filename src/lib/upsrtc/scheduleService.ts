@@ -25,6 +25,11 @@ const CACHE_TTL_MS = 120_000;
 interface ScheduleLookup {
   schedule: CanonicalSchedule | null;
   resolvedDate: string;
+  /**
+   * False when a "not assigned" came with a date that did not answer at all: the
+   * server never said so for that date. Only a strict caller tells the two apart.
+   */
+  everyDateAnswered: boolean;
 }
 
 /**
@@ -65,7 +70,18 @@ export interface BusScheduleOptions {
    * the `now` passed in, never the machine clock read here.
    */
   readonly today?: string;
+  /**
+   * Answer "not assigned" only when every date the lookup tried answered so. A
+   * date that failed then makes the lookup a failure (not cached), and a partial
+   * answer cached for another caller is not served. Without it a partial answer
+   * reads as "not assigned", as the command centre's schedule route has always had.
+   */
+  readonly requireEveryDateAnswered?: boolean;
 }
+
+/** A cached lookup a caller may be served: a strict caller never gets a partial "not assigned". */
+const servable = (lookup: ScheduleLookup, strict: boolean): boolean =>
+  !strict || lookup.schedule !== null || lookup.everyDateAnswered;
 
 /** `today` itself and the days before it that a lookup falls back to. */
 const FALLBACK_DAY_OFFSETS = [0, -1, -2] as const;
@@ -91,8 +107,9 @@ export async function fetchBusSchedule(
 
   scheduleDiagnostics.requestCount += 1;
 
+  const strict = options.requireEveryDateAnswered === true;
   const cached = cache.get(cacheKey, now);
-  if (cached) {
+  if (cached && servable(cached, strict)) {
     return {
       schedule: cached.schedule,
       fetchedAt: new Date(now).toISOString(),
@@ -107,7 +124,12 @@ export async function fetchBusSchedule(
   }
 
   scheduleDiagnostics.lastAttemptAt = new Date(now).toISOString();
-  const lookup = await resolveSchedule(regNum, requestedDate, today, tripId);
+  const resolved = await resolveSchedule(regNum, requestedDate, today, tripId);
+  // A partial "not assigned" is a failure to a strict caller, and is not cached for it.
+  const lookup =
+    resolved.found && !servable(resolved.found, strict)
+      ? { found: null, error: resolved.error }
+      : resolved;
 
   if (lookup.found) {
     cache.set(cacheKey, lookup.found, now);
@@ -168,6 +190,7 @@ async function probe(
   return {
     schedule: normalizeSchedulePayload(result.payload, regNum, date, tripId),
     resolvedDate: date,
+    everyDateAnswered: true,
   };
 }
 
@@ -203,9 +226,13 @@ async function resolveSchedule(
     if (outcome.schedule) return { found: outcome, error: null };
   }
 
-  // Every candidate answered, none had an assignment — a real "not assigned",
-  // worth caching. If nothing answered at all, report the upstream failure.
-  if (typeof first !== 'string') return { found: first, error: null };
+  // The requested date answered "not assigned" and no date had an assignment. It is
+  // a real "not assigned" only if every other date answered too; a failed date's
+  // error is kept beside it for the strict caller. If the requested date failed,
+  // report the upstream failure.
+  if (typeof first !== 'string') {
+    return { found: { ...first, everyDateAnswered: error === null }, error };
+  }
   return { found: null, error };
 }
 
