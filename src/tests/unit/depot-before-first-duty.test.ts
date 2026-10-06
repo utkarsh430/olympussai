@@ -7,6 +7,7 @@ import { buildDutyBoard } from '@/lib/depot/live/dutyView';
 import { dutyPlanFor, laterDayPlanFor } from '@/lib/depot/live/operatingDayView';
 import { buildParkingResponse } from '@/lib/depot/live/parkingView';
 import type { FleetSnapshotView } from '@/lib/depot/repositories/types';
+import { planDay } from '@/lib/depot/sim/dayPlan';
 
 /*
  * Ruling S62 (N7): until the first duty of the feed's own date has started, the
@@ -160,6 +161,21 @@ describe('before the first duty of the feed date (S62)', () => {
     // The date comes from the fetch time read in Indian time (05:35 on DATE).
     expect(board.operatingDate).toBe(DATE);
     expect(parking.operatingDate).toBe('2026-10-08');
+  });
+
+  it('keeps the mode a caller asks for when it plans before the first duty directly', () => {
+    const analysis = analyseSnapshot(view(depotRows(at('10:00:00')), at('10:00:00')));
+    const depot = analysis.depotsById.get('1');
+    if (!depot) throw new Error('no depot');
+    const planned = planDay({
+      depot,
+      buses: dutyPlanFor(analysis, '1', DATE)?.buses ?? [],
+      peakRequirement: 20,
+      operatingDate: DATE,
+      yardEstablished: true,
+      now: { kind: 'before_first_duty' },
+    });
+    expect(planned.mode).toBe('before_first_duty');
   });
 
   it('names its mode on every plan; the later-day plan is in later_day mode', () => {
