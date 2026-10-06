@@ -31,6 +31,8 @@ export interface LeagueRow {
   readonly peerCount: number | null;
   readonly components: readonly ComponentCell[];
   readonly score: DepotScore | null;
+  /** Snapshots this depot was scored on; fewer than the window's marks it new. */
+  readonly samples?: number;
 }
 
 export type PeerGroupFilter = PeerGroupId | 'any';
@@ -106,6 +108,7 @@ export function buildLeagueRows(
         peerCount: score?.peerCount ?? null,
         components: score ? toCells(score) : [],
         score,
+        ...(score?.samples === undefined ? {} : { samples: score.samples }),
       };
     })
     .sort(compareDefault);

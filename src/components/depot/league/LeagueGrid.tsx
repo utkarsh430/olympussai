@@ -1,117 +1,66 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { Fragment, useMemo, useRef, useState } from 'react';
 import { Pager } from '@/components/depot/shell/LongLists';
+import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
 import { TableOverflowCue, useColumnsToTheRight } from '@/components/depot/shell/TableOverflowCue';
+import { groupCounts, groupLabel, groupRows } from '@/components/depot/shell/tableGroups';
 import { formatCount } from '@/lib/depot/format';
-import {
-  LEAGUE_COMPONENT_ORDER,
-  NARROW_COMPONENTS,
-  frozenStyles,
-  type FrozenKey,
-} from '@/lib/depot/league/leagueColumns';
-import { PEER_GROUP_LABEL, type LeagueRow } from '@/lib/depot/league/leagueModel';
 import { pageRange } from '@/lib/depot/listPaging';
-import { DEI_COMPONENTS } from '@/lib/depot/score/config';
-import type { DeiComponentKey, PeerGroupId } from '@/lib/depot/score/types';
-import { sortRows, type SortDirection, type SortValue } from '@/lib/depot/tableSort';
-import { DepotCell, IndexCell, MetricCell } from './LeagueCells';
-import * as trend from '@/components/depot/trends/LeagueTrend';
+import { sortRows, type SortDirection } from '@/lib/depot/tableSort';
+import { frozenStyles, type FrozenKey } from '@/lib/depot/league/leagueColumns';
+import { LEAGUE_COLUMNS, type LeagueColumn } from '@/lib/depot/league/leagueGridColumns';
+import { PEER_GROUP_LABEL, type LeagueRow } from '@/lib/depot/league/leagueModel';
+import type { DeiComponentKey } from '@/lib/depot/score/types';
+import { useIndexTrends, type IndexTrends } from '@/components/depot/trends/LeagueTrend';
+import { DepotCell, IndexButton, MetricCell, OpenChevron, TrendCell } from './LeagueCells';
 
 /*
  * The league's own table markup, on the shared `depot-table` classes: the shared
  * DataTable freezes one column, the league freezes three. Rank, Depot and Index are one
  * block whose widths and offsets come from `leagueColumns.ts`; every frozen cell has a
- * solid background and its content boxed to the cell, so nothing shows between or
- * behind the block while the rest scrolls inside the frame. Below `lg` the set is the
- * block plus schedule coverage and device integrity; the breakdown of a selected depot
- * carries the other measures. The table sits in the page flow, 25 rows a page, so its
- * last row is never hidden under anything and the end of the list is visible.
+ * solid background and its content boxed to the cell. The columns after it are sized
+ * and tiered there too, so at every width the table fits its frame and nothing scrolls
+ * sideways. Listed together, the peer groups are group rows, not a column. The index
+ * cell opens the breakdown; on a phone so does a tap anywhere on the row.
  */
 
-const PEER_GROUP_SORT: Readonly<Record<PeerGroupId, number>> = { small: 0, medium: 1, large: 2, all: 3 };
 const FROZEN_STYLE: Readonly<Record<FrozenKey, React.CSSProperties>> = frozenStyles();
 const FROZEN_CLASS =
   'sticky left-[var(--frozen-left)] w-[var(--frozen-w)] min-w-[var(--frozen-w)] max-w-[var(--frozen-w)] ' +
   'sm:left-[var(--frozen-left-wide)] sm:w-[var(--frozen-w-wide)] sm:min-w-[var(--frozen-w-wide)] ' +
   'sm:max-w-[var(--frozen-w-wide)]';
 const FROZEN_INNER = 'overflow-hidden w-[var(--frozen-inner)] sm:w-[var(--frozen-inner-wide)]';
-const WIDE_ONLY = 'hidden lg:table-cell';
-const COMPONENT_BY_KEY = new Map(DEI_COMPONENTS.map((c) => [c.key, c]));
 
-interface LeagueColumn {
-  readonly key: string;
-  readonly header: string;
-  readonly title?: string;
-  readonly frozen?: FrozenKey;
-  readonly className: string;
-  readonly right?: boolean;
-  readonly sortValue: (row: LeagueRow) => SortValue;
+const peerGroupKey = (row: LeagueRow): string =>
+  row.peerGroup === null ? 'Not ranked' : PEER_GROUP_LABEL[row.peerGroup];
+
+interface CellProps {
+  readonly column: LeagueColumn;
+  readonly row: LeagueRow;
+  readonly selected: boolean;
+  readonly onSelect: (row: LeagueRow) => void;
+  readonly trends: IndexTrends;
+  readonly windowSamples?: number;
 }
 
-function componentOf(row: LeagueRow, key: DeiComponentKey) {
-  return row.components.find((c) => c.key === key);
-}
-
-function metricColumn(key: DeiComponentKey): LeagueColumn {
-  const c = COMPONENT_BY_KEY.get(key);
-  const label = c?.label ?? key;
-  return {
-    key,
-    header: label,
-    title: `${label}: the depot's value and its difference from the peer median. ${
-      c?.higherIsBetter ? 'Higher is better.' : 'Lower is better.'
-    }`,
-    className: NARROW_COMPONENTS.has(key) ? '' : WIDE_ONLY,
-    right: true,
-    sortValue: (r) => componentOf(r, key)?.value ?? null,
-  };
-}
-
-function columnsFor(showPeerGroup: boolean, trends: trend.IndexTrends): readonly LeagueColumn[] {
-  return [
-    { key: 'rank', header: 'Rank', frozen: 'rank', className: 'z-[5]', right: true, sortValue: (r) => r.rank },
-    { key: 'depot', header: 'Depot', frozen: 'depot', className: 'z-[5]', sortValue: (r) => r.name },
-    {
-      key: 'index',
-      header: 'Index',
-      title: 'Efficiency index, 0 to 100. A typical peer scores 50; the tick on the bar marks 50.',
-      frozen: 'index',
-      className: 'z-[5] border-r border-r-depot-line',
-      sortValue: (r) => r.index,
-    },
-    ...LEAGUE_COMPONENT_ORDER.map(metricColumn),
-    { key: 'trend', header: trend.INDEX_TREND_HEADER, title: trend.INDEX_TREND_TITLE,
-      className: WIDE_ONLY, sortValue: (r) => trends.get(r.depotId)?.fourWeeks ?? null },
-    ...(showPeerGroup
-      ? [{
-          key: 'peerGroup',
-          header: 'Peer group',
-          className: WIDE_ONLY,
-          sortValue: (r: LeagueRow) => (r.peerGroup === null ? null : PEER_GROUP_SORT[r.peerGroup]),
-        }]
-      : []),
-    { key: 'fleet', header: 'Fleet (buses)', className: WIDE_ONLY, right: true, sortValue: (r) => r.fleet },
-  ];
-}
-
-function cellContent(column: LeagueColumn, row: LeagueRow, selected: boolean, onSelect: (row: LeagueRow) => void, trends: trend.IndexTrends) {
+function CellContent({ column, row, selected, onSelect, trends, windowSamples }: CellProps) {
   switch (column.key) {
-    case 'trend':
-      return <trend.IndexTrendCell name={row.name} row={trends.get(row.depotId)} />;
     case 'rank':
-      return row.rank ?? '—';
+      return <>{row.rank ?? '—'}</>;
     case 'depot':
-      return <DepotCell row={row} selected={selected} onSelect={onSelect} />;
+      return <DepotCell row={row} windowSamples={windowSamples} />;
     case 'index':
-      return <IndexCell row={row} />;
-    case 'peerGroup':
-      return row.peerGroup === null ? '—' : PEER_GROUP_LABEL[row.peerGroup];
+      return <IndexButton row={row} selected={selected} onSelect={onSelect} />;
+    case 'trend':
+      return <TrendCell name={row.name} row={trends.get(row.depotId)} />;
     case 'fleet':
-      return formatCount(row.fleet);
+      return <>{formatCount(row.fleet)}</>;
+    case 'open':
+      return <OpenChevron />;
     default:
-      return <MetricCell cell={componentOf(row, column.key as DeiComponentKey)} />;
+      return <MetricCell cell={row.components.find((c) => c.key === (column.key as DeiComponentKey))} />;
   }
 }
 
@@ -121,6 +70,31 @@ function Boxed({ column, children }: { readonly column: LeagueColumn; readonly c
   return <div className={`${FROZEN_INNER} ${column.right ? 'ml-auto text-right' : ''}`}>{children}</div>;
 }
 
+function HeaderCell({ column, sorted, onSort }: {
+  readonly column: LeagueColumn;
+  readonly sorted: SortDirection | null;
+  readonly onSort: (key: string) => void;
+}) {
+  return (
+    <Boxed column={column}>
+      {column.sortValue ? (
+        <button type="button" className="depot-sort-button" onClick={() => onSort(column.key)}>
+          {column.header}
+          <span aria-hidden className="inline-block w-3 text-holo-glow">
+            {sorted === null ? '' : sorted === 'asc' ? '↑' : '↓'}
+          </span>
+        </button>
+      ) : null}
+      {column.tag ? (
+        <span className="ml-1.5 inline-block align-middle">
+          <ProvenanceBadge provenance={column.tag} pill />
+        </span>
+      ) : null}
+      {column.title ? <span className="sr-only">{column.title}</span> : null}
+    </Boxed>
+  );
+}
+
 interface Sort {
   readonly key: string;
   readonly direction: SortDirection;
@@ -128,25 +102,28 @@ interface Sort {
 
 export interface LeagueGridProps {
   readonly rows: readonly LeagueRow[];
-  readonly showPeerGroup: boolean;
+  /** Every peer group listed together: print each group once, as a group row. */
+  readonly grouped: boolean;
   readonly selectedId: string | null;
   readonly onSelect: (row: LeagueRow) => void;
-  /** The index's window for its header: "last 20 min". */
-  readonly indexWindow?: string;
+  readonly page: number;
+  readonly onPage: (page: number) => void;
+  /** The index window's snapshot count; a depot scored on fewer is marked new. */
+  readonly windowSamples?: number;
 }
 
-export function LeagueGrid({ rows, showPeerGroup, selectedId, onSelect, indexWindow }: LeagueGridProps) {
+export function LeagueGrid({ rows, grouped, selectedId, onSelect, page, onPage, windowSamples }: LeagueGridProps) {
   const [sort, setSort] = useState<Sort | null>(null);
-  const [page, setPage] = useState(0);
   const frame = useRef<HTMLDivElement>(null);
   const moreColumns = useColumnsToTheRight(frame, true);
-  const trends = trend.useIndexTrends();
-  const columns = useMemo(() => columnsFor(showPeerGroup, trends), [showPeerGroup, trends]);
-  const sortColumn = sort ? columns.find((c) => c.key === sort.key) : undefined;
-  const sorted = useMemo(
-    () => (sort && sortColumn ? sortRows(rows, sortColumn.sortValue, sort.direction) : rows),
-    [rows, sort, sortColumn],
-  );
+  const trends = useIndexTrends();
+  const sortColumn = sort ? LEAGUE_COLUMNS.find((c) => c.key === sort.key) : undefined;
+  const sorted = useMemo(() => {
+    if (!sort || !sortColumn?.sortValue) return rows;
+    const value = sortColumn.sortValue;
+    return sortRows(rows, (r) => value(r, trends), sort.direction);
+  }, [rows, sort, sortColumn, trends]);
+  const counts = useMemo(() => groupCounts(sorted, peerGroupKey), [sorted]);
   const range = pageRange(page, sorted.length);
   const visible = sorted.slice(range.start, range.end);
   const toggle = (key: string): void =>
@@ -165,80 +142,73 @@ export function LeagueGrid({ rows, showPeerGroup, selectedId, onSelect, indexWin
 
   const cellClass = (c: LeagueColumn): string =>
     `${c.className} ${c.frozen ? FROZEN_CLASS : ''} ${c.right ? 'depot-align-right' : ''}`;
+  const renderRow = (row: LeagueRow) => {
+    const selected = row.depotId === selectedId;
+    return (
+      <tr
+        key={row.depotId}
+        onClick={() => onSelect(row)}
+        className={`group h-9 depot-row-selectable ${selected ? 'depot-row-selected' : ''}`}
+      >
+        {LEAGUE_COLUMNS.map((c) => (
+          <td
+            key={c.key}
+            style={c.frozen ? FROZEN_STYLE[c.frozen] : undefined}
+            className={`whitespace-nowrap !py-1.5 ${cellClass(c)} ${
+              c.frozen ? `${selected ? 'bg-depot-raised' : 'bg-depot-page'} group-hover:bg-depot-raised` : ''
+            }`}
+          >
+            <Boxed column={c}>
+              <CellContent column={c} row={row} selected={selected} onSelect={onSelect} trends={trends} windowSamples={windowSamples} />
+            </Boxed>
+          </td>
+        ))}
+      </tr>
+    );
+  };
   return (
     <div>
       <div className="relative min-w-0">
-        <div
-          ref={frame}
-          role="region"
-          aria-label="Depot league table"
-          tabIndex={0}
-          className="depot-table-frame !max-h-none"
-        >
+        <div ref={frame} role="region" aria-label="Depot league table" tabIndex={0} className="depot-table-frame !max-h-none">
           <table className="depot-table">
             <caption className="sr-only">Depot league table</caption>
             <thead>
               <tr>
-                {columns.map((c) => {
+                {LEAGUE_COLUMNS.map((c) => {
                   const active = sort?.key === c.key ? sort.direction : null;
                   return (
                     <th
                       key={c.key}
                       scope="col"
                       style={c.frozen ? FROZEN_STYLE[c.frozen] : undefined}
-                      aria-sort={active === null ? 'none' : active === 'asc' ? 'ascending' : 'descending'}
+                      aria-sort={!c.sortValue ? undefined : active === null ? 'none' : active === 'asc' ? 'ascending' : 'descending'}
                       className={`${cellClass(c)} ${c.frozen ? '!z-20' : ''}`}
                     >
-                      <Boxed column={c}>
-                        <button type="button" className="depot-sort-button" onClick={() => toggle(c.key)}>
-                          {c.header}
-                          <span aria-hidden className="inline-block w-3 text-holo-glow">
-                            {active === null ? '' : active === 'asc' ? '↑' : '↓'}
-                          </span>
-                        </button>
-                        {c.key === 'index' && indexWindow ? (
-                          <span className="block text-depot-faint">{`· ${indexWindow}`}</span>
-                        ) : null}
-                        {c.title ? <span className="sr-only">{c.title}</span> : null}
-                      </Boxed>
+                      <HeaderCell column={c} sorted={active} onSort={toggle} />
                     </th>
                   );
                 })}
               </tr>
             </thead>
             <tbody>
-              {visible.map((row) => {
-                const selected = row.depotId === selectedId;
-                return (
-                  <tr
-                    key={row.depotId}
-                    onClick={() => onSelect(row)}
-                    className={`group h-9 depot-row-selectable ${selected ? 'depot-row-selected' : ''}`}
-                  >
-                    {columns.map((c) => (
-                      <td
-                        key={c.key}
-                        style={c.frozen ? FROZEN_STYLE[c.frozen] : undefined}
-                        className={`whitespace-nowrap !py-1.5 ${cellClass(c)} ${
-                          c.frozen
-                            ? `${selected ? 'bg-depot-raised' : 'bg-depot-page'} group-hover:bg-depot-raised`
-                            : ''
-                        }`}
-                      >
-                        <Boxed column={c}>{cellContent(c, row, selected, onSelect, trends)}</Boxed>
-                      </td>
-                    ))}
-                  </tr>
-                );
-              })}
+              {grouped
+                ? groupRows(visible, peerGroupKey).map((g) => (
+                    <Fragment key={`group-${g.key}`}>
+                      <tr data-testid="depot-table-group">
+                        <th scope="colgroup" colSpan={LEAGUE_COLUMNS.length} className="depot-table-group">
+                          {groupLabel(g.key, counts.get(g.key) ?? g.rows.length)}
+                        </th>
+                      </tr>
+                      {g.rows.map(renderRow)}
+                    </Fragment>
+                  ))
+                : visible.map(renderRow)}
             </tbody>
           </table>
         </div>
         {moreColumns ? <TableOverflowCue /> : null}
       </div>
-      {sorted.length > visible.length ? (
-        <Pager page={range.page} total={sorted.length} onPage={setPage} />
-      ) : null}
+      {sorted.length > visible.length ? <Pager page={range.page} total={sorted.length} onPage={onPage} /> : null}
     </div>
   );
 }

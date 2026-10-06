@@ -1,10 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import {
-  computedStamp,
   formatSignedDifference,
+  leagueSectionNote,
   leagueStatusLine,
   metricCellWording,
   peerRankPhrase,
+  windowMark,
 } from '@/lib/depot/league/leagueWording';
 import {
   DEFAULT_LEAGUE_FILTERS,
@@ -152,12 +153,25 @@ describe('league selection and columns', () => {
   });
 });
 
-describe('computedStamp', () => {
-  it('reads the feed clock as HH:MM', () => {
-    expect(computedStamp('2026-10-06T12:37:10+05:30')).toBe('Computed 12:37');
+describe('leagueSectionNote', () => {
+  it('counts ranked of operating depots and says the index cell opens the breakdown, once', () => {
+    const depots = [depot('a', 'depot'), depot('b', 'depot'), depot('h', 'hired')];
+    const scores = [score('a', 'ok'), score('b', 'fleet_too_small'), score('h', 'not_a_depot')];
+    expect(leagueSectionNote(depots, scores)).toBe(
+      '1 of 2 ranked · the index cell opens how a score is made up',
+    );
+  });
+});
+
+describe('windowMark', () => {
+  it('marks a depot scored on fewer snapshots than the window, in words and a title', () => {
+    expect(windowMark(1, 8)).toEqual({ word: 'new', title: 'Scored on 1 snapshot so far, of 8 in the window.' });
+    expect(windowMark(3, 8)?.title).toBe('Scored on 3 snapshots so far, of 8 in the window.');
   });
 
-  it('says the time is unknown when the feed carries none', () => {
-    expect(computedStamp(null)).toBe('Computed at an unknown time');
+  it('leaves a depot scored on the whole window, or with no counts, unmarked', () => {
+    expect(windowMark(8, 8)).toBeNull();
+    expect(windowMark(undefined, 8)).toBeNull();
+    expect(windowMark(1, undefined)).toBeNull();
   });
 });
