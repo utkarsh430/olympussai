@@ -33,7 +33,7 @@ What it does not do:
 - **No individual is scored or named.** Crew appear as anonymous slots; scoring is per
   depot, never per driver.
 - **No database.** Live figures come from the current snapshot; history and trends are a
-  generated series behind a repository interface (section 8).
+  generated series behind a repository interface (section 5).
 - **One shared PIN, no per-depot permissions.** Any signed-in user can open any depot.
 - **Route details are fetched one route at a time on a person's action**, never crawled
   (section 7.9).
@@ -81,6 +81,13 @@ table); a page's own failed request after a success keeps its figures and says s
 polling, so the page shows its not-found state; a 401 drops them, stops polling and sends
 the browser once to `/login?next=<this page>` (`src/lib/depot/signInRedirect.ts`), never
 from the sign-in page itself.
+
+**State in the URL.** The Exceptions page reads its filters from the router's search
+parameters and writes them with `history.pushState`, so a link into Exceptions lands on the
+filtered page and Back steps through filters. The roster's `?bus=` is validated
+(`parseBusParam` in `src/lib/depot/roster/rosterQuery.ts`: at most
+`MAX_BUS_PARAM_LENGTH = 16` characters) before it reaches the drawer, and the roster writes
+its URL with `history.replaceState`, so Back leaves the page.
 
 **The shell.** One navigation model (`src/lib/depot/shellModel.ts`) feeds two forms: from
 1280 px wide a left rail with the depot's pages first (in depot scope) and then the network
