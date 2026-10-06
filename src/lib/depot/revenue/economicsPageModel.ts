@@ -251,9 +251,11 @@ export function explainEconomics(row: EconomicsRow): string {
   if (row.reasonText !== null) return row.reasonText;
   const scored = row.cells.filter((c) => c.value !== null);
   const rounded = (c: EconomicsCell): number => roundTo(c.contribution, HUNDREDTH);
-  const strongest = scored.reduce((a, b) => (rounded(b) > rounded(a) ? b : a), scored[0]);
-  const weakest = scored.reduce((a, b) => (rounded(b) < rounded(a) ? b : a), scored[0]);
-  if (!strongest || !weakest || rounded(strongest) === rounded(weakest)) {
+  const [first, ...rest] = scored;
+  if (first === undefined) return 'No component could be worked out for this depot.';
+  const strongest = rest.reduce((a, b) => (rounded(b) > rounded(a) ? b : a), first);
+  const weakest = rest.reduce((a, b) => (rounded(b) < rounded(a) ? b : a), first);
+  if (rounded(strongest) === rounded(weakest)) {
     return 'No single measure stands out; every component contributes equally.';
   }
   return `Helped most by ${strongest.label}; held back most by ${weakest.label}.`;
