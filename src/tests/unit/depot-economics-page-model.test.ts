@@ -135,8 +135,12 @@ describe('buildEconomicsRows', () => {
   });
   it('says why a depot is not ranked', () => {
     expect(rows.find((r) => r.depotId === '9')?.reasonText).toBe(
-      'No duty ran in its modelled day (none of its buses reports a route, or none was available), so it has no earnings per kilometre.',
+      'No duty in the modelled day (none of its buses reports a route, or none is available), so it has no earnings per kilometre.',
     );
+    // Dated once the response names the operating day; never "ran" or "today" (review m1).
+    const dated = buildEconomicsRows([UNRANKED_NO_LENGTH], '2026-10-06').find((r) => r.depotId === '9');
+    expect(dated?.reasonText).toContain('No duty in the modelled day for 2026-10-06');
+    expect(dated?.reasonText).not.toMatch(/\bran\b|today/);
     expect(rows.find((r) => r.depotId === '8')?.reasonText).toMatch(/at least 10 buses/);
     expect(rows.find((r) => r.depotId === '7')?.reasonText).toMatch(/not an operating depot/i);
     expect(rows[0]?.reasonText).toBeNull();
@@ -173,7 +177,7 @@ describe('economicsStatusLine', () => {
       OTHER_UNIT,
     ]);
     expect(line).toBe(
-      '2 ranked of 4 operating depots · 1 not ranked: no duty ran in the modelled day · 1 not ranked: fewer than 10 buses · 1 other unit is not an operating depot',
+      '2 ranked of 4 operating depots · 1 not ranked: no duty in the modelled day · 1 not ranked: fewer than 10 buses · 1 other unit is not an operating depot',
     );
   });
   it('counts a thin real-length coverage as ranked and the group reason on its own', () => {

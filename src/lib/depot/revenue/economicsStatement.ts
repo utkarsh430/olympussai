@@ -69,7 +69,7 @@ export function economicsStatement(): EconomicsStatement {
       'The Depot Economics Index ranks operating depots on three MODELLED figures: earnings per kilometre, fuel cost per kilometre and load factor. None of them is measured; each is worked out from the assumptions below.',
     ],
     closing: [
-      'Fuel cost per kilometre is MODELLED too: it comes from the distance each bus ran in the modelled day (the route of its duty, out and back), a fuel economy by service class and a fixed price per litre. It counts fuel only, and it is the same figure the fuel page of the depot shows. Fuel issue records from the depots would replace it, alongside the ticketing feed and the route master.',
+      'Fuel cost per kilometre is MODELLED too: it comes from the distance each bus runs in the modelled day (the route of its duty, out and back), a fuel economy by service class and a fixed price per litre. It counts fuel only, and it is the same figure the fuel page of the depot shows. Fuel issue records from the depots would replace it, alongside the ticketing feed and the route master.',
     ],
   };
 }
