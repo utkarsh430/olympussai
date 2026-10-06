@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it } from 'vitest';
-import liveFixture from '@/fixtures/upsrtc-live-sample.json';
+import { loadFleetFixture } from '@/lib/upsrtc/fleetFixture';
 import { normalizeDepotRows } from '@/lib/upsrtc/depotNormalizer';
 import type { DepotBusRow } from '@/models/depotLive';
 import type { FleetSnapshotView } from '@/lib/depot/repositories/types';
@@ -15,7 +15,8 @@ import { buildExceptionsResponse } from '@/lib/depot/live/exceptionView';
  * placed in every memoised body is frozen.
  */
 
-const rows = normalizeDepotRows(liveFixture).rows;
+// The full fleet: the small sample has too few depots for a peer comparison to fire.
+const rows = normalizeDepotRows(loadFleetFixture()).rows;
 const F0 = '2026-10-06T08:00:00.000Z';
 const F1 = '2026-10-06T08:01:00.000Z';
 
