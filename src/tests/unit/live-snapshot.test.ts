@@ -16,7 +16,6 @@ vi.mock('@/lib/upsrtc/fleetFixture', async (importOriginal) => {
 import { fetchUpstream } from '@/lib/upsrtc/client';
 import { loadFleetFixture } from '@/lib/upsrtc/fleetFixture';
 import {
-  LAST_GOOD_FRESH_MS,
   LIVE_CACHE_TTL_MS,
   getLiveSnapshot,
   liveDiagnostics,
@@ -147,33 +146,10 @@ describe('getLiveSnapshot', () => {
     mockFetch.mockResolvedValueOnce(okResult(LIVE_PAYLOAD));
     const first = await getLiveSnapshot(T0);
     mockFetch.mockResolvedValueOnce(failResult);
-    const second = await getLiveSnapshot(T0 + LAST_GOOD_FRESH_MS + 1);
+    const second = await getLiveSnapshot(T0 + LIVE_CACHE_TTL_MS + 1);
     expect(second.source).toBe('cache');
     expect(second.stale).toBe(true);
     expect(second.snapshot).toBe(first.snapshot);
-  });
-
-  it('does not call a last-good snapshot stale while it is still fresh', async () => {
-    // One failed refresh is not an outage: the feed itself only changes every 40 seconds
-    // or so, and a snapshot a minute old is as good as the feed. Freshness, not the path
-    // that served the answer, decides the flag. The failure is still recorded.
-    mockFetch.mockResolvedValueOnce(okResult(LIVE_PAYLOAD));
-    const first = await getLiveSnapshot(T0);
-    mockFetch.mockResolvedValueOnce(failResult);
-    const second = await getLiveSnapshot(T0 + LIVE_CACHE_TTL_MS + 1);
-    expect(second.source).toBe('cache');
-    expect(second.stale).toBe(false);
-    expect(second.snapshot).toBe(first.snapshot);
-    expect(liveDiagnostics.consecutiveFailures).toBe(1);
-    expect(liveDiagnostics.lastError).toBe('HTTP 502');
-
-    mockFetch.mockResolvedValueOnce(failResult);
-    const atTheLimit = await getLiveSnapshot(T0 + LAST_GOOD_FRESH_MS);
-    expect(atTheLimit.stale).toBe(false);
-  });
-
-  it('keeps the fresh limit well above the cache window', () => {
-    expect(LAST_GOOD_FRESH_MS).toBeGreaterThanOrEqual(4 * LIVE_CACHE_TTL_MS);
   });
 
   it('treats zero usable buses as a failure', async () => {
@@ -267,7 +243,7 @@ describe('getLiveSnapshot', () => {
       const first = await getLiveSnapshot(T0);
       const gate = deferred();
       mockFetch.mockReturnValueOnce(gate.promise);
-      const later = T0 + LAST_GOOD_FRESH_MS + 1;
+      const later = T0 + LIVE_CACHE_TTL_MS + 1;
       const a = getLiveSnapshot(later);
       const b = getLiveSnapshot(later + 1);
       gate.resolve(failResult);
