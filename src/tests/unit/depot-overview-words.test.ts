@@ -114,7 +114,7 @@ describe('table wording', () => {
   });
 
   // KIND is never a column now (a muted suffix on a non-depot name); the tier sets are pinned
-  // in depot-overview-round2-words.test.ts.
+  // in depot-overview-state-words.test.ts.
 
   it('finds the page that holds a selected unit, in the sorted order', () => {
     const keys = Array.from({ length: 60 }, (_, i) => `u${i}`);
