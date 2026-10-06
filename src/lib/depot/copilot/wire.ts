@@ -56,7 +56,7 @@ export interface CopilotScopeDepot {
 }
 
 /**
- * Round 8 A: the scope the ANSWER used, which may differ from the form's select
+ * The scope the ANSWER used, which may differ from the form's select
  * (a question that names a depot is answered about that depot).
  */
 export type CopilotAnswerScope =

@@ -20,7 +20,7 @@ export const NO_CALL_REASONS: readonly FallbackReason[] = [
 ];
 
 /**
- * Ruling S37. Every request is counted per identity and for the process; with
+ * Every request is counted per identity and for the process; with
  * a trusted address it is also counted per address ALONE, so a fresh login from
  * the same address (one shared PIN, any number of sessions) gains nothing.
  */

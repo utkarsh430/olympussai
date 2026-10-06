@@ -1,7 +1,7 @@
 import type { DepotMeasure } from '@/lib/depot/copilot/queries';
 
 /**
- * Round 8 A: the words that ask for one figure. Order matters: the first match
+ * The words that ask for one figure. Order matters: the first match
  * wins, so "off the road" is read before "on the road", visiting buses before the
  * yard, and the rank before the index ("index and rank" asks for the rank).
  */

@@ -15,7 +15,7 @@ import type { DepotMeasure } from '@/lib/depot/copilot/queries';
 import type { CopilotFact, CopilotRequest } from '@/lib/depot/copilot/types';
 
 /**
- * Round 8 A: the answer to one measure at one depot. The measure's figure comes
+ * The answer to one measure at one depot. The measure's figure comes
  * first, in its own paragraph; the depot's briefing follows as evidence. A
  * measure the snapshot does not establish (no yard, not ranked) leads with the
  * briefing paragraph that says so, never with a guess.

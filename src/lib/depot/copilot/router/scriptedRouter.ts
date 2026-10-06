@@ -226,7 +226,7 @@ function rankQuery(text: string): CopilotQuery {
 }
 
 /**
- * Round 8 A: one measure with no depot named. Asked from a depot, it is that depot's
+ * One measure with no depot named. Asked from a depot, it is that depot's
  * figure unless the question says it is about the network; otherwise it is the
  * network's summary, which carries the network's own figure for it.
  */

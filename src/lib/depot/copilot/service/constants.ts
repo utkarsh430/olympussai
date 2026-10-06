@@ -7,7 +7,7 @@
  *
  * The app has one shared PIN, so a new login is a new identity. When
  * `DEPOT_TRUSTED_IP_HEADER` names a header, the address in it is limited on its
- * own as well (ruling S37), which is what stops one person who logs in again.
+ * own as well, which is what stops one person who logs in again.
  * Set that variable ONLY behind a proxy that overwrites the header on every
  * request; without it the per-address limits are off and behaviour is as before.
  */
@@ -18,7 +18,7 @@ export const RATE_WINDOW_MS = 60_000;
 /**
  * Measured CPU time (user + system) of one scripted answer end to end through
  * the service on the sample feed: 0.27 ms, the minimum of 21 runs of 600
- * requests on an Apple M4 (`depot-copilot-bench.test.ts`, round 5; a heavily
+ * requests on an Apple M4 (`depot-copilot-bench.test.ts`; a heavily
  * loaded run gave 0.64 ms). A request that must rebuild the snapshot's analysis
  * (once per feed refresh) measured 1.06 ms.
  */

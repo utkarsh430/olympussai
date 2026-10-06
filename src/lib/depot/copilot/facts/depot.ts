@@ -47,7 +47,7 @@ const componentLabel = (key: DeiComponentKey): string =>
 const exceptionCount = (n: number): string => `${n} ${n === 1 ? 'exception' : 'exceptions'}`;
 
 /**
- * Review I7. A yard the single-snapshot rule gives is evidenced by the buses
+ * A yard the single-snapshot rule gives is evidenced by the buses
  * parked inside it now; a held yard (`heldSince`) is not, so its fact is the
  * time since which it has been held, never this snapshot's parked count.
  */

@@ -20,7 +20,7 @@ export interface CopilotFact {
    * The depot this fact describes, set by the server where a request holds more than one
    * depot. Absent for a network-wide figure or one that belongs to a pair (a transfer's
    * count). Never sent to the model or the browser; the renderer uses it so that a figure
-   * cannot stand under another depot's name (closing review M-A).
+   * cannot stand under another depot's name.
    */
   readonly depotId?: string;
 }

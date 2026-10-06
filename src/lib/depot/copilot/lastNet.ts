@@ -5,7 +5,7 @@ import {
 } from '@/lib/depot/copilot/limits';
 
 /*
- * The last net behind the grammar and the closed vocabulary (ruling S26). A
+ * The last net behind the grammar and the closed vocabulary. A
  * list of forbidden words can never be complete, so nothing relies on this
  * file alone; it catches a quantity word that a future vocabulary edit lets in.
  */

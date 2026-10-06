@@ -72,7 +72,7 @@ const fail = (reason: string): RenderResult => ({ ok: false, reason });
  * Validates a model draft and fills in the server's fact values. Fact text is
  * sanitised and inserted in one pass, so a placeholder inside it is never expanded.
  *
- * Ruling S26: prose is checked by (1) the ASCII character allowlist, (2) the
+ * Prose is checked by (1) the ASCII character allowlist, (2) the
  * token grammar and (3) the closed vocabulary (grammar.ts, vocabulary/), with
  * the old forbidden-word list kept only as a last net (lastNet.ts). The
  * vocabulary holds no number, magnitude, unit or currency word, so a model can

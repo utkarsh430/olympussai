@@ -11,7 +11,7 @@ import {
 } from '@/lib/depot/copilot/facts/answers/shared';
 import type { AnswerData } from '@/lib/depot/copilot/facts/answers';
 
-/** A sentence of its own: "because" is not in the vocabulary (closing review M-B). */
+/** A sentence of its own: "because" is not in the vocabulary. */
 const UNCOVERED_SENTENCE: Readonly<Record<UncoveredReason, string>> = {
   no_surplus_in_range: 'No surplus lies within range.',
   insufficient_surplus: 'The surplus within range is not enough.',

@@ -48,7 +48,7 @@ export function nameFact(
   return { id, label, text, provenance, kind: 'name', ...depot };
 }
 
-/** Only for use inside a longer fact text: a fact must never be a bare number (ruling S38). */
+/** Only for use inside a longer fact text: a fact must never be a bare number. */
 export const count = (n: number): string => formatCount(n);
 export const busCount = (n: number): string => `${formatCount(n)} ${n === 1 ? 'bus' : 'buses'}`;
 export const depotCount = (n: number): string =>

@@ -50,7 +50,7 @@ const isQualifier = (core: string): boolean =>
   QUALIFIERS.has(core) || core.endsWith(NEGATIVE_CONTRACTION);
 
 /**
- * Ruling S38 items 7 and 11. A word that can act as a unit, a period or a rate
+ * A word that can act as a unit, a period or a rate
  * may not touch a figure on either side ("3 days", "3 each", "per 3"), and a
  * negation or comparison may not stand directly before one ("not 3", "more
  * than 3", "about 3"). A mark after the word lifts the rule; after a figure only a
@@ -79,7 +79,7 @@ function listed(previous: Placeholder, next: Placeholder, edgesOf: EdgesOf): boo
 }
 
 /**
- * Ruling S38 item 9. Between two figures in one sentence the model may write a
+ * Between two figures in one sentence the model may write a
  * list mark, the single word "and", or a real statement: at least one word
  * that is not a linking word. Linking words alone ("3 to 5", "3 out of 5",
  * "3 (of 5)", "3 or 5") would build a range or a ratio.

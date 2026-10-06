@@ -120,7 +120,7 @@ function isScopeDepot(value: unknown): boolean {
   );
 }
 
-/** Round 8 A: the scope the answer used, one of the three wire shapes. */
+/** The scope the answer used, one of the three wire shapes. */
 function isAnswerScope(value: unknown): boolean {
   if (!isRecord(value)) return false;
   if (value.kind === 'network') return true;
