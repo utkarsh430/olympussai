@@ -98,7 +98,9 @@ describe('renderDraft', () => {
 
   it('rejects oversize headline, paragraph and paragraph count', () => {
     expect(rejected(draft('x'.repeat(MAX_HEADLINE_CHARS + 1), 'ok'))).toMatch(/shape|headline/i);
-    expect(rejected(draft('Head', 'x'.repeat(MAX_PARAGRAPH_CHARS + 1)))).toMatch(/shape|paragraph/i);
+    expect(rejected(draft('Head', 'x'.repeat(MAX_PARAGRAPH_CHARS + 1)))).toMatch(
+      /shape|paragraph/i,
+    );
     const many = Array.from({ length: MAX_PARAGRAPHS + 1 }, () => 'ok');
     expect(rejected(draft('Head', ...many))).toMatch(/shape|paragraph/i);
   });

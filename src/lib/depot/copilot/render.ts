@@ -69,5 +69,10 @@ export function renderDraft(draft: CopilotDraft, facts: readonly CopilotFact[]):
 
   const fill = (text: string): string =>
     text.replace(PLACEHOLDER, (_m, id: string) => byId.get(id)?.text ?? '');
-  return { ok: true, headline: fill(headline), paragraphs: paragraphs.map(fill), usedFactIds: used };
+  return {
+    ok: true,
+    headline: fill(headline),
+    paragraphs: paragraphs.map(fill),
+    usedFactIds: used,
+  };
 }
