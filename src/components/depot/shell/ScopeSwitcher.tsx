@@ -159,7 +159,7 @@ export function ScopeSwitcher() {
                 onClick={() => select(option)}
                 className={`flex cursor-pointer items-baseline justify-between gap-3 border-l-2 px-2 py-1.5 ${
                   index === active
-                    ? 'border-holo-glow bg-depot-raised text-holo-glow'
+                    ? 'border-holo-glow bg-depot-selected text-holo-glow'
                     : 'border-transparent text-depot-ink'
                 }`}
               >

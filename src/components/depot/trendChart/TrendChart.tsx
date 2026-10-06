@@ -111,8 +111,8 @@ function ViewSwitch(props: {
             onClick={() => onChange(option === 'table')}
             className={`rounded-[3px] border px-3 py-1 font-mono text-[11px] uppercase leading-4 tracking-[0.12em] ${
               pressed
-                ? 'border-holo-glow text-holo-glow'
-                : 'border-depot-line text-depot-muted hover:text-depot-ink'
+                ? 'border-holo-glow/60 bg-holo-glow/15 text-holo-glow shadow-hud'
+                : 'border-holo-glow/30 bg-holo-glow/[0.06] text-holo-glow/90 hover:border-holo-glow/70 hover:bg-holo-glow/15 hover:text-holo-glow'
             }`}
           >
             {option}

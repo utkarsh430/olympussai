@@ -67,7 +67,7 @@ function RankList({
                   onSelect(row.depot.id);
                 }}
                 className={`group flex min-w-0 cursor-pointer items-baseline gap-3 border-b border-l-2 border-b-depot-line px-2 py-1.5 hover:bg-depot-raised focus-visible:outline focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-holo-glow ${
-                  selected ? 'border-l-holo-glow bg-depot-raised' : 'border-l-transparent'
+                  selected ? 'border-l-holo-glow bg-depot-selected' : 'border-l-transparent'
                 }`}
               >
                 <span className="min-w-0 flex-1 truncate text-[13px] text-depot-ink">

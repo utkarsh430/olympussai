@@ -143,7 +143,7 @@ function TimetableBody({
                 key={`${stop.sequence}-${stop.id}`}
                 aria-current={isNext ? 'step' : undefined}
                 className={`grid grid-cols-[2rem_minmax(0,1fr)_auto] items-baseline gap-x-3 border-b border-depot-line py-1.5 font-mono text-[13px] tabular-nums ${
-                  isNext ? 'border-l-2 border-l-holo-glow bg-depot-raised pl-2' : ''
+                  isNext ? 'border-l-2 border-l-holo-glow bg-depot-selected pl-2' : ''
                 }`}
               >
                 <span className="text-depot-faint">{stop.sequence}</span>
