@@ -9,12 +9,6 @@ import {
 import type { BusException, ExceptionSeverity } from '@/lib/depot/exceptions/types';
 import { formatFeedTime } from '@/lib/depot/format';
 
-const SEVERITY_RANK: Readonly<Record<ExceptionSeverity, number>> = {
-  critical: 0,
-  warning: 1,
-  info: 2,
-};
-
 const SEVERITY_CLASS: Readonly<Record<ExceptionSeverity, string>> = {
   critical: 'depot-sev-critical',
   warning: 'depot-sev-warning',
@@ -25,25 +19,21 @@ const COLUMNS: readonly Column<BusException>[] = [
   {
     key: 'registration',
     header: 'Registration',
-    sortValue: (row) => row.registrationNumber,
     render: (row) => row.registrationNumber,
   },
   {
     key: 'depot',
     header: 'Depot',
-    sortValue: (row) => row.depotName,
     render: (row) => row.depotName ?? 'No home depot in feed',
   },
   {
     key: 'kind',
     header: 'Kind',
-    sortValue: (row) => EXCEPTION_KIND_LABEL[row.kind],
     render: (row) => EXCEPTION_KIND_LABEL[row.kind],
   },
   {
     key: 'severity',
     header: 'Severity',
-    sortValue: (row) => SEVERITY_RANK[row.severity],
     render: (row) => (
       <span className={`depot-tag ${SEVERITY_CLASS[row.severity]}`}>
         {SEVERITY_LABEL[row.severity]}
@@ -54,7 +44,6 @@ const COLUMNS: readonly Column<BusException>[] = [
     key: 'lastSeen',
     header: 'Last seen',
     align: 'right',
-    sortValue: (row) => row.lastSeen,
     render: (row) => formatFeedTime(row.lastSeen),
   },
   {
@@ -70,7 +59,10 @@ export interface BusExceptionTableProps {
   readonly emptyMessage?: string;
 }
 
-/** Buses that need attention, one row each; the page above says how many exist in all. */
+/**
+ * One server page of buses that need attention, in the server's order (worst
+ * first). Not sortable here: sorting one page would misstate the order of the whole list.
+ */
 export function BusExceptionTable({ rows, emptyMessage = 'No buses match these filters.' }: BusExceptionTableProps) {
   return (
     <DataTable
@@ -78,7 +70,6 @@ export function BusExceptionTable({ rows, emptyMessage = 'No buses match these f
       rows={rows}
       rowKey={(row) => row.id}
       caption="Buses that need attention"
-      initialSort={{ key: 'severity', direction: 'asc' }}
       emptyMessage={emptyMessage}
     />
   );

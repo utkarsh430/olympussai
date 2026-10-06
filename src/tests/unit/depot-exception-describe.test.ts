@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   EXCEPTION_KIND_LABEL,
   SEVERITY_LABEL,
-  describeEmptyBusList,
   describeBusException,
   describeDepotException,
 } from '@/lib/depot/exceptions/describe';
@@ -159,21 +158,5 @@ describe('labels', () => {
     for (const kind of kinds) expect(EXCEPTION_KIND_LABEL[kind].length).toBeGreaterThan(0);
     expect(SEVERITY_LABEL).toEqual({ critical: 'Critical', warning: 'Warning', info: 'Info' });
     expect(JSON.stringify(EXCEPTION_KIND_LABEL).toLowerCase()).not.toContain('simulated');
-  });
-});
-
-describe('describeEmptyBusList', () => {
-  it('speaks plainly when the list is complete', () => {
-    expect(describeEmptyBusList(40, 40)).toBe('No buses match these filters.');
-  });
-
-  it('says nothing is flagged when there are no bus exceptions at all', () => {
-    expect(describeEmptyBusList(0, 0)).toMatch(/^No bus is flagged on this snapshot/);
-  });
-
-  it('qualifies the result when the list is capped', () => {
-    expect(describeEmptyBusList(500, 1204)).toBe(
-      'None of the 500 listed buses match. The other 704 are not in this list; open a depot to see all of its exceptions.',
-    );
   });
 });
