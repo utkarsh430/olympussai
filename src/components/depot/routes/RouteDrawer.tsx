@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { depotPortalRoot } from '@/lib/depot/portalRoot';
@@ -7,6 +8,7 @@ import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
 import { useRouteProfile } from '@/hooks/useRouteProfile';
 import { DataTable, type Column } from '@/components/depot/shell/DataTable';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
+import { routeHourlyPath } from '@/lib/depot/nav';
 import type { RouteListItem } from '@/lib/depot/routes/api';
 import {
   NO_TIME,
@@ -202,6 +204,12 @@ export function RouteDrawer({ route, move, onClose, onProfiled, restoreFocusTo }
             Close
           </button>
         </div>
+        <p className="depot-prose mb-3" data-testid="route-drawer-hourly">
+          <Link href={routeHourlyPath(route.routeName)} className="depot-link">
+            Hour by hour
+          </Link>
+          : buses deployed, scheduled and needed on this route in each hour of the day.
+        </p>
         {facts === null ? null : (
           <p className="depot-prose mb-3" data-testid="route-drawer-facts">
             {facts}
