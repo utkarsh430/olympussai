@@ -152,6 +152,14 @@ describe('RoutesPage plan panel', () => {
     expect(markup).toContain('data-testid="route-profile-loader"');
   });
 
+  it('puts the route table on fixed rows with the delay unit in its header', () => {
+    state.allocation = slot({ data: PLAN });
+    const markup = renderToStaticMarkup(<RoutesPage />);
+    expect(markup).toContain('depot-table depot-table-fixed');
+    expect(textOf(markup)).toContain('Median delay, min');
+    expect(textOf(markup)).not.toMatch(/\d min</);
+  });
+
   it('is one state panel with the loader when nothing can be planned', () => {
     const none = { ...PLAN, coverage: { ...PLAN.coverage, planned: { n: 0, of: 2 } }, moves: [] };
     state.allocation = slot({ data: none });

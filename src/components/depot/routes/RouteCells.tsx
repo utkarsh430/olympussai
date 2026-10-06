@@ -20,25 +20,33 @@ export function DepotLink({
   );
 }
 
-/** Every operating depot with its buses; the majority named in words when the route is shared. */
+/**
+ * Every operating depot on one line (the 36px row never wraps): names only, since the
+ * buses column carries the count; each depot's buses and the shared-route note are in
+ * the `title`, and the majority depot is marked in words.
+ */
 export function OperatorsCell({ view }: { readonly view: OperatorsView }) {
+  const full = [
+    ...view.operators.map(
+      (o) =>
+        `${o.depotName}: ${o.buses} ${o.buses === 1 ? 'bus' : 'buses'}${o.majority ? ', majority' : ''}`,
+    ),
+    ...(view.note ? [view.note] : []),
+  ].join('; ');
   return (
-    <span className="flex flex-col gap-0.5 whitespace-normal">
-      {view.operators.map((o) => (
-        <span key={o.depotId} className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+    <span className="block min-w-0 truncate" title={full}>
+      {view.operators.map((o, i) => (
+        <span key={o.depotId}>
+          {i > 0 ? ', ' : null}
           <DepotLink depotId={o.depotId} name={o.depotName} linked={o.linked} />
-          <span className="text-depot-muted">
-            {o.buses} {o.buses === 1 ? 'bus' : 'buses'}
-          </span>
-          {o.majority ? <span className="text-[11px] text-depot-muted">majority</span> : null}
+          {o.majority ? <span className="text-[11px] text-depot-muted"> majority</span> : null}
         </span>
       ))}
-      {view.note ? <span className="text-[11px] text-depot-muted">{view.note}</span> : null}
     </span>
   );
 }
 
-/** A figure with a short qualifier beneath it, in words. */
+/** A figure whose qualifier (or, for a dash, its reason) is in the `title`, not a second line. */
 export function FigureWithNote({
   value,
   note,
@@ -46,14 +54,5 @@ export function FigureWithNote({
   readonly value: string;
   readonly note: string | null;
 }) {
-  return (
-    <span className="flex flex-col items-end">
-      <span>{value}</span>
-      {note ? (
-        <span className="max-w-[14rem] whitespace-normal text-right text-[11px] text-depot-muted">
-          {note}
-        </span>
-      ) : null}
-    </span>
-  );
+  return <span title={note ?? undefined}>{value}</span>;
 }

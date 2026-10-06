@@ -79,3 +79,8 @@ export function deadKmWords(route: RouteListItem): DeadKmWords {
   ];
   return { value: formatKm(dk.perTripKm), note: notes.length === 0 ? null : notes.join('; ') };
 }
+
+/** The median delay for a table cell whose header carries the unit ("+4.5", not "+4.5 min"). */
+export function medianCell(delay: Parameters<typeof delayWords>[0]): string {
+  return delayWords(delay).median.replace(/ min$/, '');
+}
