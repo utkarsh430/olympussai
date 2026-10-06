@@ -1,6 +1,6 @@
 import 'server-only';
 import { spawn } from 'node:child_process';
-import { mkdtempSync } from 'node:fs';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -20,15 +20,19 @@ import type { CopilotProvider } from '@/lib/depot/copilot/types';
 import { createResponseCache, type ResponseCache } from '@/lib/depot/copilot/service/cache';
 import { createCliProvider } from '@/lib/depot/copilot/service/cliFactory';
 import {
-  GLOBAL_REQUESTS_PER_MINUTE,
-  MAX_TRACKED_SESSIONS,
+  CLAUDE_ALLOWANCE_WINDOW_MS,
+  IDENTITY_CLAUDE_CALLS_PER_HOUR,
+  IDENTITY_REQUESTS_PER_MINUTE,
+  MAX_TRACKED_IDENTITIES,
+  MIN_CLAUDE_REMAINING_MS,
+  PROCESS_REQUESTS_PER_MINUTE,
   RATE_WINDOW_MS,
   REQUEST_DEADLINE_MS,
   RESPONSE_CACHE_ENTRIES,
   RESPONSE_CACHE_MS,
-  SESSION_REQUESTS_PER_MINUTE,
 } from '@/lib/depot/copilot/service/constants';
-import { createWindowLimiter, type WindowLimiter } from '@/lib/depot/copilot/service/rateLimit';
+import { createInflightCalls, type InflightCalls } from '@/lib/depot/copilot/service/inflight';
+import { createWindowLimiter, type WindowLimiter } from '@/lib/depot/rateLimit';
 
 /** Everything the route shares between requests. Built once per process. */
 export interface CopilotRuntime {
@@ -40,10 +44,20 @@ export interface CopilotRuntime {
   readonly claudeExpected: boolean;
   /** A Claude provider exists, so a scripted answer forced by the deadline is a fallback. */
   readonly usesClaude: boolean;
-  readonly sessionLimiter: WindowLimiter;
-  readonly globalLimiter: WindowLimiter;
+  /** Requests per identity per minute. */
+  readonly identityLimiter: WindowLimiter;
+  /** All requests per minute: protects the process only. */
+  readonly processLimiter: WindowLimiter;
+  /** Claude calls an identity may start per hour. */
+  readonly claudeAllowance: WindowLimiter;
+  /** One running Claude call per cache key. */
+  readonly inflight: InflightCalls;
   readonly cache: ResponseCache;
   readonly deadlineMs: number;
+  /** A Claude call is not started with less than this left before the deadline. */
+  readonly minClaudeMs: number;
+  /** The server's environment, read for `DEPOT_TRUSTED_IP_HEADER`. */
+  readonly env: Readonly<Record<string, string | undefined>>;
   readonly now: () => number;
 }
 
@@ -53,6 +67,8 @@ export interface RuntimeOptions {
   readonly cli: CopilotProvider | null;
   readonly now?: () => number;
   readonly deadlineMs?: number;
+  readonly minClaudeMs?: number;
+  readonly env?: Readonly<Record<string, string | undefined>>;
 }
 
 export function buildCopilotRuntime(options: RuntimeOptions): CopilotRuntime {
@@ -60,21 +76,29 @@ export function buildCopilotRuntime(options: RuntimeOptions): CopilotRuntime {
   const scripted = createScriptedProvider();
   const engineFor = (setting: ProviderSetting, cli: CopilotProvider | null): CopilotEngine =>
     createCopilotEngine({ setting, cli, scripted, now, cooldownMs: CLI_COOLDOWN_MS });
-  const limiter = (limit: number, maxKeys: number): WindowLimiter =>
-    createWindowLimiter({ now, limit, windowMs: RATE_WINDOW_MS, maxKeys });
+  const limiter = (limit: number, maxKeys: number, windowMs = RATE_WINDOW_MS): WindowLimiter =>
+    createWindowLimiter({ now, limit, windowMs, maxKeys });
   return {
     engine: engineFor(options.setting, options.cli),
     scriptedEngine: engineFor('scripted', null),
     claudeExpected: options.setting === 'claude-cli' && options.cli === null,
     usesClaude: options.setting !== 'scripted' && options.cli !== null,
-    sessionLimiter: limiter(SESSION_REQUESTS_PER_MINUTE, MAX_TRACKED_SESSIONS),
-    globalLimiter: limiter(GLOBAL_REQUESTS_PER_MINUTE, 1),
+    identityLimiter: limiter(IDENTITY_REQUESTS_PER_MINUTE, MAX_TRACKED_IDENTITIES),
+    processLimiter: limiter(PROCESS_REQUESTS_PER_MINUTE, 1),
+    claudeAllowance: limiter(
+      IDENTITY_CLAUDE_CALLS_PER_HOUR,
+      MAX_TRACKED_IDENTITIES,
+      CLAUDE_ALLOWANCE_WINDOW_MS,
+    ),
+    inflight: createInflightCalls(),
     cache: createResponseCache({
       now,
       ttlMs: RESPONSE_CACHE_MS,
       maxEntries: RESPONSE_CACHE_ENTRIES,
     }),
     deadlineMs: options.deadlineMs ?? REQUEST_DEADLINE_MS,
+    minClaudeMs: options.minClaudeMs ?? MIN_CLAUDE_REMAINING_MS,
+    env: options.env ?? {},
     now,
   };
 }
@@ -85,7 +109,10 @@ function createProcessRuntime(): CopilotRuntime {
   const cli = createCliProvider({
     env,
     spawn,
-    makeDir: (prefix) => mkdtempSync(join(tmpdir(), prefix)),
+    // Under the system temp directory, outside the repository; mkdtemp makes it 0700.
+    tempRoot: tmpdir(),
+    makeDir: (prefix) => mkdtemp(join(tmpdir(), prefix)),
+    removeDir: (path) => rm(path, { recursive: true, force: true }),
     semaphore: createSemaphore(CLI_CONCURRENCY, CLI_QUEUE),
     limiter: createCallLimiter({
       now: Date.now,
@@ -93,7 +120,7 @@ function createProcessRuntime(): CopilotRuntime {
       perDay: CLI_MAX_CALLS_PER_DAY,
     }),
   });
-  return buildCopilotRuntime({ setting: readProviderSetting(env), cli });
+  return buildCopilotRuntime({ setting: readProviderSetting(env), cli, env });
 }
 
 const RUNTIME_KEY = Symbol.for('olympuss.depot.copilotRuntime');

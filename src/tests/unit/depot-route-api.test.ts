@@ -5,7 +5,11 @@ vi.mock('@/lib/auth/authorize', () => ({
   unauthorizedResponse: () => Response.json({ error: 'Unauthorized' }, { status: 401 }),
 }));
 vi.mock('@/lib/upsrtc/liveSnapshot', () => ({ getLiveSnapshot: vi.fn() }));
-vi.mock('@/lib/depot/routes/routeCatalogue', () => ({ getRouteProfile: vi.fn() }));
+vi.mock('@/lib/depot/routes/routeCatalogue', () => ({
+  getRouteProfile: vi.fn(),
+  // A cache hit: these tests are not about the upstream throttle.
+  routeProfileNeedsFetch: vi.fn(() => false),
+}));
 
 import { requireUpsrtcAccess } from '@/lib/auth/authorize';
 import { getLiveSnapshot } from '@/lib/upsrtc/liveSnapshot';

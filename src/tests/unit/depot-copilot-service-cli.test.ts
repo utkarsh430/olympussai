@@ -11,15 +11,17 @@ import { createCliProvider, type CliFactoryDeps } from '@/lib/depot/copilot/serv
  * real `claude` command: the file system and `spawn` are fakes that record calls.
  */
 
+/** Root owns the fake binary and its directory, as the core's owner check requires. */
+const ROOT_UID = 0;
 const okFs: BinaryFs = {
   realpath: (path) => path,
-  stat: (path) => ({ isFile: path.endsWith('claude'), mode: 0o755 }),
+  stat: (path) => ({ isFile: path.endsWith('claude'), mode: 0o755, uid: ROOT_UID }),
 };
 const throwingFs: BinaryFs = {
   realpath: () => {
     throw new Error('ENOENT: no such file /opt/secret/claude');
   },
-  stat: () => ({ isFile: true, mode: 0o755 }),
+  stat: () => ({ isFile: true, mode: 0o755, uid: ROOT_UID }),
 };
 
 const REQUEST: CopilotRequest = {
@@ -32,6 +34,7 @@ const REQUEST: CopilotRequest = {
 
 let errorSpy: ReturnType<typeof vi.spyOn>;
 let spawn: ReturnType<typeof vi.fn>;
+let made = 0;
 beforeEach(() => {
   errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
   spawn = vi.fn(() => {
@@ -45,7 +48,9 @@ function deps(over: Partial<CliFactoryDeps> = {}): CliFactoryDeps {
     env: { CLAUDE_BIN: '/usr/local/bin/claude', DEPOT_COPILOT_PROVIDER: 'auto' },
     spawn: spawn as unknown as SpawnLike,
     fs: okFs,
-    makeDir: vi.fn(() => '/tmp/depot-copilot-x'),
+    tempRoot: '/tmp',
+    makeDir: vi.fn(async (prefix: string) => `/tmp/${prefix}${(made += 1)}`),
+    removeDir: vi.fn(async () => undefined),
     semaphore: createSemaphore(2, 2),
     limiter: { tryAcquire: () => true },
     ...over,
@@ -87,5 +92,35 @@ describe('createCliProvider', () => {
       new CopilotFailure('budget_exhausted', 'call budget used'),
     );
     expect(spawn).not.toHaveBeenCalled();
+  });
+
+  it('runs each call in its own HOME and working directory, removed afterwards', async () => {
+    const child = {
+      stdin: { write: () => true, end: () => undefined, on: () => undefined },
+      stdout: { on: () => undefined },
+      stderr: { on: () => undefined },
+      on: (event: string, listener: (code: number) => void) => {
+        if (event === 'close') setTimeout(() => listener(1), 0);
+      },
+      kill: () => undefined,
+    };
+    spawn.mockImplementation(() => child);
+    const made = deps();
+    const provider = createCliProvider(made);
+    await expect(provider!.draft(REQUEST)).rejects.toBeInstanceOf(CopilotFailure);
+    await expect(provider!.draft(REQUEST)).rejects.toBeInstanceOf(CopilotFailure);
+    const options = spawn.mock.calls.map((c) => c[2] as { cwd: string; env: { HOME: string } });
+    const dirs = options.flatMap((o) => [o.cwd, o.env.HOME]);
+    expect(new Set(dirs).size).toBe(4);
+    expect(dirs.every((d) => d.startsWith('/tmp/depot-copilot-'))).toBe(true);
+    expect(vi.mocked(made.removeDir).mock.calls.map((c) => c[0]).sort()).toEqual([...dirs].sort());
+  });
+
+  it('removes the directories when the call is refused before it runs', async () => {
+    const made = deps({ limiter: { tryAcquire: () => false } });
+    await expect(createCliProvider(made)!.draft(REQUEST)).rejects.toMatchObject({
+      reason: 'budget_exhausted',
+    });
+    expect(made.removeDir).toHaveBeenCalledTimes(2);
   });
 });
