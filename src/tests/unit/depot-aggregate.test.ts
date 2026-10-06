@@ -3,6 +3,7 @@ import type { DepotBusRow } from '@/models/depotLive';
 import { UNASSIGNED_DEPOT_ID, type DepotSummary } from '@/lib/depot/types';
 import { classifyDepotKind } from '@/lib/depot/live/depotKind';
 import { networkKpis, summariseDepots } from '@/lib/depot/live/aggregate';
+import { fieldCoverage } from '@/lib/depot/live/coverage';
 
 const FEED_NOW = '2026-10-06T12:00:00.000Z';
 
@@ -53,6 +54,18 @@ function deepFreeze<T>(value: T): T {
     Object.values(value).forEach(deepFreeze);
   }
   return value;
+}
+
+/** Every number anywhere inside a value. JSON.stringify would hide NaN as null. */
+function collectNumbers(value: unknown): number[] {
+  if (typeof value === 'number') return [value];
+  if (value === null || typeof value !== 'object') return [];
+  return Object.values(value).flatMap(collectNumbers);
+}
+
+function expectAllNumbersFinite(value: unknown): void {
+  const numbers = collectNumbers(value);
+  expect(numbers.filter((n) => !Number.isFinite(n))).toEqual([]);
 }
 
 function sum(values: readonly number[]): number {
@@ -264,12 +277,51 @@ describe('summariseDepots', () => {
     expect(() => summariseDepots(rows, FEED_NOW)).not.toThrow();
   });
 
-  it('never produces NaN or Infinity', () => {
-    const rows = [
-      makeRow({ gpsTimestamp: 'bad', latitude: null, longitude: null, speedKmph: null }),
-    ];
-    const json = JSON.stringify(summariseDepots(rows, FEED_NOW));
-    expect(json).not.toMatch(/NaN|Infinity/);
+});
+
+describe('collectNumbers (test helper)', () => {
+  it('finds numbers in nested objects and arrays, including NaN and Infinity', () => {
+    const found = collectNumbers({ a: 1, b: [2, { c: Number.NaN }], d: { e: Infinity }, f: 'x' });
+    expect(found).toHaveLength(4);
+    expect(found.filter((n) => !Number.isFinite(n))).toHaveLength(2);
+  });
+
+  it('makes the finite assertion fail on a NaN or Infinity', () => {
+    expect(() => expectAllNumbersFinite({ deep: [{ lat: Number.NaN }] })).toThrow();
+    expect(() => expectAllNumbersFinite({ value: -Infinity })).toThrow();
+    expect(() => expectAllNumbersFinite({ value: 1, list: [0, 2.5] })).not.toThrow();
+  });
+
+  it('actually visits numbers in real output (centroid included)', () => {
+    const depots = summariseDepots([makeRow({ latitude: 10, longitude: 20 })], FEED_NOW);
+    expect(collectNumbers(depots)).toEqual(expect.arrayContaining([10, 20]));
+  });
+});
+
+describe('non-finite numbers', () => {
+  const scenarios: ReadonlyArray<readonly [string, readonly DepotBusRow[], string | null]> = [
+    ['empty input', [], FEED_NOW],
+    ['no positions anywhere', rowsOf(3, { latitude: null, longitude: null }), FEED_NOW],
+    ['positions present (centroid computed)', [
+      makeRow({ latitude: 10, longitude: 80 }),
+      makeRow({ latitude: 20, longitude: 82 }),
+      makeRow({ latitude: 30, longitude: 84 }),
+    ], FEED_NOW],
+    ['null feedNow', rowsOf(3, { speedKmph: 20 }), null],
+    ['unparsable feedNow and timestamps', rowsOf(2, { gpsTimestamp: 'bad' }), 'garbage'],
+    ['every bus off road', rowsOf(4, { vehicleStatus: 'under_maintenance', speedKmph: null }), FEED_NOW],
+    ['only unassigned buses', rowsOf(2, { depotId: null, depotName: null }), FEED_NOW],
+  ];
+
+  it.each(scenarios)('summariseDepots, networkKpis and fieldCoverage stay finite: %s', (
+    _name,
+    rows,
+    feedNow,
+  ) => {
+    const depots = summariseDepots(rows, feedNow);
+    expectAllNumbersFinite(depots);
+    expectAllNumbersFinite(networkKpis(depots));
+    expectAllNumbersFinite(fieldCoverage(rows));
   });
 });
 
@@ -324,7 +376,7 @@ describe('networkKpis', () => {
       expect(figure.value).toBe(0);
       expect(figure.coverage?.of ?? 0).toBe(0);
     }
-    expect(JSON.stringify(empty)).not.toMatch(/NaN|Infinity/);
+    expectAllNumbersFinite(empty);
   });
 
   it('does not mutate deep-frozen input', () => {

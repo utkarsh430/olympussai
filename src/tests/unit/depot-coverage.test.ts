@@ -110,6 +110,7 @@ describe('fieldCoverage', () => {
     for (const entry of coverage) {
       expect(entry.populated).toBeLessThanOrEqual(entry.of);
       expect(Number.isFinite(entry.populated)).toBe(true);
+      expect(Number.isFinite(entry.of)).toBe(true);
     }
   });
 });
