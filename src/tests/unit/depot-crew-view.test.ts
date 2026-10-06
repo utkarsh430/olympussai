@@ -285,6 +285,18 @@ describe('buildCrewResponse', () => {
     expect(stale?.summary).toBe(fresh?.summary);
     expect(stale?.roster).toBe(fresh?.roster);
   });
+
+  it('shares one build between concurrent first requests for the same depot', async () => {
+    const rows = world();
+    const crewFor = vi.fn(modelledCrewRepository.crewFor);
+    const counted = { ...modelledCrewRepository, crewFor };
+    const [one, two] = await Promise.all([
+      buildCrewResponse(view(rows), '1', counted),
+      buildCrewResponse(view(rows), '1', counted),
+    ]);
+    expect(crewFor).toHaveBeenCalledTimes(1);
+    expect(two?.roster).toBe(one?.roster);
+  });
 });
 
 describe('crew route', () => {
