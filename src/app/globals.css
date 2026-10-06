@@ -559,7 +559,13 @@
      value in the tone with a soft glow. All paint: no box changes size. */
   .depot-figure {
     position: relative;
-    background-image: linear-gradient(180deg, rgb(var(--depot-tone) / 0.07), transparent 75%);
+    background-image: linear-gradient(180deg, rgb(var(--depot-tone) / 0.045), transparent 75%);
+  }
+
+  /* A plain cyan count keeps its accent and value colour but no wash, so a band of counts
+     does not read as a row of boxes and a coloured state figure stands out from them. */
+  .depot-figure.depot-tone-cyan:not(.depot-figure-hero) {
+    background-image: none;
   }
 
   .depot-figure::before {
@@ -609,6 +615,12 @@
   .depot-figure-hero {
     background-image: linear-gradient(180deg, rgb(var(--depot-tone) / 0.13), transparent 85%);
     box-shadow: inset 0 1px 0 0 rgb(var(--depot-tone) / 0.25);
+  }
+
+  .depot-figure-hero .depot-figure-value {
+    text-shadow:
+      0 0 18px rgb(var(--depot-tone) / 0.55),
+      0 0 2px rgb(var(--depot-tone) / 0.4);
   }
 
   .depot-figure-hero .depot-hero-numeral {

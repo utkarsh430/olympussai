@@ -57,6 +57,7 @@ function BandFigure({ figure, progress }: { readonly figure: KpiFigure; readonly
       tag={figureTag(figure.provenance)}
       title={figure.detail ?? undefined}
       tone={KPI_MEANING[figure.key]}
+      lead={figure.key === 'fleet'}
     />
   );
 }

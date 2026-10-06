@@ -151,6 +151,24 @@ describe('Figure: a figure that leads somewhere', () => {
     );
   });
 
+  it('lights the headline figure with the hero glow at the band size, keeping min-w-0', () => {
+    render(
+      <FigureBand label="Fleet">
+        <Figure label="Fleet" value="9,994" lead />
+        <Figure label="On road" value="3,789" />
+      </FigureBand>,
+    );
+    const lead = screen.getByText('9,994');
+    const item = lead.closest('li') as HTMLElement;
+    expect(item.className.split(/\s+/)).toEqual(
+      expect.arrayContaining(['depot-figure-hero', 'min-w-0']),
+    );
+    expect(lead.className).toContain('depot-figure-value');
+    expect(lead.className).not.toContain('depot-hero-numeral');
+    const plain = screen.getByText('3,789').closest('li') as HTMLElement;
+    expect(plain.className).not.toContain('depot-figure-hero');
+  });
+
   it('shows the pressed state with its tone underline, not only in words', () => {
     const { rerender } = render(
       <FigureBand label="Bus exceptions">

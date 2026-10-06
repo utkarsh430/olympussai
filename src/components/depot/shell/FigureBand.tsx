@@ -76,6 +76,11 @@ export interface FigureProps {
   /** The page's single hero figure: display face at 32px. One per page at most. */
   readonly hero?: boolean;
   /**
+   * The band's headline figure, one per page: the hero's stronger wash and glow at the
+   * band's own size, so the page's main number leads without moving anything.
+   */
+  readonly lead?: boolean;
+  /**
    * The figure's one-line explanation: shown on hover and read as part of the figure by
    * assistive technology. The closing disclosure keeps the explanation too.
    */
@@ -113,7 +118,8 @@ const clampShare = (share: number): number =>
  * also stand alone as the page's hero number.
  */
 export function Figure(props: FigureProps) {
-  const { label, value, caption, tag, share, hero = false, title, href, onPress, pressed } = props;
+  const { label, value, caption, tag, share, hero = false, lead = false, title } = props;
+  const { href, onPress, pressed } = props;
   const toneClass = DEPOT_TONE_CLASS[DEPOT_MEANING_TONE[props.tone ?? 'count']];
   // Inside a link or a button only phrasing content is valid, so the parts are spans there.
   const interactive = href !== undefined || onPress !== undefined;
@@ -156,7 +162,7 @@ export function Figure(props: FigureProps) {
   return (
     <li
       title={title}
-      className={`depot-figure ${toneClass} ${hero ? 'depot-figure-hero' : ''}min-w-0 list-none border-l border-depot-line px-4 lg:w-[192px] lg:flex-none xl:w-[200px] min-[1440px]:w-[232px] ${FIGURE_ROWS_CLASSES}`}
+      className={`depot-figure ${toneClass} ${hero || lead ? 'depot-figure-hero ' : ''}min-w-0 list-none border-l border-depot-line px-4 lg:w-[192px] lg:flex-none xl:w-[200px] min-[1440px]:w-[232px] ${FIGURE_ROWS_CLASSES}`}
     >
       {href !== undefined ? (
         <Link href={href} className={`${INTERACTIVE} ${FIGURE_ROWS_CLASSES}`}>
