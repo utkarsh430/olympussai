@@ -11,6 +11,8 @@ export interface PublicExtras {
   readonly claudeMissed: boolean;
   readonly interpretedAs?: string;
   readonly table?: CopilotAnswerTable;
+  /** Server-written, for a stale snapshot: appended here, outside the cache. */
+  readonly staleSentence?: string;
 }
 
 function noticeFor(text: CopilotText, claudeMissed: boolean): CopilotPublicNotice {
@@ -32,7 +34,10 @@ export function toPublicResponse(
   const used = new Set(text.usedFactIds);
   return {
     headline: text.headline,
-    paragraphs: [...text.paragraphs],
+    paragraphs:
+      extras.staleSentence === undefined
+        ? [...text.paragraphs]
+        : [...text.paragraphs, extras.staleSentence],
     provider: text.provider === 'claude-cli' ? 'claude' : 'scripted',
     notice: noticeFor(text, extras.claudeMissed),
     generatedAt: text.generatedAt,

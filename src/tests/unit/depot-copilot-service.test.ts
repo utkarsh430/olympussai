@@ -9,7 +9,7 @@ import { buildNetworkResponse } from '@/lib/depot/live/networkView';
 import { CopilotFailure, type CopilotProvider } from '@/lib/depot/copilot/types';
 import type { FallbackReason } from '@/lib/depot/copilot/types';
 import { buildCopilotRuntime, getCopilotRuntime } from '@/lib/depot/copilot/service/runtime';
-import { answerCopilot } from '@/lib/depot/copilot/service/generate';
+import { answerCopilot, type AnswerCall } from '@/lib/depot/copilot/service/generate';
 import { prepareCopilotRequest, type Prepared } from '@/lib/depot/copilot/service/prepare';
 import type { ValidCopilotRequest } from '@/lib/depot/copilot/service/schema';
 
@@ -52,10 +52,15 @@ function prepared(body: ValidCopilotRequest = NETWORK, v: FleetSnapshotView = vi
 
 function fakeCli(draft: CopilotProvider['draft']) {
   const provider = { id: 'claude-cli' as const, draft: vi.fn(draft) };
-  return { provider, runtime: buildCopilotRuntime({ setting: 'auto', cli: provider }) };
+  const runtime = buildCopilotRuntime({ setting: 'auto', cli: provider, minClaudeMs: 0 });
+  return { provider, runtime };
 }
 
-const soon = (): number => Date.now() + 5_000;
+const soon = (deadlineMs = 5_000): AnswerCall => ({
+  deadlineAt: Date.now() + deadlineMs,
+  signal: new AbortController().signal,
+  identity: 'test',
+});
 
 describe('answerCopilot with an injected provider', () => {
   it('returns Claude text with the facts it used and no notice', async () => {
@@ -98,7 +103,7 @@ describe('answerCopilot with an injected provider', () => {
 
   it('answers scripted, never hanging, once the deadline passes', async () => {
     const { runtime } = fakeCli(() => new Promise(() => undefined));
-    const response = await answerCopilot(runtime, prepared(), Date.now() + 20);
+    const response = await answerCopilot(runtime, prepared(), soon(20));
     expect(response).toMatchObject({ provider: 'scripted', notice: 'claude_unavailable' });
     expect(errorSpy.mock.calls.map((c) => String(c[0]))).toContain('[depot:copilot-api] deadline');
   });

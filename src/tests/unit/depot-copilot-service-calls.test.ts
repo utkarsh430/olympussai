@@ -113,7 +113,9 @@ describe('answerCopilot spending Claude calls', () => {
   it('does not open the breaker after repeated aborts', async () => {
     const { runtime, provider } = runtimeWith(hangUntilAborted);
     for (let i = 0; i < 6; i += 1) {
-      await answerCopilot(runtime, prepared(i), call({ deadlineAt: Date.now() + 10 }));
+      // A different identity each time, so the per-identity allowance is not what stops it.
+      const terms = call({ deadlineAt: Date.now() + 10, identity: `id-${i}` });
+      await answerCopilot(runtime, prepared(i), terms);
     }
     expect(provider.draft).toHaveBeenCalledTimes(6);
     expect(logLines().filter((l) => l.includes('claude-cli fell back'))).toEqual([]);

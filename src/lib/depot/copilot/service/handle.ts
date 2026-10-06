@@ -6,6 +6,7 @@ import { isSameOrigin } from '@/lib/auth/origin';
 import type { FleetSnapshotView } from '@/lib/depot/repositories/types';
 import type { CopilotApiError, CopilotApiResponse } from '@/lib/depot/copilot/wire';
 import { logDepotError } from '@/lib/depot/log';
+import { takeAll } from '@/lib/depot/rateLimit';
 import { readCappedBody } from '@/lib/depot/copilot/service/body';
 import { LOG_SCOPE, MAX_BODY_BYTES } from '@/lib/depot/copilot/service/constants';
 import { answerCopilot } from '@/lib/depot/copilot/service/generate';
@@ -102,10 +103,12 @@ export async function handleCopilotPost(
   const contentType = (request.headers.get('content-type') ?? '').toLowerCase();
   if (!contentType.startsWith('application/json')) return fail('contentType');
 
-  const perSession = runtime.sessionLimiter.take(sessionKey(request));
-  if (perSession.limited) return tooMany(perSession.retryAfterSeconds);
-  const overall = runtime.globalLimiter.take(GLOBAL_KEY);
-  if (overall.limited) return tooMany(overall.retryAfterSeconds);
+  const identity = sessionKey(request);
+  const limit = takeAll([
+    { limiter: runtime.identityLimiter, key: identity },
+    { limiter: runtime.processLimiter, key: GLOBAL_KEY },
+  ]);
+  if (limit.limited) return tooMany(limit.retryAfterSeconds);
 
   const raw = await readCappedBody(request, MAX_BODY_BYTES);
   if (!raw.ok) return fail(raw.status === 413 ? 'tooLarge' : 'invalid');
@@ -115,5 +118,5 @@ export async function handleCopilotPost(
   const prepared = await prepare(body, loadSnapshot, runtime, deadlineAt);
   if (!prepared) return fail('unavailable');
   if (!prepared.ok) return fail('notFound');
-  return reply(await answerCopilot(runtime, prepared, deadlineAt));
+  return reply(await answerCopilot(runtime, prepared, { deadlineAt, signal: request.signal, identity }));
 }
