@@ -85,11 +85,19 @@ const EMPTY_SENTENCE: Readonly<Record<ParkingState, string>> = {
   planned: '',
   no_yard:
     'No yard is established for this depot, so no parking order is shown; it would have to be invented.',
-  no_buses: 'This depot has no buses in the feed, so there is nothing to park.',
+  no_buses: 'No bus of this depot is in its yard to order.',
   not_plannable:
     'The parking order could not be worked out from the rows in the feed, so none is shown.',
 };
 
 export function emptyOrderSentence(state: ParkingState): string {
   return EMPTY_SENTENCE[state];
+}
+
+/** Empty when every in-yard row was ordered; otherwise says how many rows were left out and why. */
+export function droppedRowsSentence(dropped: number): string {
+  if (dropped <= 0) return '';
+  return dropped === 1
+    ? '1 in-yard row with a blank or repeated registration is left out of the order.'
+    : `${formatCount(dropped)} in-yard rows with a blank or repeated registration are left out of the order.`;
 }

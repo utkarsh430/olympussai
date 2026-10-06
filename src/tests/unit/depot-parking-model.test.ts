@@ -3,6 +3,7 @@ import {
   blockedSentence,
   capacitySentence,
   dutyText,
+  droppedRowsSentence,
   emptyOrderSentence,
   fleetOnlyCapacitySentence,
   laneHeading,
@@ -152,8 +153,16 @@ describe('notices', () => {
 
   it('gives one sentence per empty state', () => {
     expect(emptyOrderSentence('no_yard')).toMatch(/No yard is established/);
-    expect(emptyOrderSentence('no_buses')).toMatch(/no buses/);
+    expect(emptyOrderSentence('no_buses')).toBe('No bus of this depot is in its yard to order.');
     expect(emptyOrderSentence('not_plannable')).toMatch(/could not be worked out/);
     expect(emptyOrderSentence('planned')).toBe('');
+  });
+});
+
+describe('droppedRowsSentence', () => {
+  it('is empty when nothing was dropped and counts the rows otherwise', () => {
+    expect(droppedRowsSentence(0)).toBe('');
+    expect(droppedRowsSentence(1)).toMatch(/^1 in-yard row with a blank or repeated/);
+    expect(droppedRowsSentence(3)).toMatch(/^3 in-yard rows with a blank or repeated/);
   });
 });

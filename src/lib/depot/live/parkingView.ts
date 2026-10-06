@@ -55,6 +55,16 @@ function firstDutyByBus(
   return first;
 }
 
+/** The duty assignment rejects a repeated registration, so a live feed's repeat never reaches it. */
+function withoutRepeats(buses: readonly DepotBusView[]): readonly DepotBusView[] {
+  const seen = new Set<string>();
+  return buses.filter((bus) => {
+    if (seen.has(bus.registrationNumber)) return false;
+    seen.add(bus.registrationNumber);
+    return true;
+  });
+}
+
 interface ParkedSet {
   readonly parked: readonly ParkedBus[];
   /** In-yard rows left out because the registration is blank or repeats an earlier row. */
@@ -160,7 +170,12 @@ function buildBody(
   detail: DepotDetailResponse,
   operatingDate: string,
 ): ParkingBody | null {
-  const planned = planDutiesFor(analysis, detail.depot.id, detail.buses, operatingDate);
+  const planned = planDutiesFor(
+    analysis,
+    detail.depot.id,
+    withoutRepeats(detail.buses),
+    operatingDate,
+  );
   if (!planned) return null;
   const bays = modelDepotMaster(detail.depot).parkingCapacity;
   const capacity = capacityOf(detail, bays);

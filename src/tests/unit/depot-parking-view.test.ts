@@ -174,6 +174,12 @@ describe('buildParkingResponse', () => {
     expect(parking(parked()).droppedRows).toBe(0);
   });
 
+  it('does not throw on a repeated registration, and counts the repeat as dropped', () => {
+    const p = parking([...parked(), row({ registrationNumber: 'A3' })]);
+    expect(p.droppedRows).toBe(1);
+    expect(p.order!.parkedCount + p.order!.overflow.length).toBe(12);
+  });
+
   it('counts a bus of another depot standing in the yard against capacity but does not order it', () => {
     const rows = [...parked(), row({ registrationNumber: 'V1', depotId: '2', depotName: 'Other' })];
     const p = parking(rows);
@@ -259,6 +265,21 @@ describe('buildParkingResponse', () => {
     expect(p.order).toBeNull();
     expect(p.capacity.fleet.value).toBe(1);
     expect(p.capacity.visiting.value).toBe(0);
+  });
+
+  it('reaches each empty state through the feed rows, and says no order for each', () => {
+    // A yard is learned but no row can be ordered: every in-yard row has a blank registration.
+    const blank = parked().map((r) => ({ ...r, registrationNumber: ' ' }));
+    const noBuses = parking(blank);
+    expect(noBuses.state).toBe('no_buses');
+    expect(noBuses.order).toBeNull();
+    expect(noBuses.droppedRows).toBeGreaterThan(0);
+    // No yard can be learned from buses 15 km apart.
+    const noYard = parking(scattered());
+    expect(noYard.state).toBe('no_yard');
+    expect(noYard.order).toBeNull();
+    expect(noYard.droppedRows).toBe(0);
+    expect(parking(parked()).state).toBe('planned');
   });
 
   it('skips a row with a blank registration instead of throwing', () => {
