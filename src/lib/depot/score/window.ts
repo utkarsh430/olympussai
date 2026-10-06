@@ -103,8 +103,9 @@ export function pruneSamples(
 /**
  * The list after seeing `sample` (ruling S50b): inserted in feed-time order,
  * replacing a sample with the same feed time (a re-fetch with new rows), then
- * pruned at the newest feed time held. The result depends only on which
- * samples were seen, never on the order they arrived in.
+ * pruned at the newest feed time held. For samples within one window of one
+ * another the result depends only on which were seen, not on their order;
+ * the holder (windowStore.ts) states what is not order-free across that.
  */
 export function insertSample(
   samples: readonly DepotSample[],
