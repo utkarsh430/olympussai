@@ -44,7 +44,7 @@ describe('overview briefing row', () => {
   });
 
   it('opens the card embedded, so the opened panel has one heading, and keeps it when closed', () => {
-    act(() => root.render(<NetworkBriefingRow feedNow="2026-10-06T17:04:00+05:30" />));
+    act(() => root.render(<NetworkBriefingRow feedNow="2026-10-06T17:04:00Z" />));
     expect(container.querySelector('[data-testid="card"]')).toBeNull();
     const button = container.querySelector('button') as HTMLButtonElement;
     act(() => button.click());
