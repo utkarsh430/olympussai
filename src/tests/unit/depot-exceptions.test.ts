@@ -68,7 +68,11 @@ function depot(over: Partial<DepotSummary> = {}): DepotSummary {
 
 type Comp = { value: number | null; peerMedian: number | null; z: number | null };
 
-function score(depotId: string, comps: Partial<Record<DeiComponentKey, Comp>>, ranked = true): DepotScore {
+function score(
+  depotId: string,
+  comps: Partial<Record<DeiComponentKey, Comp>>,
+  ranked = true,
+): DepotScore {
   const keys: DeiComponentKey[] = ['onRoad', 'offRoad', 'dark', 'scheduled', 'deviceHealth'];
   return {
     depotId,
@@ -88,8 +92,10 @@ function score(depotId: string, comps: Partial<Record<DeiComponentKey, Comp>>, r
   };
 }
 
-const stateOf = (feedNow: string | null) => (r: DepotBusRow): BusOpState =>
-  classifyBusState(r, feedNow);
+const stateOf =
+  (feedNow: string | null) =>
+  (r: DepotBusRow): BusOpState =>
+    classifyBusState(r, feedNow);
 
 describe('depot exceptions', () => {
   const D = depot({ states: { inService: 2, onRoad: 0, standing: 6, dark: 8, offRoad: 4 } });
@@ -195,8 +201,9 @@ describe('power_cut_cluster', () => {
 
   it('ignores off-road buses', () => {
     const offRoad = powerCut(3, { vehicleStatus: 'under_maintenance' });
-    expect(run(20, [...powerCut(2), ...offRoad.map((r, i) => ({ ...r, registrationNumber: `O${i}` }))]))
-      .toEqual([]);
+    expect(
+      run(20, [...powerCut(2), ...offRoad.map((r, i) => ({ ...r, registrationNumber: `O${i}` }))]),
+    ).toEqual([]);
   });
 });
 
@@ -207,7 +214,12 @@ describe('bus exceptions', () => {
   it('long_dark fires strictly beyond LONG_DARK_AFTER_MIN', () => {
     const old = minutesAgo(LONG_DARK_AFTER_MIN + 1);
     expect(kinds([row({ gpsTimestamp: minutesAgo(LONG_DARK_AFTER_MIN) })])).toEqual([]);
-    const [ex] = detectBusExceptions([row({ gpsTimestamp: old })], [depot()], FEED_NOW, stateOf(FEED_NOW));
+    const [ex] = detectBusExceptions(
+      [row({ gpsTimestamp: old })],
+      [depot()],
+      FEED_NOW,
+      stateOf(FEED_NOW),
+    );
     expect(ex).toEqual({
       id: 'long_dark:UP32A0001',
       registrationNumber: 'UP32A0001',
@@ -236,20 +248,36 @@ describe('bus exceptions', () => {
 
   it('power_cut is info and needs mainPowerOn === false', () => {
     expect(kinds([row({ mainPowerOn: null })])).toEqual([]);
-    const [ex] = detectBusExceptions([row({ mainPowerOn: false })], [depot()], FEED_NOW, stateOf(FEED_NOW));
+    const [ex] = detectBusExceptions(
+      [row({ mainPowerOn: false })],
+      [depot()],
+      FEED_NOW,
+      stateOf(FEED_NOW),
+    );
     expect(ex).toMatchObject({ id: 'power_cut:UP32A0001', severity: 'info', detail: null });
   });
 
   it('tamper_code carries the raw code and ignores C and null', () => {
-    expect(kinds([row({ tamperCode: 'C' }), row({ registrationNumber: 'B', tamperCode: null })]))
-      .toEqual([]);
-    const [ex] = detectBusExceptions([row({ tamperCode: 'W' })], [depot()], FEED_NOW, stateOf(FEED_NOW));
+    expect(
+      kinds([row({ tamperCode: 'C' }), row({ registrationNumber: 'B', tamperCode: null })]),
+    ).toEqual([]);
+    const [ex] = detectBusExceptions(
+      [row({ tamperCode: 'W' })],
+      [depot()],
+      FEED_NOW,
+      stateOf(FEED_NOW),
+    );
     expect(ex).toMatchObject({ kind: 'tamper_code', severity: 'info', detail: 'W' });
   });
 
   it('emergency is critical and needs emergency === true', () => {
     expect(kinds([row({ emergency: null })])).toEqual([]);
-    const [ex] = detectBusExceptions([row({ emergency: true })], [depot()], FEED_NOW, stateOf(FEED_NOW));
+    const [ex] = detectBusExceptions(
+      [row({ emergency: true })],
+      [depot()],
+      FEED_NOW,
+      stateOf(FEED_NOW),
+    );
     expect(ex).toMatchObject({ id: 'emergency:UP32A0001', severity: 'critical' });
   });
 
@@ -290,7 +318,13 @@ describe('buildExceptionReport', () => {
       row({ registrationNumber: `R${String(i).padStart(4, '0')}`, mainPowerOn: false }),
     );
     rows.push(row({ registrationNumber: 'ZZZ', emergency: true }));
-    const report = buildExceptionReport(rows, [depot({ fleet: n + 1 })], [score('1', {})], FEED_NOW, stateOf(FEED_NOW));
+    const report = buildExceptionReport(
+      rows,
+      [depot({ fleet: n + 1 })],
+      [score('1', {})],
+      FEED_NOW,
+      stateOf(FEED_NOW),
+    );
     expect(report.bus).toHaveLength(BUS_EXCEPTION_CAP);
     expect(report.busTotal).toBe(n + 1);
     expect(report.counts.power_cut).toBe(n);
@@ -332,17 +366,30 @@ describe('buildExceptionReport', () => {
       }),
     );
     const scores = [score('2', {}), score('1', { dark: { value: 0.5, peerMedian: 0.1, z: -3 } })];
-    const shuffled = [...rows].sort((a, b) => (a.registrationNumber.split('').reverse().join('') <
-      b.registrationNumber.split('').reverse().join('') ? -1 : 1));
+    const shuffled = [...rows].sort((a, b) =>
+      a.registrationNumber.split('').reverse().join('') <
+      b.registrationNumber.split('').reverse().join('')
+        ? -1
+        : 1,
+    );
     const a = buildExceptionReport(rows, depots, scores, FEED_NOW, stateOf(FEED_NOW));
-    const b = buildExceptionReport(shuffled, [...depots].reverse(), [...scores].reverse(), FEED_NOW, stateOf(FEED_NOW));
+    const b = buildExceptionReport(
+      shuffled,
+      [...depots].reverse(),
+      [...scores].reverse(),
+      FEED_NOW,
+      stateOf(FEED_NOW),
+    );
     expect(b).toEqual(a);
     expect(a.bus.length).toBeGreaterThan(0);
     expect(a.depot.length).toBeGreaterThan(0);
   });
 
   it('does not mutate its inputs', () => {
-    const rows = Object.freeze([row({ mainPowerOn: false }), row({ registrationNumber: 'B', emergency: true })]);
+    const rows = Object.freeze([
+      row({ mainPowerOn: false }),
+      row({ registrationNumber: 'B', emergency: true }),
+    ]);
     const depots = Object.freeze([depot()]);
     const scores = Object.freeze([score('1', {})]);
     const before = JSON.stringify([rows, depots, scores]);

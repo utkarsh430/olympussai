@@ -119,8 +119,16 @@ describe('buildNetworkResponse', () => {
     expect(res.kpis.fleet.value).toBe(fixtureRows.length);
     expect(res.coverage.every((c) => c.of === fixtureRows.length)).toBe(true);
     expect(Object.keys(res).sort()).toEqual([
-      'coverage', 'depots', 'exceptionCounts', 'feedNow', 'fetchedAt', 'kpis', 'recordCount',
-      'scores', 'source', 'stale',
+      'coverage',
+      'depots',
+      'exceptionCounts',
+      'feedNow',
+      'fetchedAt',
+      'kpis',
+      'recordCount',
+      'scores',
+      'source',
+      'stale',
     ]);
   });
 

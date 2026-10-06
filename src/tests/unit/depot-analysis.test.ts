@@ -93,7 +93,9 @@ describe('analyseSnapshot', () => {
     const first = analyseSnapshot(view());
     const later = analyseSnapshot(view({ fetchedAt: '2026-10-06T08:00:20.000Z' }));
     expect(later).not.toBe(first);
-    const cached = analyseSnapshot(view({ fetchedAt: '2026-10-06T08:00:20.000Z', source: 'cache' }));
+    const cached = analyseSnapshot(
+      view({ fetchedAt: '2026-10-06T08:00:20.000Z', source: 'cache' }),
+    );
     expect(cached).not.toBe(later);
     expect(inferYards).toHaveBeenCalledTimes(3);
   });
@@ -120,7 +122,10 @@ describe('analyseSnapshot', () => {
     const a = analyseSnapshot(view());
     expect([...a.yards.keys()]).toEqual(['1', '2']);
     expect(a.locations.get('A0')?.location).toBe('in_yard');
-    expect(a.locations.get('B-VISIT')).toMatchObject({ location: 'at_other_yard', otherDepotId: '1' });
+    expect(a.locations.get('B-VISIT')).toMatchObject({
+      location: 'at_other_yard',
+      otherDepotId: '1',
+    });
     expect(a.visitorsByDepot.get('1')?.map((r) => r.registrationNumber)).toEqual(['B-VISIT', 'U1']);
     expect(a.visitorsByDepot.get('2')).toBeUndefined();
   });

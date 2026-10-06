@@ -19,7 +19,9 @@ interface Finding {
 function findingsFor(row: DepotBusRow, state: BusOpState, feedNow: string | null): Finding[] {
   const findings: Finding[] = [];
   const offRoad = state === 'off_road';
-  if (row.emergency === true) findings.push({ kind: 'emergency', severity: 'critical', detail: null });
+  if (row.emergency === true) {
+    findings.push({ kind: 'emergency', severity: 'critical', detail: null });
+  }
   const age = gpsAgeMinutes(row, feedNow);
   if (!offRoad && age !== null && age > LONG_DARK_AFTER_MIN) {
     findings.push({ kind: 'long_dark', severity: 'warning', detail: null });

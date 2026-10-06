@@ -7,9 +7,7 @@ import { feedEnvelope, memoiseBySnapshot } from './analysis';
  * counts and `busTotal` match the network view's `exceptionCounts` exactly.
  */
 export const buildExceptionsResponse: (view: FleetSnapshotView) => DepotExceptionsResponse =
-  memoiseBySnapshot(
-    (view, analysis): DepotExceptionsResponse => ({
-      ...feedEnvelope(view),
-      report: analysis.report,
-    }),
-  );
+  memoiseBySnapshot((view, analysis): DepotExceptionsResponse => ({
+    ...feedEnvelope(view),
+    report: analysis.report,
+  }));

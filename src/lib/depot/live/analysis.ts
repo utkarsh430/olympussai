@@ -63,7 +63,11 @@ function groupBy<T>(items: readonly T[], keyOf: (item: T) => string | null): Map
 const homeOf = (depotId: string | null): string => depotId ?? UNASSIGNED_DEPOT_ID;
 
 function byRegistration(a: DepotBusRow, b: DepotBusRow): number {
-  return a.registrationNumber < b.registrationNumber ? -1 : a.registrationNumber > b.registrationNumber ? 1 : 0;
+  return a.registrationNumber < b.registrationNumber
+    ? -1
+    : a.registrationNumber > b.registrationNumber
+      ? 1
+      : 0;
 }
 
 function exceptionsByDepot(
