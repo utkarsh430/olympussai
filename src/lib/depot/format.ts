@@ -118,6 +118,20 @@ const MINUTE_MS = 60_000;
 const HOUR_MS = 60 * MINUTE_MS;
 const DAY_MS = 24 * HOUR_MS;
 
+/**
+ * A feed timestamp as a clock time beside the feed's own clock: "19:45" when it falls on
+ * the feed's day, "5 Oct, 19:45" when it falls on another day (a bus last heard
+ * yesterday evening must not read as a time later than now). When the feed's clock does
+ * not parse, the day is always given. A dash if the stamp itself does not parse.
+ */
+export function formatFeedTimeOn(iso: string | null, feedNow: string | null): string {
+  const stamp = readFeedStamp(iso);
+  if (!stamp) return DASH;
+  const now = readFeedStamp(feedNow);
+  const sameDay = now !== null && Math.floor(now.ms / DAY_MS) === Math.floor(stamp.ms / DAY_MS);
+  return sameDay ? stamp.time : `${Number(stamp.day)} ${stamp.month}, ${stamp.time}`;
+}
+
 function spanWords(ms: number): string {
   if (ms < HOUR_MS) return `${Math.floor(ms / MINUTE_MS)} min`;
   if (ms < DAY_MS) return `${Math.floor(ms / HOUR_MS)} h`;
