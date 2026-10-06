@@ -16,7 +16,7 @@ describe('the Trends chart view', () => {
       'History',
       'Forecast',
       '80% band',
-      'Now (live)',
+      'Now (feed)',
     ]);
     expect(view.legend.map((entry) => entry.label).join(' ')).not.toContain('MODELLED');
   });
@@ -24,7 +24,7 @@ describe('the Trends chart view', () => {
   it('keeps the history and the live point in the legend when there is no forecast', () => {
     const view = buildTrendsChartView(SHORT);
     expect(view.hasForecast).toBe(false);
-    expect(view.legend.map((entry) => entry.label)).toEqual(['History', 'Now (live)']);
+    expect(view.legend.map((entry) => entry.label)).toEqual(['History', 'Now (feed)']);
   });
 
   it('names a forecast beside its band, in the legend, whenever a forecast is drawn', () => {
@@ -41,7 +41,7 @@ describe('the Trends chart view', () => {
   it('says MODELLED once in the text equivalent, and keeps the live value and the range', () => {
     const { summary } = buildTrendsChartView(FULL);
     expect(summary.match(/MODELLED/g)).toHaveLength(1);
-    expect(summary).toContain('LIVE value');
+    expect(summary).toContain('feed value');
     expect(summary).toMatch(/forecast to .* range /);
   });
 
@@ -67,7 +67,7 @@ describe('the Trends chart view', () => {
   it('has one row per drawn point with its sort values', () => {
     const view = buildTrendsChartView(FULL);
     expect(view.table).toHaveLength(70 + 14);
-    expect(view.table[69]?.kind).toBe('Now (live)');
+    expect(view.table[69]?.kind).toBe('Now (feed)');
     // R2-m16: the Kind cell never carries the tag word.
     expect(view.table.some((r) => /MODELLED/.test(r.kind))).toBe(false);
     expect(view.table[70]?.sortLow).not.toBeNull();

@@ -63,7 +63,7 @@ describe('trend table rows', () => {
 
   it('gives every sparkline a text equivalent that carries MODELLED', () => {
     expect(rows[0]?.sparkLabel).toBe(
-      'On-road share at Depot 1, MODELLED trend: up 2.1 percentage points over 4 weeks, ending on the live value',
+      'On-road share at Depot 1, MODELLED trend: up 2.1 percentage points over 4 weeks, ending on today\'s feed value',
     );
     expect(rows[3]?.sparkLabel).toBe('On-road share at Depot 4: no MODELLED trend yet');
   });

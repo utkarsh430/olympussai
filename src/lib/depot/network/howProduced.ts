@@ -32,8 +32,8 @@ export const LEAGUE_HOW_PRODUCED: readonly string[] = [
   indexDefinition(),
   WINDOW,
   RANKED,
-  `The index trend column is MODELLED: a generated ${DEFAULT_HISTORY_DAYS}-day history that ends on the live ` +
-    'value, with its direction over four weeks. It is not measured.',
+  `The index trend column is MODELLED: a generated ${DEFAULT_HISTORY_DAYS}-day history that ends on today's ` +
+    'feed value, with its direction over four weeks. It is not measured.',
 ];
 
 export const OVERVIEW_HOW_PRODUCED: readonly string[] = [

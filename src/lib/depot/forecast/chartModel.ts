@@ -71,7 +71,7 @@ export interface TrendChartModel {
 
 export const KIND_WORDS: Readonly<Record<PointKind, string>> = {
   history: 'MODELLED history',
-  live: 'LIVE value',
+  live: 'Feed value',
   forecast: 'MODELLED forecast',
 };
 
@@ -82,7 +82,7 @@ const BAND_SHARE = Math.round(BAND_QUANTILE * 100);
 
 const LEGEND: Readonly<Record<LegendEntry['key'], LegendEntry>> = {
   history: { key: 'history', label: 'History, MODELLED', mark: 'line' },
-  live: { key: 'live', label: 'Live value, LIVE', mark: 'dot' },
+  live: { key: 'live', label: 'Feed value, LIVE', mark: 'dot' },
   forecast: { key: 'forecast', label: 'Forecast, MODELLED', mark: 'dashed' },
   band: {
     key: 'band',
@@ -168,7 +168,7 @@ export function trendSummary(
   if (first && end) {
     parts.push(`MODELLED history from ${formatDate(first.date)} to ${formatDate(end.date)}`);
   }
-  if (live) parts.push(`LIVE value ${formatValue(live.value, unit)} on ${formatDate(live.date)}`);
+  if (live) parts.push(`feed value ${formatValue(live.value, unit)} on ${formatDate(live.date)}`);
   if (last?.kind === 'forecast' && last.low !== null && last.high !== null) {
     const band = `${formatValue(last.low, unit)} to ${formatValue(last.high, unit)}`;
     const ends = `ends at ${formatValue(last.value, unit)}, range ${band}`;

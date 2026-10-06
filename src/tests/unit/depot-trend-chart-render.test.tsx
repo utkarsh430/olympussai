@@ -93,7 +93,7 @@ describe('TrendChart', () => {
     const legend = [...container.querySelectorAll('[data-legend]')].map((e) => e.textContent);
     expect(legend).toEqual([
       'History, MODELLED',
-      'Live value, LIVE',
+      'Feed value, LIVE',
       'Forecast, MODELLED',
       'Forecast range (80% of past errors at each day ahead), MODELLED',
     ]);
@@ -118,7 +118,7 @@ describe('TrendChart', () => {
         data={sample()}
         title="On-road share: trend and forecast"
         tag="modelled"
-        legendLabels={{ history: 'History', live: 'Now (live)' }}
+        legendLabels={{ history: 'History', live: 'Now (feed)' }}
         caption="Steady over 4 weeks"
         summary="One text equivalent."
         sortableTable
@@ -128,7 +128,7 @@ describe('TrendChart', () => {
     const label = container.querySelector('[data-testid="depot-section-label"]');
     expect(label?.querySelector('[data-provenance="modelled"]')).not.toBeNull();
     const legend = [...container.querySelectorAll('[data-legend]')].map((e) => e.textContent);
-    expect(legend).toEqual(['History', 'Now (live)']);
+    expect(legend).toEqual(['History', 'Now (feed)']);
     expect(container.querySelector('[data-testid="trends-caption"]')?.textContent).toBe(
       'Steady over 4 weeks',
     );
@@ -186,6 +186,6 @@ describe('TrendChart', () => {
       'No forecast: it needs at least 28 days of history and this series has 20.',
     );
     const legend = [...container.querySelectorAll('[data-legend]')].map((e) => e.textContent);
-    expect(legend).toEqual(['History, MODELLED', 'Live value, LIVE']);
+    expect(legend).toEqual(['History, MODELLED', 'Feed value, LIVE']);
   });
 });

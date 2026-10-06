@@ -24,7 +24,7 @@ const KNOWN: ReadonlySet<string> = new Set(TREND_METRICS);
 export const MODELLED_HISTORY_NOTE =
   'Every history on this page is MODELLED: it is generated until a database of real history ' +
   'exists, and the same charts will then show measured history. Only the last point of each ' +
-  'line, the live value, comes from the feed today.';
+  'line comes from the feed today.';
 
 /**
  * The closing disclosure's paragraphs about the chart: what the history is, then the
