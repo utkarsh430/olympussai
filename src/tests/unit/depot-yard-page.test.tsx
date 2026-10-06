@@ -181,7 +181,9 @@ describe('the yard page', () => {
   it('captions "In the yard" as this depot\'s buses, visitors counted apart (R2-m13)', async () => {
     hooks.detail = { ...base, data: DATA, error: null, loading: false };
     const t = text(await renderPage());
-    expect(t).toContain("this depot's buses inside the circle");
+    // Short enough for a 200px figure at 1024; the full sentence is the figure's title.
+    expect(t).toContain('ours, inside the circle');
+    expect(t).toContain("This depot's buses inside the yard circle, in any state.");
     expect(t).toContain('Buses from other depots inside it are counted under Visiting.');
     expect(t).not.toContain('inside the yard circle, any state');
   });

@@ -24,7 +24,8 @@ const PERCENT = 100;
 /**
  * The band's figure, laid out for this band: a tag sits inside the 16px label line (so a
  * tagged figure's value stays level with its siblings'), a share bar leads the caption
- * line instead of adding a row, and on a phone the caption wraps instead of cutting.
+ * line instead of adding a row (narrower at 1024, where a figure is 200px, so "79 free" is
+ * never cut), and on a phone the caption wraps instead of cutting.
  */
 function YardFigure({ label, value, caption, tag, share, title }: YardFigureProps) {
   const width = share === undefined ? 0 : Math.round(Math.min(1, Math.max(0, share)) * PERCENT);
@@ -43,7 +44,7 @@ function YardFigure({ label, value, caption, tag, share, title }: YardFigureProp
       <div className="mt-1.5 truncate font-mono text-2xl leading-7 tabular-nums text-depot-ink">{value}</div>
       <p className="depot-caption mt-1.5 flex min-w-0 items-center gap-2">
         {share !== undefined ? (
-          <span aria-hidden className="depot-bar-track block w-[120px] shrink-0">
+          <span aria-hidden className="depot-bar-track block w-[120px] shrink-0 lg:w-[80px] xl:w-[120px]">
             <span className="depot-bar-fill block" data-testid="depot-figure-share" style={{ width: `${width}%` }} />
           </span>
         ) : null}
@@ -80,7 +81,7 @@ export function YardFigures({ model, capacity, baysPending }: YardFiguresProps) 
             <YardFigure
               label="In the yard"
               value={formatCount(model.counts.inYard)}
-              caption="this depot's buses inside the circle"
+              caption="ours, inside the circle"
               title="This depot's buses inside the yard circle, in any state. Buses from other depots inside it are counted under Visiting."
             />
             <YardFigure
