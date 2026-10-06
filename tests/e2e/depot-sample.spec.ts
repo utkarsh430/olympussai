@@ -223,6 +223,13 @@ const PAGE_HEADING: Readonly<Record<string, string>> = {
   '/project/depots/d/[depotId]/yard': 'Yard',
 };
 
+/** The heading a page template shows; every template the file system declares has one. */
+function headingOf(template: string): string {
+  const heading = PAGE_HEADING[template];
+  if (heading === undefined) throw new Error(`no heading listed for ${template}`);
+  return heading;
+}
+
 type DepotPage = import('@playwright/test').Page;
 
 /** Opens a depot page and waits until its heading and its data have arrived. */
@@ -267,7 +274,7 @@ test.describe('2. every depot page renders honestly on the sample', () => {
 
   for (const template of PAGE_TEMPLATES) {
     test(`${template} shows its heading and provenance`, async ({ page, sample }) => {
-      await openPage(page, template.replace(DEPOT_SEGMENT, sample.depotId), PAGE_HEADING[template]);
+      await openPage(page, template.replace(DEPOT_SEGMENT, sample.depotId), headingOf(template));
 
       const provenance = page.getByTestId('depot-provenance-line');
       await expect(provenance).toBeVisible();
@@ -277,7 +284,7 @@ test.describe('2. every depot page renders honestly on the sample', () => {
     test(`${template} loads with no console error`, async ({ page, sample }) => {
       test.fixme(template in CONSOLE_DEFECTS, CONSOLE_DEFECTS[template]);
       const errors = collectConsoleErrors(page);
-      await openPage(page, template.replace(DEPOT_SEGMENT, sample.depotId), PAGE_HEADING[template]);
+      await openPage(page, template.replace(DEPOT_SEGMENT, sample.depotId), headingOf(template));
       await page.waitForLoadState('networkidle');
 
       expect(errors).toEqual([]);
@@ -285,7 +292,7 @@ test.describe('2. every depot page renders honestly on the sample', () => {
 
     test(`${template} never says "simulated" or prints a raw date`, async ({ page, sample }) => {
       test.fixme(template in WORDING_DEFECTS, WORDING_DEFECTS[template]);
-      await openPage(page, template.replace(DEPOT_SEGMENT, sample.depotId), PAGE_HEADING[template]);
+      await openPage(page, template.replace(DEPOT_SEGMENT, sample.depotId), headingOf(template));
 
       const texts = await allPageText(page);
       expect(texts.filter((text) => /simulated/i.test(text))).toEqual([]);
@@ -311,7 +318,7 @@ test.describe('3. no sideways page scroll on any depot page', () => {
       const url = template.replace(DEPOT_SEGMENT, sample.depotId);
       for (const width of WIDTHS) {
         await page.setViewportSize({ width, height: 900 });
-        await openPage(page, url, PAGE_HEADING[template]);
+        await openPage(page, url, headingOf(template));
         await expect.poll(() => sidewaysScroll(page), { message: `${width} px` }).toBe(0);
       }
     });
@@ -704,7 +711,7 @@ test.describe('10. the sample is never presented as live', () => {
 
   for (const template of PAGE_TEMPLATES) {
     test(`${template} says the data is the sample, not the live feed`, async ({ page, sample }) => {
-      await openPage(page, template.replace(DEPOT_SEGMENT, sample.depotId), PAGE_HEADING[template]);
+      await openPage(page, template.replace(DEPOT_SEGMENT, sample.depotId), headingOf(template));
 
       const chip = page.getByTestId('depot-feed-status');
       await expect(chip).toHaveAttribute('data-tone', 'fixture');
@@ -717,7 +724,7 @@ test.describe('10. the sample is never presented as live', () => {
 
     test(`${template} never calls the sample live`, async ({ page, sample }) => {
       test.fixme(template in LIVE_DEFECTS, LIVE_DEFECTS[template]);
-      await openPage(page, template.replace(DEPOT_SEGMENT, sample.depotId), PAGE_HEADING[template]);
+      await openPage(page, template.replace(DEPOT_SEGMENT, sample.depotId), headingOf(template));
 
       expect(await liveClaims(page)).toEqual([]);
     });

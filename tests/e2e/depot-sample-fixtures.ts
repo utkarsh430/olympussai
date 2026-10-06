@@ -85,16 +85,16 @@ interface WorkerFixtures {
  * Every test first confirms, once per worker, that the server is on the saved sample.
  */
 export const test = base.extend<object, WorkerFixtures>({
-  storageState: ({ workerStorageState }, use) => use(workerStorageState),
+  storageState: ({ workerStorageState }, provide) => provide(workerStorageState),
   sample: [
-    async ({ workerStorageState }, use, workerInfo) => {
+    async ({ workerStorageState }, provide, workerInfo) => {
       const baseURL = String(workerInfo.project.use.baseURL ?? E2E_ORIGIN);
-      await use(await readSample(baseURL, workerStorageState));
+      await provide(await readSample(baseURL, workerStorageState));
     },
     { scope: 'worker' },
   ],
   workerStorageState: [
-    async ({}, use, workerInfo) => {
+    async ({}, provide, workerInfo) => {
       const baseURL = String(workerInfo.project.use.baseURL ?? E2E_ORIGIN);
       const file = path.join(
         workerInfo.project.outputDir,
@@ -102,7 +102,7 @@ export const test = base.extend<object, WorkerFixtures>({
       );
       if (!E2E_PIN) throw new Error(PIN_MISSING);
       await signIn(baseURL, file);
-      await use(file);
+      await provide(file);
     },
     { scope: 'worker' },
   ],
