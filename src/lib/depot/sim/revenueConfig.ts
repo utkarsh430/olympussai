@@ -122,6 +122,15 @@ export const ECONOMICS_WEIGHTS = {
   loadFactor: 0.25,
 } as const;
 
+/**
+ * The robust z-score at which a component of the economics index stops
+ * counting for more: a weighted total of +ECONOMICS_Z_CLAMP reaches 100 and its
+ * negative reaches 0. Owned here, not borrowed from the efficiency index, so a
+ * change to that index's scale cannot move this one. The breakdown note is
+ * built from it.
+ */
+export const ECONOMICS_Z_CLAMP = 3;
+
 /** The parameters as one value, sent with every response that shows a modelled revenue figure. */
 export const REVENUE_MODEL_PARAMS = {
   loadFactorBase: LOAD_FACTOR_BASE,
