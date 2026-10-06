@@ -345,7 +345,10 @@
       box-shadow 160ms ease;
   }
 
-  .depot-panel:hover {
+  /* Only a panel that can be clicked lights on hover; a plain panel promises nothing. */
+  a.depot-panel:hover,
+  button.depot-panel:hover,
+  [role='button'].depot-panel:hover {
     border-color: rgba(63, 240, 255, 0.32);
     box-shadow:
       0 0 0 1px rgba(63, 240, 255, 0.1),
