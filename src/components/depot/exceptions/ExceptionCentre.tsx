@@ -6,6 +6,7 @@ import { useDepotExceptions, DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/useDepotE
 import { ErrorPanel, LoadingBlock, StaleStrip } from '@/components/depot/shell/DataStates';
 import { SectionLabel } from '@/components/depot/shell/SectionLabel';
 import { HowProduced } from '@/components/depot/shell/HowProduced';
+import { StatePanel } from '@/components/depot/shell/StatePanel';
 import type { DepotExceptionsResponse } from '@/lib/depot/api';
 import { BUS_EXCEPTION_KINDS, BUS_PAGE_DEFAULT_LIMIT } from '@/lib/depot/exceptions/busPage';
 import { EXCEPTION_KIND_LABEL } from '@/lib/depot/exceptions/describe';
@@ -118,6 +119,23 @@ export function ExceptionCentre() {
   }
 
   const { report } = shown;
+  // Nothing flagged anywhere: one state line replaces a band of zeros (zeros read as findings).
+  const nothingFlagged =
+    kind === null && depotId === null && Object.values(report.counts).every((n) => n === 0);
+  if (nothingFlagged) {
+    return (
+      <>
+        {shown.stale || error ? <StaleStrip since={shown.feedNow} /> : null}
+        <StatePanel
+          kind="empty"
+          sentence="Nothing stands out on this snapshot: no depot and no bus is flagged."
+          remedy="A depot is listed when a rate moves far from its peers; a bus when it goes dark, loses main power or reports a tamper code or the emergency flag."
+          howLink={{ label: 'How exceptions are found', targetId: 'how-produced' }}
+        />
+        <HowProduced id="how-produced" testId="depot-produced" className="mt-10" paragraphs={HOW_PRODUCED} />
+      </>
+    );
+  }
   return (
     <>
       {shown.stale || error ? <StaleStrip since={shown.feedNow} /> : null}
@@ -159,7 +177,7 @@ export function ExceptionCentre() {
         onOffsetChange={setOffset}
       />
 
-      <HowProduced testId="depot-produced" className="mt-10" paragraphs={HOW_PRODUCED} />
+      <HowProduced id="how-produced" testId="depot-produced" className="mt-10" paragraphs={HOW_PRODUCED} />
     </>
   );
 }
