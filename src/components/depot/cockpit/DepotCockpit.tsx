@@ -76,6 +76,8 @@ export function DepotCockpit() {
         rows={model.tracker}
         coverage={data.outshed.coverage}
         coverageSentence={model.coverageSentence}
+        hasSchedules={model.hasSchedules}
+        noSchedulesSentence={model.noSchedulesSentence}
       />
       <DepotExceptions depotId={depotId} lines={model.exceptions} />
       <VisitorList visitors={model.visitors} yardEstablished={model.board.yard.established} />
