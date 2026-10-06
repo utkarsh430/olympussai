@@ -116,7 +116,7 @@ describe('YardFigures', () => {
       ),
     );
     expect(t).toContain('50 of 60');
-    expect(t).toContain('fleet against modelled bays');
+    expect(t).toContain('fleet only');
     expect(t).not.toMatch(/In the yard/);
   });
 
@@ -172,6 +172,11 @@ describe('ParkingPlan', () => {
     expect(text(html)).toContain('1 bus does not fit in the modelled lanes and is not ordered.');
     expect(text(html)).toContain('No free place in any modelled lane');
     expect(text(html)).toContain('No bus is blocked in');
+    // The success is the shared nil line: neutral words beside a square, never green text.
+    const start = html.indexOf('data-testid="parking-blocked"');
+    const line = html.slice(start, html.indexOf('</div>', start));
+    expect(line).not.toContain('text-alert-green');
+    expect(html).not.toMatch(/<p[^>]*text-alert-green/);
   });
 
   it('warns in words when any bus is blocked, and omits the overflow block when none', () => {

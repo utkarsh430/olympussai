@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { rosterBusHref } from '@/lib/depot/depotNav';
 import { CollapsedSection } from '@/components/depot/shell/CollapsedSection';
 import { SectionLabel } from '@/components/depot/shell/SectionLabel';
+import { StatePanel } from '@/components/depot/shell/StatePanel';
 import type { ParkingLane, ParkingOrder } from '@/lib/depot/yard/parkingApi';
 import {
   buildParkingDiagram,
@@ -111,13 +112,16 @@ export function ParkingPlan({ depotId, order, operatingDate }: ParkingPlanProps)
         tag="modelled"
         note={planDateSentence(operatingDate)}
       />
-      <p
-        role={diagram.status.warning ? 'alert' : 'status'}
-        data-testid="parking-blocked"
-        className={`depot-prose mb-2 ${diagram.status.warning ? 'text-alert-amber' : 'text-alert-green'}`}
-      >
-        {diagram.status.text}
-      </p>
+      {diagram.status.warning ? (
+        <p role="alert" data-testid="parking-blocked" className="depot-prose mb-2 text-alert-amber">
+          {diagram.status.text}
+        </p>
+      ) : (
+        // Nothing blocked is a nil result: the shared one-line nil (a green square, neutral words).
+        <div role="status" data-testid="parking-blocked" className="mb-2">
+          <StatePanel kind="empty" compact tone="ok" sentence={diagram.status.text} />
+        </div>
+      )}
       <figure className="m-0 min-w-0">
         {/* relative: the absolutely placed lanes stay inside this scrolling frame. */}
         <div
