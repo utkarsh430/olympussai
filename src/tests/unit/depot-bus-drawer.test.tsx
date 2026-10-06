@@ -18,7 +18,7 @@ const BUS = {
   longitude: 73,
   speedKmph: 30,
   gpsAgeMin: 1,
-  vehicleStatus: 'moving',
+  vehicleStatus: 'live',
   tripStatus: null,
   routeName: 'Pune - Satara',
   routeDescription: null,
