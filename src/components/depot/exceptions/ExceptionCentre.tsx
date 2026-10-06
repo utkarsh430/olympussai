@@ -66,7 +66,11 @@ export function ExceptionCentre() {
 
   if (!shown) {
     if (loading) return <LoadingBlock rows={8} label="Loading exceptions" />;
-    return <ErrorPanel message={error ?? DEPOT_UNAVAILABLE_MESSAGE} onRetry={refresh} />;
+    return <ErrorPanel
+        title="Could not load exceptions"
+        message={error ?? DEPOT_UNAVAILABLE_MESSAGE}
+        onRetry={refresh}
+      />;
   }
 
   const { report } = shown;

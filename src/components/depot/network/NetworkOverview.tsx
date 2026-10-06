@@ -11,7 +11,7 @@ import {
 } from '@/components/depot/shell/DataStates';
 import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
 import { formatClockTime } from '@/lib/depot/format';
-import { loadErrorBody } from '@/lib/depot/loadError';
+import { LOAD_ERROR_TITLE, loadErrorBody } from '@/lib/depot/loadError';
 import { unpositionedSentence } from '@/lib/depot/network/mapWords';
 import { joinScores, unpositionedCount, type DepotRow } from '@/lib/depot/network/overviewModel';
 import type { DepotNetworkResponse } from '@/lib/depot/api';
@@ -162,7 +162,7 @@ function OverviewError({ onRetry }: { readonly onRetry: () => void }) {
   // Seen once, when the failure first rendered; a re-render must not move the time.
   const [at] = useState(() => formatClockTime(new Date()));
   return (
-    <ErrorPanel message={loadErrorBody(at, null)} onRetry={onRetry}>
+    <ErrorPanel title={LOAD_ERROR_TITLE} message={loadErrorBody(at, null)} onRetry={onRetry}>
       <Link href={OPERATIONS_HREF} className="depot-link text-[13px]">
         Back to Operations
       </Link>

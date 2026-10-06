@@ -39,7 +39,11 @@ function CoverageSection() {
         </div>
       ) : !data ? (
         <div className="mt-3">
-          <ErrorPanel message={error ?? DEPOT_UNAVAILABLE_MESSAGE} onRetry={refresh} />
+          <ErrorPanel
+            title="Could not load data sources"
+            message={error ?? DEPOT_UNAVAILABLE_MESSAGE}
+            onRetry={refresh}
+          />
         </div>
       ) : (
         <>

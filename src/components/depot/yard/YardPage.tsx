@@ -25,7 +25,13 @@ export function YardPage() {
 
   if (!data || !model) {
     if (loading && !error) return <LoadingBlock rows={6} label="Loading the yard" />;
-    return <ErrorPanel message={error ?? DEPOT_UNAVAILABLE_MESSAGE} onRetry={refresh} />;
+    return (
+      <ErrorPanel
+        title="Could not load the yard"
+        message={error ?? DEPOT_UNAVAILABLE_MESSAGE}
+        onRetry={refresh}
+      />
+    );
   }
 
   return (

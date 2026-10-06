@@ -44,7 +44,11 @@ export function MaintenancePage() {
     }
     return (
       <ErrorPanel
-        title={detail.error === DEPOT_NOT_FOUND_MESSAGE ? DEPOT_NOT_FOUND_MESSAGE : undefined}
+        title={
+          detail.error === DEPOT_NOT_FOUND_MESSAGE
+            ? DEPOT_NOT_FOUND_MESSAGE
+            : 'Could not load maintenance data'
+        }
         message={detail.error || DEPOT_UNAVAILABLE_MESSAGE}
         onRetry={detail.refresh}
       />

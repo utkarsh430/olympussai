@@ -60,7 +60,13 @@ export function DutyPage({ depotId }: { readonly depotId: string }) {
   if (!data) {
     if (error === DEPOT_NOT_FOUND_MESSAGE) return <UnknownDepot depotId={depotId} />;
     if (loading || !error) return <DutiesLoading />;
-    return <ErrorPanel message={error || DEPOT_UNAVAILABLE_MESSAGE} onRetry={refresh} />;
+    return (
+      <ErrorPanel
+        title="Could not load duties"
+        message={error || DEPOT_UNAVAILABLE_MESSAGE}
+        onRetry={refresh}
+      />
+    );
   }
 
   const withoutDuty = routesWithoutDutySentence(data.routesWithoutDuty);
