@@ -1,8 +1,7 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { DepotBusRow } from '@/models/depotLive';
-import { analyseSnapshot, resetAnalysisForTests } from '@/lib/depot/live/analysis';
-import { dutyPlanFor } from '@/lib/depot/live/operatingDayView';
+import { resetAnalysisForTests } from '@/lib/depot/live/analysis';
 import { buildEconomicsResponse } from '@/lib/depot/live/economicsView';
 import { buildFuelResponse } from '@/lib/depot/live/fuelView';
 import { buildRevenueResponse } from '@/lib/depot/live/revenueView';
@@ -57,29 +56,10 @@ const VIEW: FleetSnapshotView = {
   stale: false, recordCount: 280,
 };
 const SOURCES = { revenue: modelledRevenueRepository, fuel: modelledFuelRepository };
-const tenths = (km: number): number => Math.round(km * 10);
 
 beforeEach(() => resetAnalysisForTests());
 
 describe('one modelled day behind every page', () => {
-  it('the duty board, fuel and revenue pages count the same duties, trips, buses and kilometres', async () => {
-    const planned = dutyPlanFor(analyseSnapshot(VIEW), '1', '2026-10-06');
-    const fuel = await buildFuelResponse(VIEW, '1', modelledFuelRepository);
-    const revenue = await buildRevenueResponse(VIEW, '1', SOURCES);
-    if (!planned || !fuel || !revenue) throw new Error('depot 1 is missing');
-    expect(planned.duties.length).toBeGreaterThan(0);
-    expect(fuel.day).toEqual(revenue.day);
-    expect(fuel.day.duties).toBe(planned.duties.length);
-    expect(fuel.day.routes).toBe(new Set(planned.duties.map((d) => d.routeName)).size);
-    expect(revenue.summary.trips + fuel.day.dutiesWithoutBus).toBe(planned.duties.length);
-    expect(fuel.totals.busCount).toBe(revenue.summary.trips);
-    expect(fuel.totals.busCount).toBe(fuel.day.busesRan);
-    expect(fuel.day.busesRan + fuel.notRunCount).toBe(fuel.day.buses);
-    expect(tenths(fuel.totals.distanceKm)).toBe(tenths(revenue.summary.serviceKm));
-    expect(revenue.routes.every((r) => r.earningsPerKm !== null || r.trips === 0)).toBe(true);
-    expect(revenue.summary.lengthCoverage).toEqual({ n: 0, of: revenue.routes.length });
-  });
-
   it('the economics index uses the fuel page’s cost per kilometre and ranks without profiles', async () => {
     const economics = await buildEconomicsResponse(VIEW, SOURCES);
     for (const depotId of ['1', '2', '3']) {

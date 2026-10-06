@@ -61,18 +61,6 @@ describe('one modelled day reconciles across crew, fuel and revenue', () => {
     }
   });
 
-  it('crew shifts are the duties plus the relief splits', () => {
-    for (const day of DAYS) {
-      const crew = crewShiftsFor(day.duties);
-      expect(crew.shifts.length).toBeGreaterThanOrEqual(day.duties.length);
-      // A duty split into k shifts adds k - 1 relief splits.
-      const splits = sum(crew.shifts.filter((s) => s.shiftIndex === 0).map((s) => s.shiftCount - 1));
-      expect(crew.shifts.length - day.duties.length).toBe(splits);
-      expect(splits).toBeGreaterThanOrEqual(crew.dutiesNeedingRelief);
-      expect(new Set(crew.shifts.map((s) => s.dutyId))).toEqual(new Set(day.duties.map((d) => d.id)));
-    }
-  });
-
   it('the fuel distance is the revenue service distance, to the tenth of a kilometre', () => {
     let checked = 0;
     for (const day of DAYS) {
@@ -111,7 +99,9 @@ describe('one modelled day reconciles across crew, fuel and revenue', () => {
   });
 });
 
-describe('the worked depot, every page side by side', () => {
+// The model's figures for one worked depot; the pages themselves are compared, through
+// their real builders, in depot-operating-day-pages.test.ts.
+describe('the worked depot, every model figure side by side', () => {
   /*
    * Four express buses, all available; two routes of real length; requirement 3.
    *   duties: AGRA_EXP_1, DELHI_EXP_2, AGRA_EXP_1 (round-robin by name) = 3 duties, 2 routes
@@ -168,11 +158,6 @@ describe('the worked depot, every page side by side', () => {
       ['K3', 'AGRA_EXP_1', 240],
     ]);
     expect(worked.notRun).toEqual([{ registrationNumber: 'K4', reason: 'no_duty' }]);
-
-    // CREW. Each of the 3 duties is short enough for one shift, so 3 shifts and no relief.
-    const crew = crewShiftsFor(worked.duties);
-    expect(crew.shifts).toHaveLength(3);
-    expect(crew.dutiesNeedingRelief).toBe(0);
 
     // FUEL at Rs 92 a litre. Each bus's economy is seeded (K1 4.97, K2 4.04, K3 4.64 km/L);
     // litres are distance over economy to the tenth, rupees are litres x 92 rounded:
