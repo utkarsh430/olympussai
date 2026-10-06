@@ -6,6 +6,7 @@ import { formatCount } from '@/lib/depot/format';
 import { transferPreview } from '@/lib/depot/rebalance/pageLayout';
 import type { TransferDecisionKind } from '@/lib/depot/rebalance/rebalanceModel';
 import type { TransferRow } from '@/lib/depot/rebalance/transferModel';
+import { TRANSFER_COLUMNS, TRANSFER_TABLE_PX } from '@/lib/depot/rebalance/transferColumns';
 import { TransferRowView } from './TransferRowView';
 
 export interface TransferTableProps {
@@ -18,29 +19,14 @@ export interface TransferTableProps {
   readonly serverPlan: boolean;
 }
 
-interface Header {
-  readonly label: string;
-  readonly right?: boolean;
-}
-
-/** No "· modelled" here: the section label carries the tag, the page line says the rest. */
-const HEADERS: readonly Header[] = [
-  { label: 'Transfer' },
-  { label: 'Buses', right: true },
-  { label: 'Road km', right: true },
-  { label: 'Bus-km', right: true },
-  { label: 'Giver spare before', right: true },
-  { label: 'Receiver short before', right: true },
-  { label: 'Decision' },
-  { label: 'Why?' },
-  { label: 'Record a decision' },
-];
-
 export const RATIONALE_SERVER_ONLY = 'A written rationale is available for the server plan only.';
 
 /**
  * Recommended transfers on the shared table options (36px rows that never wrap, the
- * transfer frozen, the overflow cue), ten at first. Selecting a row highlights its arc
+ * transfer frozen, the shared overflow cue over the header row only), ten at first. The
+ * fixed column widths sum to less than the frame at 1440 (`transferColumns`), so no column
+ * is cut there; a narrower frame scrolls sideways inside itself. No "· modelled" in the
+ * headers: the section label carries the tag. Selecting a row highlights its arc
  * and depots on the map. Approve, Reject and Defer only add to the local record.
  */
 export function TransferTable({
@@ -56,7 +42,7 @@ export function TransferTable({
   const preview = transferPreview(rows, showAll, selectedId);
   return (
     <div className="min-w-0">
-      {serverPlan ? null : <p className="depot-prose mb-2 text-xs">{RATIONALE_SERVER_ONLY}</p>}
+      {serverPlan ? null : <p className="depot-note mb-2">{RATIONALE_SERVER_ONLY}</p>}
       <div className="relative min-w-0">
         <div
           ref={frame}
@@ -66,17 +52,21 @@ export function TransferTable({
           className="depot-table-frame"
           data-testid="rebalance-transfers"
         >
-          <table className="depot-table depot-table-fixed depot-table-frozen">
+          <table
+            className="depot-table depot-table-fixed depot-table-frozen table-fixed"
+            style={{ minWidth: TRANSFER_TABLE_PX }}
+          >
             <caption className="sr-only">
               Recommended transfers between depots, largest first, modelled. A decision is
               recorded only; nothing is dispatched.
             </caption>
             <thead>
               <tr>
-                {HEADERS.map((h) => (
+                {TRANSFER_COLUMNS.map((h) => (
                   <th
-                    key={h.label}
+                    key={h.key}
                     scope="col"
+                    style={{ width: h.widthPx }}
                     className={h.right ? 'depot-align-right' : undefined}
                   >
                     {h.label}
@@ -93,7 +83,7 @@ export function TransferTable({
                   onSelect={onSelect}
                   onDecide={onDecide}
                   withRationale={serverPlan}
-                  columns={HEADERS.length}
+                  columns={TRANSFER_COLUMNS.length}
                 />
               ))}
             </tbody>

@@ -116,7 +116,7 @@ describe('MODELLED wording', () => {
     expect(container.querySelector('caption')?.textContent).toMatch(/modelled/i);
     const headers = texts('thead th');
     const figures = headers.filter((h) => /buses|km|spare|short/i.test(h));
-    expect(figures).toHaveLength(5);
+    expect(figures).toEqual(['Buses', 'Road km', 'Bus-km']);
     for (const header of figures) expect(header).not.toMatch(/modelled/i);
   });
 

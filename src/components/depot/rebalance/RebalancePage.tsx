@@ -124,8 +124,8 @@ export function Distribution({
           tag="modelled"
           note="Largest first; select one to highlight it on the map"
         />
-        <div className="flex min-w-0 flex-col gap-6 xl:grid xl:grid-cols-12 xl:items-start">
-          <div className="order-1 min-w-0 xl:order-2 xl:col-span-5">
+        <div className="flex min-w-0 flex-col gap-6 xl:grid xl:grid-cols-[minmax(0,45fr)_minmax(0,55fr)] xl:items-start">
+          <div className="order-1 min-w-0 xl:order-2">
             <TransferSection
               view={view}
               selectedId={selected?.id ?? null}
@@ -136,7 +136,7 @@ export function Distribution({
               {announcement}
             </p>
           </div>
-          <div className="order-2 min-w-0 xl:order-1 xl:col-span-7">
+          <div className="order-2 min-w-0 xl:order-1">
             <TransferMap
               geometry={view.geometry}
               selectedId={selected?.id ?? null}

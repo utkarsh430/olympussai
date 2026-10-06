@@ -90,8 +90,17 @@ function button(name: string): HTMLButtonElement {
   return found;
 }
 
+/** Approve sits in the transfer's "Why?" row: open it once, then press Approve. */
+async function approve(): Promise<void> {
+  const why = container.querySelector<HTMLButtonElement>('button[aria-label^="Why?"]');
+  if (why?.getAttribute('aria-expanded') === 'false') await act(async () => why.click());
+  await act(async () => button('Approve').click());
+}
+
 beforeEach(() => {
   actGlobal.IS_REACT_ACT_ENVIRONMENT = true;
+  // "Why?" on the server plan asks for a rationale; these tests never reach a network.
+  globalThis.fetch = vi.fn().mockRejectedValue(new TypeError('offline')) as typeof fetch;
   window.localStorage.clear();
 });
 
@@ -104,13 +113,13 @@ afterEach(async () => {
 describe('fleet distribution page', () => {
   it('announces a decision politely and ignores a repeat click', async () => {
     await render(<Distribution data={response()} state={{ error: null }} />);
-    await act(async () => button('Approve').click());
+    await approve();
     const status = container.querySelector('[data-testid="rebalance-status"]');
     expect(status?.textContent).toBe(
       'Approved 5 buses Agra to Kanpur. Recorded only; nothing dispatched.',
     );
     expect(container.textContent).toContain('Approved for 5 buses');
-    await act(async () => button('Approve').click());
+    await approve();
     const stored = JSON.parse(window.localStorage.getItem('depot-transfer-decisions-v1') ?? '{}');
     expect(stored.events).toHaveLength(1);
   });
@@ -129,7 +138,7 @@ describe('write order', () => {
     const spy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
       throw new Error('quota');
     });
-    await act(async () => button('Approve').click());
+    await approve();
     spy.mockRestore();
     expect(window.localStorage.getItem('upsrtc-copilot-audit-v1')).toBeNull();
     expect(window.localStorage.getItem('depot-transfer-decisions-v1')).toBeNull();
@@ -140,7 +149,7 @@ describe('write order', () => {
 
   it('writes the slice and the audit event together when storage accepts', async () => {
     await render(<Distribution data={response()} state={{ error: null }} />);
-    await act(async () => button('Approve').click());
+    await approve();
     expect(window.localStorage.getItem('upsrtc-copilot-audit-v1')).not.toBeNull();
     expect(window.localStorage.getItem('depot-transfer-decisions-v1')).not.toBeNull();
   });
@@ -186,7 +195,7 @@ describe('decision trail keys', () => {
 describe('undo announcement', () => {
   it('announces an undo in the same status line', async () => {
     await render(<Distribution data={response()} state={{ error: null }} />);
-    await act(async () => button('Approve').click());
+    await approve();
     await act(async () => button('Undo').click());
     const status = container.querySelector('[data-testid="rebalance-status"]');
     expect(status?.textContent).toBe(
@@ -196,7 +205,7 @@ describe('undo announcement', () => {
 
   it('says so when the write of an undo is refused', async () => {
     await render(<Distribution data={response()} state={{ error: null }} />);
-    await act(async () => button('Approve').click());
+    await approve();
     const spy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
       throw new Error('quota');
     });
@@ -219,17 +228,34 @@ describe('transfer rationale row', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
     const detail = container.querySelector('[data-testid="transfer-detail-agra>kanpur"] td');
-    expect(detail?.getAttribute('colspan')).toBe('9');
+    expect(detail?.getAttribute('colspan')).toBe('6');
     expect(detail?.textContent).toContain('Try again');
+    expect(detail?.textContent).toContain(
+      'Agra has 5 spare before this transfer and 0 after; Kanpur is 5 short before and 0 after.',
+    );
+    expect(detail?.querySelectorAll('button[aria-pressed]')).toHaveLength(3);
   });
 
-  it('offers no rationale under a what-if and says why once', async () => {
+  it('keeps Approve, Reject and Defer out of the 36px row: they are in the "Why?" row', async () => {
     const props = { rows: [ROW], selectedId: null, onSelect: () => {}, onDecide: () => {} };
     await render(<TransferTable {...props} serverPlan={false} />);
-    expect(container.querySelector('button[aria-expanded]')).toBeNull();
-    expect(container.textContent).toContain(
-      'A written rationale is available for the server plan only.',
-    );
+    const dataRow = container.querySelector('tbody tr');
+    expect(dataRow?.querySelectorAll('td')).toHaveLength(6);
+    expect(dataRow?.textContent).not.toMatch(/Approve|Reject|Defer/);
+    expect(dataRow?.querySelector('input')).toBeNull();
+  });
+
+  it('opens figures and the decision under a what-if, with no rationale, and says why once', async () => {
+    const props = { rows: [ROW], selectedId: null, onSelect: () => {}, onDecide: () => {} };
+    await render(<TransferTable {...props} serverPlan={false} />);
+    const said = 'A written rationale is available for the server plan only.';
+    expect(container.textContent?.split(said)).toHaveLength(2);
+    await act(async () => button('Why?').click());
+    const detail = container.querySelector('[data-testid="transfer-detail-agra>kanpur"] td');
+    expect(detail?.textContent).toContain('Agra has 5 spare before this transfer');
+    expect(detail?.textContent).not.toContain('Try again');
+    expect(detail?.querySelectorAll('button[aria-pressed]')).toHaveLength(3);
+    expect(container.textContent?.split(said)).toHaveLength(2);
   });
 });
 
@@ -344,6 +370,18 @@ describe('provenance tags on the visible page (ruling S51)', () => {
     expect(heading?.textContent).toMatch(/^Recommended transfers/);
     const label = heading?.closest('[data-testid="depot-section-label"]');
     expect(label?.querySelector('[data-provenance="modelled"]')).not.toBeNull();
+  });
+});
+
+describe('transfer plan split', () => {
+  it('puts the table in 55% and the map in 45% at xl, the table first below xl', async () => {
+    await render(<Distribution data={response()} state={{ error: null }} />);
+    const table = container.querySelector('[data-testid="rebalance-transfers"]');
+    const grid = table?.closest('[class*="xl:grid-cols"]');
+    expect(grid?.className).toContain('xl:grid-cols-[minmax(0,45fr)_minmax(0,55fr)]');
+    const tableColumn = [...(grid?.children ?? [])].find((c) => c.contains(table ?? null));
+    expect(tableColumn?.className).toContain('order-1');
+    expect(tableColumn?.className).toContain('xl:order-2');
   });
 });
 
