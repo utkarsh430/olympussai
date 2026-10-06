@@ -9,7 +9,13 @@ import type { DepotDistributionResponse } from '@/lib/depot/api';
 import { decisionEvent, undoEvent, type TrailItem } from '@/lib/depot/rebalance/decisionEvents';
 import { isRepeatDecision, undoableFor } from '@/lib/depot/rebalance/decisionReducers';
 import { trailCapacityNote } from '@/lib/depot/rebalance/decisionStore';
-import { decisionAnnouncement, undoAnnouncement } from '@/lib/depot/rebalance/decisionWording';
+import {
+  TRAIL_CLEARED,
+  TRAIL_CLEAR_REFUSED,
+  decisionAnnouncement,
+  recordStatus,
+  undoAnnouncement,
+} from '@/lib/depot/rebalance/decisionWording';
 import { busesWord, type TransferDecisionKind } from '@/lib/depot/rebalance/rebalanceModel';
 import { serverInForce } from '@/lib/depot/rebalance/fieldsInForce';
 import { BASELINE_FORM } from '@/lib/depot/rebalance/scenarioForm';
@@ -98,13 +104,17 @@ export function Distribution({
       }),
     );
     const said = decisionAnnouncement(kind, row.buses, row.fromName, row.toName);
-    setAnnouncement(recorded ? said : STORAGE_REFUSED);
+    setAnnouncement(recordStatus(recorded, said, STORAGE_REFUSED));
   }
 
   function undo(item: TrailItem): void {
     const recorded = log.record(undoEvent(item));
     const said = undoAnnouncement(item.decision, item.buses, item.fromDepotName, item.toDepotName);
-    setAnnouncement(recorded ? said : UNDO_REFUSED);
+    setAnnouncement(recordStatus(recorded, said, UNDO_REFUSED));
+  }
+
+  function clearTrail(): void {
+    setAnnouncement(log.clear() ? TRAIL_CLEARED : TRAIL_CLEAR_REFUSED);
   }
 
   function undoFor(row: TransferRow): (() => void) | null {
@@ -189,6 +199,9 @@ export function Distribution({
           operatingDate={data.operatingDate}
           onUndo={undo}
           capacityNote={trailCapacityNote(log.slice)}
+          stateNote={log.stateNote}
+          canClear={log.canClear}
+          onClear={clearTrail}
         />
         <RebalanceMethod spareRatio={data.requirementParams.spareRatio} />
       </div>

@@ -198,6 +198,9 @@ describe('decision trail keys', () => {
         operatingDate="2026-10-06"
         onUndo={() => {}}
         capacityNote={null}
+        stateNote={null}
+        canClear={false}
+        onClear={() => {}}
       />,
     );
     const warned = errors.mock.calls.some((call) => String(call[0]).includes('same key'));
@@ -451,6 +454,66 @@ describe('shortfall the plan cannot cover', () => {
 });
 
 describe('decision trail', () => {
+  it('says once that the trail is visible to anyone who uses this browser', async () => {
+    await render(<Distribution data={response()} state={{ error: null }} />);
+    const said = 'visible to anyone who uses this browser';
+    expect(container.textContent?.split(said)).toHaveLength(2);
+  });
+
+  it('clears the trail only after a confirm step, and says so', async () => {
+    await render(<Distribution data={response()} state={{ error: null }} />);
+    await approve();
+    await act(async () => button('Clear trail').click());
+    expect(window.localStorage.getItem('depot-transfer-decisions-v1')).not.toBeNull();
+    expect(container.textContent).toContain('This cannot be undone.');
+    await act(async () => button('Keep it').click());
+    expect(container.textContent).not.toContain('This cannot be undone.');
+    expect(window.localStorage.getItem('depot-transfer-decisions-v1')).not.toBeNull();
+    await act(async () => button('Clear trail').click());
+    await act(async () => button('Clear the trail').click());
+    expect(window.localStorage.getItem('depot-transfer-decisions-v1')).toBeNull();
+    const status = container.querySelector('[data-testid="rebalance-status"]');
+    expect(status?.textContent).toBe('The decision trail kept in this browser is cleared.');
+    const trail = container.querySelector('[data-testid="rebalance-trail"]');
+    expect(trail?.querySelector('h2')?.textContent).toContain('none recorded in this browser');
+  });
+
+  it('does not write over a damaged trail: keeps it aside and says so', async () => {
+    window.localStorage.setItem('depot-transfer-decisions-v1', 'not json');
+    await render(<Distribution data={response()} state={{ error: null }} />);
+    expect(container.textContent).toContain(
+      'The decision trail stored in this browser could not be read, so none is listed.',
+    );
+    await approve();
+    expect(window.localStorage.getItem('depot-transfer-decisions-v1-unreadable')).toBe('not json');
+    const stored = JSON.parse(window.localStorage.getItem('depot-transfer-decisions-v1') ?? '{}');
+    expect(stored.events).toHaveLength(1);
+    expect(container.textContent).toContain(
+      'An earlier decision trail in this browser could not be read; it is kept aside, unchanged, and is not listed.',
+    );
+  });
+
+  it('says so when the shared audit log refuses a recorded decision', async () => {
+    await render(<Distribution data={response()} state={{ error: null }} />);
+    const real = Storage.prototype.setItem;
+    const spy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (
+      this: Storage,
+      key: string,
+      value: string,
+    ) {
+      if (key === 'upsrtc-copilot-audit-v1') throw new Error('quota');
+      real.call(this, key, value);
+    });
+    await approve();
+    spy.mockRestore();
+    expect(window.localStorage.getItem('depot-transfer-decisions-v1')).not.toBeNull();
+    const status = container.querySelector('[data-testid="rebalance-status"]');
+    expect(status?.textContent).toContain('Recorded only; nothing dispatched.');
+    expect(status?.textContent).toContain(
+      'The shared audit log in this browser refused it (storage full or blocked), so only the decision trail holds it.',
+    );
+  });
+
   it('is one line and the append-only note while empty, with no group headings', async () => {
     await render(<Distribution data={response()} state={{ error: null }} />);
     const trail = container.querySelector('[data-testid="rebalance-trail"]');
