@@ -117,7 +117,7 @@ function routeNamesOf(buses: readonly DepotBusView[]): string[] {
  * a feed with no clock cannot be placed before a duty: both are as of the feed.
  */
 function modeOf(now: PlanNow, duties: readonly Duty[]): PlanMode {
-  if (now.kind === 'later_day') return 'later_day';
+  if (now.kind === 'later_day' || now.kind === 'before_first_duty') return now.kind;
   if (now.kind !== 'feed_time' || duties.length === 0) return 'as_of_feed_time';
   const firstStart = Math.min(...duties.map((d) => d.startMin));
   return now.feedMinute < firstStart ? 'before_first_duty' : 'as_of_feed_time';
