@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
   busColumnPlan,
   depotScopeLine,
+  groupDepotExceptions,
   kindSearch,
+  severitySections,
 } from '@/lib/depot/exceptions/pageModel';
 import { depotWindowNote, scoreWindowPhrase as windowPhrase } from '@/lib/depot/score/windowWords';
-import type { DepotException } from '@/lib/depot/exceptions/types';
+import type { DepotException, DepotExceptionKind } from '@/lib/depot/exceptions/types';
 
 const NOW = '2026-10-06T14:20:00.000Z';
 
@@ -34,12 +36,40 @@ describe('depotWindowNote', () => {
 });
 
 describe('depotScopeLine', () => {
-  const e = (depotId: string, kind: string) => ({ depotId, kind }) as unknown as DepotException;
+  const e = (depotId: string, kind: string, severity = 'warning') =>
+    ({ id: `${kind}:${depotId}`, depotId, depotName: depotId, kind, severity }) as unknown as DepotException;
+  const lineFor = (list: DepotException[], kind: DepotExceptionKind | null = null): string =>
+    depotScopeLine(groupDepotExceptions(list, kind));
   it('explains a depot holding two exceptions', () => {
-    expect(depotScopeLine([e('a', 'x'), e('a', 'y'), e('b', 'x')])).toContain('3 exceptions in 2 depots');
+    expect(lineFor([e('a', 'off_road_high'), e('a', 'power_cut_cluster'), e('b', 'off_road_high')])).toContain(
+      '3 exceptions in 2 depots',
+    );
   });
   it('is empty when each depot has one', () => {
-    expect(depotScopeLine([e('a', 'x'), e('b', 'x')])).toBe('');
+    expect(lineFor([e('a', 'off_road_high'), e('b', 'off_road_high')])).toBe('');
+  });
+  // Capture item 8: "65 exceptions in 61 depots" beside groups totalling 63. The line is
+  // counted from the groups the page draws, so it adds up with them at every moment.
+  it('adds up with the severity groups when a depot holds both levels', () => {
+    const list = [
+      e('a', 'off_road_high', 'critical'),
+      e('a', 'power_cut_cluster', 'warning'),
+      e('b', 'power_cut_cluster', 'warning'),
+      e('c', 'dark_share_high', 'critical'),
+    ];
+    const sections = severitySections(groupDepotExceptions(list, null));
+    const depots = sections.reduce((n, s) => n + s.groups.length, 0);
+    expect(depots).toBe(3);
+    expect(lineFor(list)).toBe('4 exceptions in 3 depots: a depot is listed once, under its worst level.');
+  });
+  it('counts only what a kind filter leaves on screen', () => {
+    const list = [
+      e('a', 'off_road_high', 'critical'),
+      e('a', 'power_cut_cluster', 'warning'),
+      e('b', 'power_cut_cluster', 'warning'),
+    ];
+    expect(lineFor(list, 'power_cut_cluster')).toBe('');
+    expect(lineFor(list, 'off_road_high')).toBe('');
   });
 });
 

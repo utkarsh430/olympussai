@@ -178,11 +178,15 @@ export function failedQuerySentence(reason: string): string {
 
 // ---- Page wording added by the design wave -------------------------------
 
-/** Why the group counts and the total differ: a depot can hold more than one exception. */
-export function depotScopeLine(depot: readonly DepotException[]): string {
-  const depots = new Set(depot.map((e) => e.depotId)).size;
-  if (depot.length === depots) return '';
-  return `${formatCount(depot.length)} exceptions in ${formatCount(depots)} depots: a depot is listed once, under its worst level.`;
+/**
+ * Why the group counts and the total differ: a depot can hold more than one exception.
+ * Counted from the very groups the page draws (after any kind filter), never from the raw
+ * list, so the sentence and the severity groups add up at every moment (capture item 8).
+ */
+export function depotScopeLine(groups: readonly DepotExceptionGroup[]): string {
+  const exceptions = groups.reduce((n, g) => n + g.exceptions.length, 0);
+  if (exceptions === groups.length) return '';
+  return `${formatCount(exceptions)} exceptions in ${formatCount(groups.length)} depots: a depot is listed once, under its worst level.`;
 }
 
 /** The query string for a kind filter: `?kind=long_dark`, or the bare path when cleared. */

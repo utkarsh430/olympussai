@@ -64,10 +64,12 @@ export function ExceptionCentre() {
   const shown = data ?? lastGood.current;
   const failure = data === null && !loading ? error : null;
 
-  const sections = useMemo(
-    () => (shown ? severitySections(groupDepotExceptions(shown.report.depot, depotKind)) : []),
+  const groups = useMemo(
+    () => (shown ? groupDepotExceptions(shown.report.depot, depotKind) : []),
     [shown, depotKind],
   );
+  const sections = useMemo(() => severitySections(groups), [groups]);
+  const scopeLine = depotScopeLine(groups);
 
   // The filter is written to the URL, so a filtered view can be shared and the
   // back button steps through the filters.
@@ -123,9 +125,7 @@ export function ExceptionCentre() {
         count={report.depot.length}
         note={depotWindowNote(shown.scoreWindow, shown.feedNow)}
       />
-      {depotScopeLine(report.depot) === '' ? null : (
-        <p className="depot-prose mb-2">{depotScopeLine(report.depot)}</p>
-      )}
+      {scopeLine === '' ? null : <p className="depot-prose mb-2">{scopeLine}</p>}
       <DepotExceptionList
         sections={sections}
         filterLabel={depotKind === null ? null : EXCEPTION_KIND_LABEL[depotKind]}
