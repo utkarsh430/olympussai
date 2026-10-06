@@ -77,3 +77,14 @@ export function schemaSummary(feed: Pick<FeedEntry, 'status' | 'fields'>): strin
   const verb = feed.status === 'awaiting' ? 'expected from' : 'read from';
   return `${feed.fields.length} ${feed.fields.length === 1 ? 'field' : 'fields'} ${verb} this feed`;
 }
+
+/** The in-page anchor of a feed: other pages link to `/project/depots/sources#feed-<id>`. */
+export function feedAnchor(feedId: string): string {
+  return `feed-${feedId}`;
+}
+
+/** Which feed an in-page hash names, or null when it names none of the given feeds. */
+export function feedIdFromHash(hash: string, feedIds: readonly string[]): string | null {
+  const wanted = hash.startsWith('#') ? hash.slice(1) : hash;
+  return feedIds.find((id) => feedAnchor(id) === wanted) ?? null;
+}

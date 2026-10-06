@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useDepotDetailContext } from '@/components/depot/data/DepotDetailProvider';
 import { EmptyState, StaleStrip } from '@/components/depot/shell/DataStates';
+import { ProducedDisclosure } from '@/components/depot/sources/ProducedDisclosure';
 import { depotTrendsPath, MODELLED_HISTORY_NOTE } from '@/lib/depot/forecast/trendsPageModel';
 import type { MetricKey } from '@/lib/depot/sim/types';
 import { DEPOT_NOT_FOUND_MESSAGE } from '@/hooks/useDepotDetail';
@@ -47,15 +48,19 @@ export function DepotTrends({ metric }: DepotTrendsProps) {
   const stale = chosen.data?.stale === true || (chosen.data !== null && chosen.error !== null);
   return (
     <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-3">
+      <div className="flex min-w-0 flex-col gap-3">
         <MetricChooser path={depotTrendsPath(depotId)} metric={metric} />
-        <p className="depot-prose max-w-3xl" data-testid="trends-history-note">
-          {MODELLED_HISTORY_NOTE}
-        </p>
+        {stale ? <StaleStrip since={chosen.data?.feedNow ?? null} /> : null}
+        <ForecastBlock state={chosen} errorTitle="Could not load this depot's trend" />
       </div>
-      {stale ? <StaleStrip since={chosen.data?.feedNow ?? null} /> : null}
-      <ForecastBlock state={chosen} errorTitle="Could not load this depot's trend" />
       <AvailabilityPanel depotId={depotId} available={available} distribution={distribution} />
+      <ProducedDisclosure>
+        <p>{MODELLED_HISTORY_NOTE}</p>
+        <p>
+          The requirement is the fleet distribution&apos;s modelled number of buses the depot needs;
+          the forecast is of buses available. Neither side is measured today.
+        </p>
+      </ProducedDisclosure>
     </div>
   );
 }

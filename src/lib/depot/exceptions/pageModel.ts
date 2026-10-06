@@ -1,4 +1,4 @@
-import { formatCount } from '../format';
+import { formatCount, formatFeedTime } from '../format';
 import { EXCEPTION_KIND_LABEL, SEVERITY_LABEL } from '../labels';
 import { EXCEPTION_KINDS, SEVERITY_ORDER } from './config';
 import type {
@@ -174,4 +174,61 @@ export function pageMoves(page: {
  */
 export function failedQuerySentence(reason: string): string {
   return `Could not load that page: ${reason}. Showing the last answer that loaded.`;
+}
+
+// ---- Page wording added by the design wave -------------------------------
+
+/** The rolling window a depot exception's rate was compared over, in words. */
+export interface WindowInput {
+  readonly lengthMin: number;
+  readonly since: string | null;
+  readonly samples: number;
+}
+
+/** "over the last 20 minutes", "since 14:02, 3 snapshots" or "in the latest snapshot only". */
+export function windowPhrase(window: WindowInput | undefined, feedNow: string | null): string {
+  if (!window || window.samples <= 1 || window.since === null) return 'in the latest snapshot only';
+  const sinceMs = Date.parse(window.since);
+  const nowMs = feedNow === null ? Number.NaN : Date.parse(feedNow);
+  const MS_PER_MIN = 60_000;
+  if (!Number.isNaN(sinceMs) && !Number.isNaN(nowMs) && (nowMs - sinceMs) / MS_PER_MIN >= window.lengthMin - 1) {
+    return `over the last ${window.lengthMin} minutes`;
+  }
+  return `since ${formatFeedTime(window.since)}, ${window.samples} snapshots`;
+}
+
+/** Said once above the depot list: which figure is windowed and which is as of the feed time. */
+export function depotWindowNote(window: WindowInput | undefined, feedNow: string | null): string {
+  const asOf = feedNow === null ? 'the feed time' : formatFeedTime(feedNow);
+  return `Rates are compared with peers ${windowPhrase(window, feedNow)}; bus counts are as of ${asOf}.`;
+}
+
+/** Why the group counts and the total differ: a depot can hold more than one exception. */
+export function depotScopeLine(depot: readonly DepotException[]): string {
+  const depots = new Set(depot.map((e) => e.depotId)).size;
+  if (depot.length === depots) return '';
+  return `${formatCount(depot.length)} exceptions in ${formatCount(depots)} depots: a depot is listed once, under its worst level.`;
+}
+
+/** The query string for a kind filter: `?kind=long_dark`, or the bare path when cleared. */
+export function kindSearch(search: string, kind: ExceptionKind | null): string {
+  const params = new URLSearchParams(search);
+  if (kind === null) params.delete('kind');
+  else params.set('kind', kind);
+  const text = params.toString();
+  return text === '' ? '' : `?${text}`;
+}
+
+export interface BusColumnPlan {
+  /** A constant column is dropped: the kind column is shown only while every kind is listed. */
+  readonly showKind: boolean;
+  /** The raw code column exists only when some row carries one. */
+  readonly showCode: boolean;
+}
+
+export function busColumnPlan(
+  kind: BusExceptionKind | null,
+  rows: readonly { readonly detail: string | null }[],
+): BusColumnPlan {
+  return { showKind: kind === null, showCode: rows.some((r) => r.detail !== null) };
 }

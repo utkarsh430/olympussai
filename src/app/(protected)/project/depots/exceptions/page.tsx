@@ -13,8 +13,8 @@ export default async function DepotExceptionsPage() {
     <>
       <PageHeader
         title="Exceptions"
-        description="Depots and buses that stand out on the latest live snapshot, each with the figures that put it here."
-        provenance="derived"
+        description="Depots and buses that stand out now, each with the figures behind it."
+        provenanceLine={{ default: 'derived' }}
       />
       <ExceptionCentre />
     </>

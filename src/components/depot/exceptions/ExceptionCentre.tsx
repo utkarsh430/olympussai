@@ -4,11 +4,16 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useDepotNetworkContext } from '@/components/depot/data/DepotNetworkProvider';
 import { useDepotExceptions, DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/useDepotExceptions';
 import { ErrorPanel, LoadingBlock, StaleStrip } from '@/components/depot/shell/DataStates';
+import { SectionLabel } from '@/components/depot/shell/SectionLabel';
+import { ProducedDisclosure } from '@/components/depot/sources/ProducedDisclosure';
 import type { DepotExceptionsResponse } from '@/lib/depot/api';
 import { BUS_EXCEPTION_KINDS, BUS_PAGE_DEFAULT_LIMIT } from '@/lib/depot/exceptions/busPage';
 import { EXCEPTION_KIND_LABEL } from '@/lib/depot/exceptions/describe';
 import {
+  depotScopeLine,
+  depotWindowNote,
   exceptionTotalsLine,
+  kindSearch,
   failedQuerySentence,
   groupDepotExceptions,
   parseKindParam,
@@ -64,9 +69,23 @@ export function ExceptionCentre() {
     [shown, depotKind],
   );
 
+  // The filter is written to the URL, so a filtered view can be shared and the
+  // back button steps through the filters.
+  useEffect(() => {
+    const onPop = (): void => {
+      setKind(initialKind());
+      setOffset(0);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
   const toggleKind = (next: ExceptionKind): void => {
-    setKind((current) => (current === next ? null : next));
+    const target = kind === next ? null : next;
+    setKind(target);
     setOffset(0);
+    const search = kindSearch(window.location.search, target);
+    window.history.pushState(null, '', `${window.location.pathname}${search}`);
   };
 
   if (!shown) {
@@ -99,7 +118,14 @@ export function ExceptionCentre() {
         totalsLine={exceptionTotalsLine(report.depot, report.busTotal, shown.busSeverityCounts)}
       />
 
-      <h2 className="depot-label mb-2">Depot exceptions</h2>
+      <SectionLabel
+        label="Depot exceptions"
+        count={report.depot.length}
+        note={depotWindowNote(shown.scoreWindow, shown.feedNow)}
+      />
+      {depotScopeLine(report.depot) === '' ? null : (
+        <p className="depot-prose mb-2">{depotScopeLine(report.depot)}</p>
+      )}
       <DepotExceptionList
         sections={sections}
         filterLabel={depotKind === null ? null : EXCEPTION_KIND_LABEL[depotKind]}
@@ -116,6 +142,20 @@ export function ExceptionCentre() {
         }}
         onOffsetChange={setOffset}
       />
+
+      <ProducedDisclosure>
+        <p>
+          A depot is flagged when its dark, off-road or on-road rate is both statistically unusual
+          against its peers and at least 10 points from the peer median; critical at the
+          statistical ceiling. Power-cut clusters need at least 3 buses and 10% of the fleet.
+        </p>
+        <p>
+          Rates and peer medians are summed over a rolling window of the feed&apos;s own snapshots;
+          the number of buses affected is the latest snapshot. Bus exceptions are the latest
+          snapshot only, paged 25 at a time by the server.
+        </p>
+        <p>Exceptions name depots and vehicles, never a person.</p>
+      </ProducedDisclosure>
     </>
   );
 }

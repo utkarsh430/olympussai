@@ -13,7 +13,8 @@ export default async function DepotSourcesPage() {
     <>
       <PageHeader
         title="Data sources"
-        description="Every feed behind this module: whether it is live, how completely it is populated, and the schema a real feed is expected to provide."
+        description="Every feed behind this module, how fully it is populated, and what a real feed must provide."
+        provenanceLine={{ default: 'reference' }}
       />
       <SourcesRegistry />
     </>

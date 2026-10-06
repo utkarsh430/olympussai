@@ -2,7 +2,7 @@ import type { CopilotAnswerTable } from '@/lib/depot/copilot/wire';
 
 export interface AnswerTableProps {
   readonly table: CopilotAnswerTable;
-  /** Names the table for assistive technology and sighted readers alike. */
+  /** Names the table for assistive technology; not drawn, because the answer's heading already says it. */
   readonly caption: string;
 }
 
@@ -18,7 +18,7 @@ export function AnswerTable({ table, caption }: AnswerTableProps) {
   return (
     <div className="depot-table-frame" data-testid="copilot-table">
       <table className="depot-table w-full">
-        <caption className="depot-label px-3 py-2 text-left">{caption}</caption>
+        <caption className="sr-only">{caption}</caption>
         <thead>
           <tr>
             {table.columns.map((column, index) => (

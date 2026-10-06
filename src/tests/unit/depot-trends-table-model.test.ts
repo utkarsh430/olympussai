@@ -70,11 +70,11 @@ describe('trend table rows', () => {
     expect(rows[3]?.sparkLabel).toBe('On-road share at Depot 4: no MODELLED trend yet');
   });
 
-  it('names the unit in each column header, with MODELLED', () => {
+  it('names the unit in each column header, with no tag on the page default', () => {
     expect(trendColumnHeaders(ON_ROAD.trendUnit, 30)).toEqual({
-      spark: 'Last 30 days, MODELLED',
-      week: 'Change over 7 days, percentage points, MODELLED',
-      fourWeeks: 'Over 4 weeks, percentage points, MODELLED',
+      spark: 'Last 30 days',
+      week: 'Change over 7 days, percentage points',
+      fourWeeks: 'Over 4 weeks, percentage points',
     });
   });
 });
@@ -119,14 +119,14 @@ describe('sorting and capping', () => {
     expect(capTrendRows([1, 2], false)).toEqual({ shown: [1, 2], hidden: 0 });
   });
 
-  it('captions the table with the metric, the count shown and the order, tagged MODELLED', () => {
+  it('captions the table with the metric, the count shown and the order, with no tag', () => {
     expect(
       trendTableCaption('On-road share', 113, 25, { key: 'fourWeeks', direction: 'asc' }),
     ).toBe(
-      'MODELLED trends of on-road share: 25 of 113 units, by change over 4 weeks, lowest first',
+      'Trends of on-road share: 25 of 113 units, by change over 4 weeks, lowest first',
     );
     expect(trendTableCaption('Dark rate', 3, 3, { key: 'name', direction: 'asc' })).toBe(
-      'MODELLED trends of dark rate: all 3 units, by name, A to Z',
+      'Trends of dark rate: all 3 units, by name, A to Z',
     );
   });
 });
