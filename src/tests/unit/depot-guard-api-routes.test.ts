@@ -69,6 +69,19 @@ const SECRET = 'upstream-host.internal token=abc123';
 const HOSTILE = '..%2Fzq<b>REFLECTED</b>';
 const HOSTILE_RAW = 'REFLECTED';
 
+/*
+ * Every parameter name the depot API reads today, each given a hostile value, plus a
+ * name no route knows: whichever of them a route reads (or however strictly it parses),
+ * at least one is malformed for it.
+ */
+const PARAM_NAMES = [
+  'depotId', 'bus', 'metric', 'scope', 'days', 'horizon', 'kind', 'q', 'offset', 'limit',
+  'sort', 'dir', 'reason', 'serviceClass',
+];
+const HOSTILE_QUERY = [...PARAM_NAMES, HOSTILE]
+  .map((name) => `${name}=${encodeURIComponent(`-1${HOSTILE}`)}`)
+  .join('&');
+
 /** A valid value for each dynamic segment name the depot API uses; anything else gets '1'. */
 const VALID_SEGMENT: Readonly<Record<string, string>> = { routeName: 'AGRA_EXP_1' };
 
@@ -260,7 +273,7 @@ describe('the depot API routes', () => {
   const withQuery = CASES.filter((c) => c.readsQuery);
   it.each(named(withQuery))('%s refuses a malformed query with the fixed 400', async (_n, c) => {
     useGoodData();
-    const res = await call(c, { query: `depotId=${HOSTILE}&${HOSTILE}=1` });
+    const res = await call(c, { query: HOSTILE_QUERY });
     expect(res.status).toBe(400);
     expect(res.headers.get('cache-control')).toBe('no-store');
     const first = await expectFixedErrorBody(res);
