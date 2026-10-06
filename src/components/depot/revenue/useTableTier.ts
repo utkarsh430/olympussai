@@ -21,8 +21,8 @@ export function useTableTier(): TableTier {
     const queries = [window.matchMedia(WIDE_QUERY), window.matchMedia(MEDIUM_QUERY)];
     const update = (): void => setTier(currentTier());
     update();
-    queries.forEach((q) => q.addEventListener('change', update));
-    return () => queries.forEach((q) => q.removeEventListener('change', update));
+    queries.forEach((q) => q.addEventListener?.('change', update));
+    return () => queries.forEach((q) => q.removeEventListener?.('change', update));
   }, []);
 
   return tier;

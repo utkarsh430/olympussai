@@ -338,7 +338,7 @@ describe('no wording reads as profit, loss or margin', () => {
       coverageSentence({ n: 0, of: 3 }),
       ECONOMICS_TABLE_NOTE,
       ECONOMICS_SIGN_NOTE,
-      economicsBand(entries, '2026-10-06'),
+      economicsBand(entries),
       economicsDaySentence('2026-10-06'),
       notRankedPanel(operating(1, 6)),
       rows.map((r) => breakdownButtonName(r.name)),

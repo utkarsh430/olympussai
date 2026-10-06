@@ -1,7 +1,9 @@
-import { formatCount } from '../format';
+import { formatCount, formatPlainDate } from '../format';
+import { networkModelledDayLine } from '../modelledDayLine';
 import { MIN_FLEET_FOR_RANK, MIN_PEER_GROUP } from '../score/config';
 import type { EconomicsDepotRow } from './api';
 import type { EconomicsRow } from './economicsRows';
+import type { TableTier } from './tableTier';
 
 /*
  * The economics page's layout words and geometry (design wave, round 2): the
@@ -23,14 +25,14 @@ export const ECONOMICS_SIGN_NOTE =
 
 /** The provenance line's extension: the dated, tense-neutral modelled day. */
 export function economicsDaySentence(operatingDate: string): string {
-  return `Built on the modelled day for ${operatingDate} of every operating depot, rebuilt from the live fleet as of the feed time.`;
+  return networkModelledDayLine(operatingDate);
 }
 
 /** The phrase a reason uses for a depot whose modelled day has no duty. */
 export function noDutyPhrase(operatingDate?: string): string {
   return operatingDate === undefined
     ? 'no duty in the modelled day'
-    : `no duty in the modelled day for ${operatingDate}`;
+    : `no duty in the modelled day for ${formatPlainDate(operatingDate)}`;
 }
 
 export interface BandFigure {
@@ -46,7 +48,6 @@ export interface BandFigure {
  */
 export function economicsBand(
   depots: readonly EconomicsDepotRow[],
-  operatingDate?: string,
 ): readonly BandFigure[] {
   const operating = depots.filter((d) => d.kind === 'depot');
   const ranked = operating.filter((d) => d.score.ranked).length;
@@ -61,12 +62,12 @@ export function economicsBand(
   const figures: BandFigure[] = [
     { label: 'Ranked', value: formatCount(ranked), caption: `of ${formatCount(operating.length)} ${noun}` },
     {
-      label: 'No duty in the modelled day',
+      label: 'No duty in the day',
       value: formatCount(noDuty),
-      caption: operatingDate === undefined ? 'not ranked' : `not ranked; day for ${operatingDate}`,
+      caption: 'not ranked',
     },
     {
-      label: 'Under the peer-group minimum',
+      label: 'Peer group too small',
       value: formatCount(underMinimum),
       caption: `under ${formatCount(MIN_FLEET_FOR_RANK)} buses or ${formatCount(MIN_PEER_GROUP)} peers`,
     },
@@ -86,16 +87,28 @@ export const FRAME_AT_1440 = 1160;
 
 /** Every column's width at 1440, in px; their sum stays inside the frame (no column cut). */
 export const ECONOMICS_COLUMN_WIDTHS = {
-  rank: 56,
-  depot: 224,
-  index: 184,
-  earningsPerKm: 160,
-  costPerKm: 160,
-  loadFactor: 136,
-  fleet: 104,
+  rank: 48,
+  depot: 180,
+  index: 150,
+  earningsPerKm: 150,
+  costPerKm: 150,
+  loadFactor: 120,
+  fleet: 90,
 } as const;
 
-/** The breakdown button's accessible name, the same words as the league page's. */
+export type EconomicsColumnKey = keyof typeof ECONOMICS_COLUMN_WIDTHS;
+
+/** The end-of-row chevron (28 px) and the table's row-expander column (36 px). */
+export const ECONOMICS_ROW_CONTROLS_PX = 64;
+
+/** Every column from 1024; at 800 LOAD % and FLEET go to the breakdown (critique §7). */
+export function economicsColumnKeys(tier: TableTier): readonly EconomicsColumnKey[] {
+  return tier === 'narrow'
+    ? ['rank', 'depot', 'index', 'earningsPerKm', 'costPerKm']
+    : ['rank', 'depot', 'index', 'earningsPerKm', 'costPerKm', 'loadFactor', 'fleet'];
+}
+
+/** The breakdown's name: never the league's "Score breakdown" (R2-m3). */
 export function breakdownButtonName(name: string): string {
-  return `Score breakdown for ${name}`;
+  return `Economics breakdown for ${name}`;
 }

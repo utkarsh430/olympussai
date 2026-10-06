@@ -19,6 +19,11 @@ export interface ModelledDayLineInput {
   readonly scheduled: Coverage | null;
 }
 
+/** The network pages' form (economics): "Built on the modelled day for 6 Oct 2026 of every operating depot." */
+export function networkModelledDayLine(operatingDate: string): string {
+  return `Built on the modelled day for ${formatPlainDate(operatingDate)} of every operating depot.`;
+}
+
 /** "Built on the modelled day for 6 Oct 2026: 163 duties on 4 routes; the feed schedules 5 of 200 buses." */
 export function modelledDayLine(input: ModelledDayLineInput): string {
   const date = formatPlainDate(input.operatingDate);

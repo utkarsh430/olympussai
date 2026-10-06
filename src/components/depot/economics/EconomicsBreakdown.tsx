@@ -6,6 +6,7 @@ import {
   peerRankPhrase,
   type EconomicsRow,
 } from '@/lib/depot/revenue/economicsPageModel';
+import { breakdownButtonName } from '@/lib/depot/revenue/economicsLayout';
 import type { EconomicsResponse } from '@/lib/depot/revenue/api';
 import { coverageSentence } from '@/lib/depot/revenue/revenuePageModel';
 
@@ -33,7 +34,11 @@ export function EconomicsBreakdown({
       data-testid="depot-economics-breakdown"
       className="depot-panel min-w-0 p-4 focus:outline-none 2xl:sticky 2xl:top-[var(--depot-panel-top)] 2xl:self-start"
     >
-      <SectionLabel id="economics-breakdown-title" label="Score breakdown" tag="modelled" />
+      <SectionLabel
+        id="economics-breakdown-title"
+        label={breakdownButtonName(row.name)}
+        tag="modelled"
+      />
       <h3 className="font-mono text-sm text-depot-ink">{`${row.name} · ${peerRankPhrase(row)}`}</h3>
       <p className="depot-prose mt-1">{explainEconomics(row)}</p>
       <p className="depot-note mt-1">

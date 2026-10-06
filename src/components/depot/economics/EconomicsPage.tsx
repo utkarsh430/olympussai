@@ -35,18 +35,23 @@ import { modelledStatement } from '@/lib/depot/revenue/revenuePageModel';
 import { REVENUE_MODEL_PARAMS } from '@/lib/depot/sim/revenueConfig';
 import { EconomicsBreakdown } from './EconomicsBreakdown';
 import { EconomicsGrid } from './EconomicsGrid';
+import { breakdownButtonName } from '@/lib/depot/revenue/economicsLayout';
 
 const LEAGUE_PATH = '/project/depots/league';
 const ROUTES_PATH = '/project/depots/routes';
 const SOURCES_PATH = '/project/depots/sources';
 const HOW_ID = 'economics-how';
-const REPLACED_BY = 'fuel issue records, odometer readings, a ticketing feed and a route master';
+const REPLACED_BY = 'each of the fuel issue, odometer, ticketing and route master feeds';
 
 /** The page's provenance line: MODELLED in every state, with the dated day once it is known. */
 export function economicsProvenance(operatingDate: string | null): ProvenanceDescription {
   return operatingDate === null
     ? { default: 'modelled', replacedBy: REPLACED_BY }
-    : { default: 'modelled', replacedBy: REPLACED_BY, modelledDay: economicsDaySentence(operatingDate) };
+    : {
+        default: 'modelled',
+        replacedBy: REPLACED_BY,
+        modelledDay: economicsDaySentence(operatingDate),
+      };
 }
 
 /**
@@ -84,7 +89,13 @@ export function EconomicsPage() {
   );
 }
 
-function EconomicsBody({ data, error }: { readonly data: EconomicsResponse; readonly error: string | null }) {
+function EconomicsBody({
+  data,
+  error,
+}: {
+  readonly data: EconomicsResponse;
+  readonly error: string | null;
+}) {
   const [search, setSearch] = useState('');
   // Null until the reader chooses: then it follows the data (all depots when none is ranked).
   const [showUnrankedChoice, setShowUnrankedChoice] = useState<boolean | null>(null);
@@ -102,12 +113,10 @@ function EconomicsBody({ data, error }: { readonly data: EconomicsResponse; read
   );
   const rows = useMemo(() => filterEconomicsRows(allRows, filters), [allRows, filters]);
   const panel = useMemo(() => notRankedPanel(data.depots), [data.depots]);
-  const band = useMemo(
-    () => economicsBand(data.depots, data.operatingDate),
-    [data.depots, data.operatingDate],
-  );
+  const band = useMemo(() => economicsBand(data.depots), [data.depots, data.operatingDate]);
   const disclosure = useMemo(
-    () => economicsDisclosure(modelledStatement(REVENUE_MODEL_PARAMS), lengthCoverageLine(data.depots)),
+    () =>
+      economicsDisclosure(modelledStatement(REVENUE_MODEL_PARAMS), lengthCoverageLine(data.depots)),
     [data.depots],
   );
   const shortfall = useMemo(() => rankingShortfallNotice(data.depots), [data.depots]);
@@ -116,7 +125,8 @@ function EconomicsBody({ data, error }: { readonly data: EconomicsResponse; read
     setFocusPending(true);
   }, []);
   // The selection outlives a filter that hides it, so relaxing the filter reopens it.
-  const selected = selectedId === null ? null : (rows.find((r) => r.depotId === selectedId) ?? null);
+  const selected =
+    selectedId === null ? null : (rows.find((r) => r.depotId === selectedId) ?? null);
   const selectedHidden = selectedId !== null && selected === null;
   const selectedName = allRows.find((r) => r.depotId === selectedId)?.name ?? 'the depot';
   const noneRanked = !allRows.some((r) => r.ranked);
@@ -126,12 +136,15 @@ function EconomicsBody({ data, error }: { readonly data: EconomicsResponse; read
     if (!focusPending || selected === null || breakdownRef.current === null) return;
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     breakdownRef.current.focus({ preventScroll: true });
-    breakdownRef.current.scrollIntoView({ block: 'nearest', behavior: reduceMotion ? 'auto' : 'smooth' });
+    breakdownRef.current.scrollIntoView({
+      block: 'nearest',
+      behavior: reduceMotion ? 'auto' : 'smooth',
+    });
     setFocusPending(false);
   }, [focusPending, selected]);
 
   return (
-    <div className="flex min-w-0 flex-col gap-8">
+    <div className="depot-stack min-w-0">
       {data.stale || error ? <StaleStrip since={data.feedNow} /> : null}
       {panel ? (
         <StatePanel
@@ -175,11 +188,18 @@ function EconomicsBody({ data, error }: { readonly data: EconomicsResponse; read
             checked={filters.showUnranked}
             onChange={(event) => setShowUnrankedChoice(event.target.checked)}
           />
-          <p className="depot-note min-w-0 sm:ml-auto">{ECONOMICS_SIGN_NOTE}</p>
         </div>
+        {/* One line above the header row: what the signed suffix in each cell means. */}
+        <p
+          className="depot-note mb-2 truncate"
+          title={ECONOMICS_SIGN_NOTE}
+          data-testid="depot-economics-table-caption"
+        >
+          {ECONOMICS_SIGN_NOTE}
+        </p>
         <p className="sr-only" role="status">
           {selected
-            ? `Score breakdown showing for ${selected.name}.`
+            ? `${breakdownButtonName(selected.name)} is showing.`
             : selectedHidden
               ? `The selected depot, ${selectedName}, is hidden by the filters; change them to see its breakdown again.`
               : 'Select a depot’s economics index to see how it is made up.'}

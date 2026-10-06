@@ -2,14 +2,18 @@ import { describe, expect, it } from 'vitest';
 import type { EconomicsDepotRow } from '@/lib/depot/revenue/api';
 import {
   ECONOMICS_COLUMN_WIDTHS,
+  ECONOMICS_ROW_CONTROLS_PX,
   ECONOMICS_SIGN_NOTE,
   ECONOMICS_TABLE_NOTE,
   FRAME_AT_1440,
   breakdownButtonName,
   economicsBand,
+  economicsColumnKeys,
   economicsDaySentence,
   noDutyPhrase,
 } from '@/lib/depot/revenue/economicsLayout';
+import { networkModelledDayLine } from '@/lib/depot/modelledDayLine';
+import { TIER_FRAME_PX, columnSum, type TableTier } from '@/lib/depot/revenue/tableTier';
 
 function depot(
   id: string,
@@ -29,7 +33,9 @@ function depot(
 
 describe('economics layout', () => {
   it('keeps the three facts in ONE visible sentence', () => {
-    expect(ECONOMICS_TABLE_NOTE.split(/[.!?](\s|$)/).filter((s) => s.trim() !== '')).toHaveLength(1);
+    expect(ECONOMICS_TABLE_NOTE.split(/[.!?](\s|$)/).filter((s) => s.trim() !== '')).toHaveLength(
+      1,
+    );
     expect(ECONOMICS_TABLE_NOTE).toContain('modelled and separate from the Depot Efficiency Index');
     expect(ECONOMICS_TABLE_NOTE).toContain('not profit');
     expect(ECONOMICS_TABLE_NOTE).toContain("driven by the model's assumptions");
@@ -41,30 +47,33 @@ describe('economics layout', () => {
 
   it('dates the modelled day without the past tense or "today"', () => {
     const words = [economicsDaySentence('2026-10-06'), noDutyPhrase('2026-10-06'), noDutyPhrase()];
-    expect(words[0]).toContain('modelled day for 2026-10-06');
-    expect(words[1]).toBe('no duty in the modelled day for 2026-10-06');
-    for (const w of words) expect(w).not.toMatch(/\bran\b|\btoday\b|did not run/i);
+    // The shared formula (critique round 5 §5), the date through formatPlainDate (item 8).
+    expect(words[0]).toBe('Built on the modelled day for 6 Oct 2026 of every operating depot.');
+    expect(words[0]).toBe(networkModelledDayLine('2026-10-06'));
+    expect(words[1]).toBe('no duty in the modelled day for 6 Oct 2026');
+    for (const w of words) {
+      expect(w).not.toMatch(/\bran\b|\btoday\b|did not run/i);
+      expect(w).not.toMatch(/\d{4}-\d{2}-\d{2}/);
+    }
   });
 
   it('bands ranked, no duty and under a minimum, adding up to the operating depots', () => {
-    const band = economicsBand(
-      [
-        depot('1', 'ok'),
-        depot('2', 'ok'),
-        depot('3', 'missing_component', ['earningsPerKm']),
-        depot('4', 'fleet_too_small'),
-        depot('5', 'peer_group_too_small'),
-        depot('6', 'not_a_depot', [], 'unassigned'),
-      ],
-      '2026-10-06',
-    );
+    const band = economicsBand([
+      depot('1', 'ok'),
+      depot('2', 'ok'),
+      depot('3', 'missing_component', ['earningsPerKm']),
+      depot('4', 'fleet_too_small'),
+      depot('5', 'peer_group_too_small'),
+      depot('6', 'not_a_depot', [], 'unassigned'),
+    ]);
+    // Short enough that no label is ellipsised at 1440 (capture item 9).
     expect(band.map((f) => [f.label, f.value])).toEqual([
       ['Ranked', '2'],
-      ['No duty in the modelled day', '1'],
-      ['Under the peer-group minimum', '2'],
+      ['No duty in the day', '1'],
+      ['Peer group too small', '2'],
     ]);
     expect(band[0]?.caption).toBe('of 5 operating depots');
-    expect(band[1]?.caption).toContain('2026-10-06');
+    expect(band[1]?.caption).toBe('not ranked');
   });
 
   it('adds a fourth figure only for another missing component, so the figures add up', () => {
@@ -73,12 +82,28 @@ describe('economics layout', () => {
     expect(band[3]?.value).toBe('1');
   });
 
-  it('fits every column inside the 1440 frame', () => {
-    const sum = Object.values(ECONOMICS_COLUMN_WIDTHS).reduce((a, b) => a + b, 0);
-    expect(sum).toBeLessThanOrEqual(FRAME_AT_1440);
+  it.each<TableTier>(['wide', 'medium', 'narrow'])(
+    'fits the %s frame with the chevron and expander',
+    (tier) => {
+      const sum =
+        columnSum(ECONOMICS_COLUMN_WIDTHS, economicsColumnKeys(tier)) + ECONOMICS_ROW_CONTROLS_PX;
+      expect(sum).toBeLessThanOrEqual(TIER_FRAME_PX[tier]);
+      expect(sum).toBeLessThanOrEqual(FRAME_AT_1440);
+    },
+  );
+
+  it('keeps RANK · DEPOT · INDEX · EARNINGS · FUEL at 800 and gives the index 150 px', () => {
+    expect(economicsColumnKeys('narrow')).toEqual([
+      'rank',
+      'depot',
+      'index',
+      'earningsPerKm',
+      'costPerKm',
+    ]);
+    expect(ECONOMICS_COLUMN_WIDTHS.index).toBe(150);
   });
 
-  it('names the breakdown button as the league page does', () => {
-    expect(breakdownButtonName('Alambagh')).toBe('Score breakdown for Alambagh');
+  it('names the breakdown apart from the league\'s "Score breakdown" (R2-m3)', () => {
+    expect(breakdownButtonName('Alambagh')).toBe('Economics breakdown for Alambagh');
   });
 });
