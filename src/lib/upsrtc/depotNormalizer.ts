@@ -29,11 +29,29 @@ type Rec = Record<string, unknown>;
 export interface NormalizeDepotResult {
   readonly rows: readonly DepotBusRow[];
   recordCount: number;
-  /** Non-records and rows without a registration. */
+  /** Non-records and rows without a usable registration. */
   rejectedRecordCount: number;
 }
 
 const DEPOT_ID_PATTERN = /^\d{1,6}$/;
+
+/**
+ * The longest text a row's field may carry. The feed's longest real field (a route
+ * description) is well under half of it; a longer value is garbage, and would be carried
+ * into every map key, list and response that names the bus, so the field is dropped (the
+ * row is refused when it is the registration) rather than cut to a value nobody sent.
+ */
+export const MAX_ROW_TEXT_CHARS = 128;
+
+function toText(value: unknown): string | null {
+  const text = toStringOrNull(value);
+  return text !== null && text.length <= MAX_ROW_TEXT_CHARS ? text : null;
+}
+
+/** One spelling per bus: `up77an2509` and `UP77AN2509` are the same registration. */
+function toRegistration(value: unknown): string | null {
+  return toText(value)?.toUpperCase() ?? null;
+}
 
 function roundOneDecimal(value: number): number {
   return Math.round(value * 10) / 10;
@@ -71,14 +89,14 @@ function toRow(raw: Rec, registrationNumber: string): DepotBusRow {
     gpsTimestamp: parseTimestamp(pick(raw, ['timestamp'])),
     receivedAt: parseTimestamp(pick(raw, ['receivedTime'])),
     depotId: toDepotId(pick(raw, ['home_depot'])),
-    depotName: toStringOrNull(pick(raw, ['depot_name'])),
+    depotName: toText(pick(raw, ['depot_name'])),
     vehicleStatus: toVehicleStatus(pick(raw, ['vehicle_status'])),
-    tripStatus: toStringOrNull(pick(raw, ['status'])),
-    routeId: toStringOrNull(pick(raw, ROUTE_ID_ALIASES)),
-    routeName: toStringOrNull(pick(raw, ROUTE_NAME_ALIASES)),
-    routeDescription: toStringOrNull(pick(raw, ['route_description'])),
-    journeyId: toStringOrNull(pick(raw, TRIP_ALIASES)),
-    journeyCode: toStringOrNull(pick(raw, ['vehicle_journey_code'])),
+    tripStatus: toText(pick(raw, ['status'])),
+    routeId: toText(pick(raw, ROUTE_ID_ALIASES)),
+    routeName: toText(pick(raw, ROUTE_NAME_ALIASES)),
+    routeDescription: toText(pick(raw, ['route_description'])),
+    journeyId: toText(pick(raw, TRIP_ALIASES)),
+    journeyCode: toText(pick(raw, ['vehicle_journey_code'])),
     scheduledStart: parseTimestamp(pick(raw, ['scheduled_start_time'])),
     scheduledEnd: parseTimestamp(pick(raw, ['scheduled_end_time'])),
     actualStart: parseTimestamp(pick(raw, ['actual_start_time'])),
@@ -86,7 +104,7 @@ function toRow(raw: Rec, registrationNumber: string): DepotBusRow {
     odometerRaw: toNumber(pick(raw, ['distance'])),
     mainPowerOn: toBooleanOrNull(raw['mainPowerStatus']),
     mainVoltage: toNumber(pick(raw, ['mainInputVoltage'])),
-    tamperCode: toStringOrNull(pick(raw, ['tamperAlert'])),
+    tamperCode: toText(pick(raw, ['tamperAlert'])),
     emergency: toBooleanOrNull(raw['emergencyStatus']),
   };
 }
@@ -130,7 +148,7 @@ export function normalizeDepotRows(payload: unknown): NormalizeDepotResult {
   let rejected = 0;
 
   for (const record of records) {
-    const registrationNumber = isRecord(record) ? toStringOrNull(pick(record, REG_ALIASES)) : null;
+    const registrationNumber = isRecord(record) ? toRegistration(pick(record, REG_ALIASES)) : null;
     if (!isRecord(record) || !registrationNumber) {
       rejected += 1;
       continue;
