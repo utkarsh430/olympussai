@@ -136,6 +136,19 @@ describe('buildFuelResponse', () => {
     expect(response.rule).toEqual({ thresholdPct: FUEL_VARIANCE_FLAG_PCT, minPeers: MIN_PEERS });
   });
 
+  it('shows the exact peers median, not one derived from the rounded variance', async () => {
+    const litres = (reg: string, fuelLitres: number): BusFuelDay => ({
+      registrationNumber: reg,
+      distanceKm: 300,
+      fuelLitres,
+      serviceClass: 'ordinary',
+      routeName: 'R1',
+    });
+    const response = await build(() => [litres('A1', 48), litres('A2', 48), litres('A3', 70)]);
+    // Peers 6.25 km/L. Reading it back from 45.8% on 4.2857 gives 6.2486, shown as 6.2.
+    expect(response.flagged[0]?.peerMedianKmPerLitre).toBe(6.3);
+  });
+
   it('counts buses with distance but no comparison', async () => {
     const response = await build(() => [day('A1', 5), day('A2', 4, 'R2')]);
     expect(response.noComparisonCount).toBe(2);

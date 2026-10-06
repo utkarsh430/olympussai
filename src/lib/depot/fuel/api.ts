@@ -14,7 +14,7 @@ export interface FuelFlaggedBus {
   readonly serviceClass: ServiceClass;
   /** Kilometres per litre for the day, one decimal. */
   readonly kmPerLitre: number;
-  /** Median of its peers, derived from the module's variance; one decimal. */
+  /** Median of its peers, as the analysis measured the variance against it; one decimal. */
   readonly peerMedianKmPerLitre: number;
   readonly variancePct: number;
   readonly comparison: FuelComparisonScope;

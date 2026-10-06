@@ -16,14 +16,9 @@ import { buildDepotDetail } from './depotView';
 type FuelBody = Omit<FuelResponse, keyof ReturnType<typeof feedEnvelope>>;
 
 const TENTH = 10;
-const PERCENT = 100;
 const toTenth = (value: number): number => Math.round(value * TENTH) / TENTH;
 
-/**
- * The flagged bus with its own figure and its peers' median. The analysis keeps
- * the variance, not the median, so the median is read back from it: median =
- * own figure x (1 + variance), good to the tenth the page shows.
- */
+/** The flagged bus with its own figure and the exact median of its peers, both to a tenth. */
 function toFlaggedBus(flag: FlaggedBus, figure: BusFuelFigure | undefined): FuelFlaggedBus | null {
   if (!figure || figure.kmPerLitre === null) return null;
   return {
@@ -31,7 +26,7 @@ function toFlaggedBus(flag: FlaggedBus, figure: BusFuelFigure | undefined): Fuel
     routeName: flag.routeName,
     serviceClass: flag.serviceClass,
     kmPerLitre: toTenth(figure.kmPerLitre),
-    peerMedianKmPerLitre: toTenth(figure.kmPerLitre * (1 + flag.variancePct / PERCENT)),
+    peerMedianKmPerLitre: toTenth(flag.peerMedianKmPerLitre),
     variancePct: flag.variancePct,
     comparison: flag.comparison,
     statement: flag.statement,
