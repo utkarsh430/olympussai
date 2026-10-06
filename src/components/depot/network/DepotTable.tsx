@@ -2,21 +2,20 @@
 
 import { useMemo, useState } from 'react';
 import { DataTable, useTableSort, type Column, type TableSort } from '@/components/depot/shell/DataTable';
-import { ShowAllButton } from '@/components/depot/shell/LongLists';
+import { Pager } from '@/components/depot/shell/LongLists';
 import { formatCount } from '@/lib/depot/format';
+import { pageRange } from '@/lib/depot/listPaging';
+import { sortRows } from '@/lib/depot/tableSort';
 import { DEPOT_KIND_LABEL, PEER_GROUP_LABEL, RANK_REASON_LABEL } from '@/lib/depot/labels';
 import { formatIndex, rankedIndex, type DepotRow } from '@/lib/depot/network/overviewModel';
-import {
-  KIND_FILTER_OPTIONS,
-  TABLE_ROW_CAP,
-  tableCap,
-  tableHeading,
-} from '@/lib/depot/network/overviewWords';
+import { KIND_FILTER_OPTIONS, tableHeading } from '@/lib/depot/network/overviewWords';
 import {
   DARK_HEADER_TITLE,
   MIX_BAR_PX,
   NARROW_TABLE_NOTE,
   TABLE_COLUMN_SPEC,
+  UNITS_PAGE_ROWS,
+  pageOfKey,
   tableColumnKeys,
   unitStateCounts,
   type KindFilter,
@@ -123,6 +122,7 @@ const COLUMNS: readonly (Column<DepotRow> & { readonly key: TableColumnKey })[] 
 
 const DEFAULT_SORT: TableSort = { key: 'fleet', direction: 'desc' };
 const TABLE_ID = 'depot-table-region';
+const unitKey = (row: DepotRow): string => row.depot.id;
 
 const COLUMN_BY_KEY: ReadonlyMap<TableColumnKey, Column<DepotRow>> = new Map(
   COLUMNS.map((column) => [column.key, column]),
@@ -143,13 +143,13 @@ export interface DepotTableProps {
 
 /**
  * Every unit in the feed, largest fleet first, in the page flow: no second scroll axis.
- * The first 25 rows show until "Show all N"; the table applies the cap after its own
- * sort, so sorting ranks every row, and a selected row beyond the cap is kept. The columns
+ * Pages of 25 under the shared pager, the only count. The sort ranks every row before the
+ * page is cut; a filter or sort change returns to page 1; a unit selected on the map or in
+ * a ranked list brings its page into view and stays selected across pages. The columns
  * follow the content width (`useUnitsTier`); what a tier drops is in the selected-unit panel.
  */
 export function DepotTable({ rows, selectedId, onSelect, selection }: DepotTableProps) {
   const [filter, setFilter] = useState<KindFilter>('all');
-  const [expanded, setExpanded] = useState(false);
   const tier = useUnitsTier();
   const narrow = tier === 'narrow' || tier === 'phone';
   const visible = useMemo(() => rows.filter((row) => matchesKind(row, filter)), [rows, filter]);
@@ -161,14 +161,40 @@ export function DepotTable({ rows, selectedId, onSelect, selection }: DepotTable
         .filter((column): column is Column<DepotRow> => column !== undefined),
     [tier],
   );
-  const cap = tableCap(visible.length, expanded);
   const tableSort = useTableSort(columns, DEFAULT_SORT);
+  const sort = tableSort.sort;
+  const sorted = useMemo(() => {
+    const sortValue = sort ? columns.find((column) => column.key === sort.key)?.sortValue : undefined;
+    return sort && sortValue ? sortRows(visible, sortValue, sort.direction) : visible;
+  }, [visible, columns, sort]);
+  const [page, setPage] = useState(() => pageOfKey(sorted.map(unitKey), selectedId) ?? 0);
+  // A selection made elsewhere (the map, a ranked list) brings its page into view. Adjusted
+  // while rendering, so the old page is never painted first.
+  const [seenSelection, setSeenSelection] = useState(selectedId);
+  if (selectedId !== seenSelection) {
+    setSeenSelection(selectedId);
+    const target = pageOfKey(sorted.map(unitKey), selectedId);
+    if (target !== null && target !== page) setPage(target);
+  }
+  const range = pageRange(page, sorted.length, UNITS_PAGE_ROWS);
+  const shown = sorted.slice(range.start, range.end);
+  const pagedSort = {
+    ...tableSort,
+    setSort: (next: TableSort) => {
+      setPage(0);
+      tableSort.setSort(next);
+    },
+  };
+  const chooseFilter = (next: KindFilter): void => {
+    setFilter(next);
+    setPage(0);
+  };
 
   return (
     <section aria-labelledby="depot-table-heading" data-testid="depot-table-section">
       <div className="mb-3 flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-depot-line pt-4">
         <h2 id="depot-table-heading" className="depot-label">
-          {tableHeading(filter, visible.length)}
+          {tableHeading(filter)}
         </h2>
         {narrow ? (
           <p className="depot-note min-w-0 flex-1" data-testid="depot-table-note">
@@ -181,7 +207,7 @@ export function DepotTable({ rows, selectedId, onSelect, selection }: DepotTable
               key={option.id}
               type="button"
               aria-pressed={filter === option.id}
-              onClick={() => setFilter(option.id)}
+              onClick={() => chooseFilter(option.id)}
               className="depot-filter-button"
             >
               {option.label}
@@ -193,11 +219,10 @@ export function DepotTable({ rows, selectedId, onSelect, selection }: DepotTable
       <div className="depot-table-flow">
         <DataTable
           id={TABLE_ID}
-          maxRows={cap.capped ? TABLE_ROW_CAP : undefined}
-          tableSort={tableSort}
+          tableSort={pagedSort}
           columns={columns}
-          rows={visible}
-          rowKey={(row) => row.depot.id}
+          rows={shown}
+          rowKey={unitKey}
           caption="Units with fleet, reporting, assignment, state, index and peer group"
           initialSort={DEFAULT_SORT}
           onRowSelect={(row) => onSelect(row.depot.id)}
@@ -208,15 +233,8 @@ export function DepotTable({ rows, selectedId, onSelect, selection }: DepotTable
           overflowCue
         />
       </div>
-      {cap.toggle ? (
-        <div className="mt-2">
-          <ShowAllButton
-            total={visible.length}
-            expanded={!cap.capped}
-            onToggle={() => setExpanded((open) => !open)}
-            controls={TABLE_ID}
-          />
-        </div>
+      {sorted.length > UNITS_PAGE_ROWS ? (
+        <Pager page={range.page} total={sorted.length} pageSize={UNITS_PAGE_ROWS} onPage={setPage} />
       ) : null}
     </section>
   );

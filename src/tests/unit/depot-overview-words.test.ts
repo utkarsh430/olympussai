@@ -1,16 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
   KIND_FILTER_OPTIONS,
-  TABLE_ROW_CAP,
   figureTag,
   kpiLayout,
-  tableCap,
   tableColumnKeys,
   tableHeading,
-  tableCapLine,
-  tableToggleLabel,
   unrankedSentence,
 } from '@/lib/depot/network/overviewWords';
+import { UNITS_PAGE_ROWS, pageOfKey } from '@/lib/depot/network/unitsTable';
 import type { DepotKind, DepotSummary, NetworkKpis } from '@/lib/depot/types';
 
 function unit(id: string, kind: DepotKind): Pick<DepotSummary, 'id' | 'kind'> {
@@ -101,10 +98,10 @@ describe('figure tags and the quiet line', () => {
 });
 
 describe('table wording', () => {
-  it('names the table after the kind filter, with the count it shows', () => {
-    expect(tableHeading('all', 143)).toBe('All units · 143');
-    expect(tableHeading('depot', 119)).toBe('Operating depots · 119');
-    expect(tableHeading('other', 1024)).toBe('Other units · 1,024');
+  it('names the table after the kind filter, with no count (the pager is the only count)', () => {
+    expect(tableHeading('all')).toBe('All units');
+    expect(tableHeading('depot')).toBe('Operating depots');
+    expect(tableHeading('other')).toBe('Other units');
     expect(KIND_FILTER_OPTIONS.map((o) => o.label)).toEqual([
       'All',
       'Operating depots',
@@ -122,33 +119,15 @@ describe('table wording', () => {
   // KIND is never a column now (a muted suffix on a non-depot name); the tier sets are pinned
   // in depot-overview-round2-words.test.ts.
 
-  it('caps the table once it has more rows than the cap, and offers a toggle', () => {
-    expect(TABLE_ROW_CAP).toBe(25);
-    expect(tableCap(143, false)).toEqual({ capped: true, toggle: true });
-    expect(tableCap(143, true)).toEqual({ capped: false, toggle: true });
-    expect(tableCap(24, false)).toEqual({ capped: false, toggle: false });
-    expect(tableCap(25, false)).toEqual({ capped: false, toggle: false });
-  });
-
-  it('names the total in the toggle and keeps that label, so aria-expanded alone carries the state', () => {
-    expect(tableToggleLabel(143)).toBe('Show all 143');
-    expect(tableToggleLabel(1024)).toBe('Show all 1,024');
-  });
-
-  it('says the order the capped rows are in, as it is', () => {
-    const fleet = { label: 'Fleet', direction: 'desc' } as const;
-    expect(tableCapLine(25, 143, fleet, true)).toBe(
-      'Showing the first 25 of 143 in the default order',
-    );
-    expect(tableCapLine(25, 143, null, true)).toBe(
-      'Showing the first 25 of 143 in the default order',
-    );
-    expect(tableCapLine(25, 119, { label: 'Standing', direction: 'desc' }, false)).toBe(
-      'Showing the first 25 of 119, sorted by Standing (descending)',
-    );
-    expect(tableCapLine(25, 1430, { label: 'Depot', direction: 'asc' }, false)).toBe(
-      'Showing the first 25 of 1,430, sorted by Depot (ascending)',
-    );
+  it('finds the page that holds a selected unit, in the sorted order', () => {
+    const keys = Array.from({ length: 60 }, (_, i) => `u${i}`);
+    expect(UNITS_PAGE_ROWS).toBe(25);
+    expect(pageOfKey(keys, 'u0')).toBe(0);
+    expect(pageOfKey(keys, 'u24')).toBe(0);
+    expect(pageOfKey(keys, 'u25')).toBe(1);
+    expect(pageOfKey(keys, 'u59')).toBe(2);
+    expect(pageOfKey(keys, 'gone')).toBeNull();
+    expect(pageOfKey(keys, null)).toBeNull();
   });
 });
 

@@ -107,53 +107,12 @@ const HEADING: Readonly<Record<KindFilter, string>> = {
   other: 'Other units',
 };
 
-/** "All units · 143": the kind filter names the table and the count is what it shows. */
-export function tableHeading(filter: KindFilter, count: number): string {
-  return `${HEADING[filter]} · ${formatCount(count)}`;
-}
-
-export const TABLE_ROW_CAP = 25;
-
 /**
- * The toggle under the table: "Show all 143". The label does not flip when the table
- * opens; its state is carried by `aria-expanded`.
+ * "All units": the kind filter names the table. No count: the pager under the table is the
+ * only place the list's count appears.
  */
-export function tableToggleLabel(total: number): string {
-  return `Show all ${formatCount(total)}`;
-}
-
-export interface TableCap {
-  /** The table shows only its first rows. */
-  readonly capped: boolean;
-  /** Whether the toggle is worth showing: there are more rows than the cap. */
-  readonly toggle: boolean;
-}
-
-export function tableCap(total: number, expanded: boolean): TableCap {
-  const overCap = total > TABLE_ROW_CAP;
-  return { capped: overCap && !expanded, toggle: overCap };
-}
-
-export interface SortDescription {
-  readonly label: string;
-  readonly direction: 'asc' | 'desc';
-}
-
-/**
- * What order the capped rows are in, said as it is: "in the default order" while
- * the table sits in its starting sort, "sorted by <column>" after a person
- * chose one.
- */
-export function tableCapLine(
-  shown: number,
-  total: number,
-  sort: SortDescription | null,
-  isDefault: boolean,
-): string {
-  const head = `Showing the first ${formatCount(shown)} of ${formatCount(total)}`;
-  if (isDefault || !sort) return `${head} in the default order`;
-  const way = sort.direction === 'asc' ? 'ascending' : 'descending';
-  return `${head}, sorted by ${sort.label} (${way})`;
+export function tableHeading(filter: KindFilter): string {
+  return HEADING[filter];
 }
 
 function counted(n: number, one: string, many: string): string {
