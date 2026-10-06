@@ -599,6 +599,12 @@
     background-image: linear-gradient(180deg, rgb(var(--depot-tone)), rgb(var(--depot-tone) / 0.62));
   }
 
+  /* A pressed figure filter: a 2px underline in the figure's tone (3:1 and more against
+     the page in every tone), so the state is seen, not only said by aria-pressed. */
+  .depot-figure-pressed {
+    box-shadow: inset 0 -2px 0 0 rgb(var(--depot-tone));
+  }
+
   /* The page's one hero figure: a stronger wash and glow. */
   .depot-figure-hero {
     background-image: linear-gradient(180deg, rgb(var(--depot-tone) / 0.13), transparent 85%);

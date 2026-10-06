@@ -167,7 +167,7 @@ export function Figure(props: FigureProps) {
           type="button"
           aria-pressed={pressed ?? false}
           onClick={onPress}
-          className={`${INTERACTIVE} ${FIGURE_ROWS_CLASSES} w-[calc(100%+1rem)] ${pressed ? 'bg-depot-selected' : ''}`}
+          className={`${INTERACTIVE} ${FIGURE_ROWS_CLASSES} w-[calc(100%+1rem)] ${pressed ? 'depot-figure-pressed bg-depot-selected' : ''}`}
         >
           {body}
         </button>

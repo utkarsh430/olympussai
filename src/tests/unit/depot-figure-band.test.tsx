@@ -151,6 +151,21 @@ describe('Figure: a figure that leads somewhere', () => {
     );
   });
 
+  it('shows the pressed state with its tone underline, not only in words', () => {
+    const { rerender } = render(
+      <FigureBand label="Bus exceptions">
+        <Figure label="Long dark" value="12" onPress={vi.fn()} pressed={false} />
+      </FigureBand>,
+    );
+    expect(screen.getByRole('button').className).not.toContain('depot-figure-pressed');
+    rerender(
+      <FigureBand label="Bus exceptions">
+        <Figure label="Long dark" value="12" onPress={vi.fn()} pressed />
+      </FigureBand>,
+    );
+    expect(screen.getByRole('button').className).toContain('depot-figure-pressed');
+  });
+
   it('is plain text when given neither', () => {
     band();
     expect(screen.queryByRole('link')).toBeNull();

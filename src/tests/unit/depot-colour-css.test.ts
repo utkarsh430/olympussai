@@ -38,3 +38,11 @@ describe('the page title in forced colours', () => {
     expect(block?.[1]).toMatch(/-webkit-text-fill-color:\s*currentColor/);
   });
 });
+
+describe('a pressed figure filter', () => {
+  it('draws a 2px underline in its tone', () => {
+    expect(rule('.depot-figure-pressed')).toMatch(
+      /box-shadow:\s*inset 0 -2px 0 0 rgb\(var\(--depot-tone\)\)/,
+    );
+  });
+});
