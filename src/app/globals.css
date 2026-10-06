@@ -363,6 +363,12 @@
     @apply min-w-0 bg-depot-page px-4 py-3;
   }
 
+  /* Secondary figures sit beneath the band as small inline readings on one
+     rule, not as a second row of hero cells. */
+  .depot-kpi-secondary {
+    @apply grid grid-cols-2 gap-x-6 gap-y-3 border-b border-depot-line px-4 py-3 md:grid-cols-4;
+  }
+
   .depot-hero-numeral {
     @apply font-display text-[32px] font-semibold leading-none tabular-nums text-depot-ink;
   }

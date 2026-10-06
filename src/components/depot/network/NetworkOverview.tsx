@@ -136,7 +136,7 @@ function OverviewBody({ data }: { readonly data: DepotNetworkResponse }) {
   return (
     <div className="space-y-8">
       <div className={SECTION}>
-        <KpiBand kpis={data.kpis} />
+        <KpiBand kpis={data.kpis} depots={data.depots} />
       </div>
       {rows.length === 0 ? (
         <EmptyState>

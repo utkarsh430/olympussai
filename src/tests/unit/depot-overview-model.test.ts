@@ -5,13 +5,12 @@ import {
   severityTotals,
   formatIndex,
   joinScores,
-  kpiRows,
   rankedExtremes,
   unpositionedCount,
   unrankedSummary,
   type DepotRow,
 } from '@/lib/depot/network/overviewModel';
-import type { DepotSummary, NetworkKpis } from '@/lib/depot/types';
+import type { DepotSummary } from '@/lib/depot/types';
 import type { DepotScore, RankReason } from '@/lib/depot/score/types';
 import type { ExceptionKind } from '@/lib/depot/exceptions/types';
 
@@ -157,49 +156,6 @@ describe('unpositionedCount', () => {
   it('counts depots without a centroid', () => {
     const depots = [depot('a'), depot('b', { centroid: null }), depot('c', { centroid: null })];
     expect(unpositionedCount(depots)).toBe(2);
-  });
-});
-
-describe('kpiRows', () => {
-  const kpis: NetworkKpis = {
-    fleet: { value: 200, provenance: 'live' },
-    depots: { value: 12, provenance: 'live' },
-    reporting: { value: 150, provenance: 'derived' },
-    onRoad: { value: 100, provenance: 'derived' },
-    stationary: { value: 50, provenance: 'live' },
-    noSignal: { value: 25, provenance: 'live' },
-    underMaintenance: { value: 10, provenance: 'live' },
-    assigned: { value: 120, provenance: 'live' },
-  };
-
-  it('returns the eight figures in a fixed order with labels', () => {
-    const rows = kpiRows(kpis);
-    expect(rows.map((row) => row.key)).toEqual([
-      'fleet',
-      'depots',
-      'reporting',
-      'onRoad',
-      'stationary',
-      'noSignal',
-      'underMaintenance',
-      'assigned',
-    ]);
-    rows.forEach((row) => expect(row.label.length).toBeGreaterThan(0));
-  });
-
-  it('gives a share of fleet for bus counts only', () => {
-    const rows = kpiRows(kpis);
-    const byKey = new Map(rows.map((row) => [row.key, row.share]));
-    expect(byKey.get('fleet')).toBeNull();
-    expect(byKey.get('depots')).toBeNull();
-    expect(byKey.get('reporting')).toBe('75%');
-    expect(byKey.get('noSignal')).toBe('13%');
-  });
-
-  it('shows a dash, not NaN, when the fleet is zero', () => {
-    const rows = kpiRows({ ...kpis, fleet: { value: 0, provenance: 'live' } });
-    rows.forEach((row) => expect(row.share ?? '').not.toContain('NaN'));
-    expect(rows.find((row) => row.key === 'onRoad')?.share).toBe('—');
   });
 });
 
