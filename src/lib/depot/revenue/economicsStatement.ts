@@ -1,5 +1,5 @@
 import { formatCount } from '../format';
-import { ECONOMICS_MIN_ROUTE_COVERAGE, ECONOMICS_MIN_ROUTES } from '../sim/revenueConfig';
+import { MIN_PEER_GROUP } from '../score/config';
 import type { EconomicsDepotRow } from './api';
 
 /*
@@ -17,31 +17,13 @@ export const FUEL_ONLY_NOTE =
 export const INDEX_LIMITS_NOTE =
   "This index is driven by the model's class mix and load-factor assumptions; it shows how a ranking will work once ticketing data is supplied and is not a finding about any depot.";
 
-const COUNT_WORDS: readonly string[] = [
-  'zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine',
-];
-const SHARE_WORDS: ReadonlyMap<number, string> = new Map([
-  [0.25, 'a quarter'],
-  [0.5, 'half'],
-  [0.2, 'a fifth'],
-]);
-const PERCENT = 100;
-
-function countWord(n: number): string {
-  return COUNT_WORDS[n] ?? String(n);
-}
-
-function shareWords(share: number): string {
-  return SHARE_WORDS.get(share) ?? `${Math.round(share * PERCENT)}%`;
-}
-
 export interface RankingShortfallNotice {
   readonly lead: string;
   readonly linkText: string;
   readonly tail: string;
 }
 
-/** Why the ranking is nearly empty; null unless fewer than half the operating depots are ranked. */
+/** Why few depots are ranked; null unless fewer than half the operating depots are ranked. */
 export function rankingShortfallNotice(
   depots: readonly EconomicsDepotRow[],
 ): RankingShortfallNotice | null {
@@ -49,11 +31,10 @@ export function rankingShortfallNotice(
   const ranked = operating.filter((d) => d.score.ranked).length;
   if (operating.length === 0 || ranked * 2 >= operating.length) return null;
   const noun = operating.length === 1 ? 'operating depot' : 'operating depots';
-  const rule = `at least ${countWord(ECONOMICS_MIN_ROUTES)} of its routes, and ${shareWords(ECONOMICS_MIN_ROUTE_COVERAGE)} of them`;
   return {
-    lead: `Only ${formatCount(ranked)} of ${formatCount(operating.length)} ${noun} can be ranked. A depot is ranked once ${rule}, have a known length; route lengths come from route profiles, which are loaded one route at a time when a route is opened on the `,
+    lead: `Only ${formatCount(ranked)} of ${formatCount(operating.length)} ${noun} are ranked. A depot is ranked when a duty ran in its modelled day and its peer group has at least ${formatCount(MIN_PEER_GROUP)} depots with complete figures. Earnings per kilometre do not depend on a route's length in this model, so no depot waits for route profiles; a real length, once a route is opened on the `,
     linkText: 'Routes page',
-    tail: '.',
+    tail: ', replaces the modelled one in the revenue totals.',
   };
 }
 
@@ -71,7 +52,7 @@ export function economicsStatement(): EconomicsStatement {
       'The Depot Economics Index ranks operating depots on three MODELLED figures: earnings per kilometre, fuel cost per kilometre and load factor. None of them is measured; each is worked out from the assumptions below.',
     ],
     closing: [
-      'Fuel cost per kilometre is MODELLED too: it comes from the distance each bus is modelled to run, a fuel economy by service class and a fixed price per litre. It counts fuel only. Fuel issue records from the depots would replace it, alongside the ticketing feed and the route master.',
+      'Fuel cost per kilometre is MODELLED too: it comes from the distance each bus ran in the modelled day (the route of its duty, out and back), a fuel economy by service class and a fixed price per litre. It counts fuel only, and it is the same figure the fuel page of the depot shows. Fuel issue records from the depots would replace it, alongside the ticketing feed and the route master.',
     ],
   };
 }

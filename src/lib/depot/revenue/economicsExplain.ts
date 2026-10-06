@@ -22,15 +22,13 @@ export function economicsStatusLine(depots: readonly EconomicsDepotRow[]): strin
     (d) => d.score.reason === 'missing_component' && d.score.missing.includes('earningsPerKm'),
   ).length;
   const tooSmall = operating.filter((d) => d.score.reason === 'fleet_too_small').length;
-  const thin = count(operating, 'thin_route_coverage');
   const smallGroup = count(operating, 'peer_group_too_small');
   const otherMissing = operating.filter((d) => d.score.reason === 'missing_component').length - noLength;
   const others = depots.length - operating.length;
   const noun = operating.length === 1 ? 'operating depot' : 'operating depots';
   const parts = [
     `${formatCount(ranked)} ranked of ${formatCount(operating.length)} ${noun} (MODELLED)`,
-    noLength > 0 ? `${formatCount(noLength)} not ranked: no route with a known length` : null,
-    thin > 0 ? `${formatCount(thin)} not ranked: too few routes with a known length` : null,
+    noLength > 0 ? `${formatCount(noLength)} not ranked: no duty ran in the modelled day` : null,
     smallGroup > 0
       ? `${formatCount(smallGroup)} not ranked: its peer group has too few depots with complete figures`
       : null,

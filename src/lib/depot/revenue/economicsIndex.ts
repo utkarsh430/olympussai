@@ -1,7 +1,6 @@
 import { compareText } from '../fuel/compare';
 import { MIN_PEER_GROUP } from '../score/config';
 import { assignPeerGroups } from '../score/peerGroups';
-import { ECONOMICS_MIN_ROUTE_COVERAGE, ECONOMICS_MIN_ROUTES } from '../sim/revenueConfig';
 import type { Coverage } from '../types';
 import {
   COMPONENTS,
@@ -28,17 +27,11 @@ import type {
  * under score/ imports this file.
  */
 
-type Standing = 'eligible' | 'missing_component' | 'thin_route_coverage';
+type Standing = 'eligible' | 'missing_component';
 
-/** Earnings per km on too few of a depot's routes is a guess about the depot, not a figure. */
-function isThinCoverage(coverage: Coverage): boolean {
-  const { n, of } = safeCoverage(coverage);
-  return n < ECONOMICS_MIN_ROUTES || n < of * ECONOMICS_MIN_ROUTE_COVERAGE;
-}
-
-function standingOf(input: Readonly<EconomicsInput>, values: Values): Standing {
-  if (missingOf(values).length > 0) return 'missing_component';
-  return isThinCoverage(input.earningsCoverage) ? 'thin_route_coverage' : 'eligible';
+/** Ruling S39: route coverage is no gate; only a missing component sets a depot aside. */
+function standingOf(values: Values): Standing {
+  return missingOf(values).length > 0 ? 'missing_component' : 'eligible';
 }
 
 function unrankedReason(
@@ -53,8 +46,9 @@ function unrankedReason(
 
 /**
  * Scores depots (kind depot only) against peers of similar fleet size, the
- * same groups the efficiency index uses. A depot missing a component, or whose
- * earnings per km cover too few of its routes, is set aside and says why. The
+ * same groups the efficiency index uses. A depot missing a component is set
+ * aside and says why; how many of its route lengths are real is carried as a
+ * coverage figure and never withholds a rank (ruling S39). The
  * rest are ranked only if at least MIN_PEER_GROUP of their group remain, else
  * they are unranked as peer_group_too_small: a rank among two or three depots
  * is not a rank. Output follows the input order; a result never depends on it.
@@ -63,7 +57,7 @@ export function scoreEconomics(inputs: readonly EconomicsInput[]): DepotEconomic
   const groups = assignPeerGroups(inputs.map((i) => i.depot));
   const values = new Map(inputs.map((i) => [i.depot.id, valuesOf(i)] as const));
   const standings = new Map(
-    inputs.map((i) => [i.depot.id, standingOf(i, values.get(i.depot.id) as Values)] as const),
+    inputs.map((i) => [i.depot.id, standingOf(values.get(i.depot.id) as Values)] as const),
   );
   const eligible = new Map<string, string[]>();
   for (const [id, group] of groups) {
@@ -71,7 +65,7 @@ export function scoreEconomics(inputs: readonly EconomicsInput[]): DepotEconomic
   }
   const sampleOf = (group: string | null): Values[] =>
     group === null ? [] : (eligible.get(group) ?? []).map((id) => values.get(id) as Values);
-  const coverageOf = new Map(inputs.map((i) => [i.depot.id, safeCoverage(i.earningsCoverage)] as const));
+  const coverageOf = new Map(inputs.map((i) => [i.depot.id, safeCoverage(i.lengthCoverage)] as const));
 
   const scored = new Map<string, { components: EconomicsComponent[]; index: number }>();
   const rankOf = new Map<string, number>();
@@ -111,7 +105,7 @@ export function scoreEconomics(inputs: readonly EconomicsInput[]): DepotEconomic
           value: own[c.key],
           // A sample under the minimum is no peer group: no median is offered.
           peerMedian: sample.length < MIN_PEER_GROUP ? null : medianOf(c.key, sample),
-          coverage: c.key === 'earningsPerKm' ? safeCoverage(input.earningsCoverage) : null,
+          coverage: c.key === 'earningsPerKm' ? safeCoverage(input.lengthCoverage) : null,
           z: null,
           contribution: 0,
           provenance: 'modelled',
