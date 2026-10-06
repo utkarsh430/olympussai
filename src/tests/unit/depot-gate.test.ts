@@ -16,7 +16,8 @@ vi.mock('@/lib/auth/server', () => ({
   requireProjectSession: (path: string): Promise<void> => requireProjectSession(path),
 }));
 
-import { requireDepotPage } from '@/lib/depot/depotGate';
+import { requireDepotPage, requireRoutePage } from '@/lib/depot/depotGate';
+import { routeHourlyPath } from '@/lib/depot/nav';
 
 describe('requireDepotPage', () => {
   beforeEach(() => {
@@ -40,5 +41,34 @@ describe('requireDepotPage', () => {
       await expect(requireDepotPage(bad, '/roster')).rejects.toBeInstanceOf(NotFoundSignal);
     }
     expect(requireProjectSession).not.toHaveBeenCalled();
+  });
+});
+
+describe('requireRoutePage', () => {
+  beforeEach(() => {
+    notFoundMock.mockClear();
+    requireProjectSession.mockClear();
+  });
+
+  it('gates a valid route on its own path under the Routes page', async () => {
+    await requireRoutePage('RKD_4560_ORD_OUT');
+    expect(requireProjectSession).toHaveBeenCalledExactlyOnceWith(
+      '/project/depots/routes/r/RKD_4560_ORD_OUT',
+    );
+    expect(notFoundMock).not.toHaveBeenCalled();
+  });
+
+  it('ends in not-found for a malformed name, before the session gate sees it', async () => {
+    for (const bad of ['', '../upsrtc', '..%2Fx', 'A B', 'x'.repeat(65), 'r/1']) {
+      await expect(requireRoutePage(bad)).rejects.toBeInstanceOf(NotFoundSignal);
+    }
+    expect(requireProjectSession).not.toHaveBeenCalled();
+  });
+});
+
+describe('routeHourlyPath', () => {
+  it('encodes the name it is given', () => {
+    expect(routeHourlyPath('KANPUR-LUCKNOW')).toBe('/project/depots/routes/r/KANPUR-LUCKNOW');
+    expect(routeHourlyPath('a/b?c')).toBe('/project/depots/routes/r/a%2Fb%3Fc');
   });
 });
