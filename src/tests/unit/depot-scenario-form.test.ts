@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   BASELINE_FORM,
+  describeDelta,
+  effectiveMaxTransferKm,
   isBaseline,
   parseBusDelta,
   parseDistanceKm,
@@ -173,5 +175,24 @@ describe('baseline equivalence', () => {
     expect(outcome.clamped).toEqual([]);
     expect(outcome.balances).toEqual(balances);
     expect(outcome.plan).toEqual(server);
+  });
+});
+
+describe('effectiveMaxTransferKm', () => {
+  it('reports the distance the engine will use, without changing the form', () => {
+    expect(effectiveMaxTransferKm({}, 250)).toBe(250);
+    expect(effectiveMaxTransferKm({ maxTransferKm: 150 }, 250)).toBe(150);
+    expect(effectiveMaxTransferKm({ maxTransferKm: 5000 }, 250)).toBe(600);
+    expect(effectiveMaxTransferKm({ maxTransferKm: 1 }, 250)).toBe(25);
+    expect(effectiveMaxTransferKm({ maxTransferKm: Number.NaN }, 250)).toBe(250);
+  });
+});
+
+describe('describeDelta', () => {
+  it('says a signed difference in words', () => {
+    expect(describeDelta(-12, 'bus', 'buses', 'moved')).toBe('12 fewer buses moved');
+    expect(describeDelta(1, 'transfer', 'transfers', '')).toBe('1 more transfer');
+    expect(describeDelta(0, 'bus', 'buses', 'moved')).toBe('No change in buses moved');
+    expect(describeDelta(120.5, 'bus-km', 'bus-km', '')).toBe('120.5 more bus-km');
   });
 });

@@ -1,5 +1,35 @@
-import { DEFAULT_REBALANCE_PARAMS, DEFAULT_SPARE_RATIO } from '../optimise/config';
+import {
+  DEFAULT_REBALANCE_PARAMS,
+  DEFAULT_SPARE_RATIO,
+  MAX_TRANSFER_KM,
+  MIN_TRANSFER_KM,
+} from '../optimise/config';
 import type { Scenario } from '../optimise/types';
+
+/**
+ * The maximum distance the engine plans with for this scenario, so sentences
+ * quote the limit actually used. Mirrors `runScenario`'s bounds; the form
+ * itself keeps what the user typed, and the engine's note says what it changed.
+ */
+export function effectiveMaxTransferKm(scenario: Scenario, baselineKm: number): number {
+  const typed = scenario.maxTransferKm;
+  if (typed === undefined || !Number.isFinite(typed)) return baselineKm;
+  return Math.min(MAX_TRANSFER_KM, Math.max(MIN_TRANSFER_KM, typed));
+}
+
+/** A signed difference in words: "12 fewer buses moved", "No change in buses moved". */
+export function describeDelta(
+  delta: number,
+  singular: string,
+  plural: string,
+  suffix: string,
+): string {
+  const tail = suffix ? ` ${suffix}` : '';
+  const size = Math.round(Math.abs(delta) * 10) / 10;
+  if (size === 0) return `No change in ${plural}${tail}`;
+  const unit = size === 1 ? singular : plural;
+  return `${size} ${delta > 0 ? 'more' : 'fewer'} ${unit}${tail}`;
+}
 
 /*
  * The what-if sandbox's form state. Values are kept as the user typed them
