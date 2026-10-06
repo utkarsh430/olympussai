@@ -64,12 +64,6 @@ function Probe() {
   return null;
 }
 
-async function flush(): Promise<void> {
-  await act(async () => {
-    await vi.advanceTimersByTimeAsync(0);
-  });
-}
-
 async function mount(): Promise<void> {
   container = document.createElement('div');
   root = createRoot(container);
