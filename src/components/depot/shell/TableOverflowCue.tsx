@@ -31,7 +31,7 @@ export function useColumnsToTheRight(
       el.removeEventListener('scroll', measure);
       observer?.disconnect();
     };
-  }, [enabled, measure]);
+  }, [enabled, frame, measure]);
 
   return enabled && more;
 }
