@@ -75,7 +75,11 @@ describe('DataTable options', () => {
     act(() => {
       fireEvent.scroll(frame);
     });
-    expect(screen.getByTestId('depot-table-more-columns').textContent).toBe('more columns');
+    const cue = screen.getByTestId('depot-table-more-columns');
+    expect(cue.textContent).toBe('more columns');
+    // The words sit at the header's edge, never over a body row's values.
+    expect(cue.className).toContain('items-start');
+    expect(cue.className).not.toContain('items-end');
     act(() => {
       frame.scrollLeft = 400;
       fireEvent.scroll(frame);

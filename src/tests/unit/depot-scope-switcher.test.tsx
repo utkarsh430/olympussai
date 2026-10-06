@@ -63,6 +63,15 @@ describe('ScopeSwitcher', () => {
     expect(push).toHaveBeenCalledWith('/project/depots/d/7');
   });
 
+
+  it('keeps its button inside the bar: the label truncates before the feed chip is covered', () => {
+    // A button sizes to its content; without a cap against its container a long depot name
+    // runs under the feed chip at phone width.
+    render(<ScopeSwitcher />);
+    const button = screen.getByRole('button', { name: /Change scope/ });
+    expect(button.className).toContain('max-w-[min(22rem,100%)]');
+    expect(button.querySelector('.truncate')).not.toBeNull();
+  });
   it('closes on Escape and returns focus to the button', async () => {
     const user = userEvent.setup();
     render(<ScopeSwitcher />);
