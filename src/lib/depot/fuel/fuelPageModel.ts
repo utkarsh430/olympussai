@@ -98,14 +98,54 @@ export function summarySentence(totals: FuelTotals, price?: SummaryPrice): strin
 /** The flagging rule in one sentence, from the module's own constants. */
 export function ruleSentence(thresholdPct: number, minPeers: number): string {
   return (
-    `A bus is listed when it uses more than ${thresholdPct}% more fuel per kilometre than the ` +
-    `median of its peers: the other buses of its class on its route, or of its class in the ` +
-    `depot when the route has too few. A bus with fewer than ${minPeers} peers has no comparison.`
+    `A bus is listed only when it uses more than ${thresholdPct}% more fuel per kilometre than the ` +
+    `median of its peers (the other buses of its class on its route, or of its class in the ` +
+    `depot when the route has too few) and at least ${minPeers} of those peers lie within ` +
+    `${thresholdPct}% of that median. A bus with fewer than ${minPeers} peers has no comparison.`
   );
 }
 
-export function flaggedHeadline(total: number, shown: number): string {
-  if (total === 0) return 'No bus stands out from its peers today.';
+/** Buses above the threshold that are not listed because their peers disagree. */
+export function peersDifferNote(count: number, thresholdPct: number): string | null {
+  if (count <= 0) return null;
+  const one = count === 1;
+  return (
+    `${one ? '1 bus is' : `${formatCount(count)} buses are`} above the ${thresholdPct}% ` +
+    `threshold but ${one ? 'is' : 'are'} not listed, because ${one ? 'its' : 'their'} peers ` +
+    'differ too much to give a reliable median.'
+  );
+}
+
+/** Buses with distance but too few similar buses to compare. */
+export function noComparisonNote(count: number): string | null {
+  if (count <= 0) return null;
+  return count === 1
+    ? '1 bus has too few similar buses to compare and is not listed.'
+    : `${formatCount(count)} buses have too few similar buses to compare and are not listed.`;
+}
+
+export interface UnlistedCounts {
+  readonly peersDiffer: number;
+  readonly noComparison: number;
+  readonly thresholdPct: number;
+}
+
+/**
+ * The headline over the list. When nothing is listed but some buses were left
+ * out, it says so rather than claiming that no bus stands out.
+ */
+export function flaggedHeadline(total: number, shown: number, unlisted?: UnlistedCounts): string {
+  if (total === 0) {
+    const notes = unlisted
+      ? [
+          peersDifferNote(unlisted.peersDiffer, unlisted.thresholdPct),
+          noComparisonNote(unlisted.noComparison),
+        ]
+      : [];
+    const present = notes.filter((n): n is string => n !== null);
+    if (present.length === 0) return 'No bus stands out from its peers today.';
+    return ['No bus is listed as standing out from its peers today.', ...present].join(' ');
+  }
   if (total === 1) return '1 bus stands out from its peers.';
   const lead = `${formatCount(total)} buses stand out from their peers`;
   return shown < total

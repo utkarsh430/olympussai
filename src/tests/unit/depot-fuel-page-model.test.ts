@@ -8,7 +8,9 @@ import {
   formatKmPerLitre,
   groupLabel,
   modelledStatement,
+  noComparisonNote,
   noDistanceNote,
+  peersDifferNote,
   routeRows,
   ruleSentence,
   summarySentence,
@@ -93,6 +95,31 @@ describe('sentences', () => {
     const s = ruleSentence(15, 2);
     expect(s).toContain('15%');
     expect(s).toContain('fewer than 2 peers has no comparison');
+    expect(s).toContain('only when');
+    expect(s).toContain('at least 2 of those peers lie within 15% of that median');
+  });
+  it('words the buses left unlisted', () => {
+    expect(peersDifferNote(0, 15)).toBeNull();
+    expect(peersDifferNote(1, 15)).toBe(
+      '1 bus is above the 15% threshold but is not listed, because its peers differ too much to give a reliable median.',
+    );
+    expect(peersDifferNote(3, 15)).toBe(
+      '3 buses are above the 15% threshold but are not listed, because their peers differ too much to give a reliable median.',
+    );
+    expect(noComparisonNote(0)).toBeNull();
+    expect(noComparisonNote(2)).toBe('2 buses have too few similar buses to compare and are not listed.');
+    expect(noComparisonNote(1)).toBe('1 bus has too few similar buses to compare and is not listed.');
+  });
+  it('never says no bus stands out without the sentence for an unlisted bus', () => {
+    const none = { peersDiffer: 0, noComparison: 0, thresholdPct: 15 };
+    expect(flaggedHeadline(0, 0, none)).toBe('No bus stands out from its peers today.');
+    const some = flaggedHeadline(0, 0, { ...none, peersDiffer: 2 });
+    expect(some).not.toBe('No bus stands out from its peers today.');
+    expect(some).toContain('No bus is listed as standing out from its peers today.');
+    expect(some).toContain('2 buses are above the 15% threshold');
+    const other = flaggedHeadline(0, 0, { ...none, noComparison: 1 });
+    expect(other).toContain('1 bus has too few similar buses to compare');
+    expect(flaggedHeadline(2, 2, { ...none, peersDiffer: 2 })).toBe('2 buses stand out from their peers.');
   });
   it('words the flagged headline and the no-distance note', () => {
     expect(flaggedHeadline(0, 0)).toBe('No bus stands out from its peers today.');
@@ -121,6 +148,16 @@ describe('wording rule', () => {
       flaggedHeadline(0, 0),
       flaggedHeadline(1, 1),
       flaggedHeadline(9, 5),
+      flaggedHeadline(0, 0, { peersDiffer: 2, noComparison: 1, thresholdPct: 15 }),
+      peersDifferNote(1, 15) ?? '',
+      peersDifferNote(4, 15) ?? '',
+      noComparisonNote(1) ?? '',
+      noComparisonNote(3) ?? '',
+      flaggedHeadline(0, 0, { peersDiffer: 2, noComparison: 1, thresholdPct: 15 }),
+      peersDifferNote(1, 15) ?? '',
+      peersDifferNote(4, 15) ?? '',
+      noComparisonNote(1) ?? '',
+      noComparisonNote(3) ?? '',
       noDistanceNote(1) ?? '',
       noDistanceNote(3) ?? '',
       ...classBars([row(), row({ distanceKm: 0, kmPerLitre: null })]).flatMap((b) => [

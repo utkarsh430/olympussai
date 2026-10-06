@@ -57,6 +57,7 @@ function shape(
     noDistanceCount: analysis.perBus.filter((b) => b.withheldReason === 'no_distance').length,
     noComparisonCount: analysis.perBus.filter((b) => b.withheldReason === 'no_comparison_group')
       .length,
+    peersDifferCount: analysis.perBus.filter((b) => b.withheldReason === 'peers_differ').length,
     rule: { thresholdPct: FUEL_VARIANCE_FLAG_PCT, minPeers: MIN_PEERS },
   };
 }

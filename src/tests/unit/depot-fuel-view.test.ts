@@ -125,6 +125,7 @@ describe('buildFuelResponse', () => {
   it('lists the flagged bus with its figure and its peers median, and counts the rest', async () => {
     const response = await build();
     expect(response.flaggedTotal).toBe(1);
+    expect(response.peersDifferCount).toBe(0);
     expect(response.flagged[0]).toMatchObject({
       registrationNumber: 'A3',
       kmPerLitre: 3,
@@ -147,6 +148,20 @@ describe('buildFuelResponse', () => {
     const response = await build(() => [litres('A1', 48), litres('A2', 48), litres('A3', 70)]);
     // Peers 6.25 km/L. Reading it back from 45.8% on 4.2857 gives 6.2486, shown as 6.2.
     expect(response.flagged[0]?.peerMedianKmPerLitre).toBe(6.3);
+  });
+
+  it('counts buses above the threshold whose peers differ too much, and lists none', async () => {
+    const response = await build(() => [day('A1', 4), day('A2', 4), day('A3', 8)]);
+    expect(response.flaggedTotal).toBe(0);
+    expect(response.peersDifferCount).toBe(2);
+    expect(response.noComparisonCount).toBe(0);
+  });
+
+  it('counts buses above the threshold whose peers differ too much, and lists none', async () => {
+    const response = await build(() => [day('A1', 4), day('A2', 4), day('A3', 8)]);
+    expect(response.flaggedTotal).toBe(0);
+    expect(response.peersDifferCount).toBe(2);
+    expect(response.noComparisonCount).toBe(0);
   });
 
   it('counts buses with distance but no comparison', async () => {

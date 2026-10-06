@@ -42,5 +42,10 @@ export interface FuelResponse extends DepotFeedEnvelope {
   readonly noDistanceCount: number;
   /** Buses with distance but too few peers to compare. */
   readonly noComparisonCount: number;
+  /**
+   * Buses above the threshold that are not listed because fewer than `minPeers`
+   * of their peers lie near the peers' median (`peers_differ`).
+   */
+  readonly peersDifferCount: number;
   readonly rule: { readonly thresholdPct: number; readonly minPeers: number };
 }

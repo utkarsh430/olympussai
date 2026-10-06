@@ -10,7 +10,9 @@ import {
   flaggedHeadline,
   formatKmPerLitre,
   groupLabel,
+  noComparisonNote,
   noDistanceNote,
+  peersDifferNote,
   ruleSentence,
 } from '@/lib/depot/fuel/fuelPageModel';
 
@@ -67,7 +69,18 @@ function buildColumns(depotId: string): readonly Column<FuelFlaggedBus>[] {
 /** The buses whose use per kilometre stands out from their peers, and the rule behind the list. */
 export function FlaggedList({ data }: { readonly data: FuelResponse }) {
   const columns = useMemo(() => buildColumns(data.depot.id), [data.depot.id]);
-  const note = noDistanceNote(data.noDistanceCount);
+  const unlisted = {
+    peersDiffer: data.peersDifferCount,
+    noComparison: data.noComparisonCount,
+    thresholdPct: data.rule.thresholdPct,
+  };
+  // With nothing listed the headline already carries these two sentences.
+  const listed = data.flaggedTotal > 0;
+  const notes = [
+    listed ? peersDifferNote(unlisted.peersDiffer, unlisted.thresholdPct) : null,
+    listed ? noComparisonNote(unlisted.noComparison) : null,
+    noDistanceNote(data.noDistanceCount),
+  ].filter((n): n is string => n !== null);
   return (
     <section aria-labelledby="depot-fuel-flagged-heading" className="animate-rise">
       <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -77,10 +90,14 @@ export function FlaggedList({ data }: { readonly data: FuelResponse }) {
         <ProvenanceBadge provenance="modelled" />
       </div>
       <p className="depot-prose mb-1" role="status">
-        {flaggedHeadline(data.flaggedTotal, data.flagged.length)}
+        {flaggedHeadline(data.flaggedTotal, data.flagged.length, unlisted)}
       </p>
       <p className="depot-prose mb-3">{ruleSentence(data.rule.thresholdPct, data.rule.minPeers)}</p>
-      {note ? <p className="depot-prose mb-3">{note}</p> : null}
+      {notes.map((note) => (
+        <p key={note} className="depot-prose mb-3">
+          {note}
+        </p>
+      ))}
       {data.flagged.length === 0 ? null : (
         <DataTable
           columns={columns}
