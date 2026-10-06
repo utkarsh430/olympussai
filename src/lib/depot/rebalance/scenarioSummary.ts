@@ -1,13 +1,13 @@
 import { MAX_TRANSFER_KM, MIN_TRANSFER_KM } from '../optimise/config';
 import type { Scenario } from '../optimise/types';
 import { activeSpare, toScenario, type ScenarioFormState } from './scenarioForm';
+import { signedWhole } from '@/lib/depot/format';
 
 /*
  * Sentences describing a scenario and its effect. For display only: the
  * scenario's identity is `scenarioKey`, never these words.
  */
 
-const MINUS = '−';
 
 /**
  * The maximum distance the engine plans with for this scenario, so sentences
@@ -32,10 +32,6 @@ export function describeDelta(
   if (size === 0) return `No change in ${plural}${tail}`;
   const unit = size === 1 ? singular : plural;
   return `${size} ${delta > 0 ? 'more' : 'fewer'} ${unit}${tail}`;
-}
-
-function signed(n: number): string {
-  return n < 0 ? `${MINUS}${Math.abs(n)}` : `+${n}`;
 }
 
 /** "Agra", "Agra and Kanpur", "Agra, Kanpur and Banda" followed by what happens to them. */
@@ -67,10 +63,10 @@ export function summariseScenario(
   }
   for (const a of scenario.fleetAdjustments ?? []) {
     const word = Math.abs(a.deltaBuses) === 1 ? 'bus' : 'buses';
-    parts.push(`${nameOf(a.depotId)} ${signed(a.deltaBuses)} ${word}`);
+    parts.push(`${nameOf(a.depotId)} ${signedWhole(a.deltaBuses)} ${word}`);
   }
   for (const s of scenario.demandSurges ?? []) {
-    parts.push(`${nameOf(s.depotId)} demand ${signed(s.percent)}%`);
+    parts.push(`${nameOf(s.depotId)} demand ${signedWhole(s.percent)}%`);
   }
   if (parts.length === 0) return 'Baseline: no changes.';
   const text = parts.join(', ');

@@ -1,7 +1,11 @@
 import { formatNumber } from '@/lib/formatters';
 import { MINUTES_PER_DAY, MINUTES_PER_HOUR } from '@/lib/depot/units';
+import { roundToDecimals } from '@/lib/depot/stats/rounding';
 
 const DASH = '—';
+/** The typographic minus the pages print before a negative figure. */
+const MINUS = '−';
+const PERCENT = 100;
 const FEED_TIME_PATTERN = /^\d{4}-\d{2}-\d{2}[T ](\d{2}):(\d{2})/;
 const MAX_HOUR = 23;
 const MAX_MINUTE = 59;
@@ -9,6 +13,33 @@ const MAX_MINUTE = 59;
 /** Whole-number count with the Indian digit grouping used across the app. */
 export function formatCount(n: number): string {
   return formatNumber(n);
+}
+
+/** A ratio as a whole-number percentage: 0.456 is "46%". */
+export function formatPercent(ratio: number): string {
+  return `${Math.round(ratio * PERCENT)}%`;
+}
+
+/** A rate as a percentage to one decimal: 0.0456 is "4.6%". */
+export function formatPercentOneDecimal(rate: number): string {
+  return `${(rate * PERCENT).toFixed(1)}%`;
+}
+
+/** The text with its first character in upper case: "driver" is "Driver". */
+export function capitalise(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/** A whole number with its sign always shown: "+3", "−2", and "+0" for zero. */
+export function signedWhole(n: number): string {
+  return n < 0 ? `${MINUS}${Math.abs(n)}` : `+${n}`;
+}
+
+/** Two decimals with a sign: "+0.42", "−1.30"; a value that rounds to zero is "0.00". */
+export function signedTwoDecimals(n: number): string {
+  const rounded = roundToDecimals(n, 2);
+  if (rounded === 0) return '0.00';
+  return `${rounded > 0 ? '+' : MINUS}${Math.abs(rounded).toFixed(2)}`;
 }
 
 /** The singular word for exactly one, the plural for any other number (zero included). */

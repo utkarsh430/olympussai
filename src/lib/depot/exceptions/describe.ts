@@ -1,40 +1,29 @@
-import { formatCount, formatFeedTime } from '@/lib/depot/format';
+import { formatCount, formatFeedTime, formatPercentOneDecimal, pluralWord } from '@/lib/depot/format';
 import type { BusException, DepotException } from './types';
 
 export { EXCEPTION_KIND_LABEL, SEVERITY_LABEL } from '@/lib/depot/labels';
 
-const PERCENT = 100;
-
-/** One decimal, as the league uses, so a flagged depot never reads equal to its peers. */
-function percent(rate: number): string {
-  return `${(rate * PERCENT).toFixed(1)}%`;
-}
-
 function busWord(n: number): string {
   return n === 1 ? 'bus' : 'buses';
-}
-
-function verb(n: number, one: string, many: string): string {
-  return n === 1 ? one : many;
 }
 
 /** A plain sentence that says what each number counts, built from the exception's own figures. */
 export function describeDepotException(e: DepotException): string {
   const affected = formatCount(e.affected);
   const fleet = formatCount(e.fleet);
-  const peers = e.peerMedian === null ? '' : ` against a peer median of ${percent(e.peerMedian)}`;
+  const peers = e.peerMedian === null ? '' : ` against a peer median of ${formatPercentOneDecimal(e.peerMedian)}`;
   switch (e.kind) {
     case 'power_cut_cluster':
-      return `${affected} of ${fleet} ${busWord(e.fleet)} ${verb(e.affected, 'reports', 'report')} main power off.`;
+      return `${affected} of ${fleet} ${busWord(e.fleet)} ${pluralWord(e.affected, 'reports', 'report')} main power off.`;
     case 'on_road_low': {
       // `value` is a share of AVAILABLE buses (fleet minus off-road), so the count is not out of fleet.
       const median = e.peerMedian === null ? '' : `,${peers}`;
-      return `On-road share ${percent(e.value)} of available buses${median}: ${affected} available ${busWord(e.affected)} ${verb(e.affected, 'is', 'are')} not on the road (fleet ${fleet}).`;
+      return `On-road share ${formatPercentOneDecimal(e.value)} of available buses${median}: ${affected} available ${busWord(e.affected)} ${pluralWord(e.affected, 'is', 'are')} not on the road (fleet ${fleet}).`;
     }
     case 'dark_share_high':
-      return `Dark rate ${percent(e.value)}${peers}: ${affected} of ${fleet} ${busWord(e.fleet)} ${verb(e.affected, 'is', 'are')} dark.`;
+      return `Dark rate ${formatPercentOneDecimal(e.value)}${peers}: ${affected} of ${fleet} ${busWord(e.fleet)} ${pluralWord(e.affected, 'is', 'are')} dark.`;
     case 'off_road_high':
-      return `Off-road rate ${percent(e.value)}${peers}: ${affected} of ${fleet} ${busWord(e.fleet)} ${verb(e.affected, 'is', 'are')} off road.`;
+      return `Off-road rate ${formatPercentOneDecimal(e.value)}${peers}: ${affected} of ${fleet} ${busWord(e.fleet)} ${pluralWord(e.affected, 'is', 'are')} off road.`;
   }
 }
 

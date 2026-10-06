@@ -1,4 +1,4 @@
-import { formatCount } from '../format';
+import { formatCount, signedTwoDecimals } from '../format';
 import { ECONOMICS_Z_CLAMP, type ECONOMICS_WEIGHTS } from '../sim/revenueConfig';
 import { DASH, MINUS, PERCENT, formatComponentValue } from './economicsFormat';
 import type { EconomicsRow, EconomicsCell } from './economicsRows';
@@ -43,12 +43,6 @@ export interface BreakdownRow {
   readonly contributionText: string;
 }
 
-function signed(n: number): string {
-  const rounded = roundToDecimals(n, 2);
-  if (rounded === 0) return '0.00';
-  return `${rounded > 0 ? '+' : MINUS}${Math.abs(rounded).toFixed(2)}`;
-}
-
 export function breakdownRows(
   row: EconomicsRow,
   weights: typeof ECONOMICS_WEIGHTS,
@@ -62,9 +56,9 @@ export function breakdownRows(
       cell.coverage === null
         ? null
         : `${formatCount(cell.coverage.n)} of ${formatCount(cell.coverage.of)} routes`,
-    zText: cell.z === null ? DASH : signed(cell.z),
+    zText: cell.z === null ? DASH : signedTwoDecimals(cell.z),
     weightText: `${Math.round(weights[cell.key] * PERCENT)}%`,
-    contributionText: row.ranked ? signed(cell.contribution) : DASH,
+    contributionText: row.ranked ? signedTwoDecimals(cell.contribution) : DASH,
   }));
 }
 

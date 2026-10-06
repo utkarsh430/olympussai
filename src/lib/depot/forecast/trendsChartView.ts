@@ -16,6 +16,7 @@ import {
 import { formatDate, formatValue } from './chartScale';
 import { FOUR_WEEK_DAYS, type TrendChange, type TrendResult } from './trend';
 import type { Forecast, TrendUnit } from './types';
+import { capitalise } from '@/lib/depot/format';
 
 const BAND_SHARE = Math.round(BAND_QUANTILE * 100);
 
@@ -43,10 +44,6 @@ const WEEKS_AHEAD: Readonly<Record<number, string>> = {
 function aheadWords(days: number): string {
   if (days === 1) return 'a day ahead';
   return WEEKS_AHEAD[days] ?? `${days} days ahead`;
-}
-
-function capitalise(text: string): string {
-  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 function trendPiece(change: TrendChange, span: string, unit: TrendUnit): string {

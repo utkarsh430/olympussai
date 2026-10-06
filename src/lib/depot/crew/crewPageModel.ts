@@ -1,4 +1,4 @@
-import { countPhrase, formatCount, formatPlainDate, pluralWord } from '../format';
+import { capitalise, countPhrase, formatCount, formatPlainDate, pluralWord } from '../format';
 import { noDutiesReason } from '../sim/operatingDayWording';
 import type { AvailabilityCounts } from './api';
 import type { CrewAvailability, CrewRole, RoleShortfall, ShortfallCause } from './types';
@@ -124,8 +124,6 @@ const CAUSE_TEXT: Readonly<Record<ShortfallCause, (role: CrewRole) => string>> =
   all_rostered: (role) => `all available ${role}s are already rostered at this time.`,
   hours_limit: () => 'would exceed the hours limit.',
 };
-
-const capitalise = (text: string): string => `${text.charAt(0).toUpperCase()}${text.slice(1)}`;
 
 /** Why a shift is uncovered: each short role on its own, never "driver or conductor". */
 export function shortfallText(shortfalls: readonly RoleShortfall[]): string {
