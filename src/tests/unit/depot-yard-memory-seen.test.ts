@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { DepotBusRow } from '@/models/depotLive';
 import type { FleetSnapshotView } from '@/lib/depot/repositories/types';
+import { UNASSIGNED_DEPOT_ID } from '@/lib/depot/types';
 import { inferYards } from '@/lib/depot/infer/yard';
 import {
   applyYardContinuity,
@@ -78,8 +79,21 @@ describe('network response: yardSnapshotsSeen (N10)', () => {
     expect(buildNetworkResponse(viewAt(1)).yardSnapshotsSeen).toEqual({ '1': 2, '2': 2 });
   });
 
-  it('says 0 for the fixture, which never uses the memory', () => {
-    expect(buildNetworkResponse(viewAt(0, 'fixture')).yardSnapshotsSeen).toEqual({ '1': 0, '2': 0 });
+  // P2: 0 there would not mean "just started", so the count is not sent at all.
+  it('omits the count for the fixture, which never uses the memory', () => {
+    expect('yardSnapshotsSeen' in buildNetworkResponse(viewAt(0, 'fixture'))).toBe(false);
+    const detail = buildDepotDetail(viewAt(0, 'fixture'), '1');
+    expect(detail).not.toBeNull();
+    expect(detail && 'yardSnapshotsSeen' in detail).toBe(false);
+  });
+
+  it('omits the count for the unassigned group, which the memory never decides', () => {
+    const homeless = rowsAt(atMin(0), 'x').map((r) => ({ ...r, depotId: null }));
+    const view = { ...viewAt(0), rows: [...viewAt(0).rows, ...homeless] };
+    expect(buildNetworkResponse(view).yardSnapshotsSeen).toEqual({ '1': 1, '2': 1 });
+    const detail = buildDepotDetail(view, UNASSIGNED_DEPOT_ID);
+    expect(detail).not.toBeNull();
+    expect(detail && 'yardSnapshotsSeen' in detail).toBe(false);
   });
 
   it('gives a depot page the same count for its own depot', () => {
