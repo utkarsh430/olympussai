@@ -90,7 +90,7 @@ function TimetableBody({
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-2">
         {sample ? (
-          <span className="depot-tag border-alert-amber/50 text-alert-amber">Sample data</span>
+          <span className="depot-tag border-alert-amber/50 bg-alert-amber/10 text-alert-amber">Sample data</span>
         ) : (
           <ProvenanceBadge provenance="live" />
         )}

@@ -5,9 +5,9 @@ import { feedChip, type FeedChipTone } from '@/lib/depot/feedChip';
 import { usePageRefresh } from './PageRefreshNotice';
 
 const TONE: Readonly<Record<FeedChipTone, string>> = {
-  live: 'border-alert-green/50 text-alert-green',
-  stale: 'border-alert-amber/50 text-alert-amber',
-  fixture: 'border-alert-amber/50 text-alert-amber',
+  live: 'border-alert-green/45 bg-alert-green/10 text-alert-green',
+  stale: 'border-alert-amber/50 bg-alert-amber/10 text-alert-amber',
+  fixture: 'border-holo-glow/40 bg-holo-glow/10 text-holo-glow',
   neutral: 'border-depot-line text-depot-muted',
 };
 
