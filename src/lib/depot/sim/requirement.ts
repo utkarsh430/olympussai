@@ -2,6 +2,7 @@ import { SeededRandom } from '../../simulation/seededRandom';
 import type { Yard } from '../infer/types';
 import type { DepotBalance } from '../optimise/types';
 import { componentValues } from '../score/dei';
+import type { DepotScore } from '../score/types';
 import { clamp, median } from '../stats/robust';
 import type { DepotSummary, LatLng } from '../types';
 import {
@@ -59,11 +60,41 @@ function compareDepotIds(a: string, b: string): number {
   return compareText(a, b);
 }
 
-function peerMedianOnRoad(depots: readonly DepotSummary[]): number {
+/** On-road shares by depot id, each over the rolling score window; null when it has none. */
+export type WindowedOnRoadShares = ReadonlyMap<string, number | null>;
+
+const NO_WINDOW: WindowedOnRoadShares = new Map();
+
+/**
+ * Each depot's on-road share over the rolling score window (ruling S63): the
+ * `onRoad` component the scores were summed over, the same one the efficiency
+ * index and the league breakdown use. Built by the callers from the analysis.
+ */
+export function windowedOnRoadShares(scores: readonly DepotScore[]): WindowedOnRoadShares {
+  return new Map(
+    scores.map((s) => [s.depotId, s.components.find((c) => c.key === 'onRoad')?.value ?? null]),
+  );
+}
+
+const finiteOrNull = (value: number | null | undefined): number | null =>
+  value !== null && value !== undefined && Number.isFinite(value) ? value : null;
+
+/**
+ * The share the requirement reads: the windowed one, else this snapshot's own
+ * (a depot new to the window), else null (the caller falls back to the peers).
+ */
+function onRoadShare(depot: DepotSummary, windowed: WindowedOnRoadShares): number | null {
+  return finiteOrNull(windowed.get(depot.id)) ?? finiteOrNull(componentValues(depot).onRoad);
+}
+
+function peerMedianOnRoad(
+  depots: readonly DepotSummary[],
+  windowed: WindowedOnRoadShares,
+): number {
   const shares = depots.flatMap((d) => {
     if (d.kind !== 'depot' || d.fleet < MIN_PEER_FLEET) return [];
-    const share = componentValues(d).onRoad;
-    return share === null || !Number.isFinite(share) ? [] : [share];
+    const share = onRoadShare(d, windowed);
+    return share === null ? [] : [share];
   });
   return median(shares) ?? 0;
 }
@@ -74,15 +105,21 @@ function positionOf(depot: DepotSummary, yards: ReadonlyMap<string, Yard>): LatL
   return depot.centroid;
 }
 
-function peakRequirementFor(
-  depot: DepotSummary,
-  available: number,
-  peerMedian: number,
-  operatingDate: string,
-  params: RequirementParams,
-): number {
-  const live = componentValues(depot).onRoad;
-  const share = live !== null && Number.isFinite(live) ? live : peerMedian;
+interface Basis {
+  readonly peerMedian: number;
+  readonly windowed: WindowedOnRoadShares;
+  readonly operatingDate: string;
+  readonly params: RequirementParams;
+}
+
+/**
+ * The depot's on-road share against its peers' median, both over the rolling
+ * score window (ruling S63): the instantaneous share moves every minute, and
+ * the modelled day and the transfer plan moved with it. Then a seeded draw.
+ */
+function peakRequirementFor(depot: DepotSummary, available: number, basis: Basis): number {
+  const { peerMedian, operatingDate, params } = basis;
+  const share = onRoadShare(depot, basis.windowed) ?? peerMedian;
   const rng = new SeededRandom(seedFor(depot.id, operatingDate, 'requirement'));
   const epsilon = rng.float(-params.noise, params.noise);
   const utilisation = clamp(
@@ -112,18 +149,14 @@ function sanitiseAnchors(depot: DepotSummary): DepotSummary {
 function balanceFor(
   depot: DepotSummary,
   yards: ReadonlyMap<string, Yard>,
-  peerMedian: number,
-  operatingDate: string,
-  params: RequirementParams,
+  basis: Basis,
 ): DepotBalance {
   const { fleet } = depot;
   const offRoad = depot.states.offRoad;
   const available = fleet - offRoad;
   const modelled = depot.kind === 'depot' && available > 0;
-  const peakRequirement = modelled
-    ? peakRequirementFor(depot, available, peerMedian, operatingDate, params)
-    : available;
-  const spareTarget = modelled ? spareTargetFor(peakRequirement, params.spareRatio) : 0;
+  const peakRequirement = modelled ? peakRequirementFor(depot, available, basis) : available;
+  const spareTarget = modelled ? spareTargetFor(peakRequirement, basis.params.spareRatio) : 0;
   const required = peakRequirement + spareTarget;
   return {
     depotId: depot.id,
@@ -140,17 +173,24 @@ function balanceFor(
   };
 }
 
-/** One balance per depot, sorted by depot id. Never mutates its inputs. */
+/**
+ * One balance per depot, sorted by depot id. Pure; never mutates its inputs.
+ * `windowed` gives each depot's on-road share over the rolling score window
+ * (`windowedOnRoadShares`, ruling S63); a depot it lacks a value for reads its
+ * single-snapshot share, then the peer median. Every caller that shows a
+ * requirement passes the same map, so they all rest on one requirement.
+ */
 export function modelBalances(
   depots: readonly DepotSummary[],
   yards: ReadonlyMap<string, Yard>,
   operatingDate: string,
   params: RequirementParams,
+  windowed: WindowedOnRoadShares = NO_WINDOW,
 ): DepotBalance[] {
   const safe = clampRequirementParams(params);
   const clean = depots.map(sanitiseAnchors);
-  const peerMedian = peerMedianOnRoad(clean);
+  const basis = { peerMedian: peerMedianOnRoad(clean, windowed), windowed, operatingDate, params: safe };
   return clean
     .sort((a, b) => compareDepotIds(a.id, b.id))
-    .map((d) => balanceFor(d, yards, peerMedian, operatingDate, safe));
+    .map((d) => balanceFor(d, yards, basis));
 }
