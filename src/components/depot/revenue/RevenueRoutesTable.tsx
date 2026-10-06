@@ -3,11 +3,19 @@
 import { useMemo, useState } from 'react';
 import { DataTable, type Column } from '@/components/depot/shell/DataTable';
 import { Pager } from '@/components/depot/shell/LongLists';
-import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
 import { SectionLabel } from '@/components/depot/shell/SectionLabel';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
 import { formatCount } from '@/lib/depot/format';
 import { pageRange } from '@/lib/depot/listPaging';
+import {
+  REVENUE_WIDTHS,
+  lengthBasisNote,
+  lengthBasisWord,
+  revenueColumnKeys,
+  revenueRowDetail,
+  revenueTableShape,
+} from '@/lib/depot/revenue/revenueColumns';
+import { useTableTier } from './useTableTier';
 import {
   NO_ROUTES_RAN,
   REVENUE_PAGE_ROWS,
@@ -26,14 +34,17 @@ function lengthColumn(allDerived: boolean): Column<RevenueTableRow> {
     ...(allDerived ? { tag: 'derived' as const } : {}),
     sortValue: (r) => r.lengthKm,
     title: (r) => `${r.lengthRounded} km${r.lengthDerived ? ', from a real route profile' : ''}`,
-    render: (r) => (
-      <span className="inline-flex items-center justify-end gap-2">
-        {!allDerived && r.lengthDerived ? <ProvenanceBadge provenance="derived" /> : null}
-        <span>{formatCount(r.lengthRounded)}</span>
-      </span>
-    ),
+    render: (r) => formatCount(r.lengthRounded),
   };
 }
+
+/** Mixed lengths: where each came from, in plain muted words (M14: no tag in a cell). */
+const BASIS_COLUMN: Column<RevenueTableRow> = {
+  key: 'basis',
+  header: 'Basis',
+  sortValue: (r) => lengthBasisWord(r),
+  render: (r) => <span className="text-depot-muted">{lengthBasisWord(r)}</span>,
+};
 
 const COLUMNS: readonly Column<RevenueTableRow>[] = [
   { key: 'route', header: 'Route', sortValue: (r) => r.routeName, render: (r) => r.routeName },
@@ -97,15 +108,35 @@ export function RevenueRoutesTable({ routes }: { readonly routes: readonly Route
   const rows = useMemo(() => revenueTableRows(routes), [routes]);
   const range = pageRange(page, rows.length);
   const allDerived = rows.length > 0 && rows.every((r) => r.lengthDerived);
-  const columns = useMemo(() => [...COLUMNS, lengthColumn(allDerived)], [allDerived]);
+  const tier = useTableTier();
+  const shape = useMemo(() => revenueTableShape(rows), [rows]);
+  const columns = useMemo(() => {
+    const all = [...COLUMNS, lengthColumn(allDerived), BASIS_COLUMN];
+    return revenueColumnKeys(tier, shape).map((key) => ({
+      ...(all.find((c) => c.key === key) as Column<RevenueTableRow>),
+      width: REVENUE_WIDTHS[key],
+    }));
+  }, [allDerived, tier, shape]);
+  const detail = useMemo(
+    () => (tier === 'narrow' ? (r: RevenueTableRow) => revenueRowDetail(r, shape) : undefined),
+    [tier, shape],
+  );
   return (
     <section aria-labelledby="revenue-routes-title" className="min-w-0">
-      <SectionLabel id="revenue-routes-title" label="By route" count={rows.length} tag="modelled" />
+      <SectionLabel
+        id="revenue-routes-title"
+        label="By route"
+        count={rows.length}
+        tag="modelled"
+        note={lengthBasisNote(rows)}
+      />
       {rows.length === 0 ? (
         <StatePanel kind="empty" sentence={NO_ROUTES_RAN} />
       ) : (
         <>
           <DataTable
+            renderExpanded={detail}
+            expandLabel={(r) => `Boardings and route length for ${r.routeName}`}
             columns={columns}
             rows={rows.slice(range.start, range.end)}
             rowKey={(r) => r.routeName}

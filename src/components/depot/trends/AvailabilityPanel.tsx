@@ -41,7 +41,8 @@ function Figures({ comparison, requirement }: FiguresProps) {
         caption="available buses"
       />
       <Figure
-        label="Days below the requirement"
+        label="Days short"
+        caption="below the requirement"
         value={`${comparison.daysBelow} of ${comparison.horizonDays}`}
       />
     </FigureBand>
@@ -80,17 +81,21 @@ export function AvailabilityPanel({ depotId, available, distribution }: Availabi
       comparison.status === 'ok' && balance !== null ? (
         <div className="flex flex-col gap-2" data-testid="trends-availability" title={comparison.sentence}>
           <Figures comparison={comparison} requirement={balance} />
-          <p className="depot-caption">{BOTH_MODELLED_NOTE}</p>
         </div>
       ) : (
         <div data-testid="trends-availability">
-          <StatePanel kind="not-established" sentence={comparison.sentence} remedy={BOTH_MODELLED_NOTE} />
+          <StatePanel kind="not-established" sentence={comparison.sentence} />
         </div>
       );
   }
   return (
     <section aria-labelledby="trends-availability-heading" className="min-w-0">
-      <SectionLabel id="trends-availability-heading" label="Available buses against the requirement" />
+      <SectionLabel
+        id="trends-availability-heading"
+        label="Available buses against the requirement"
+        tag="modelled"
+        note={BOTH_MODELLED_NOTE}
+      />
       {body}
     </section>
   );

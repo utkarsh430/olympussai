@@ -139,7 +139,7 @@ describe('buildEconomicsRows', () => {
     );
     // Dated once the response names the operating day; never "ran" or "today" (review m1).
     const dated = buildEconomicsRows([UNRANKED_NO_LENGTH], '2026-10-06').find((r) => r.depotId === '9');
-    expect(dated?.reasonText).toContain('No duty in the modelled day for 2026-10-06');
+    expect(dated?.reasonText).toContain('No duty in the modelled day for 6 Oct 2026');
     expect(dated?.reasonText).not.toMatch(/\bran\b|today/);
     expect(rows.find((r) => r.depotId === '8')?.reasonText).toMatch(/at least 10 buses/);
     expect(rows.find((r) => r.depotId === '7')?.reasonText).toMatch(/not an operating depot/i);

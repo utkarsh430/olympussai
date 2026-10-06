@@ -50,7 +50,9 @@ describe('the Trends chart view', () => {
   it('has one row per drawn point with its sort values', () => {
     const view = buildTrendsChartView(FULL);
     expect(view.table).toHaveLength(70 + 14);
-    expect(view.table[69]?.kind).toBe('LIVE value');
+    expect(view.table[69]?.kind).toBe('Now (live)');
+    // R2-m16: the Kind cell never carries the tag word.
+    expect(view.table.some((r) => /MODELLED/.test(r.kind))).toBe(false);
     expect(view.table[70]?.sortLow).not.toBeNull();
   });
 });
@@ -58,7 +60,9 @@ describe('the Trends chart view', () => {
 describe('the caption line', () => {
   it('reads the four-week trend, the week and the forecast error from the response', () => {
     const caption = chartCaption(FULL) ?? '';
-    expect(caption).toMatch(/^(Steady|Up|Down)[^·]* over 4 weeks · [^·]* over 7 days · forecast within /);
+    expect(caption).toMatch(
+      /^(Steady|Up|Down)[^·]* over 4 weeks · [^·]* over 7 days · \d+-day forecast, (seasonal|Holt-Winters) method, within /,
+    );
     expect(caption).toMatch(/pp a day ahead, [\d.]+ pp two weeks ahead$/);
     expect(caption.split(' · ')).toHaveLength(3);
   });

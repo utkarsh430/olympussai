@@ -1,5 +1,8 @@
 'use client';
 
+import { useTableTier } from '@/components/depot/revenue/useTableTier';
+import { economicsColumnKeys } from '@/lib/depot/revenue/economicsLayout';
+
 import { useEffect, useMemo, useState } from 'react';
 import { DataTable, useTableSort } from '@/components/depot/shell/DataTable';
 import { Pager } from '@/components/depot/shell/LongLists';
@@ -30,8 +33,18 @@ export interface EconomicsGridProps {
   readonly onSelect: (row: EconomicsRow) => void;
 }
 
-export function EconomicsGrid({ rows, allRows, filters, selectedId, onSelect }: EconomicsGridProps) {
-  const columns = useMemo(() => economicsColumns(selectedId, onSelect), [selectedId, onSelect]);
+export function EconomicsGrid({
+  rows,
+  allRows,
+  filters,
+  selectedId,
+  onSelect,
+}: EconomicsGridProps) {
+  const tier = useTableTier();
+  const columns = useMemo(() => {
+    const keys: readonly string[] = economicsColumnKeys(tier);
+    return economicsColumns(selectedId, onSelect).filter((c) => keys.includes(c.key));
+  }, [selectedId, onSelect, tier]);
   const tableSort = useTableSort(columns);
   const [page, setPage] = useState(0);
   // A new filter or order starts again at the first page.

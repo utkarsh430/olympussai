@@ -12,6 +12,7 @@ import {
   classTableRows,
   fuelBand,
   fuelDisclosure,
+  ranCaption,
 } from '@/lib/depot/fuel/fuelPageTables';
 import {
   BASIS_LABEL,
@@ -148,10 +149,14 @@ describe('fuel page models', () => {
     expect(band[0]).toMatchObject({
       label: 'Buses running duties',
       value: '158 of 200',
-      caption: '42 with no duty',
+      caption: '42 with no duty · 2 duties without a bus',
     });
     expect(band[3]?.label).toBe('Fuel cost');
-    expect(fuelBand(fuelData({ notRunCount: 0 }))[0]?.caption).toBe('every bus has a duty');
+    expect(fuelBand(fuelData({ notRunCount: 0 }))[0]?.caption).toBe(
+      'every bus has a duty · 2 duties without a bus',
+    );
+    expect(ranCaption(42, 0)).toBe('42 with no duty');
+    expect(ranCaption(0, 1)).toBe('every bus has a duty · 1 duty without a bus');
     for (const f of band) expect(`${f.label} ${f.caption}`).not.toMatch(/\bran\b|did not|today/i);
     expect(band[3]?.caption).toBe('₹20.10 per km');
     expect(band[4]?.caption).toContain('planning price');
@@ -171,7 +176,7 @@ describe('fuel page models', () => {
     const line = standOutFooter(fuelData());
     expect(line).toContain('2 buses are above the 15% threshold');
     expect(line).toContain('4 buses have too few similar buses to compare');
-    expect(line).toContain('2 of the day’s duties have no bus');
+    expect(line).not.toMatch(/without a bus|have no bus/);
     expect(
       standOutFooter(
         fuelData({
@@ -391,11 +396,27 @@ describe('RevenuePage', () => {
     expect(host.querySelector('[data-testid="depot-figure-band"]')?.textContent).toContain(
       '1 of 2 route lengths from real profiles',
     );
-    // Ruling S51: the by-route label carries MODELLED; a real-profile length says DERIVED.
+    // Ruling S51: the by-route label carries MODELLED. M14: mixed lengths say where each
+    // came from in a plain BASIS column ("Profile", "Model"), never a tag inside a cell.
     expect(sectionTags()).toEqual([['By route', 'modelled']]);
     expect(
       [...host.querySelectorAll('[data-provenance]')].map((t) => t.getAttribute('data-provenance')),
-    ).toEqual(['modelled', 'derived']);
+    ).toEqual(['modelled']);
+    expect(host.querySelectorAll('tbody [data-provenance]')).toHaveLength(0);
+    const headers = [...host.querySelectorAll('thead th')].map((th) => th.textContent ?? '');
+    expect(headers.some((h) => h.startsWith('Basis'))).toBe(true);
+    expect(headers.some((h) => h.startsWith('Class'))).toBe(false);
+    const basis = [...host.querySelectorAll('tbody tr')].map(
+      (tr) => tr.lastElementChild?.textContent,
+    );
+    expect([...basis].sort()).toEqual(['Model', 'Profile']);
+    // Every date through formatPlainDate: no YYYY-MM-DD in the text or any attribute.
+    const values = [...host.querySelectorAll('*')].flatMap((el) =>
+      [...el.attributes].filter((a) => a.name !== 'href').map((a) => a.value),
+    );
+    for (const text of [host.textContent ?? '', ...values]) {
+      expect(text).not.toMatch(/\d{4}-\d{2}-\d{2}/);
+    }
     expect(host.textContent).not.toMatch(/Rows 1 to|Previous/);
     expect(withoutDisclosure().match(/MODELLED/g)).toHaveLength(1);
     expect(

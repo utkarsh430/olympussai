@@ -91,7 +91,9 @@ describe('network Trends page', () => {
     }
     expect(page).not.toMatch(/Forecast, MODELLED|History, MODELLED|Live value, LIVE/);
     const caption = markup.match(/data-testid="trends-caption"[^>]*>([^<]*)</)?.[1] ?? '';
-    expect(caption).toMatch(/ over 4 weeks · .* over 7 days · forecast within /);
+    expect(caption).toMatch(
+      / over 4 weeks · .* over 7 days · \d+-day forecast, (seasonal|Holt-Winters) method, within /,
+    );
     // The 4-week trend is said once in the caption, and no "Trend:" sentence stands beside it.
     expect(caption.match(/over 4 weeks/g)).toHaveLength(1);
     expect(page.match(/Trend: [a-z0-9. ]+ over (7 days|4 weeks)/g)).toBeNull();
@@ -111,7 +113,19 @@ describe('network Trends page', () => {
     expect(page).toContain('Forecast for the next 14 days.');
     expect(page).toMatch(/Forecast by weekly smoothing|Forecast repeats the same weekday/);
     expect(page).toContain('typically within');
-    expect(markup).toMatch(/data-testid="trends-caption"[^>]*>[^<]*forecast within/);
+    expect(markup).toMatch(
+      /data-testid="trends-caption"[^>]*>[^<]*-day forecast, (seasonal|Holt-Winters) method, within/,
+    );
+  });
+
+  it('states the horizon and method on the VISIBLE page, not only in the closed disclosure (R2-I5)', () => {
+    const markup = renderToStaticMarkup(<NetworkTrends metric="onRoadShare" />);
+    const visible = text(markup.replace(/<details[\s\S]*?<\/details>/g, ''));
+    expect(visible).toMatch(/14-day forecast, (seasonal|Holt-Winters) method, within /);
+    // The CHART | TABLE toggle sits in the section label's row; no LIVE label beside "Now".
+    expect(markup).toMatch(/role="group" aria-label="Show the trend as"/);
+    expect(markup).not.toContain('Show as table');
+    expect(visible).not.toMatch(/\bLIVE\b(?! value)/);
   });
 
   it('links each unit to its own Trends page with a text equivalent for its sparkline', () => {
@@ -192,9 +206,9 @@ describe('the unit table', () => {
     act(() => (fourWeeks as HTMLButtonElement).click());
     expect(names()[0]).toBe('Depot 26');
     // The shared pager replaced "Show all N" (rulings: a page whose purpose is the list pages at 25).
-    expect(container.querySelector('[data-testid="depot-pager"] [role="status"]')?.textContent).toBe(
-      `Rows 1 to ${TREND_ROW_CAP} of ${TREND_ROW_CAP + 2}`,
-    );
+    expect(
+      container.querySelector('[data-testid="depot-pager"] [role="status"]')?.textContent,
+    ).toBe(`Rows 1 to ${TREND_ROW_CAP} of ${TREND_ROW_CAP + 2}`);
     const next = Array.from(container.querySelectorAll('[data-testid="depot-pager"] button')).find(
       (b) => b.textContent === 'Next',
     ) as HTMLButtonElement;
@@ -223,9 +237,11 @@ describe('depot Trends page', () => {
     expect(renderToStaticMarkup(<DepotTrends metric="onRoadShare" />)).toContain(
       'modelled requirement of 40 (36 at peak plus 4 spare)',
     );
-    expect(page).toContain('Both sides are MODELLED');
+    expect(page).toContain('The forecast rests on a generated history');
+    expect(page).not.toContain('Both sides are MODELLED');
     expect(page).toContain('Requirement');
-    expect(page).toContain('Days below the requirement');
+    expect(page).toContain('Days short');
+    expect(page).toContain('below the requirement');
   });
 
   it('links the measures to this depot', () => {

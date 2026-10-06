@@ -42,6 +42,8 @@ const BY_DATE = { key: 'date', direction: 'asc' } as const;
 export interface TrendsChartProps {
   readonly data: TrendChartInput;
   readonly height?: number;
+  /** The label's 12 px note under it (depot trends: what the comparison rests on). */
+  readonly note?: string;
 }
 
 /**
@@ -51,30 +53,48 @@ export interface TrendsChartProps {
  * come from `buildTrendsChartView`; the live point stays labelled LIVE by the shared plot,
  * and "Show as table" swaps the plot for the same points in a sortable table.
  */
-export function TrendsChart({ data, height = TREND_CHART_MIN_HEIGHT }: TrendsChartProps) {
+export function TrendsChart({ data, height = TREND_CHART_MIN_HEIGHT, note }: TrendsChartProps) {
   const view = useMemo(() => buildTrendsChartView(data), [data]);
   const [asTable, setAsTable] = useState(false);
   const [announced, setAnnounced] = useState(false);
   const bodyId = useId();
   return (
     <section aria-labelledby={`${bodyId}-label`} className="min-w-0" data-testid="trends-chart">
-      <SectionLabel id={`${bodyId}-label`} label={view.label} tag="modelled" />
-      <div className="mb-2 flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-        <div className="min-w-0">
-          <TrendLegend entries={view.legend} />
-        </div>
-        <button
-          type="button"
-          className="depot-filter-button"
-          aria-pressed={asTable}
-          aria-controls={bodyId}
-          onClick={() => {
-            setAsTable((shown) => !shown);
-            setAnnounced(true);
-          }}
-        >
-          Show as table
-        </button>
+      <SectionLabel
+        id={`${bodyId}-label`}
+        label={view.label}
+        tag="modelled"
+        note={note}
+        controls={
+          // CHART | TABLE in the label's controls slot, as on the duty board.
+          <div role="group" aria-label="Show the trend as" className="flex gap-1">
+            {(['chart', 'table'] as const).map((option) => {
+              const pressed = (option === 'table') === asTable;
+              return (
+                <button
+                  key={option}
+                  type="button"
+                  aria-pressed={pressed}
+                  aria-controls={bodyId}
+                  onClick={() => {
+                    setAsTable(option === 'table');
+                    setAnnounced(true);
+                  }}
+                  className={`rounded-[3px] border px-3 py-1 font-mono text-[11px] uppercase leading-4 tracking-[0.12em] ${
+                    pressed
+                      ? 'border-holo-glow text-holo-glow'
+                      : 'border-depot-line text-depot-muted hover:text-depot-ink'
+                  }`}
+                >
+                  {option}
+                </button>
+              );
+            })}
+          </div>
+        }
+      />
+      <div className="mb-2 min-w-0">
+        <TrendLegend entries={view.legend} />
       </div>
       {/* Announces the swap; silent until the control is first used. */}
       <p role="status" className="sr-only">
@@ -96,7 +116,7 @@ export function TrendsChart({ data, height = TREND_CHART_MIN_HEIGHT }: TrendsCha
             className="relative w-full min-w-0"
             style={{ minHeight: height }}
           >
-            <TrendPlot model={view.model} unit={data.metric.unit} height={height} />
+            <TrendPlot model={view.model} unit={data.metric.unit} height={height} nowFlag />
           </div>
         )}
       </div>

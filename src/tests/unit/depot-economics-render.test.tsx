@@ -146,7 +146,7 @@ function everyString(): string {
 }
 
 function breakdownButton(): HTMLButtonElement | null {
-  return host.querySelector<HTMLButtonElement>('button[aria-label^="Score breakdown for"]');
+  return host.querySelector<HTMLButtonElement>('button[aria-label^="Economics breakdown for"]');
 }
 
 /** X1: the page declares MODELLED in every state, so dropping the default fails here. */
@@ -166,14 +166,14 @@ describe('EconomicsPage provenance line', () => {
       expect(line?.getAttribute('data-tone')).toBe('modelled');
       expect(line?.textContent).toContain('MODELLED');
       expect(line?.textContent).toContain(MODELLED_SENTENCE);
-      expect(line?.textContent).toContain('a ticketing feed');
+      expect(line?.textContent).toContain('ticketing and route master feeds is connected');
     });
   }
 
   it('carries the dated, tense-neutral modelled day in its extension and nothing else above the band', async () => {
     await render(<EconomicsPage />);
     const context = host.querySelector('[data-testid="depot-provenance-context"]');
-    expect(context?.textContent).toContain('modelled day for 2026-10-06');
+    expect(context?.textContent).toContain('modelled day for 6 Oct 2026');
     // The disclosure quotes the revenue page's shared statement, which that page owns.
     const attrs = everyString().replace(host.textContent ?? '', '');
     expect(`${pageTextWithoutDisclosure()} ${attrs}`).not.toMatch(/\bran\b|\btoday\b|did not run/i);
@@ -187,9 +187,9 @@ describe('EconomicsPage', () => {
     const visible = pageTextWithoutDisclosure();
     expect(visible).toContain(ECONOMICS_TABLE_NOTE);
     expect(visible).not.toContain('Fuel is only one cost.');
-    const label = host.querySelector('#economics-ranking-title')?.closest(
-      '[data-testid="depot-section-label"]',
-    );
+    const label = host
+      .querySelector('#economics-ranking-title')
+      ?.closest('[data-testid="depot-section-label"]');
     expect(label?.querySelector('[data-provenance="modelled"]')).not.toBeNull();
     expect(label?.textContent).toContain(ECONOMICS_TABLE_NOTE);
     const details = host.querySelector('details[data-testid="depot-how-produced"]');
@@ -221,7 +221,9 @@ describe('EconomicsPage', () => {
     const rest = everyString()
       .split(ECONOMICS_TABLE_NOTE)
       .join('')
-      .split('Fuel is only one cost. The difference between earnings and fuel cost per kilometre is not profit.')
+      .split(
+        'Fuel is only one cost. The difference between earnings and fuel cost per kilometre is not profit.',
+      )
       .join('');
     expect(rest).not.toMatch(/\b(profit|profits|profitable|loss|losses|margin|margins)\b/i);
     expect(rest).not.toMatch(/efficiency index (of|is) \d|efficiency \d/i);
@@ -233,14 +235,16 @@ describe('EconomicsPage', () => {
     const band = host.querySelector('[data-testid="depot-figure-band"]');
     expect(band?.textContent).toContain('Ranked');
     expect(band?.textContent).toContain('of 1 operating depot');
-    expect(band?.textContent).toContain('No duty in the modelled day');
-    expect(band?.textContent).toContain('Under the peer-group minimum');
+    expect(band?.textContent).toContain('No duty in the day');
+    expect(band?.textContent).toContain('Peer group too small');
     expect(band?.querySelector('[data-provenance]')).toBeNull();
   });
 
   it('heads the columns with units, prints bare numbers with a muted signed change, and groups by peer group', async () => {
     await render(<EconomicsPage />);
-    const headers = [...host.querySelectorAll('thead th')].map((th) => th.textContent?.trim() ?? '');
+    const headers = [...host.querySelectorAll('thead th')].map(
+      (th) => th.textContent?.trim() ?? '',
+    );
     expect(headers).toEqual([
       'Rank',
       'Depot',
@@ -253,7 +257,9 @@ describe('EconomicsPage', () => {
     expect(headers.some((h) => /MODELLED|peer group/i.test(h))).toBe(false);
     expect(host.querySelector('thead [data-provenance]')).toBeNull();
     expect(host.querySelector('table.depot-table-fixed')).not.toBeNull();
-    expect(host.querySelector('[data-testid="depot-table-group"]')?.textContent).toBe('All depots · 1');
+    expect(host.querySelector('[data-testid="depot-table-group"]')?.textContent).toBe(
+      'All depots · 1',
+    );
     const cells = [...host.querySelectorAll('tbody tr:not([data-testid]) td')];
     const shown = (i: number): string =>
       [...(cells[i]?.querySelectorAll('[aria-hidden]') ?? [])].map((n) => n.textContent).join(' ');
@@ -383,7 +389,6 @@ describe('EconomicsPage truthfulness', () => {
   });
 });
 
-
 describe('revenue components', () => {
   it('has five band figures with short captions and no tag', () => {
     const band = revenueBand({
@@ -441,7 +446,7 @@ describe('revenue components', () => {
     await render(<RevenueRoutesTable routes={routes} />);
     expect(host.querySelectorAll('tbody tr')).toHaveLength(25);
     expect(host.textContent).toContain('Rows 1 to 25 of 30');
-    const cells = host.querySelectorAll('tbody tr td:nth-child(5)');
+    const cells = host.querySelectorAll('tbody tr td:nth-child(4)');
     expect(cells[0]?.querySelector('.depot-bar-fill')).not.toBeNull();
     expect(cells[0]?.textContent).toBe('50.0%');
     expect(host.querySelectorAll('tbody .depot-bar-fill').length).toBe(25);
@@ -471,8 +476,9 @@ describe('revenue components', () => {
     const tags = [...host.querySelectorAll('[data-provenance]')].map((t) =>
       t.getAttribute('data-provenance'),
     );
-    // Ruling S51 (round 2): the by-route section carries MODELLED on its label.
-    expect(tags).toEqual(['modelled', 'derived']);
+    // Ruling S51: the by-route section carries MODELLED on its label; M14: the length basis is
+    // plain words in a BASIS column, never a tag in a cell or a mixed column.
+    expect(tags).toEqual(['modelled']);
     expect(host.textContent).not.toMatch(/\(modelled\)|\(derived\)/);
   });
 
@@ -513,5 +519,25 @@ describe('revenue components', () => {
     ).not.toBeNull();
     expect(host.textContent).not.toContain('undefined');
     expect(host.textContent).toContain('₹ / km'); // round 2: the header is "₹ / km"
+  });
+});
+
+describe('EconomicsPage, round 3', () => {
+  it('names the breakdown for its depot, keeps the sign note out of the filter row, and prints no raw date', async () => {
+    await render(<EconomicsPage />);
+    const caption = host.querySelector('[data-testid="depot-economics-table-caption"]');
+    expect(caption?.textContent).toBe(
+      'Change vs peer median; higher earnings and lower fuel cost are better.',
+    );
+    expect(caption?.closest('label, .flex')).toBeNull();
+    await act(async () => breakdownButton()?.click());
+    const title = host.querySelector('#economics-breakdown-title');
+    expect(title?.textContent).toMatch(/^Economics breakdown for /);
+    expect(host.textContent).not.toContain('Score breakdown');
+    const values = [...host.querySelectorAll('*')].flatMap((el) =>
+      [...el.attributes].filter((a) => a.name !== 'href').map((a) => a.value),
+    );
+    for (const text of [host.textContent ?? '', ...values])
+      expect(text).not.toMatch(/\d{4}-\d{2}-\d{2}/);
   });
 });
