@@ -293,3 +293,41 @@ test.describe('2. every depot page renders honestly on the sample', () => {
     });
   }
 });
+
+const WIDTHS = [390, 640, 1024, 1280, 1440] as const;
+
+/** Pixels the page can scroll sideways: zero when nothing is wider than the window. */
+function sidewaysScroll(page: DepotPage): Promise<number> {
+  return page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  );
+}
+
+test.describe('3. no sideways page scroll on any depot page', () => {
+  test.skip(!E2E_PIN, `SKIPPED: ${PIN_MISSING}`);
+
+  for (const template of PAGE_TEMPLATES) {
+    test(`${template} fits 390, 640, 1024, 1280 and 1440 px`, async ({ page, sample }) => {
+      const url = template.replace(DEPOT_SEGMENT, sample.depotId);
+      for (const width of WIDTHS) {
+        await page.setViewportSize({ width, height: 900 });
+        await openPage(page, url, PAGE_HEADING[template]);
+        await expect.poll(() => sidewaysScroll(page), { message: `${width} px` }).toBe(0);
+      }
+    });
+  }
+
+  test('the transfers table fits its box at 1280 px', async ({ page, sample }) => {
+    test.fixme(
+      true,
+      'the transfers table is wider than its scroll box at 1280 px',
+    );
+    expect(sample.depotId).toBeTruthy();
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await openPage(page, '/project/depots/rebalance', 'Fleet distribution');
+    const box = page.getByTestId('rebalance-transfers');
+    await expect(box).toBeVisible();
+    const overflow = await box.evaluate((el) => el.scrollWidth - el.clientWidth);
+    expect(overflow).toBe(0);
+  });
+});
