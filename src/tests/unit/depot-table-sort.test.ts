@@ -61,4 +61,17 @@ describe('sortRows', () => {
     expect(ids(rows)).toEqual(['a', 'b']);
     expect(sorted).not.toBe(rows);
   });
+
+  it('keeps a consistent order with infinities and finite values', () => {
+    const rows: Row[] = [
+      { id: 'a', value: Infinity },
+      { id: 'b', value: 5 },
+      { id: 'c', value: Infinity },
+      { id: 'd', value: -Infinity },
+      { id: 'e', value: 0 },
+      { id: 'f', value: -Infinity },
+    ];
+    expect(ids(sortRows(rows, byValue, 'asc'))).toEqual(['d', 'f', 'e', 'b', 'a', 'c']);
+    expect(ids(sortRows(rows, byValue, 'desc'))).toEqual(['a', 'c', 'b', 'e', 'd', 'f']);
+  });
 });

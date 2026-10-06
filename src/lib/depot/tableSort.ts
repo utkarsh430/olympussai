@@ -2,7 +2,8 @@ export type SortDirection = 'asc' | 'desc';
 export type SortValue = number | string | null;
 
 function compareValues(a: number | string, b: number | string): number {
-  if (typeof a === 'number' && typeof b === 'number') return a - b;
+  // Not `a - b`: two equal infinities subtract to NaN, which breaks the comparator contract.
+  if (typeof a === 'number' && typeof b === 'number') return a < b ? -1 : a > b ? 1 : 0;
   return String(a).localeCompare(String(b), 'en', { numeric: true, sensitivity: 'base' });
 }
 
