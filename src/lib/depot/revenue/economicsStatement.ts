@@ -32,9 +32,10 @@ export function rankingShortfallNotice(
   if (operating.length === 0 || ranked * 2 >= operating.length) return null;
   const noun = operating.length === 1 ? 'operating depot' : 'operating depots';
   return {
-    lead: `Only ${formatCount(ranked)} of ${formatCount(operating.length)} ${noun} are ranked. A depot is ranked when a duty ran in its modelled day and its peer group has at least ${formatCount(MIN_PEER_GROUP)} depots with complete figures. Earnings per kilometre do not depend on a route's length in this model, so no depot waits for route profiles; a real length, once a route is opened on the `,
+    lead: `Only ${formatCount(ranked)} of ${formatCount(operating.length)} ${noun} are ranked. A depot is ranked when a duty is run in its modelled day and its peer group has at least ${formatCount(MIN_PEER_GROUP)} depots with complete figures. Earnings per kilometre on a route do not depend on its length, but a depot's figures weight its routes by the distance they run, so no depot waits for route profiles to be ranked; a real length, once a route is opened on the `,
     linkText: 'Routes page',
-    tail: ', replaces the modelled one in the revenue totals.',
+    // The same claim as `lengthCoverageLine` below (review I3-rest): a length can move the rank.
+    tail: ", replaces the modelled one, and can move the depot's figures and its rank.",
   };
 }
 
