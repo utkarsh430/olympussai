@@ -4,6 +4,7 @@ import type { DepotDetailContextValue } from '@/components/depot/data/DepotDetai
 import { DepotCockpit } from '@/components/depot/cockpit/DepotCockpit';
 import { OutshedTracker } from '@/components/depot/cockpit/OutshedTracker';
 import { StatusBoard } from '@/components/depot/cockpit/StatusBoard';
+import type { TrackerRow } from '@/lib/depot/cockpit/cockpitTypes';
 import { DEPOT_NOT_FOUND_MESSAGE } from '@/hooks/useDepotDetail';
 
 const context = vi.hoisted(() => ({ value: null as unknown }));
@@ -81,5 +82,31 @@ describe('cockpit empty states', () => {
     expect(textOf(markup)).toContain('No bus carries a schedule for the feed date, 2026-10-06');
     expect(textOf(markup)).not.toContain('today');
     expect(markup).not.toContain('depot-table');
+  });
+
+  it('captions the tracker for the feed date, not for today', () => {
+    const row: TrackerRow = {
+      key: 'b1',
+      registrationNumber: 'UP 32 AB 1234',
+      routeName: 'Route 1',
+      journeyCode: 'J1',
+      scheduledStart: '06:30',
+      state: 'upcoming',
+      label: 'Upcoming',
+      minutes: 5,
+      minutesText: 'in 5 min',
+    };
+    const markup = renderToStaticMarkup(
+      <OutshedTracker
+        depotId="20"
+        rows={[row]}
+        coverage={{ n: 1, of: 1 }}
+        coverageSentence="1 of 1 buses carry a schedule for the feed date."
+        hasSchedules
+        noSchedulesSentence="none"
+      />,
+    );
+    expect(textOf(markup)).toContain('Scheduled departures for the feed date, most urgent first');
+    expect(textOf(markup)).not.toContain("Today's");
   });
 });
