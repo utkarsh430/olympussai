@@ -6,8 +6,10 @@ import { depotPortalRoot } from '@/lib/depot/portalRoot';
 import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
 import { useRouteProfile } from '@/hooks/useRouteProfile';
 import { DataTable, type Column } from '@/components/depot/shell/DataTable';
+import { StatePanel } from '@/components/depot/shell/StatePanel';
 import {
   NO_TIME,
+  drawerPhase,
   drawerView,
   type DrawerMove,
   type DrawerRoute,
@@ -39,15 +41,33 @@ function DrawerBody({ route, move, onProfiled }: Pick<RouteDrawerProps, 'route' 
     if (loaded) profiledRef.current();
   }, [loaded]);
 
-  if (profile.loading) {
-    return <p className="depot-prose" role="status">Loading this route&apos;s stops.</p>;
+  const phase = drawerPhase(profile);
+  const retry =
+    typeof profile.retry === 'function' ? (
+      <button type="button" className="depot-filter-button" onClick={profile.retry}>
+        Try again
+      </button>
+    ) : undefined;
+  if (phase.kind === 'loading' || phase.kind === 'slow') {
+    // One status line: a slow lookup replaces the words, so it is announced.
+    return (
+      <p className="depot-prose" role="status" data-testid={`route-drawer-${phase.kind}`}>
+        {phase.sentence}
+      </p>
+    );
   }
-  if (profile.data === null) {
-    return <p className="depot-prose" role="status">{profile.error}</p>;
+  if (phase.kind === 'limited') {
+    return <StatePanel kind="no-data" sentence={phase.sentence} action={retry} testId="route-drawer-limited" />;
+  }
+  if (phase.kind === 'failed' || profile.data === null) {
+    const sentence = phase.kind === 'failed' ? phase.sentence : '';
+    return (
+      <StatePanel kind="error" title="Route details unavailable" sentence={sentence} action={retry} />
+    );
   }
   const view = drawerView(profile.data, route, move);
   if (view.status === 'unavailable') {
-    return <p className="depot-prose" role="status">{view.sentence}</p>;
+    return <StatePanel kind="empty" sentence={view.sentence} testId="route-drawer-empty" />;
   }
   return (
     <>
