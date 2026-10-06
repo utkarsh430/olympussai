@@ -116,10 +116,12 @@ async function fetchProfile(
 ): Promise<RouteProfileResult> {
   try {
     // The service's fallback dates count back from the feed's date, not the wall clock.
+    // Strict: "no schedule" is cached for ten minutes, so it must be what the server
+    // said for every date tried, never a date that failed to answer.
     const response = await fetchBusSchedule(
       { regNum: bus.registrationNumber, date, tripId: bus.journeyId },
       now,
-      { today: feedDate },
+      { today: feedDate, requireEveryDateAnswered: true },
     );
     // The fixture is a stand-in, not this route: never present it as real data.
     if (response.source === 'fixture') return unavailable('upstream_error');
@@ -203,7 +205,11 @@ export async function getRouteProfile(
   const request = fetchProfile(routeName, lookup, now)
     .then((result): RouteProfileResult => {
       if (result.status !== 'ok') {
-        setBounded(negatives, routeName, { result, storedAt: now });
+        // Only an answer is remembered. A failure is not: the person's Retry must
+        // reach the server again, and every such retry is charged to the limiter.
+        if (result.reason !== 'upstream_error') {
+          setBounded(negatives, routeName, { result, storedAt: now });
+        }
         return result;
       }
       const profile = frozenProfile(result.profile);

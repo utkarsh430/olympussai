@@ -127,7 +127,7 @@ describe('getRouteProfile', () => {
     expect(mockService).toHaveBeenCalledWith(
       { regNum: 'UP78JT4102', date: '2026-10-06', tripId: '30396' },
       T0,
-      { today: '2026-10-06' },
+      { today: '2026-10-06', requireEveryDateAnswered: true },
     );
     if (result.status !== 'ok') throw new Error('expected ok');
     expect(result.profile.routeName).toBe(ROUTE);
@@ -142,7 +142,10 @@ describe('getRouteProfile', () => {
     const overnight = row('UP1', { scheduledStart: '2026-10-04T22:00:00.000Z' });
     await getRouteProfile(ROUTE, view([overnight]), T0);
     expect(mockService.mock.calls[0]?.[0].date).toBe('2026-10-04');
-    expect(mockService.mock.calls[0]?.[2]).toEqual({ today: '2026-10-06' });
+    expect(mockService.mock.calls[0]?.[2]).toEqual({
+      today: '2026-10-06',
+      requireEveryDateAnswered: true,
+    });
   });
 
   it('falls back to the feed date when the bus has no scheduled start', async () => {
@@ -344,17 +347,27 @@ describe('error logging and cache hygiene', () => {
     expect(String(errorSpy.mock.calls[0]?.[0])).toMatch(/^\[depot:route-catalogue\] /);
   });
 
-  it('clears the in-flight entry after a failed fetch and retries after the TTL', async () => {
+  it('clears the in-flight entry after a failed fetch and asks again on the next request', async () => {
     mockService.mockRejectedValue(new Error('boom'));
     await getRouteProfile(ROUTE, view([row('UP1')]), T0);
     expect(inFlightSizeForTests()).toBe(0);
-    await getRouteProfile(ROUTE, view([row('UP1')]), T0 + ROUTE_NEGATIVE_TTL_MS - 1);
-    expect(mockService).toHaveBeenCalledTimes(1);
     mockService.mockResolvedValue(live(schedule()));
-    const retried = await getRouteProfile(ROUTE, view([row('UP1')]), T0 + ROUTE_NEGATIVE_TTL_MS);
+    const retried = await getRouteProfile(ROUTE, view([row('UP1')]), T0 + 1);
     expect(mockService).toHaveBeenCalledTimes(2);
     expect(retried.status).toBe('ok');
     expect(inFlightSizeForTests()).toBe(0);
+  });
+
+  it('never caches a failure as an answer: the fallback sample is asked about again', async () => {
+    const fleet = view([row('UP1')]);
+    mockService.mockResolvedValue({ ...live(schedule()), source: 'fixture', stale: true });
+    expect(await getRouteProfile(ROUTE, fleet, T0)).toEqual({
+      status: 'unavailable',
+      reason: 'upstream_error',
+    });
+    expect(routeProfileNeedsFetch(ROUTE, fleet, T0 + 1)).toBe(true);
+    await getRouteProfile(ROUTE, fleet, T0 + 1);
+    expect(mockService).toHaveBeenCalledTimes(2);
   });
 
   it('does not let another letter case bypass or reuse a negative entry', async () => {
