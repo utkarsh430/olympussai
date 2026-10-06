@@ -12,6 +12,8 @@ export interface WindowLimiter {
   check(key: string): RateDecision;
   /** Takes a slot for `key` when one is free; a refused request takes nothing. */
   take(key: string): RateDecision;
+  /** Gives back the most recent hit for a key: the work it paid for never happened. */
+  refund(key: string): void;
   /** Keys currently tracked (for the memory bound's test). */
   size(): number;
 }
@@ -65,6 +67,10 @@ export function createWindowLimiter(options: {
       store(key, decision.limited ? recent : [...recent, now]);
       return decision;
     },
+    refund(key: string): void {
+      const recent = hits.get(key);
+      if (recent !== undefined && recent.length > 0) hits.set(key, recent.slice(0, -1));
+    },
     size: () => hits.size,
   };
 }
@@ -117,6 +123,20 @@ function trustedAddress(
  * never the cookie string, which has many encodings that all verify. The
  * trusted client address is combined with it when the server names one.
  */
+/**
+ * The caller's address, or null. It is read ONLY from the header named by
+ * `DEPOT_TRUSTED_IP_HEADER`, which must be set only behind a proxy that
+ * overwrites that header on every request: a directly reachable app would let
+ * the client write its own address. Limiters key on this value alone, so a new
+ * login from the same address gains nothing (ruling S37).
+ */
+export function requestAddress(
+  headers: Headers,
+  env: Readonly<Record<string, string | undefined>>,
+): string | null {
+  return trustedAddress(headers, env) || null;
+}
+
 export function requestIdentity(
   claims: Readonly<IdentityClaims>,
   headers: Headers,
@@ -136,6 +156,8 @@ export function requestIdentity(
  */
 export const ROUTE_PROFILE_FETCH_LIMITS = {
   perIdentityPerMinute: 20,
+  /** Per address alone, when a trusted address header is configured. */
+  perAddressPerMinute: 40,
   perProcessPerMinute: 120,
   windowMs: 60_000,
   maxIdentities: 5_000,

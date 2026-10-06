@@ -83,7 +83,11 @@ export function createClaudeCliProvider(deps: ClaudeCliDeps): CopilotProvider {
 
   return {
     id: 'claude-cli',
-    async draft(request: CopilotRequest, signal?: AbortSignal): Promise<CopilotDraft> {
+    async draft(
+    request: CopilotRequest,
+    signal?: AbortSignal,
+    canStart?: () => boolean,
+  ): Promise<CopilotDraft> {
       let stdin: string;
       let args: string[];
       try {
@@ -112,6 +116,8 @@ export function createClaudeCliProvider(deps: ClaudeCliDeps): CopilotProvider {
       const result = await semaphore.run(() => {
         // A caller gone by the time its slot comes up starts nothing and spends nothing.
         if (signal?.aborted) throw new CopilotFailure('aborted', 'caller gone');
+        // Asked again after any wait in the queue: too little time left starts nothing.
+        if (canStart && !canStart()) throw new CopilotFailure('busy', 'too little time left');
         // Counted where an attempt really starts, so queued or refused work costs nothing.
         if (!limiter.tryAcquire()) throw new CopilotFailure('budget_exhausted', 'call budget used');
         return runCli(

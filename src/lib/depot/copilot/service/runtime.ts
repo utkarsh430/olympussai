@@ -30,6 +30,8 @@ import {
   REQUEST_DEADLINE_MS,
   RESPONSE_CACHE_ENTRIES,
   RESPONSE_CACHE_MS,
+  ADDRESS_CLAUDE_CALLS_PER_HOUR,
+  ADDRESS_REQUESTS_PER_MINUTE,
 } from '@/lib/depot/copilot/service/constants';
 import { createInflightCalls, type InflightCalls } from '@/lib/depot/copilot/service/inflight';
 import { createWindowLimiter, type WindowLimiter } from '@/lib/depot/rateLimit';
@@ -48,6 +50,9 @@ export interface CopilotRuntime {
   readonly identityLimiter: WindowLimiter;
   /** All requests per minute: protects the process only. */
   readonly processLimiter: WindowLimiter;
+  /** Keyed on the trusted address alone; used only when one is known. */
+  readonly addressLimiter: WindowLimiter;
+  readonly addressClaudeAllowance: WindowLimiter;
   /** Claude calls an identity may start per hour. */
   readonly claudeAllowance: WindowLimiter;
   /** One running Claude call per cache key. */
@@ -85,6 +90,12 @@ export function buildCopilotRuntime(options: RuntimeOptions): CopilotRuntime {
     usesClaude: options.setting !== 'scripted' && options.cli !== null,
     identityLimiter: limiter(IDENTITY_REQUESTS_PER_MINUTE, MAX_TRACKED_IDENTITIES),
     processLimiter: limiter(PROCESS_REQUESTS_PER_MINUTE, 1),
+    addressLimiter: limiter(ADDRESS_REQUESTS_PER_MINUTE, MAX_TRACKED_IDENTITIES),
+    addressClaudeAllowance: limiter(
+      ADDRESS_CLAUDE_CALLS_PER_HOUR,
+      MAX_TRACKED_IDENTITIES,
+      CLAUDE_ALLOWANCE_WINDOW_MS,
+    ),
     claudeAllowance: limiter(
       IDENTITY_CLAUDE_CALLS_PER_HOUR,
       MAX_TRACKED_IDENTITIES,
@@ -114,8 +125,8 @@ function createProcessRuntime(): CopilotRuntime {
     makeDir: (prefix) => mkdtemp(join(tmpdir(), prefix)),
     removeDir: (path) => rm(path, { recursive: true, force: true }),
     semaphore: createSemaphore(CLI_CONCURRENCY, CLI_QUEUE),
+    // No clock passed: the core's budget runs on its monotonic default.
     limiter: createCallLimiter({
-      now: Date.now,
       perHour: CLI_MAX_CALLS_PER_HOUR,
       perDay: CLI_MAX_CALLS_PER_DAY,
     }),

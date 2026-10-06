@@ -4,16 +4,38 @@
  * `../config`) is spent inside the provider, on top of these. Limits key on a
  * canonical identity (`requestIdentity` in `@/lib/depot/rateLimit`), never on
  * the cookie string, which has many encodings that all verify.
+ *
+ * The app has one shared PIN, so a new login is a new identity. When
+ * `DEPOT_TRUSTED_IP_HEADER` names a header, the address in it is limited on its
+ * own as well (ruling S37), which is what stops one person who logs in again.
+ * Set that variable ONLY behind a proxy that overwrites the header on every
+ * request; without it the per-address limits are off and behaviour is as before.
  */
 
 /** Requests per identity in one `RATE_WINDOW_MS`, scripted answers included. */
 export const IDENTITY_REQUESTS_PER_MINUTE = 10;
-/**
- * All requests together in one `RATE_WINDOW_MS`. It only protects the process:
- * far above what one identity may send, so one user cannot deny everyone.
- */
-export const PROCESS_REQUESTS_PER_MINUTE = 600;
 export const RATE_WINDOW_MS = 60_000;
+/**
+ * Budgeted cost of one scripted answer on one core. NOT YET MEASURED: an
+ * assumption to be replaced by a measurement on the sample feed.
+ */
+export const SCRIPTED_ANSWER_BUDGET_MS = 2;
+/** The share of one core the copilot may use before it refuses work. */
+export const PROCESS_CORE_SHARE = 0.2;
+/**
+ * All requests together in one `RATE_WINDOW_MS`: 6,000. It only protects the
+ * process; scripted answers are limited per identity (and per address).
+ * Filling it takes 600 identities each at their full rate.
+ */
+export const PROCESS_REQUESTS_PER_MINUTE = Math.floor(
+  (RATE_WINDOW_MS * PROCESS_CORE_SHARE) / SCRIPTED_ANSWER_BUDGET_MS,
+);
+/**
+ * Requests from one address alone in one `RATE_WINDOW_MS`, whatever the
+ * session: six people behind one office address at their full rate, and a
+ * hundredth of the process ceiling.
+ */
+export const ADDRESS_REQUESTS_PER_MINUTE = 60;
 /** Bounds the per-identity limiters' memory; the least recently used is forgotten first. */
 export const MAX_TRACKED_IDENTITIES = 5_000;
 
@@ -24,6 +46,8 @@ export const MAX_TRACKED_IDENTITIES = 5_000;
  */
 export const IDENTITY_CLAUDE_CALLS_PER_HOUR = 5;
 export const CLAUDE_ALLOWANCE_WINDOW_MS = 3_600_000;
+/** Claude calls from one address alone per `CLAUDE_ALLOWANCE_WINDOW_MS`, whatever the session. */
+export const ADDRESS_CLAUDE_CALLS_PER_HOUR = 10;
 
 /** The largest request is an ask with a 300-character question: a few hundred bytes. */
 export const MAX_BODY_BYTES = 4_096;

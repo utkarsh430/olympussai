@@ -2,6 +2,11 @@ import { UNAVAILABLE_DRAFT } from '@/lib/depot/copilot/resolve';
 import type { CopilotRequest, CopilotText } from '@/lib/depot/copilot/types';
 import type { CopilotApiResponse } from '@/lib/depot/copilot/wire';
 import { logDepotError } from '@/lib/depot/log';
+import {
+  NO_CALL_REASONS,
+  refundClaudeAllowance,
+  takeClaudeAllowance,
+} from '@/lib/depot/copilot/service/allowance';
 import { cacheKey } from '@/lib/depot/copilot/service/cache';
 import { LOG_SCOPE } from '@/lib/depot/copilot/service/constants';
 import { LEFT } from '@/lib/depot/copilot/service/inflight';
@@ -18,6 +23,8 @@ export interface AnswerCall {
   readonly signal: AbortSignal;
   /** Canonical identity (`requestIdentity`), for the per-identity Claude allowance. */
   readonly identity: string;
+  /** The trusted address, when one is configured and present. */
+  readonly address?: string | null;
   /** Server-written sentence for a stale snapshot; added outside the cache. */
   readonly staleSentence?: string;
 }
@@ -43,12 +50,27 @@ async function scriptedText(
 }
 
 /** Why Claude is not tried for this request, or null to try it. Spends the allowance. */
-function skipClaude(runtime: CopilotRuntime, key: string, call: AnswerCall): string | null {
-  if (!runtime.usesClaude || runtime.inflight.has(key)) return null;
-  if (call.deadlineAt - runtime.now() < runtime.minClaudeMs) return 'no_time';
-  if (runtime.claudeAllowance.take(call.identity).limited) return 'allowance_used';
-  return null;
+interface ClaudePlan {
+  readonly skip: string | null;
+  /** True when this request paid for the call it is about to start. */
+  readonly spent: boolean;
 }
+
+const hasTime = (runtime: CopilotRuntime, call: AnswerCall): boolean =>
+  call.deadlineAt - runtime.now() >= runtime.minClaudeMs;
+
+function planClaude(runtime: CopilotRuntime, key: string, call: AnswerCall): ClaudePlan {
+  if (!runtime.usesClaude || runtime.inflight.has(key)) return { skip: null, spent: false };
+  if (!hasTime(runtime, call)) return { skip: 'no_time', spent: false };
+  if (!takeClaudeAllowance(runtime, call)) return { skip: 'allowance_used', spent: false };
+  return { skip: null, spent: true };
+}
+
+/** The engine fell back for a reason that means Claude was never called. */
+const madeNoCall = (text: CopilotText): boolean =>
+  text.provider !== 'claude-cli' &&
+  text.fallbackReason != null &&
+  NO_CALL_REASONS.includes(text.fallbackReason);
 
 /** The request's signal, also aborted at `deadlineAt`; `dispose` clears the timer. */
 function untilDeadline(signal: AbortSignal, waitMs: number) {
@@ -67,9 +89,10 @@ async function engineText(
   request: CopilotRequest,
   key: string,
   signal: AbortSignal,
+  canStart: () => boolean,
 ): Promise<CopilotText | typeof LEFT> {
   const start = async (callSignal: AbortSignal): Promise<CopilotText> => {
-    const text = await runtime.engine.generate(request, callSignal);
+    const text = await runtime.engine.generate(request, callSignal, canStart);
     if (text.provider === 'claude-cli') runtime.cache.set(key, text);
     return text;
   };
@@ -107,21 +130,23 @@ export async function answerCopilot(
   const hit = runtime.cache.get(key);
   if (hit) return respond(hit, true, false);
 
-  const skipped = skipClaude(runtime, key, call);
-  if (skipped) {
-    logDepotError(LOG_SCOPE, skipped);
+  const plan = planClaude(runtime, key, call);
+  if (plan.skip) {
+    logDepotError(LOG_SCOPE, plan.skip);
     return respond(await scriptedText(runtime, request), false, true);
   }
   const wait = untilDeadline(call.signal, call.deadlineAt - runtime.now());
   let outcome: CopilotText | typeof LEFT;
   try {
-    outcome = await engineText(runtime, request, key, wait.signal);
+    // The time floor is asked again after any queue wait, just before the slot is taken.
+    outcome = await engineText(runtime, request, key, wait.signal, () => hasTime(runtime, call));
   } catch {
     logDepotError(LOG_SCOPE, 'engine_failed');
     return respond(await scriptedText(runtime, request), false, missed);
   } finally {
     wait.dispose();
   }
+  if (plan.spent && outcome !== LEFT && madeNoCall(outcome)) refundClaudeAllowance(runtime, call);
   if (outcome === LEFT) {
     logDepotError(LOG_SCOPE, wait.passed() ? 'deadline' : 'aborted');
     return respond(await scriptedText(runtime, request), false, missed);

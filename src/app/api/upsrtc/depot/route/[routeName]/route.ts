@@ -6,7 +6,7 @@ import { isValidRouteName } from '@/lib/depot/ids';
 import { logDepotError } from '@/lib/depot/log';
 import {
   createWindowLimiter,
-  requestIdentity,
+  requestAddress, requestIdentity,
   ROUTE_PROFILE_FETCH_LIMITS,
   takeAll,
   type IdentityClaims,
@@ -27,6 +27,8 @@ interface RouteContext {
 interface FetchLimiters {
   readonly identity: WindowLimiter;
   readonly process: WindowLimiter;
+  /** Keyed on the trusted address alone, so a new login from it gains nothing. */
+  readonly address: WindowLimiter;
 }
 
 const LIMITERS_KEY = Symbol.for('olympuss.depot.routeProfileFetchLimiters');
@@ -35,13 +37,15 @@ type LimiterHolder = typeof globalThis & { [LIMITERS_KEY]?: FetchLimiters };
 /** One pair per process, on `globalThis` so a hot reload does not reset the limits. */
 function fetchLimiters(): FetchLimiters {
   const holder = globalThis as LimiterHolder;
-  const { perIdentityPerMinute, perProcessPerMinute, windowMs, maxIdentities } =
+  const { perIdentityPerMinute, perAddressPerMinute, perProcessPerMinute, windowMs } =
     ROUTE_PROFILE_FETCH_LIMITS;
+  const { maxIdentities } = ROUTE_PROFILE_FETCH_LIMITS;
   const made = (limit: number, maxKeys: number): WindowLimiter =>
     createWindowLimiter({ now: Date.now, limit, windowMs, maxKeys });
   holder[LIMITERS_KEY] ??= {
     identity: made(perIdentityPerMinute, maxIdentities),
     process: made(perProcessPerMinute, 1),
+    address: made(perAddressPerMinute, maxIdentities),
   };
   return holder[LIMITERS_KEY];
 }
@@ -49,8 +53,10 @@ function fetchLimiters(): FetchLimiters {
 /** Null when the request may go on; a 429 when this cache miss would pass a limit. */
 function throttleMiss(request: NextRequest, claims: Readonly<IdentityClaims>): Response | null {
   const limiters = fetchLimiters();
+  const address = requestAddress(request.headers, process.env);
   const decision = takeAll([
     { limiter: limiters.identity, key: requestIdentity(claims, request.headers, process.env) },
+    ...(address === null ? [] : [{ limiter: limiters.address, key: address }]),
     { limiter: limiters.process, key: 'all' },
   ]);
   if (!decision.limited) return null;

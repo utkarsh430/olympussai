@@ -1,8 +1,9 @@
 import type { NextRequest, NextResponse } from 'next/server';
 import { isSameOrigin } from '@/lib/auth/origin';
 import type { FleetSnapshotView } from '@/lib/depot/repositories/types';
+import { requestLimitChecks } from '@/lib/depot/copilot/service/allowance';
 import { logDepotError } from '@/lib/depot/log';
-import { requestIdentity, takeAll, type IdentityClaims } from '@/lib/depot/rateLimit';
+import { requestAddress, requestIdentity, takeAll, type IdentityClaims } from '@/lib/depot/rateLimit';
 import { readCappedBody } from '@/lib/depot/copilot/service/body';
 import { BODY_READ_MS, LOG_SCOPE, MAX_BODY_BYTES } from '@/lib/depot/copilot/service/constants';
 import { answerCopilot } from '@/lib/depot/copilot/service/generate';
@@ -12,7 +13,6 @@ import type { CopilotRuntime } from '@/lib/depot/copilot/service/runtime';
 import { parseCopilotBody, type ValidCopilotRequest } from '@/lib/depot/copilot/service/schema';
 import { staleSentence } from '@/lib/depot/copilot/service/stale';
 
-const PROCESS_KEY = 'all';
 const SNAPSHOT_DEADLINE = Symbol('snapshot-deadline');
 
 type Loaded = { readonly prepared: Prepared; readonly staleSentence?: string };
@@ -72,10 +72,8 @@ async function handleChecked(
   if (!isJsonMediaType(request.headers.get('content-type'))) return fail('contentType');
 
   const identity = requestIdentity(claims, request.headers, runtime.env);
-  const limit = takeAll([
-    { limiter: runtime.identityLimiter, key: identity },
-    { limiter: runtime.processLimiter, key: PROCESS_KEY },
-  ]);
+  const address = requestAddress(request.headers, runtime.env);
+  const limit = takeAll(requestLimitChecks(runtime, identity, address));
   if (limit.limited) return tooMany(limit.retryAfterSeconds);
 
   const waitMs = Math.min(BODY_READ_MS, deadlineAt - runtime.now());
@@ -92,6 +90,7 @@ async function handleChecked(
       deadlineAt,
       signal: request.signal,
       identity,
+      address,
       staleSentence: loaded.staleSentence,
     }),
   );
