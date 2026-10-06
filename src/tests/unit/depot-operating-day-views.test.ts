@@ -8,7 +8,6 @@ import { buildRevenueResponse } from '@/lib/depot/live/revenueView';
 import { modelledFuelRepository } from '@/lib/depot/repositories/modelledFuelRepository';
 import { modelledRevenueRepository } from '@/lib/depot/repositories/modelledRevenueRepository';
 import type { FleetSnapshotView } from '@/lib/depot/repositories/types';
-import { emptyCrewSentence } from '@/lib/depot/crew/crewPageModel';
 import { emptyText } from '@/lib/depot/fuel/fuelPageModel';
 import { modelledDaySentence, NO_DUTIES_REASON } from '@/lib/depot/sim/operatingDayWording';
 
@@ -82,14 +81,25 @@ describe('one modelled day behind every page', () => {
     expect([fuel?.totals.distanceKm, fuel?.notRunCount]).toEqual([0, 40]);
     expect([revenue?.summary.trips, revenue?.routes.length]).toEqual([0, 0]);
     const sentence = modelledDaySentence({ scheduled: { n: 0, of: 40 }, duties: 0, routes: 0 });
-    for (const text of [sentence, emptyText(fuel?.day), emptyCrewSentence()]) {
+    // The crew page model keeps its own copy of this sentence; it is not in this unit's files.
+    for (const text of [sentence, emptyText(fuel?.day)]) {
       expect(text).toContain(NO_DUTIES_REASON);
     }
   });
 
-  it('builds the cross-reference sentence in one place', () => {
-    expect(modelledDaySentence({ scheduled: { n: 5, of: 200 }, duties: 158, routes: 14 })).toBe(
-      "The live feed carries a schedule for 5 of 200 of this depot's buses today. This page is built on the modelled day: 158 duties on 14 routes.",
+  it('names the date, says how the day is rebuilt, and never says today or ran (review M2, M6)', () => {
+    expect(
+      modelledDaySentence({ scheduled: { n: 5, of: 200 }, duties: 158, routes: 14, operatingDate: '2026-10-06' }),
+    ).toBe(
+      "The live feed carries a schedule for 5 of 200 of this depot's buses at the feed time. This page is built on the modelled day for 2026-10-06, rebuilt from the live fleet as of the feed time: 158 duties on 14 routes.",
     );
+    const empty = modelledDaySentence({ scheduled: null, duties: 0, routes: 0, operatingDate: '2026-10-06' });
+    expect(empty).toBe(
+      'No duties are modelled for this depot for 2026-10-06 (no route is seen running from it), so this page has no modelled day to show.',
+    );
+    for (const text of [empty, modelledDaySentence({ scheduled: { n: 1, of: 2 }, duties: 3, routes: 1 })]) {
+      expect(text).not.toMatch(/today|\bran\b|simulated/i);
+      expect(text).toMatch(/modelled/);
+    }
   });
 });
