@@ -141,3 +141,28 @@ export function withSurge(
 export function withoutSurge(state: ScenarioFormState, depotId: string): ScenarioFormState {
   return { ...state, demandSurges: state.demandSurges.filter((s) => s.depotId !== depotId) };
 }
+
+function byDepotId(a: { readonly depotId: string }, b: { readonly depotId: string }): number {
+  if (a.depotId === b.depotId) return 0;
+  return a.depotId < b.depotId ? -1 : 1;
+}
+
+/**
+ * The scenario's identity: a canonical string of sorted depot ids and values,
+ * null at the baseline. Decisions are filed under it, so it must not change
+ * with the order changes were made in, and never uses names or the sentence.
+ */
+export function scenarioKey(state: ScenarioFormState): string | null {
+  const scenario = toScenario(state);
+  if (Object.keys(scenario).length === 0) return null;
+  const fleet = [...(scenario.fleetAdjustments ?? [])].sort(byDepotId);
+  const surge = [...(scenario.demandSurges ?? [])].sort(byDepotId);
+  return JSON.stringify({
+    sparePercent: activeSpare(state),
+    maxTransferKm: scenario.maxTransferKm ?? null,
+    locked: [...(scenario.lockedDepotIds ?? [])].sort(),
+    excluded: [...(scenario.excludedDepotIds ?? [])].sort(),
+    fleet: fleet.map((a) => [a.depotId, a.deltaBuses]),
+    surge: surge.map((s) => [s.depotId, s.percent]),
+  });
+}
