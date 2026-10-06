@@ -126,6 +126,21 @@ export function filterLeagueRows(
   });
 }
 
+const DASH = '—';
+
+/** A 0-to-1 rate as a percentage with one decimal; a dash when unknown. */
+export function formatRate(value: number | null): string {
+  return value === null ? DASH : `${(value * PERCENT).toFixed(1)}%`;
+}
+
+/** A signed difference in percentage points, using a real minus sign. */
+export function formatPoints(delta: number | null): string {
+  if (delta === null) return DASH;
+  const rounded = Math.round(delta * 10) / 10;
+  if (rounded === 0) return '0.0 pts';
+  return `${rounded > 0 ? '+' : '−'}${Math.abs(rounded).toFixed(1)} pts`;
+}
+
 /** Why a depot has no rank; null for a ranked depot. */
 export function unrankedSentence(row: LeagueRow): string | null {
   if (row.ranked) return null;
