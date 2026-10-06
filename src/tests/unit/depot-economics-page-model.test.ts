@@ -20,7 +20,14 @@ function component(
   peerMedian: number | null,
   contribution = 0,
 ): EconomicsComponent {
-  return { key, value, peerMedian, z: contribution, contribution, provenance: 'modelled' };
+  return {
+    key,
+    value,
+    peerMedian,
+    coverage: key === 'earningsPerKm' ? { n: 4, of: 6 } : null,
+    z: contribution, contribution,
+    provenance: 'modelled',
+  };
 }
 
 function entry(

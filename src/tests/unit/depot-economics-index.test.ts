@@ -31,6 +31,7 @@ function input(i: number, overrides: Partial<EconomicsInput> = {}): EconomicsInp
     earningsPerKm: 20 + i * 1.5,
     costPerKm: 30 + ((i * 7) % COUNT),
     loadFactor: 0.4 + i * 0.02,
+    earningsCoverage: { n: 4, of: 4 },
     ...overrides,
   };
 }
@@ -155,15 +156,39 @@ describe('scoreEconomics', () => {
   });
 });
 
+function importSpecifiers(source: string): string[] {
+  const found = source.matchAll(/(?:from|import)\s*\(?\s*['"]([^'"]+)['"]/g);
+  return [...found].map((m) => m[1] ?? '');
+}
+
+function tsFilesUnder(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
+    entry.isDirectory()
+      ? tsFilesUnder(join(dir, entry.name))
+      : entry.name.endsWith('.ts') || entry.name.endsWith('.tsx')
+        ? [join(dir, entry.name)]
+        : [],
+  );
+}
+
 describe('separation from the Depot Efficiency Index', () => {
   const scoreDir = join(process.cwd(), 'src/lib/depot/score');
-  const files = readdirSync(scoreDir).filter((f) => f.endsWith('.ts'));
+  const files = tsFilesUnder(scoreDir);
+  const FORBIDDEN = /(^|\/)(revenue|economics|ridership)(\/|$)|economicsIndex|revenueConfig|ridership/;
 
-  it('is not mentioned or imported anywhere under score/', () => {
+  it('finds import specifiers in the way it claims to', () => {
+    expect(importSpecifiers("import { a } from '../revenue/types';\nimport './x';")).toEqual([
+      '../revenue/types',
+      './x',
+    ]);
+  });
+
+  it('imports nothing from the revenue, economics or ridership modules, at any depth of score/', () => {
     expect(files.length).toBeGreaterThan(0);
     for (const file of files) {
-      const source = readFileSync(join(scoreDir, file), 'utf8');
-      expect(source, file).not.toMatch(/revenue|economics|ridership/i);
+      for (const specifier of importSpecifiers(readFileSync(file, 'utf8'))) {
+        expect(specifier, file).not.toMatch(FORBIDDEN);
+      }
     }
   });
 

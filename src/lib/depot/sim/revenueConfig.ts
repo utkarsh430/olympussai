@@ -104,6 +104,17 @@ export const DAILY_NOISE_SALT = 'ridership-day';
 export const MIXED_CLASS_NOTE =
   'A route with buses of several classes is priced at its most numerous class (ties go to the more specific class); its seats are the average across its buses.';
 
+/**
+ * Earnings per kilometre enter the Depot Economics Index only when they rest
+ * on at least this share of the depot's routes (one quarter): a figure from
+ * one route in twenty says little about the depot. Both this and
+ * ECONOMICS_MIN_ROUTES must hold.
+ */
+export const ECONOMICS_MIN_ROUTE_COVERAGE = 0.25;
+
+/** ...and on at least this many routes, so a depot with a single route is never ranked on it. */
+export const ECONOMICS_MIN_ROUTES = 2;
+
 /** Weights of the Depot Economics Index components; they sum to 1 (a test asserts it). */
 export const ECONOMICS_WEIGHTS = {
   earningsPerKm: 0.4,

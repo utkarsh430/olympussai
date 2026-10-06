@@ -31,7 +31,13 @@ async function figuresFor(
 ): Promise<DepotFigures> {
   if (depot.kind !== 'depot') {
     return {
-      input: { depot, earningsPerKm: null, costPerKm: null, loadFactor: null },
+      input: {
+        depot,
+        earningsPerKm: null,
+        costPerKm: null,
+        loadFactor: null,
+        earningsCoverage: { n: 0, of: 0 },
+      },
       coverage: { n: 0, of: 0 },
     };
   }
@@ -46,6 +52,7 @@ async function figuresFor(
       earningsPerKm: revenue.depot.earningsPerKm,
       costPerKm: analyseFuel(fuelDays).depot.costPerKm,
       loadFactor: revenue.depot.loadFactor,
+      earningsCoverage: revenue.depot.earningsCoverage,
     },
     coverage: revenue.depot.earningsCoverage,
   };
