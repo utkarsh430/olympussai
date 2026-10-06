@@ -7,6 +7,11 @@ export const DEPOT_POLL_INTERVAL_MS = 60_000;
 const NETWORK_ENDPOINT = '/api/upsrtc/depot/network';
 const UNAUTHORISED = 401;
 
+/** Fixed, user-facing failure reasons. Raw browser or server text never reaches the UI. */
+export const SESSION_EXPIRED_MESSAGE = 'Session expired';
+export const DEPOT_UNAVAILABLE_MESSAGE = 'Depot data unavailable';
+export const NETWORK_UNREACHABLE_MESSAGE = 'Could not reach the server';
+
 export interface DepotNetworkState {
   readonly data: DepotNetworkResponse | null;
   readonly error: string | null;
@@ -38,13 +43,19 @@ export function useDepotNetwork(): DepotNetworkState {
     const controller = new AbortController();
     inFlight.current = controller;
 
+    const fail = (message: string): void => {
+      if (cancelled.current || controller.signal.aborted) return;
+      setError(message);
+      setLoading(false);
+    };
+
     try {
       const response = await fetch(NETWORK_ENDPOINT, {
         signal: controller.signal,
         cache: 'no-store',
       });
-      if (response.status === UNAUTHORISED) throw new Error('Session expired');
-      if (!response.ok) throw new Error(`Depot feed responded ${response.status}`);
+      if (response.status === UNAUTHORISED) return fail(SESSION_EXPIRED_MESSAGE);
+      if (!response.ok) return fail(DEPOT_UNAVAILABLE_MESSAGE);
       const payload = (await response.json()) as DepotNetworkResponse;
       if (cancelled.current || controller.signal.aborted) return;
       setData(payload);
@@ -52,8 +63,7 @@ export function useDepotNetwork(): DepotNetworkState {
       setLoading(false);
     } catch (caught) {
       if (cancelled.current || isAbort(caught) || controller.signal.aborted) return;
-      setError(caught instanceof Error ? caught.message : 'Depot feed unavailable');
-      setLoading(false);
+      fail(NETWORK_UNREACHABLE_MESSAGE);
     }
   }, []);
 

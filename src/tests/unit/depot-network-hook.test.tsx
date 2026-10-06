@@ -3,6 +3,9 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   DEPOT_POLL_INTERVAL_MS,
+  DEPOT_UNAVAILABLE_MESSAGE,
+  NETWORK_UNREACHABLE_MESSAGE,
+  SESSION_EXPIRED_MESSAGE,
   useDepotNetwork,
   type DepotNetworkState,
 } from '@/hooks/useDepotNetwork';
@@ -141,7 +144,7 @@ describe('useDepotNetwork', () => {
     });
     expect(state().loading).toBe(false);
     expect(state().data).toBeNull();
-    expect(state().error).not.toBeNull();
+    expect(state().error).toBe(NETWORK_UNREACHABLE_MESSAGE);
   });
 
   it('keeps the last good data on a failed poll, then clears the error on success', async () => {
@@ -153,7 +156,7 @@ describe('useDepotNetwork', () => {
     });
     await settle(calls[1] as PendingCall, 500);
     expect(state().data).toEqual(payload('good'));
-    expect(state().error).not.toBeNull();
+    expect(state().error).toBe(DEPOT_UNAVAILABLE_MESSAGE);
     expect(state().loading).toBe(false);
 
     await act(async () => {
@@ -167,8 +170,20 @@ describe('useDepotNetwork', () => {
   it('reports a 401 as an expired session', async () => {
     await mount();
     await settle(calls[0] as PendingCall, 401);
-    expect(state().error).toBe('Session expired');
+    expect(state().error).toBe(SESSION_EXPIRED_MESSAGE);
+    expect(SESSION_EXPIRED_MESSAGE).toBe('Session expired');
     expect(state().loading).toBe(false);
+  });
+
+  it('uses fixed messages and never surfaces raw browser text', async () => {
+    expect(DEPOT_UNAVAILABLE_MESSAGE).toBe('Depot data unavailable');
+    expect(NETWORK_UNREACHABLE_MESSAGE).toBe('Could not reach the server');
+    await mount();
+    await act(async () => {
+      (calls[0] as PendingCall).fail(new Error('NetworkError when attempting to fetch resource.'));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(state().error).toBe(NETWORK_UNREACHABLE_MESSAGE);
   });
 
   it('refresh aborts the in-flight request and applies only the second response', async () => {
