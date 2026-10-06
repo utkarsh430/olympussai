@@ -15,7 +15,12 @@ const PAIRS = 400;
 const ZERO = BigInt(0);
 const ONE = BigInt(1);
 const TWO = BigInt(2);
-/** The most each tier can add per pair: four 0/1 tiers, then the capped base. */
+/**
+ * The most each tier can add per pair, in every plan mode: four 0/1 tiers (the top
+ * one is the boundary tier, or before the first duty the yard buses on the earliest
+ * duties, ruling S62b; time fit is 0 throughout when no duty has started), then the
+ * capped base.
+ */
 const TIER_MAX: readonly bigint[] = [ONE, ONE, ONE, ONE, BigInt(MAX_BASE_COST)];
 const MAX_SAFE = BigInt(Number.MAX_SAFE_INTEGER);
 

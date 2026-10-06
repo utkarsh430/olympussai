@@ -110,10 +110,11 @@ function planFor(
 /**
  * The depot's one duty plan for the feed's operating date, as of the feed
  * clock (no clock when the feed has none), or null for an unknown depot.
- * Before the date's first duty starts, the day has not begun and the plan is
- * made as a later day's is, from the buses in the yard (ruling S62). The
- * bus set is the depot's bus views, one per trimmed registration. No upstream
- * call is made.
+ * Before the date's first duty starts, the day has not begun (ruling S62b):
+ * every eligible bus can take a duty, the buses standing in the yard on the
+ * earliest duties and the buses still out on the ones after. The bus set is
+ * the depot's bus views, one per trimmed registration. No upstream call is
+ * made.
  */
 export function dutyPlanFor(
   analysis: SnapshotAnalysis,
