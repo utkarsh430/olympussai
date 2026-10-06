@@ -137,7 +137,22 @@ const MS_PER_MINUTE = 60_000;
  * clock only; their own age is still measured against it. Null when no row
  * carries a usable receive time. No wall clock is read.
  */
-export function deriveFeedNow(rows: readonly DepotBusRow[]): string | null {
+export function deriveFeedNow(rows: readonly DepotBusRow[], fetchedAtMs?: number): string | null {
+  return deriveFeedClock(rows, fetchedAtMs ?? Number.POSITIVE_INFINITY).feedNow;
+}
+
+/** The feed clock, and how many rows were stamped too far ahead of the fetch to set it. */
+export interface FeedClock {
+  readonly feedNow: string | null;
+  readonly aheadRows: number;
+}
+
+/** Stub: the S50a rule until S56a lands. */
+export function deriveFeedClock(rows: readonly DepotBusRow[], fetchedAtMs: number): FeedClock {
+  return { feedNow: Number.isNaN(fetchedAtMs) ? null : percentileClock(rows), aheadRows: 0 };
+}
+
+function percentileClock(rows: readonly DepotBusRow[]): string | null {
   const timed = rows
     .filter((row): row is DepotBusRow & { receivedAt: string } => Boolean(row.receivedAt))
     .map((row) => ({ iso: row.receivedAt, ms: Date.parse(row.receivedAt) }))
