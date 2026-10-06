@@ -25,9 +25,8 @@ vi.mock('@/hooks/useDepotRoutes', async (original) => ({
 vi.mock('@/hooks/useDepotAllocation', () => ({ useDepotAllocation: (): unknown => state.allocation }));
 
 const LINE =
-  'Routes and the buses on them are LIVE; stops, terminals and dead kilometres a trip, from ' +
-  'the route-details feed and inferred depot positions, are DERIVED';
-const MODELLED_PART = 'trips a day and the daily dead kilometres built on them are MODELLED.';
+  'Buses on routes are LIVE; stops, terminals and dead km a trip are DERIVED';
+const MODELLED_PART = 'trips a day and daily dead km are MODELLED.';
 
 const text = (markup: string): string =>
   markup.replace(/<[^>]*>/g, '').replace(/&#x27;/g, "'").replace(/\s+/g, ' ');

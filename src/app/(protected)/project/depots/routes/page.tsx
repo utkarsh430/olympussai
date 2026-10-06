@@ -18,12 +18,13 @@ export default async function DepotRoutesPage() {
         description="Every route in the feed, and which depot should run each one."
         provenanceLine={{
           default: 'mixed',
-          live: 'Routes and the buses on them',
+          // One short line, so the MIXED pill sits on it at 1440 (critique round 5, Must 4).
           // Dead km a trip is measured (depot position to terminals), so DERIVED, as the
           // column and the drawer say; only what is multiplied by modelled trips is MODELLED.
-          derived:
-            'stops, terminals and dead kilometres a trip, from the route-details feed and inferred depot positions,',
-          modelled: 'trips a day and the daily dead kilometres built on them',
+          // Where the derived figures come from is said in the closing disclosure.
+          live: 'Buses on routes',
+          derived: 'stops, terminals and dead km a trip',
+          modelled: 'trips a day and daily dead km',
         }}
       />
       {/* RoutesPage reads the ?depot= scope (useSearchParams), so it sits in a boundary. */}
