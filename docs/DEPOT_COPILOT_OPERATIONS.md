@@ -164,6 +164,8 @@ body; a failure while writing it is a scripted answer.
 | `unexpected writer=<w>: <Class>: <message>` | Anything else in the handler |
 | `scripted <task> draft failed: <reason>` (with `: <Class>: <message>` when it threw) | The scripted draft did not render |
 | `claude-cli fell back: <reason>` | Claude was not used for this answer |
+| `no_time`, `allowance_used`, `deadline`, `aborted` | A Claude call was not started, or the request stopped waiting for it |
+| `cli_unavailable`, `cleanup_failed` | Claude could not be set up; a call's private folders could not be removed |
 | `provider_setting_unrecognised: "<value>"; the scripted writer is used` | Once per process: see `DEPOT_COPILOT_PROVIDER` |
 
 `<w>` is the writer the server is set up with (`scripted` or `claude-cli`). The message is cut to
