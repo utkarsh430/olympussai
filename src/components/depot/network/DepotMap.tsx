@@ -168,6 +168,7 @@ export function DepotMap({ rows, selectedId, onSelect }: DepotMapProps) {
       handles.forEach((handle) => handle?.remove());
       nodes.forEach((node) => node.marker.setMap(null));
       nodesRef.current = [];
+      setHoveredId(null);
     };
   }, [rows, status]);
 
@@ -193,9 +194,18 @@ export function DepotMap({ rows, selectedId, onSelect }: DepotMapProps) {
         role="region"
         aria-label="Map of depots. Every depot can also be selected from the ranked lists and the table."
       />
-      {status !== 'ready' ? (
+      {status === 'loading' ? (
+        // Quiet static placeholder: MapFallback's loading face pulses, and nothing here loops.
+        <div
+          role="status"
+          className="absolute inset-0 z-20 flex items-center justify-center bg-depot-surface"
+        >
+          <p className="depot-label">Loading the basemap</p>
+        </div>
+      ) : null}
+      {status === 'error' ? (
         <MapFallback
-          status={status}
+          status="error"
           message={errorMessage}
           onRetry={() => window.location.reload()}
         />
