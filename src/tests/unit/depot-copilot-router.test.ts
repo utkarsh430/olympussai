@@ -130,7 +130,7 @@ describe('scriptedRoute', () => {
     'Compare Kanpur',
     'Any exceptions at Atlantis?',
   ])('answers unsupported for %j', (question) => {
-    expect(scriptedRoute(question, DEPOTS)).toEqual({ kind: 'unsupported' });
+    expect(scriptedRoute(question, DEPOTS)).toMatchObject({ kind: 'unsupported' });
   });
 
   it('only ever produces a catalogue query for hostile input', () => {
@@ -180,7 +180,7 @@ describe('cliRouter', () => {
     ['a missing depot', { kind: 'exceptionsFor' }],
     ['the same depot twice', { kind: 'compareDepots', depotA: 'Kanpur', depotB: 'KANPUR' }],
   ])('returns unsupported for %s', (_label, output) => {
-    expect(parseRouterOutput(output, DEPOTS)).toEqual({ kind: 'unsupported' });
+    expect(parseRouterOutput(output, DEPOTS)).toMatchObject({ kind: 'unsupported' });
   });
 
   it('describes every kind in the wire JSON schema', () => {
@@ -260,7 +260,7 @@ describe('scriptedRoute with suffixed and partial names', () => {
     'How are things going',
     'Compare Bareilly and Bareilly',
   ])('stays unsupported for %j', (question) => {
-    expect(scriptedRoute(question, SUFFIXED)).toEqual({ kind: 'unsupported' });
+    expect(scriptedRoute(question, SUFFIXED)).toMatchObject({ kind: 'unsupported' });
   });
 });
 
@@ -271,7 +271,7 @@ describe('ambiguous partial depot name with a network word', () => {
     'Any exceptions across the Meerut network',
     'Agra summary',
   ])('is unsupported for %j, not the network summary', (question) => {
-    expect(scriptedRoute(question, SUFFIXED)).toEqual({ kind: 'unsupported' });
+    expect(scriptedRoute(question, SUFFIXED)).toMatchObject({ kind: 'unsupported' });
   });
 
   it('keeps the network summary when no depot name is half-given', () => {
@@ -281,6 +281,70 @@ describe('ambiguous partial depot name with a network word', () => {
       depotId: '201',
     });
   });
+});
+
+const CROWDED = [
+  { id: '301', name: 'ALLAHABAD' },
+  { id: '302', name: 'ALLAHGANJ' },
+  { id: '303', name: 'NEW DELHI' },
+  { id: '304', name: 'NEWADA' },
+  { id: '305', name: 'MEERUT CITY' },
+  { id: '306', name: 'MEERUT ROAD' },
+] as const;
+
+describe('ambiguity needs a whole first word of a depot name', () => {
+  it.each(['all depots overall', 'new exceptions across the network', 'ram fleet status'])(
+    'keeps the network summary for %j',
+    (question) => {
+      expect(scriptedRoute(question, CROWDED)).toEqual({ kind: 'networkSummary' });
+    },
+  );
+
+  it('still refuses a half-given name as ambiguous', () => {
+    expect(scriptedRoute('Meerut fleet status', CROWDED)).toEqual({
+      kind: 'unsupported',
+      reason: 'ambiguous_depot',
+    });
+  });
+});
+
+describe('unsupported reasons', () => {
+  it('marks people, ambiguity and everything else', () => {
+    expect(scriptedRoute('which drivers are at Kanpur', DEPOTS)).toEqual({
+      kind: 'unsupported',
+      reason: 'people',
+    });
+    expect(scriptedRoute('Who is the best performer?', DEPOTS)).toEqual({
+      kind: 'unsupported',
+      reason: 'people',
+    });
+    expect(scriptedRoute('Meerut fleet status', SUFFIXED)).toEqual({
+      kind: 'unsupported',
+      reason: 'ambiguous_depot',
+    });
+    expect(scriptedRoute('what is the weather', DEPOTS)).toEqual({
+      kind: 'unsupported',
+      reason: 'out_of_scope',
+    });
+    expect(copilotQuerySchema.safeParse({ kind: 'unsupported', reason: 'people' }).success).toBe(
+      true,
+    );
+    expect(copilotQuerySchema.safeParse({ kind: 'unsupported', reason: 'x' }).success).toBe(false);
+    expect(copilotQuerySchema.safeParse({ kind: 'unsupported' }).success).toBe(true);
+  });
+});
+
+describe('leading who needs a ranking cue and a depot, bus or fleet noun', () => {
+  it.each(['Who has the most dark buses?', 'Who is the best depot?'])('ranks %j', (q) => {
+    expect(scriptedRoute(q, DEPOTS)).toMatchObject({ kind: 'rankDepots' });
+  });
+
+  it.each(['Who is the best performer?', 'Who is the most senior at Kanpur?'])(
+    'refuses %j as a question about people',
+    (q) => {
+      expect(scriptedRoute(q, DEPOTS)).toMatchObject({ kind: 'unsupported', reason: 'people' });
+    },
+  );
 });
 
 describe('people guard', () => {
@@ -307,7 +371,7 @@ describe('people guard', () => {
     'Whom should I call about Kanpur',
     'Whose depot is Kanpur',
   ])('declines %j', (question) => {
-    expect(scriptedRoute(question, DEPOTS)).toEqual({ kind: 'unsupported' });
+    expect(scriptedRoute(question, DEPOTS)).toMatchObject({ kind: 'unsupported' });
   });
 
   it('routes a leading who with a ranking cue to the depot ranking', () => {
@@ -325,7 +389,7 @@ describe('people guard', () => {
       'Who is on duty at Kanpur?',
       'Who is Kanpur?',
     ]) {
-      expect(scriptedRoute(q, DEPOTS)).toEqual({ kind: 'unsupported' });
+      expect(scriptedRoute(q, DEPOTS)).toMatchObject({ kind: 'unsupported' });
     }
   });
 

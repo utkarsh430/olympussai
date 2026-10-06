@@ -10,6 +10,7 @@ import { DEI_COMPONENTS } from '@/lib/depot/score/config';
  */
 const depotId = z.string().refine(isValidDepotId, 'Not a valid depot id');
 
+export const UNSUPPORTED_REASONS = ['out_of_scope', 'people', 'ambiguous_depot'] as const;
 const RANK_METRICS = ['index', 'onRoad', 'offRoad', 'dark', 'scheduled'] as const;
 
 export const copilotQuerySchema = z.discriminatedUnion('kind', [
@@ -30,12 +31,24 @@ export const copilotQuerySchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('exceptionsFor'), depotId }).strict(),
   z.object({ kind: z.literal('compareDepots'), depotA: depotId, depotB: depotId }).strict(),
   z.object({ kind: z.literal('outshedStatus'), depotId }).strict(),
-  z.object({ kind: z.literal('unsupported') }).strict(),
+  z
+    .object({
+      kind: z.literal('unsupported'),
+      /** Why the router declined; absent means the generic wording. */
+      reason: z.enum(UNSUPPORTED_REASONS).optional(),
+    })
+    .strict(),
 ]);
 
 export type CopilotQuery = z.infer<typeof copilotQuerySchema>;
 export type RankMetric = (typeof RANK_METRICS)[number];
 export const UNSUPPORTED_QUERY: CopilotQuery = { kind: 'unsupported' };
+export const OUT_OF_SCOPE_QUERY: CopilotQuery = { kind: 'unsupported', reason: 'out_of_scope' };
+export const PEOPLE_QUERY: CopilotQuery = { kind: 'unsupported', reason: 'people' };
+export const AMBIGUOUS_DEPOT_QUERY: CopilotQuery = {
+  kind: 'unsupported',
+  reason: 'ambiguous_depot',
+};
 
 /**
  * Whether a higher figure is better for a ranking metric. Derived from the

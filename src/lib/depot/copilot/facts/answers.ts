@@ -22,13 +22,25 @@ export interface AnswerData {
   readonly distribution?: DepotDistributionResponse;
 }
 
-function unsupported(): CopilotRequest {
+const SCOPE_SENTENCE =
+  'This assistant can answer questions about the network as a whole, a named depot, depot rankings, depots in deficit or surplus, proposed transfers, exceptions, comparisons between depots, and departures from the yard.';
+
+type UnsupportedReason = Extract<CopilotQuery, { kind: 'unsupported' }>['reason'];
+
+function unsupported(reason: UnsupportedReason): CopilotRequest {
+  if (reason === 'ambiguous_depot') {
+    return answer('an unsupported question', [], {
+      headline: 'That depot name is not specific enough',
+      paragraphs: ["That name matches more than one depot. Use the depot's full name."],
+    });
+  }
+  const closing =
+    reason === 'people'
+      ? 'Questions about people are outside that scope. A question on one of the topics above would be answered from the live data.'
+      : 'A question on one of the topics above would be answered from the live data.';
   return answer('an unsupported question', [], {
     headline: 'That question is outside what can be answered here',
-    paragraphs: [
-      'This assistant can answer questions about the network as a whole, a named depot, depot rankings, depots in deficit or surplus, proposed transfers, exceptions, comparisons between depots, and departures from the yard.',
-      'Questions about people are outside that scope. A question on one of the topics above would be answered from the live data.',
-    ],
+    paragraphs: [SCOPE_SENTENCE, closing],
   });
 }
 
@@ -57,6 +69,6 @@ export function buildAnswer(query: CopilotQuery, data: AnswerData): CopilotReque
     case 'outshedStatus':
       return outshedAnswer(data, query.depotId);
     case 'unsupported':
-      return unsupported();
+      return unsupported(query.reason);
   }
 }

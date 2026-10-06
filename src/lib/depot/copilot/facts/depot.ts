@@ -218,7 +218,7 @@ function exceptionParagraph(detail: DepotDetailResponse): string {
       ? `Flagged at depot level: ${ph('depot.exceptions_depot')}, for ${kinds.join(' and ')}.`
       : 'Nothing is flagged at depot level.';
   const onVehicles = bus.length > 0 ? ` Flagged on vehicles: ${ph('depot.exceptions_bus')}.` : '';
-  return `${atDepot}${onVehicles} A closer look at these items could be worthwhile.`;
+  return `${atDepot}${onVehicles} A closer look at ${countPhrase(depot.length + bus.length, 'this item', 'these items')} could be worthwhile.`;
 }
 
 export function depotDraft(detail: DepotDetailResponse): CopilotDraft {
