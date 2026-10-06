@@ -73,8 +73,11 @@ function quietDepot(): string {
   return quiet.id;
 }
 
-const page = (depotId: string | null, kind: DepotExceptionsResponse['busPage']['kind'] = null) =>
-  ({ ...DEFAULT_BUS_PAGE_QUERY, depotId, kind });
+const page = (depotId: string | null, kind: DepotExceptionsResponse['busPage']['kind'] = null) => ({
+  ...DEFAULT_BUS_PAGE_QUERY,
+  depotId,
+  kind,
+});
 
 beforeEach(() => {
   resetAnalysisForTests();
@@ -87,7 +90,7 @@ describe('buildPagedExceptionsResponse with a depot', () => {
     expect('depotScope' in res).toBe(false);
   });
 
-  it("scopes counts, total and depot exceptions to the depot, and names it", () => {
+  it('scopes counts, total and depot exceptions to the depot, and names it', () => {
     const id = busiestDepot();
     const analysis = analyseSnapshot(fixtureView());
     const res = buildPagedExceptionsResponse(fixtureView(), page(id));
