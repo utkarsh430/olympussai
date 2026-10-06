@@ -100,7 +100,7 @@ export interface FigureProps {
 
 const INTERACTIVE =
   '-mx-2 block min-w-0 rounded-[3px] px-2 text-left hover:bg-depot-raised ' +
-  'focus-visible:outline focus-visible:outline-1 focus-visible:outline-holo-glow';
+  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-holo-glow';
 
 /**
  * A band value: 24px on a 28px line from 640px, one step smaller (20px) on a phone, where
