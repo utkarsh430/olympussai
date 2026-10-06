@@ -227,7 +227,6 @@ describe('the roster table at a phone', () => {
       <RosterTable
         rows={rows}
         feedNow={FEED_NOW}
-        selectedRegistration={null}
         onOpen={() => {}}
         tier={tier}
       />,
@@ -276,7 +275,7 @@ describe('the roster table at a phone', () => {
   it('writes FLAGS in its short words, with the full words in the title', () => {
     const rows = buildRosterRows([bus({ mainPowerOn: false, tamperCode: '7' })]);
     const markup = renderToStaticMarkup(
-      <RosterTable rows={rows} feedNow={FEED_NOW} selectedRegistration={null} onOpen={() => {}} tier="wide" />,
+      <RosterTable rows={rows} feedNow={FEED_NOW} onOpen={() => {}} tier="wide" />,
     );
     const doc = new DOMParser().parseFromString(markup, 'text/html');
     const flags = doc.querySelector('tbody tr:nth-child(1) td:last-child');

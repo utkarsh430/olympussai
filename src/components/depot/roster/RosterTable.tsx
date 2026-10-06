@@ -23,7 +23,6 @@ import { BUS_STATE_ORDER, type RosterRow } from '@/lib/depot/roster/rosterModel'
 export interface RosterTableProps {
   readonly rows: readonly RosterRow[];
   readonly feedNow: string | null;
-  readonly selectedRegistration: string | null;
   readonly onOpen: (registration: string, opener: HTMLElement) => void;
   /** The width tier: which columns show, at what widths (`rosterColumns`). */
   readonly tier: RosterTier;
@@ -46,7 +45,6 @@ type RosterColumns = Readonly<Record<RosterColumnKey, Column<RosterRow>>>;
 
 function buildColumnSet(
   feedNow: string | null,
-  selected: string | null,
   onOpen: RosterTableProps['onOpen'],
   shortLocation: boolean,
 ): RosterColumns {
@@ -59,7 +57,6 @@ function buildColumnSet(
       render: (row) => (
         <button
           type="button"
-          aria-pressed={row.bus.registrationNumber === selected}
           className="whitespace-nowrap text-left text-holo-glow underline-offset-2 hover:underline"
           onClick={(event) => {
             event.stopPropagation();
@@ -141,17 +138,16 @@ function buildColumnSet(
 export function RosterTable({
   rows,
   feedNow,
-  selectedRegistration,
   onOpen,
   tier,
 }: RosterTableProps) {
   const columns = useMemo(() => {
-    const set = buildColumnSet(feedNow, selectedRegistration, onOpen, rosterShortLocation(tier));
+    const set = buildColumnSet(feedNow, onOpen, rosterShortLocation(tier));
     return rosterColumnKeys(tier).map((key) => ({
       ...set[key],
       width: rosterColumnWidth(key, tier),
     }));
-  }, [feedNow, selectedRegistration, onOpen, tier]);
+  }, [feedNow, onOpen, tier]);
   return (
     <div className={FLOW_CLASS}>
       <DataTable
