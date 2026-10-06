@@ -72,7 +72,7 @@ function buildColumns(
       render: (bus) => (
         <Link
           href={rosterBusHref(depotId, bus.registrationNumber)}
-          className="depot-table-link text-holo-glow underline-offset-2 hover:underline focus-visible:underline"
+          className="depot-table-link"
         >
           {bus.registrationNumber}
         </Link>
