@@ -7,9 +7,11 @@ import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
 import { useRouteProfile } from '@/hooks/useRouteProfile';
 import { DataTable, type Column } from '@/components/depot/shell/DataTable';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
+import type { RouteListItem } from '@/lib/depot/routes/api';
 import {
   NO_TIME,
   drawerPhase,
+  drawerRowFacts,
   drawerView,
   type DrawerMove,
   type DrawerRoute,
@@ -123,6 +125,7 @@ const STOP_COLUMNS: readonly Column<StopRow>[] = [
 export function RouteDrawer({ route, move, onClose, onProfiled, restoreFocusTo }: RouteDrawerProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
+  const facts = drawerRowFacts(route as Partial<Pick<RouteListItem, 'serviceToken' | 'delay'>>);
   const closeRef = useRef(onClose);
   const restoreRef = useRef(restoreFocusTo);
   useEffect(() => {
@@ -199,6 +202,11 @@ export function RouteDrawer({ route, move, onClose, onProfiled, restoreFocusTo }
             Close
           </button>
         </div>
+        {facts === null ? null : (
+          <p className="depot-prose mb-3" data-testid="route-drawer-facts">
+            {facts}
+          </p>
+        )}
         <DrawerBody route={route} move={move} onProfiled={onProfiled} />
       </div>
     </div>
