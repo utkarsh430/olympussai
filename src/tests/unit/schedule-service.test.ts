@@ -232,6 +232,23 @@ describe('fetchBusSchedule (direct)', () => {
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
+  it('holds at most its bound of lookups, forgetting the oldest first', async () => {
+    const { fetchBusSchedule, SCHEDULE_CACHE_MAX_KEYS } = await import(
+      '@/lib/upsrtc/scheduleService'
+    );
+    mockFetch.mockResolvedValue(ok(scheduleFixture));
+    const lookup = (trip: number) =>
+      fetchBusSchedule({ regNum: REG, date: TODAY, tripId: `t${trip}` }, T0);
+    for (let trip = 0; trip <= SCHEDULE_CACHE_MAX_KEYS; trip += 1) await lookup(trip);
+    const callsAfterFilling = mockFetch.mock.calls.length;
+    expect((await lookup(SCHEDULE_CACHE_MAX_KEYS)).source).toBe('cache');
+    expect((await lookup(1)).source).toBe('cache');
+    expect(mockFetch).toHaveBeenCalledTimes(callsAfterFilling);
+    // The first lookup was forgotten: asking again calls the schedule server.
+    expect((await lookup(0)).source).toBe('live');
+    expect(mockFetch).toHaveBeenCalledTimes(callsAfterFilling + 1);
+  });
+
   it('counts the fallback dates back from the clock passed in, not the machine clock', async () => {
     const { fetchBusSchedule } = await import('@/lib/upsrtc/scheduleService');
     mockFetch.mockResolvedValue(ok(NOT_ASSIGNED));

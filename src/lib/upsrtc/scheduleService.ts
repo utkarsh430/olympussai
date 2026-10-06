@@ -27,7 +27,14 @@ interface ScheduleLookup {
   resolvedDate: string;
 }
 
-const cache = new TtlCache<ScheduleLookup>(CACHE_TTL_MS);
+/**
+ * Most lookups the cache holds. Its key includes a trip id the caller chooses,
+ * and a real schedule is about 30 KB, so without a bound one user could grow it
+ * for the life of the process. 500 is about 15 MB at most.
+ */
+export const SCHEDULE_CACHE_MAX_KEYS = 500;
+
+const cache = new TtlCache<ScheduleLookup>(CACHE_TTL_MS, { maxKeys: SCHEDULE_CACHE_MAX_KEYS });
 
 /**
  * This endpoint is far slower than the live feed and asymmetrically so: a
