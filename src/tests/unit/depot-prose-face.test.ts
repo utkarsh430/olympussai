@@ -34,7 +34,6 @@ const EXEMPT: readonly string[] = [
   'src/components/depot/copilot/BriefingCard.tsx',
   'src/components/depot/copilot/CopilotFooter.tsx',
   'src/components/depot/copilot/RationaleButton.tsx',
-  'src/components/depot/crew/AvailabilityHero.tsx',
   'src/components/depot/duties/DutyBoard.tsx',
   'src/components/depot/duties/DutyPage.tsx',
   'src/components/depot/duties/DutyTable.tsx',

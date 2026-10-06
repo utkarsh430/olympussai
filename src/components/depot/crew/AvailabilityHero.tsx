@@ -117,12 +117,12 @@ export function AvailabilityHero({ availability, summary, uncovered }: Availabil
       <SectionLabel
         id="depot-crew-availability-heading"
         label="Crew availability"
-        note="Slots by role, today"
+        note="Slots by role"
       />
       <p
         role="status"
         data-testid="crew-coverage-line"
-        className="mb-1 font-mono text-[15px] leading-snug text-depot-ink sm:text-[17px]"
+        className="mb-1 font-sans text-[15px] leading-snug text-depot-ink sm:text-[17px]"
       >
         {coverageLine(summary, uncovered)}
       </p>
