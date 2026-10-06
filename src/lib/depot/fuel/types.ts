@@ -4,8 +4,14 @@ import type { ServiceClass } from '../sim/types';
 /** A bus is flagged when it uses more than this share more fuel per km than its group median. */
 export const FUEL_VARIANCE_FLAG_PCT = 15;
 
-/** The smallest group whose median means something. */
-export const MIN_COMPARISON_GROUP = 3;
+/** A bus is compared only when at least this many other buses (peers) have distance. */
+export const MIN_PEERS = 2;
+
+/**
+ * Diesel price in rupees per litre used when the caller supplies none or an
+ * unusable one. A planning figure as of October 2026, not a quoted price.
+ */
+export const DEFAULT_PRICE_PER_LITRE = 92;
 
 /** One bus's modelled distance and fuel issue for one operating date. */
 export interface BusFuelDay {
@@ -55,6 +61,7 @@ export interface FuelTotals {
   readonly cost: number;
   readonly kmPerLitre: number | null;
   readonly costPerKm: number | null;
+  /** Counts every bus in the group, including those with no distance; never a divisor. */
   readonly busCount: number;
 }
 
@@ -74,7 +81,10 @@ export interface FlaggedBus {
 }
 
 export interface FuelAnalysis {
+  /** The price used: the one supplied, or the default when that was unusable. */
   readonly pricePerLitre: number;
+  /** True when the supplied price was unusable and the default was used. */
+  readonly priceDefaulted: boolean;
   readonly perBus: readonly BusFuelFigure[];
   readonly perRoute: readonly FuelGroupRow[];
   readonly perClass: readonly FuelGroupRow[];

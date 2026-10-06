@@ -1,5 +1,6 @@
 import { SeededRandom } from '../../simulation/seededRandom';
 import type { DepotBusView } from '../api';
+import { compareText } from '../fuel/compare';
 import type { BusFuelDay } from '../fuel/types';
 import { STATIC_SEED_DATE } from './config';
 import { modelBus } from './fleetMaster';
@@ -71,5 +72,5 @@ export function modelFuelDay(
         operatingDate,
       ),
     )
-    .sort((a, b) => a.registrationNumber.localeCompare(b.registrationNumber));
+    .sort((a, b) => compareText(a.registrationNumber, b.registrationNumber));
 }
