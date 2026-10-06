@@ -171,10 +171,11 @@ describe('cockpit page with data', () => {
     expect(markup).toContain('data-testid="depot-no-yard"');
   });
 
-  it('says the server has only just started instead of "no yard" after at most one yard decision', () => {
+  it('says how many snapshots it has decided the yard on instead of "no yard" at one or none', () => {
     setContext({ data: { ...data, yardSnapshotsSeen: 1 } as unknown as DepotDetailContextValue['data'] });
     const text = textOf(renderToStaticMarkup(<DepotCockpit />));
-    expect(text).toContain('The server has only just started, so no yard is placed yet');
+    expect(text).toContain("This server has decided this depot's yard on 1 snapshot so far");
+    expect(text).not.toContain('just started');
     expect(text).not.toContain('No yard is established yet');
   });
 

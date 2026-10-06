@@ -161,10 +161,10 @@ describe('YardRoll', () => {
 });
 
 describe('YardNotEstablished', () => {
-  it('says the server has only just started when it has seen one snapshot or none', async () => {
+  it('says how many snapshots it has decided the yard on when it has seen one or none', async () => {
     await act(async () => root.render(<YardNotEstablished model={MODEL} snapshotsSeen={1} />));
-    expect(container.textContent).toContain('The server has only just started');
-    expect(container.textContent).toContain('may be found shortly');
+    expect(container.textContent).toContain("This server has decided this depot's yard on 1 snapshot so far");
+    expect(container.textContent).not.toContain('just started');
   });
 
   it('takes the map place with one sentence, one muted line and one action; the rule is behind a link', async () => {

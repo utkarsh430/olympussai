@@ -135,12 +135,21 @@ describe('awayRows and unknownRows', () => {
 });
 
 describe('noYardPanel', () => {
-  it('says the server has only just started when it has seen at most one snapshot', () => {
-    for (const seen of [0, 1]) {
-      const panel = noYardPanel(model({ established: false }), seen);
-      expect(panel.sentence).toBe('The server has only just started, so no yard is placed yet.');
-      expect(panel.remedy).toContain('may be found shortly');
-    }
+  // P2: the count restarts after an epoch, so the sentence claims only what it knows.
+  it('says how many snapshots it has decided the yard on when it has seen at most one', () => {
+    const at = (seen: number): string =>
+      noYardPanel(model({ established: false, parkedWithPosition: 4 }), seen).sentence;
+    expect(at(0)).toBe(
+      "This server has decided this depot's yard on 0 snapshots so far; a yard may be found as more arrive.",
+    );
+    expect(at(1)).toBe(
+      "This server has decided this depot's yard on 1 snapshot so far; a yard may be found as more arrive.",
+    );
+    const panel = noYardPanel(model({ established: false, parkedWithPosition: 4 }), 1);
+    expect(panel.remedy).toBe(
+      'A yard appears when more of the 4 parked buses with a position stand together.',
+    );
+    expect(`${at(0)} ${panel.remedy}`).not.toMatch(/just started|shortly/);
   });
 
   it('otherwise says in one sentence why no yard is established, with the parked count', () => {
