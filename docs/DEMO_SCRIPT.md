@@ -188,7 +188,7 @@ _Point at the response timeline._
 
 ## 8. Demand capability — 75 seconds
 
-_Open the demand view: select a bus and choose **Demand - Supply Analysis** from its analysis menu, or open it from Scenario Lab. (The **Depot Management** button in the command bar opens the depot module, which is a shell for now, not this view.)_
+_Open the demand view: select a bus and choose **Demand - Supply Analysis** from its analysis menu, or open it from Scenario Lab. (The **Depot Management** button in the command bar opens the separate depot module, not this view; see the optional depot segment after the closing statement.)_
 
 > "Fourth scenario. This one is about the fleet, not one vehicle."
 
@@ -287,6 +287,55 @@ _Press **Esc** to close the impact view._
 > state. What is missing is the layer that turns it from a map into a decision.
 >
 > Thank you. I am happy to take questions."
+
+---
+
+## Optional: Depot Management — 4 minutes
+
+Use when the audience includes depot or planning staff, after the closing
+statement or in place of section 8. Every depot page states its provenance in
+one line under its title: `LIVE`, `DERIVED`, `MODELLED` or `REFERENCE`. Point
+at that line on each page.
+
+_Click **Depot Management** in the command bar. Check the feed chip reads
+`LIVE`._
+
+> "This is the same live feed, seen depot by depot. Every count here comes from
+> the same fetch as the map we just used."
+
+_Open **League table**._
+
+> "Each depot is compared only with depots of a similar fleet size. The index
+> is computed from the live feed over the last twenty minutes, so a depot does
+> not jump up and down the table with every poll."
+
+_Open one depot from the table, then its **Yard** page._
+
+> "The system has no map of our depots. It learns where each yard is from where
+> that depot's buses park. Where it cannot be sure, it says so and does not
+> draw a yard."
+
+_Open **Fleet distribution**._
+
+> "What each depot has is live. What each depot needs is modelled, because we
+> do not yet have the timetable. So these transfers show how the optimiser
+> works; they are not a recommendation to act on today. Nothing is moved."
+
+_Open the depot's **Revenue** or the network **Economics** page._
+
+> "This page is modelled from start to finish: the feed carries no ticketing,
+> fuel or crew data, and the page says so under its title. When the
+> corporation supplies those feeds, the same screens run on real figures."
+
+_Open **Data sources**._
+
+> "This is the list. Each line is a feed we read today, or one we need from
+> you, with the exact fields. That is the road from a demonstration to a
+> working depot system."
+
+Do not open the trends pages as evidence of history: every point before today
+is modelled. Do not point at any individual: crew appear only as anonymous
+slots.
 
 ---
 
