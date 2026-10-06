@@ -68,7 +68,6 @@ function shape(
 
 async function buildBody(
   view: FleetSnapshotView,
-  analysis: SnapshotAnalysis,
   depotId: string,
   fuel: FuelRepository,
 ): Promise<FuelBody | null> {
@@ -100,7 +99,7 @@ export async function buildFuelResponse(
   const perDepot = bodies.get(analysis) ?? new Map<string, Promise<FuelBody | null>>();
   bodies.set(analysis, perDepot);
   const held = perDepot.get(depotId);
-  const pending = held ?? buildBody(view, analysis, depotId, fuel);
+  const pending = held ?? buildBody(view, depotId, fuel);
   if (held === undefined) {
     perDepot.set(depotId, pending);
     pending.then(
