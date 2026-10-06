@@ -1,7 +1,6 @@
 import type { AuditEvent } from '@/lib/audit/auditLog';
 import type { RowDecision, TransferDecisionKind } from './rebalanceModel';
 import {
-  isString,
   parseDecisionEvent,
   type DecisionEntry,
   type DecisionTrail,
@@ -26,20 +25,30 @@ function entriesFor(events: readonly AuditEvent[], operatingDate: string): Decis
     .reverse();
 }
 
+interface Replay {
+  readonly stacks: ReadonlyMap<string, readonly DecisionEntry[]>;
+  /** Ids of decisions an undo actually removed; an undo the replay ignored adds nothing. */
+  readonly withdrawn: ReadonlySet<string>;
+}
+
 /**
  * Each transfer keeps a stack of decisions: a new one goes on top, and an
  * undo of the top restores the one beneath it. An undo naming anything but
  * the top is ignored, so a stale tab cannot withdraw the wrong decision.
  */
-function replay(entries: readonly DecisionEntry[]): ReadonlyMap<string, readonly DecisionEntry[]> {
+function replay(entries: readonly DecisionEntry[]): Replay {
   const stacks = new Map<string, readonly DecisionEntry[]>();
+  const withdrawn = new Set<string>();
   for (const entry of entries) {
     const key = keyOf(entry.transferId, entry.scenario);
     const stack = stacks.get(key) ?? [];
     if (entry.undoes === null) stacks.set(key, [...stack, entry]);
-    else if (stack.at(-1)?.eventId === entry.undoes) stacks.set(key, stack.slice(0, -1));
+    else if (stack.at(-1)?.eventId === entry.undoes) {
+      stacks.set(key, stack.slice(0, -1));
+      withdrawn.add(entry.undoes);
+    }
   }
-  return stacks;
+  return { stacks, withdrawn };
 }
 
 function currentOf(
@@ -58,7 +67,7 @@ export function decisionsFor(
   events: readonly AuditEvent[],
   operatingDate: string,
 ): ReadonlyMap<string, DecisionEntry> {
-  return currentOf(replay(entriesFor(events, operatingDate)));
+  return currentOf(replay(entriesFor(events, operatingDate)).stacks);
 }
 
 /** Current decisions for the plan showing (baseline null, or a scenario key), by transfer id. */
@@ -87,17 +96,16 @@ export function isRepeatDecision(
 /** Every decision and undo for the date, newest first, baseline and scenarios listed apart. */
 export function decisionTrail(events: readonly AuditEvent[], operatingDate: string): DecisionTrail {
   const entries = entriesFor(events, operatingDate);
-  const stacks = replay(entries);
+  const { stacks, withdrawn } = replay(entries);
   const current = new Set([...currentOf(stacks).values()].map((e) => e.eventId));
   const beneath = new Set(
     [...stacks.values()].flatMap((stack) => stack.slice(0, -1).map((e) => e.eventId)),
   );
-  const undone = new Set(entries.map((e) => e.undoes).filter(isString));
   const items: TrailItem[] = entries
     .map((e) => ({
       ...e,
       undoable: current.has(e.eventId),
-      undone: undone.has(e.eventId),
+      undone: withdrawn.has(e.eventId),
       superseded: beneath.has(e.eventId),
     }))
     .reverse();

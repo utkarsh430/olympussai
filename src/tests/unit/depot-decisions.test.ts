@@ -13,7 +13,7 @@ import {
   decisionsFor,
   rowDecisionsFor,
 } from '@/lib/depot/rebalance/decisionReducers';
-import { undoAnnouncement } from '@/lib/depot/rebalance/decisionWording';
+import { describeTrailItem, undoAnnouncement } from '@/lib/depot/rebalance/decisionWording';
 
 const DATE = '2026-10-06';
 
@@ -121,6 +121,22 @@ describe('decisionsFor', () => {
     expect(rowDecisionsFor(decisionsFor(events, DATE), null).get('agra>kanpur')?.kind).toBe(
       'approved',
     );
+    // The reducer ignored that undo, so the old decision is not marked as undone.
+    const trail = decisionTrail(events, DATE).baseline;
+    const oldItem = trail.find((e) => e.eventId === old.eventId);
+    expect(oldItem?.undone).toBe(false);
+    expect(oldItem?.superseded).toBe(true);
+    expect(describeTrailItem(oldItem!)).not.toContain('later undone');
+  });
+
+  it('marks a decision undone only when its undo was applied', () => {
+    let events: AuditEvent[] = [];
+    events = record(events, decisionEvent(input({ decision: 'approved' })));
+    const first = decisionTrail(events, DATE).baseline[0]!;
+    events = record(events, undoEvent(first));
+    const item = decisionTrail(events, DATE).baseline.find((e) => e.eventId === first.eventId);
+    expect(item?.undone).toBe(true);
+    expect(describeTrailItem(item!)).toContain('(later undone)');
   });
 
   it('ignores malformed stored events and other event types without throwing', () => {
