@@ -11,6 +11,7 @@ import {
   assertUsableBinary,
   type BinaryFs,
 } from '@/lib/depot/copilot/providers/binary';
+import { createLiveCalls } from '@/lib/depot/copilot/cli/liveCalls';
 import { createSemaphore } from '@/lib/depot/copilot/semaphore';
 import { createCliProvider, type CliFactoryDeps } from '@/lib/depot/copilot/service/cliFactory';
 import type { CopilotRequest } from '@/lib/depot/copilot/types';
@@ -192,5 +193,31 @@ describe('per-call directories', () => {
     expect(events.slice(0, 2)).toEqual(['kill', 'close']);
     expect(events.slice(2).every((e) => e.startsWith('remove '))).toBe(true);
     expect(events).toHaveLength(4);
+  });
+
+  it('are known to the shutdown handler from creation until removed (review L4)', async () => {
+    const child = fakeChild();
+    const calls = createLiveCalls();
+    const provider = createCliProvider({
+      env: { CLAUDE_BIN: '/usr/local/bin/claude', DEPOT_COPILOT_PROVIDER: 'auto' },
+      spawn: () => child,
+      fs: fsWith({}),
+      tempRoot: '/tmp',
+      makeDir: async (prefix: string) => `/tmp/${prefix}1`,
+      removeDir: async () => undefined,
+      semaphore: createSemaphore(1, 1),
+      limiter: { tryAcquire: () => true },
+      killGroup: () => undefined,
+      liveCalls: calls,
+    });
+    const drafted = provider!.draft(REQUEST).catch(() => 'refused');
+    await vi.waitFor(() => expect(child.stdin.write).toHaveBeenCalled());
+    expect([...calls.snapshot().dirs].sort()).toEqual([
+      '/tmp/depot-copilot-cwd-1',
+      '/tmp/depot-copilot-home-1',
+    ]);
+    child.emit('close', 1);
+    await drafted;
+    expect(calls.snapshot().dirs).toEqual([]);
   });
 });

@@ -1,4 +1,5 @@
 import { readProviderSetting } from '@/lib/depot/copilot/config';
+import { liveCalls, type LiveCalls } from '@/lib/depot/copilot/cli/liveCalls';
 import type { KillGroup, SpawnLike } from '@/lib/depot/copilot/cli/run';
 import type { CallLimiter } from '@/lib/depot/copilot/limiter';
 import type { BinaryFs } from '@/lib/depot/copilot/providers/binary';
@@ -30,6 +31,8 @@ export interface CliFactoryDeps {
   readonly limiter: CallLimiter;
   /** Kills the child's process group; defaults to the real signal. */
   readonly killGroup?: KillGroup;
+  /** The calls a shutdown must end (review L4); defaults to the process's registry. */
+  readonly liveCalls?: LiveCalls;
 }
 
 const HOME_PREFIX = 'depot-copilot-home-';
@@ -52,8 +55,16 @@ function coreProvider(deps: CliFactoryDeps, bin: string, home: string, cwd: stri
 }
 
 /** Removes the call's directories; a failure is logged as a reason code and never thrown. */
-async function removeAll(deps: CliFactoryDeps, dirs: readonly string[]): Promise<void> {
+async function removeAll(
+  deps: CliFactoryDeps,
+  dirs: readonly string[],
+  calls: LiveCalls,
+): Promise<void> {
   const results = await Promise.allSettled(dirs.map((dir) => deps.removeDir(dir)));
+  // A folder that could not be removed stays known, so a shutdown tries once more.
+  dirs.forEach((dir, i) => {
+    if (results[i]?.status === 'fulfilled') calls.dropDir(dir);
+  });
   if (results.some((r) => r.status === 'rejected')) logDepotError(LOG_SCOPE, 'cleanup_failed');
 }
 
@@ -88,6 +99,7 @@ export function createCliProvider(deps: CliFactoryDeps): CopilotProvider | null 
     canStart?: () => boolean,
   ): Promise<CopilotDraft> {
       let dirs: readonly string[] = [];
+      const calls = deps.liveCalls ?? liveCalls();
       try {
         // Settled one by one, so a directory made before the other failed is still removed.
         const made = await Promise.allSettled([
@@ -95,6 +107,7 @@ export function createCliProvider(deps: CliFactoryDeps): CopilotProvider | null 
           deps.makeDir(CWD_PREFIX),
         ]);
         dirs = made.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : []));
+        dirs.forEach((dir) => calls.addDir(dir));
         const [home, cwd] = dirs;
         if (home === undefined || cwd === undefined || dirs.length !== made.length) {
           throw new CopilotFailure('error', 'private directories unavailable');
@@ -107,7 +120,7 @@ export function createCliProvider(deps: CliFactoryDeps): CopilotProvider | null 
         }
         return await provider.draft(request, signal, canStart);
       } finally {
-        await removeAll(deps, dirs);
+        await removeAll(deps, dirs, calls);
       }
     },
   };
