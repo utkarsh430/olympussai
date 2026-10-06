@@ -155,7 +155,7 @@ export function RankedStrip({ rows, selectedId, onSelect, windowSamples }: Ranke
             />
           </div>
           {unranked.total > 0 ? (
-            <p className="mt-2 font-sans text-[13px] text-depot-muted">{unrankedSentence(unranked)}</p>
+            <p className="mt-2 font-sans text-[13px] text-depot-prose">{unrankedSentence(unranked)}</p>
           ) : null}
         </>
       )}

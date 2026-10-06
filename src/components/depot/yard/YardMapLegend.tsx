@@ -30,7 +30,7 @@ const MARK_COLOUR = DEPOT_PALETTE.ink;
  * key is words and a sentence: sans, never mono.
  */
 export const YARD_MAP_KEY_CLASS =
-  'mt-2 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 font-sans text-[11px] text-depot-muted ' +
+  'mt-2 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 font-sans text-[11px] text-depot-prose ' +
   'sm:absolute sm:bottom-8 sm:left-2 sm:z-10 sm:mt-0 sm:max-w-[calc(100%-4.5rem)] sm:rounded-[3px] ' +
   'sm:border sm:border-depot-line sm:bg-depot-surface/90 sm:px-2 sm:py-1';
 

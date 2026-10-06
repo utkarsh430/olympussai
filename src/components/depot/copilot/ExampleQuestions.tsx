@@ -15,7 +15,7 @@ export function ExampleQuestions({ depotName, onPick }: ExampleQuestionsProps) {
           <button
             type="button"
             onClick={() => onPick(example)}
-            className="w-full min-w-0 py-1.5 text-left font-sans text-[13px] text-depot-muted hover:text-holo-glow focus-visible:text-holo-glow"
+            className="w-full min-w-0 py-1.5 text-left font-sans text-[13px] text-depot-prose hover:text-holo-glow focus-visible:text-holo-glow"
           >
             {example}
           </button>

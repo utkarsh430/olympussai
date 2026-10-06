@@ -27,7 +27,7 @@ export function ProfileCoverage({ profiled }: ProfileCoverageProps) {
     >
       <summary className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
         <span className="tabular-nums">{formatCount(missing)}</span>
-        <span className="min-w-0 font-sans text-sm normal-case tracking-normal text-depot-muted">
+        <span className="min-w-0 font-sans text-sm normal-case tracking-normal text-depot-prose">
           {ROUTES_TEXT.profileTitle}
         </span>
         <span className="ml-auto">{disclosureWord(open)}</span>
