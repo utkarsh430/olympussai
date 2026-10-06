@@ -610,11 +610,20 @@ describe('createClaudeCliProvider', () => {
         child.emit('close', 0);
       }),
     );
-    await providerWith(spawn, { PATH: '/bin', ANTHROPIC_API_KEY: 'sk', SESSION_SECRET: 's' }).draft(
+    await providerWith(spawn, { PATH: '/bin', ANTHROPIC_API_KEY: 'sk', SESSION_SECRET: 's', PROJECT_PIN_HASH: 'h' }).draft(
       REQUEST,
     );
     const options = spawn.mock.calls[0]?.[2];
-    expect(options?.env).toEqual({ PATH: '/usr/bin:/bin:/opt/node/bin', HOME: '/tmp/home' });
+    expect(options?.env).toEqual({
+      PATH: '/usr/bin:/bin:/opt/node/bin',
+      HOME: '/tmp/home',
+      TMPDIR: '/tmp/empty',
+      DISABLE_AUTOUPDATER: '1',
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+    });
+    for (const secret of ['ANTHROPIC_API_KEY', 'SESSION_SECRET', 'PROJECT_PIN_HASH']) {
+      expect(options?.env).not.toHaveProperty(secret);
+    }
     expect(options?.cwd).toBe('/tmp/empty');
   });
 
