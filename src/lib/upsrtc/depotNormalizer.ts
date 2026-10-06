@@ -146,6 +146,8 @@ export interface FeedClock {
  * it as before) and counted in `aheadRows`. Rows older than the fetch are never
  * rejected, so a recorded fixture keeps its own clock. Unparseable times are
  * skipped; null when no row carries one. Pure: the fetch time is passed in.
+ * The frame assumes every stamp carries `Z` (all do today): `parseTimestamp` reads one
+ * without it in the server's local zone, which would silently shift the comparison.
  */
 export function deriveFeedClock(rows: readonly DepotBusRow[], fetchedAtMs: number): FeedClock {
   const ceilingMs = fetchedAtMs + (FEED_IST_OFFSET_MIN + FEED_CLOCK_MAX_LEAD_MIN) * MS_PER_MINUTE;
