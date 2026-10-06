@@ -32,16 +32,28 @@ export interface UncoveredRow {
 function indexById(balances: readonly DepotBalance[]): ReadonlyMap<string, DepotBalance> {
   return new Map(balances.map((b) => [b.depotId, b]));
 }
-/** One row per transfer, in the plan's order, with the context a planner decides on. */
+/**
+ * One row per transfer, in the plan's order (the order the table lists them), with the
+ * context a planner decides on. A depot can give or receive in more than one transfer, so
+ * each row's "before" is the depot's balance immediately before THAT transfer: the balance
+ * before the plan, less what the rows above it already moved from or to that depot
+ * (review R2-I1).
+ */
 export function transferRows(
   plan: TransferPlan,
   balances: readonly DepotBalance[],
   decisions: ReadonlyMap<string, RowDecision>,
 ): TransferRow[] {
   const byId = indexById(balances);
+  const given = new Map<string, number>();
+  const received = new Map<string, number>();
   return plan.transfers.map((t) => {
     const from = byId.get(t.fromDepotId);
     const to = byId.get(t.toDepotId);
+    const givenSoFar = given.get(t.fromDepotId) ?? 0;
+    const receivedSoFar = received.get(t.toDepotId) ?? 0;
+    given.set(t.fromDepotId, givenSoFar + t.buses);
+    received.set(t.toDepotId, receivedSoFar + t.buses);
     return {
       id: t.id,
       fromDepotId: t.fromDepotId,
@@ -51,8 +63,8 @@ export function transferRows(
       buses: t.buses,
       distanceKm: t.distanceKm,
       busKm: t.busKm,
-      giverSurplusBefore: Math.max(0, from?.balance ?? 0),
-      receiverDeficitBefore: Math.max(0, -(to?.balance ?? 0)),
+      giverSurplusBefore: Math.max(0, (from?.balance ?? 0) - givenSoFar),
+      receiverDeficitBefore: Math.max(0, -(to?.balance ?? 0) - receivedSoFar),
       decision: decisions.get(t.id) ?? null,
     };
   });
