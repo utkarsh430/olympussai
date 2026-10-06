@@ -160,19 +160,27 @@ describe('useCopilot', () => {
     expect(hook().state).toEqual({ status: 'idle' });
   });
 
-  it('aborts on unmount, and a late response afterwards causes no error', async () => {
+  it('aborts the in-flight request on unmount', async () => {
+    // React 19 raises no warning for a state update after unmount, so a "late response"
+    // cannot be observed from outside; the abort is the behaviour that can fail.
+    await mount();
+    await ask();
+    expect(calls[0]?.signal.aborted).toBe(false);
+    await unmount();
+    expect(calls[0]?.signal.aborted).toBe(true);
+  });
+
+  it('survives a response that arrives after unmount without an unhandled error', async () => {
     stubFetch(false);
-    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     await mount();
     await ask();
     await unmount();
-    expect(calls[0]?.signal.aborted).toBe(true);
+    // A rejection from the handler would fail the run as an unhandled rejection.
     calls[0]?.respond(200, response('late'));
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
-    expect(errors).not.toHaveBeenCalled();
-    errors.mockRestore();
+    expect(calls[0]?.signal.aborted).toBe(true);
   });
 
   it('counts down a rate limit, refuses requests meanwhile, then returns to idle', async () => {

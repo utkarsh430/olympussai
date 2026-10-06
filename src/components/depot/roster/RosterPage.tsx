@@ -55,10 +55,11 @@ export function RosterPage() {
     router.replace(pathname, { scroll: false });
   }, [router, pathname]);
   // The button that opened the sheet; for a `?bus=` deep link there is none, so
-  // focus goes to the table region rather than falling to the body.
+  // focus goes to the table region rather than falling to the body. Read, never
+  // cleared here: strict mode runs the drawer's cleanup once at open, and clearing
+  // would lose the opener before the real close. `open` replaces it for the next bus.
   const restoreFocusTo = useCallback((): HTMLElement | null => {
     const opener = openerRef.current;
-    openerRef.current = null;
     return opener?.isConnected ? opener : regionRef.current;
   }, []);
 

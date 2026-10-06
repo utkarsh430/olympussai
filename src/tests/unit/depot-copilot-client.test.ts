@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  MAX_FACT_ID_CHARS,
+  MAX_GENERATED_AT_CHARS,
+  MAX_TABLE_CELL_CHARS,
   MAX_TABLE_COLUMNS,
+  MAX_TABLE_HEADING_CHARS,
   MAX_TABLE_ROWS,
   requestCopilot,
 } from '@/lib/depot/copilot/ui/copilotClient';
@@ -195,6 +199,22 @@ describe('requestCopilot bounds', () => {
       'too many rows',
       { ...GOOD, table: { columns: ['a'], rows: Array(MAX_TABLE_ROWS + 1).fill(['x']) } },
     ],
+    [
+      'over-long fact id',
+      { ...GOOD, facts: [{ ...fact, id: 'i'.repeat(MAX_FACT_ID_CHARS + 1) }] },
+    ],
+    ['over-long generatedAt', { ...GOOD, generatedAt: 'g'.repeat(MAX_GENERATED_AT_CHARS + 1) }],
+    [
+      'over-long column heading',
+      {
+        ...GOOD,
+        table: { columns: ['c'.repeat(MAX_TABLE_HEADING_CHARS + 1)], rows: [['x']] },
+      },
+    ],
+    [
+      'over-long table cell',
+      { ...GOOD, table: { columns: ['a'], rows: [['x'.repeat(MAX_TABLE_CELL_CHARS + 1)]] } },
+    ],
     ['ragged row (short)', { ...GOOD, table: { columns: ['a', 'b'], rows: [['x']] } }],
     ['ragged row (long)', { ...GOOD, table: { columns: ['a'], rows: [['x', 'y']] } }],
   ];
@@ -209,14 +229,18 @@ describe('requestCopilot bounds', () => {
       ...GOOD,
       headline: 'h'.repeat(MAX_RENDERED_HEADLINE_CHARS),
       paragraphs: Array(MAX_PARAGRAPHS).fill('p'.repeat(MAX_RENDERED_PARAGRAPH_CHARS)),
+      generatedAt: 'g'.repeat(MAX_GENERATED_AT_CHARS),
       facts: Array(MAX_FACTS).fill({
         ...fact,
+        id: 'i'.repeat(MAX_FACT_ID_CHARS),
         text: 't'.repeat(MAX_FACT_TEXT_CHARS),
         label: 'l'.repeat(MAX_FACT_LABEL_CHARS),
       }),
       table: {
-        columns: Array(MAX_TABLE_COLUMNS).fill('c'),
-        rows: Array(MAX_TABLE_ROWS).fill(Array(MAX_TABLE_COLUMNS).fill('x')),
+        columns: Array(MAX_TABLE_COLUMNS).fill('c'.repeat(MAX_TABLE_HEADING_CHARS)),
+        rows: Array(MAX_TABLE_ROWS).fill(
+          Array(MAX_TABLE_COLUMNS).fill('x'.repeat(MAX_TABLE_CELL_CHARS)),
+        ),
       },
     });
     expect((await requestCopilot(BODY)).ok).toBe(true);

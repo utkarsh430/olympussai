@@ -6,6 +6,7 @@ import {
   AWAY_LIST_CAP,
   DISPLAY_RADIUS_FACTOR,
   YARD_STATE_ORDER,
+  beyondRangeSentence,
   buildYardModel,
   formatHeardAgo,
 } from '@/lib/depot/yard/yardModel';
@@ -90,6 +91,44 @@ const SAMPLE = response(
   ],
 );
 
+describe('beyond-range counts', () => {
+  const far = (reg: string, relation: 'own' | 'visitor'): DepotBusView | VisitorBus =>
+    relation === 'own'
+      ? bus(reg, 'on_road', 'away', { latitude: YARD.lat + 0.1 })
+      : {
+          registrationNumber: reg,
+          homeDepotId: 'x',
+          homeDepotName: 'Xton',
+          state: 'standing',
+          position: { lat: YARD.lat + 0.1, lng: YARD.lng },
+        };
+
+  it('counts own and visiting buses beyond the range separately', () => {
+    const m = buildYardModel(
+      response(
+        [far('A1', 'own') as DepotBusView, bus('B1', 'standing', 'in_yard')],
+        YARD,
+        [far('V1', 'visitor') as VisitorBus, far('V2', 'visitor') as VisitorBus],
+      ),
+    );
+    expect(m.beyondOwn).toBe(1);
+    expect(m.beyondVisiting).toBe(2);
+  });
+
+  it('words each count truthfully', () => {
+    const sentence = (own: number, visiting: number): string =>
+      beyondRangeSentence({ beyondOwn: own, beyondVisiting: visiting });
+    expect(sentence(0, 0)).toBe('every bus with a position is drawn.');
+    expect(sentence(1, 0)).toContain("1 more of this depot's buses");
+    expect(sentence(1, 0)).toContain('see Away from the yard below');
+    expect(sentence(0, 2)).toContain('2 visiting buses');
+    expect(sentence(0, 2)).toContain('listed under Visitors');
+    expect(sentence(0, 2)).not.toContain('Away from the yard');
+    expect(sentence(3, 1)).toContain('3 more of this depot');
+    expect(sentence(3, 1)).toContain('1 visiting bus ');
+  });
+});
+
 describe('formatHeardAgo', () => {
   it('words the GPS age and survives missing values', () => {
     expect(formatHeardAgo(4)).toBe('heard 4 min ago');
@@ -148,7 +187,8 @@ describe('buildYardModel', () => {
     const limit = YARD.radiusM * DISPLAY_RADIUS_FACTOR;
     expect(limit).toBeLessThan(0.01 * M_PER_DEG_LAT);
     expect(m.points.map((p) => p.registration).sort()).toEqual(['B1', 'B2', 'B3', 'V1']);
-    expect(m.beyondCount).toBe(3);
+    expect(m.beyondOwn).toBe(3);
+    expect(m.beyondVisiting).toBe(0);
     expect(m.points.filter((p) => p.relation === 'home')).toHaveLength(3);
   });
 
@@ -180,7 +220,8 @@ describe('buildYardModel', () => {
     );
     const m = buildYardModel(r);
     expect(m.points.find((p) => p.registration === 'Z1')).toBeUndefined();
-    expect(m.beyondCount).toBe(0);
+    expect(m.beyondOwn).toBe(0);
+    expect(m.beyondVisiting).toBe(0);
     expect(m.parkedWithPosition).toBe(6);
     const none = buildYardModel(
       response([bus('Z', 'standing', 'unknown', { latitude: 0, longitude: 0 })], null),
@@ -191,7 +232,7 @@ describe('buildYardModel', () => {
   it('never draws a bus with a null position', () => {
     const m = buildYardModel(SAMPLE);
     expect(m.points.find((p) => p.registration === 'U1')).toBeUndefined();
-    expect(m.beyondCount).toBe(3);
+    expect(m.beyondOwn).toBe(3);
     expect(m.unknown.map((b) => b.registrationNumber)).toEqual(['U1']);
   });
 

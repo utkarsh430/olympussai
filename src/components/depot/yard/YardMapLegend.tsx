@@ -51,12 +51,17 @@ export function YardMapLegend({
           ))}
         </ul>
         <p className="mt-2 font-sans text-xs leading-snug">
-          A filled dot is one of this depot&apos;s own buses. A ring with no fill is a bus from
-          another depot standing here: {formatCount(visitorsDrawn)} drawn
-          {visitorsWithoutPosition > 0
-            ? `, ${formatCount(visitorsWithoutPosition)} with no position in the feed, listed below only`
+          A filled dot is one of this depot&apos;s own buses.
+          {visitorsDrawn > 0
+            ? ` A ring with no fill is a bus from another depot standing here: ${formatCount(visitorsDrawn)} drawn${
+                visitorsWithoutPosition > 0
+                  ? `, ${formatCount(visitorsWithoutPosition)} with no position in the feed, listed below only`
+                  : ''
+              }.`
             : ''}
-          .
+          {visitorsDrawn === 0 && visitorsWithoutPosition > 0
+            ? ` ${formatCount(visitorsWithoutPosition)} ${visitorsWithoutPosition === 1 ? 'bus' : 'buses'} from other depots ${visitorsWithoutPosition === 1 ? 'has' : 'have'} no position in the feed and ${visitorsWithoutPosition === 1 ? 'is' : 'are'} listed below only.`
+            : ''}
         </p>
       </div>
       <div>

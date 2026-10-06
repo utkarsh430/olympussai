@@ -105,27 +105,6 @@ function bySchedule(
   );
 }
 
-/**
- * The stop a bus is heading for. By position when the bus has a position and
- * the route has at least two located stops; otherwise by the timetable. Null
- * when neither can say, or when the bus has passed the last stop. Overnight
- * services that run past midnight are not wrapped: times are compared as given.
- */
-export function inferNextStop(
-  stops: readonly CanonicalStop[],
-  position: BusPosition | null,
-  timeOfDay: string | null,
-): NextStop | null {
-  const ordered = [...stops].sort((a, b) => a.sequence - b.sequence);
-  const located = ordered.filter(isLocated);
-  if (isUsablePosition(position) && located.length >= MIN_LOCATED_STOPS) {
-    const stop = byPosition(located, position);
-    return stop ? { stop, method: 'position' } : null;
-  }
-  const stop = bySchedule(ordered, timeOfDay);
-  return stop ? { stop, method: 'schedule' } : null;
-}
-
 export interface NextStopBus {
   readonly position: BusPosition | null;
   readonly gpsAgeMin: number | null;

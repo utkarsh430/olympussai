@@ -1,4 +1,5 @@
 import type { DepotBusView, DepotDetailResponse, VisitorBus } from '@/lib/depot/api';
+import { formatCount } from '@/lib/depot/format';
 import { distanceM, isUsablePosition } from '@/lib/depot/infer/geo';
 import { lastHeardText } from '@/lib/depot/roster/rosterModel';
 import { MOVING_SPEED_KMPH } from '@/lib/depot/infer/thresholds';
@@ -85,8 +86,12 @@ export interface YardModel {
   readonly away: { readonly buses: readonly DepotBusView[]; readonly total: number };
   readonly unknown: readonly DepotBusView[];
   readonly points: readonly YardMapPoint[];
-  /** Positioned buses further than the display distance, not drawn. */
-  readonly beyondCount: number;
+  /**
+   * Positioned buses further than the display distance, not drawn: this depot's own
+   * (listed under Away from the yard) and visitors (listed under Visitors).
+   */
+  readonly beyondOwn: number;
+  readonly beyondVisiting: number;
   /** Visitors drawn as hollow markers, and visitors the feed gave no position for. */
   readonly visitorsDrawn: number;
   readonly visitorsWithoutPosition: number;
@@ -223,8 +228,34 @@ export function buildYardModel(data: DepotDetailResponse): YardModel {
     away: { buses: away.slice(0, AWAY_LIST_CAP), total: away.length },
     unknown,
     points,
-    beyondCount: measured.length - points.length,
+    beyondOwn: measured.filter(({ candidate }) => candidate.relation === 'home').length -
+      points.filter((point) => point.relation === 'home').length,
+    beyondVisiting: measured.filter(({ candidate }) => candidate.relation === 'visiting').length -
+      points.filter((point) => point.relation === 'visiting').length,
     visitorsDrawn: points.filter((point) => point.relation === 'visiting').length,
     visitorsWithoutPosition: data.visitors.filter((visitor) => visitor.position === null).length,
   };
+}
+
+/**
+ * The map note's tail, after "N buses drawn". Own buses beyond the range are in the
+ * Away list; visitors beyond it are in the Visitors list, so each is worded alone.
+ */
+export function beyondRangeSentence(
+  counts: Pick<YardModel, 'beyondOwn' | 'beyondVisiting'>,
+): string {
+  const { beyondOwn: own, beyondVisiting: visiting } = counts;
+  if (own === 0 && visiting === 0) return 'every bus with a position is drawn.';
+  const parts: string[] = [];
+  if (own > 0) {
+    parts.push(
+      `${formatCount(own)} more of this depot's buses with a position ${own === 1 ? 'lies' : 'lie'} beyond the map's range and ${own === 1 ? 'is' : 'are'} not shown, see Away from the yard below`,
+    );
+  }
+  if (visiting > 0) {
+    parts.push(
+      `${formatCount(visiting)} visiting ${visiting === 1 ? 'bus' : 'buses'} with a position ${visiting === 1 ? 'lies' : 'lie'} beyond the map's range and ${visiting === 1 ? 'is' : 'are'} not shown, ${visiting === 1 ? 'it is' : 'they are'} listed under Visitors`,
+    );
+  }
+  return `${parts.join('; ')}.`;
 }

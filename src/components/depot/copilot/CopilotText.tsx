@@ -26,7 +26,7 @@ export function CopilotText({
   headingLevel = 3,
   focusOnMount = false,
 }: CopilotTextProps) {
-  const headlineRef = useRef<HTMLElement>(null);
+  const headlineRef = useRef<HTMLElement | null>(null);
   useEffect(() => {
     if (focusOnMount) headlineRef.current?.focus();
   }, [focusOnMount]);
@@ -34,7 +34,9 @@ export function CopilotText({
   const Heading = headingLevel === null ? 'p' : (`h${headingLevel}` as const);
   return (
     <div data-testid="copilot-text" className="min-w-0">
-      <Heading ref={headlineRef as React.RefObject<never>} tabIndex={-1} className={HEADLINE_CLASS}>
+      <Heading ref={(node: HTMLElement | null) => {
+          headlineRef.current = node;
+        }} tabIndex={-1} className={HEADLINE_CLASS}>
         {headline}
       </Heading>
       {paragraphs.map((paragraph, index) => (

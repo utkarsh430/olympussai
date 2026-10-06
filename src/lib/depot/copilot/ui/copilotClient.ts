@@ -12,6 +12,11 @@ import type { CopilotApiRequest, CopilotApiResponse } from '../wire';
 /** Generous ceilings on an answer table: the widest query lists a handful of columns. */
 export const MAX_TABLE_COLUMNS = 12;
 export const MAX_TABLE_ROWS = 200;
+/** Per-string ceilings: a longer cell, heading, id or timestamp is a malformed response. */
+export const MAX_TABLE_CELL_CHARS = 200;
+export const MAX_TABLE_HEADING_CHARS = 80;
+export const MAX_FACT_ID_CHARS = 80;
+export const MAX_GENERATED_AT_CHARS = 40;
 
 /**
  * Browser side of `POST /api/upsrtc/depot/copilot`. Pure apart from `fetch`;
@@ -67,6 +72,7 @@ function isFact(value: unknown): boolean {
   return (
     isRecord(value) &&
     typeof value.id === 'string' &&
+    value.id.length <= MAX_FACT_ID_CHARS &&
     typeof value.label === 'string' &&
     value.label.length <= MAX_FACT_LABEL_CHARS &&
     typeof value.text === 'string' &&
@@ -82,9 +88,15 @@ function isTable(value: unknown): boolean {
   const rows = value.rows;
   return (
     width <= MAX_TABLE_COLUMNS &&
+    value.columns.every((heading) => heading.length <= MAX_TABLE_HEADING_CHARS) &&
     Array.isArray(rows) &&
     rows.length <= MAX_TABLE_ROWS &&
-    rows.every((row) => isStringArray(row) && row.length === width)
+    rows.every(
+      (row) =>
+        isStringArray(row) &&
+        row.length === width &&
+        row.every((cell) => cell.length <= MAX_TABLE_CELL_CHARS),
+    )
   );
 }
 
@@ -106,6 +118,7 @@ function isCopilotResponse(value: unknown): value is CopilotApiResponse {
     PROVIDERS.some((p) => p === value.provider) &&
     NOTICES.some((n) => n === value.notice) &&
     typeof value.generatedAt === 'string' &&
+    value.generatedAt.length <= MAX_GENERATED_AT_CHARS &&
     typeof value.cached === 'boolean' &&
     Array.isArray(value.facts) &&
     value.facts.length <= MAX_FACTS &&

@@ -6,7 +6,7 @@ import { useDepotNetworkContext } from '@/components/depot/data/DepotNetworkProv
 import { ErrorPanel, LoadingBlock, StaleStrip } from '@/components/depot/shell/DataStates';
 import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/useDepotNetwork';
 import { formatCount } from '@/lib/depot/format';
-import { buildYardModel } from '@/lib/depot/yard/yardModel';
+import { beyondRangeSentence, buildYardModel } from '@/lib/depot/yard/yardModel';
 import { YardMap } from './YardMap';
 import { YardMapLegend } from './YardMapLegend';
 import { YardRoll } from './YardRoll';
@@ -38,10 +38,7 @@ export function YardPage() {
           </h2>
           <YardMap model={model} />
           <p className="mt-2 text-[11px] text-depot-muted" data-testid="yard-map-note">
-            {formatCount(model.points.length)} {model.points.length === 1 ? 'bus' : 'buses'} drawn
-            {model.beyondCount === 0
-              ? '; every bus with a position is drawn.'
-              : `; ${formatCount(model.beyondCount)} more with a position lie beyond the map's range and ${model.beyondCount === 1 ? 'is' : 'are'} not shown, see Away from the yard below.`}
+            {`${formatCount(model.points.length)} ${model.points.length === 1 ? 'bus' : 'buses'} drawn; ${beyondRangeSentence(model)}`}
           </p>
           <div className="mt-3">
             <YardMapLegend
