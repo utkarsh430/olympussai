@@ -2,6 +2,7 @@
 
 import { createContext, useContext } from 'react';
 import { useDepotNetwork, type DepotNetworkState } from '@/hooks/useDepotNetwork';
+import { beforeFirstAnswer, useHydrated } from './beforeFirstAnswer';
 
 const DepotNetworkContext = createContext<DepotNetworkState | null>(null);
 
@@ -16,8 +17,10 @@ export function DepotNetworkProvider({ children }: { readonly children: React.Re
 
 export function useDepotNetworkContext(): DepotNetworkState {
   const state = useContext(DepotNetworkContext);
+  const hydrated = useHydrated();
   if (!state) {
     throw new Error('useDepotNetworkContext must be used inside <DepotNetworkProvider>');
   }
-  return state;
+  // A page's boundary can hydrate after the poll answered; it hydrates what the server had.
+  return hydrated ? state : beforeFirstAnswer(state);
 }

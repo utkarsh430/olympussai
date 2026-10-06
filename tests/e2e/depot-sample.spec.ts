@@ -256,8 +256,9 @@ const ISO_DATE = /\b\d{4}-\d{2}-\d{2}\b/;
 /** Pages that log a console error on load today because of a product defect. */
 /**
  * React's hydration mismatch (#418: the server HTML differs from the client's first render).
- * Depot pages log it intermittently today (the roster about one load in four, other pages
- * rarely), so the per-page console checks set it aside and a fixme test below pins it.
+ * Depot pages logged it intermittently (a page's Suspense boundary hydrating after the
+ * shell's poll had answered; the roster about one load in four). The per-page console checks
+ * set it aside; the test below loads the roster repeatedly and requires none.
  */
 const HYDRATION_MISMATCH = /Minified React error #418\b/;
 const HYDRATION_PROBE_LOADS = 8;
@@ -311,7 +312,6 @@ test.describe('2. depot pages hydrate cleanly', () => {
     storageState,
     sample,
   }) => {
-    test.fixme(true, 'depot pages intermittently fail hydration (React #418), the roster most');
     const errors: string[] = [];
     // A fresh browser context per load, as a first visit: nothing is cached.
     for (let load = 0; load < HYDRATION_PROBE_LOADS; load += 1) {
