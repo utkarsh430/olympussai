@@ -16,14 +16,19 @@ type YardEntry = readonly [string, Yard];
  * Yard entries in id order, built once per map. `locateBus` runs for every bus in a
  * snapshot, and the yards map is built once per snapshot and not changed after, so
  * sorting per call repeated the same work thousands of times. Keyed weakly by the map,
- * so a new map gets a fresh list and a dropped one is collected. The size is checked
- * so a map that was grown after first use is not answered from a stale list.
+ * so a new map gets a fresh list and a dropped one is collected.
+ *
+ * The key is the map's identity, not its content: A YARDS MAP MUST NOT BE MUTATED
+ * AFTER ITS FIRST USE HERE. Adding, removing or replacing a yard afterwards would be
+ * answered from the list taken at first use. Build a new map instead (the analysis
+ * does: yard continuity returns a fresh map per snapshot). No size check pretends
+ * otherwise: it caught a map that grew but not one whose yard was replaced.
  */
 const SORTED_ENTRIES = new WeakMap<ReadonlyMap<string, Yard>, readonly YardEntry[]>();
 
 function sortedEntries(yards: ReadonlyMap<string, Yard>): readonly YardEntry[] {
   const cached = SORTED_ENTRIES.get(yards);
-  if (cached && cached.length === yards.size) return cached;
+  if (cached) return cached;
   const entries = [...yards.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
   SORTED_ENTRIES.set(yards, entries);
   return entries;
