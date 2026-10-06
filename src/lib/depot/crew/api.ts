@@ -58,6 +58,8 @@ export interface CrewResponse extends DepotFeedEnvelope {
     readonly dutiesUncovered: number;
     readonly dutiesNeedingRelief: number;
   };
+  /** The modelled day these figures are built on, from the duty plan the view already makes. */
+  readonly day: { readonly duties: number; readonly routes: number };
   readonly availability: Readonly<Record<CrewRole, AvailabilityCounts>>;
   /** Most pressing first, capped at `uncoveredCap`; `uncoveredTotal` is the full count. */
   readonly uncovered: readonly UncoveredShiftRow[];

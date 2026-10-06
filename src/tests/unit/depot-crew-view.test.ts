@@ -149,6 +149,26 @@ describe('buildCrewResponse', () => {
     expect(response.roster.length).toBe(Math.min(summary.shiftsCovered, ROSTER_CAP));
   });
 
+  it('summarises the modelled day from the same duty plan: duties and routes', async () => {
+    const rows = world();
+    const v = view(rows);
+    const analysis = analyseSnapshot(v);
+    const detail = buildDepotDetail(v, '1');
+    const date = operatingDateOf(v.feedNow, v.fetchedAt);
+    const duties = planDutiesFor(analysis, '1', detail?.buses ?? [], date)?.duties ?? [];
+    const response = await build(rows, modelledCrewRepository);
+    expect(response.day.duties).toBe(duties.length);
+    expect(response.day.routes).toBe(new Set(duties.map((d) => d.routeName)).size);
+    expect(response.day.duties).toBeGreaterThan(0);
+    expect(Object.keys(response.day).sort()).toEqual(['duties', 'routes']);
+  });
+
+  it('summarises an empty day as zero duties and zero routes', async () => {
+    const rows = world().map((r) => ({ ...r, routeName: null }));
+    const response = await build(rows, modelledCrewRepository);
+    expect(response.day).toEqual({ duties: 0, routes: 0 });
+  });
+
   it('lists every shift as uncovered, with both roles short, when there is no crew', async () => {
     const response = await build(world(), repoOf([]));
     expect(response.summary.shiftsCovered).toBe(0);
