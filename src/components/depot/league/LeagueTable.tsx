@@ -107,7 +107,11 @@ export function LeagueTable() {
                 page={page}
                 onPage={setPage}
                 windowSamples={data.scoreWindow?.samples}
-                expanded={selected ? <ScoreBreakdown row={selected} headingRef={headingRef} /> : null}
+                expanded={
+                  selected ? (
+                    <ScoreBreakdown row={selected} headingRef={headingRef} onClose={() => select(selected)} />
+                  ) : null
+                }
               />
           </div>
         </section>

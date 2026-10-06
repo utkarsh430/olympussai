@@ -107,11 +107,14 @@ export function IndexButton({
   );
 }
 
-/** The row-end chevron, shown while the row is hovered or holds focus. */
-export function OpenChevron() {
+/**
+ * The row-end chevron, shown while the row is hovered or holds focus, and turned (and kept
+ * in view) while its breakdown is open, as the economics row's chevron is.
+ */
+export function OpenChevron({ open }: { readonly open: boolean }) {
   return (
-    <span className="invisible group-focus-within:visible group-hover:visible">
-      <DisclosureChevron />
+    <span className={open ? '' : 'invisible group-focus-within:visible group-hover:visible'}>
+      <DisclosureChevron open={open} />
     </span>
   );
 }

@@ -214,10 +214,10 @@ describe('LeagueGrid frozen block, groups, marks and pages', () => {
 
 describe('ScoreBreakdown', () => {
   it("shows the unit's fleet for a ranked and for an unranked unit, and no Computed stamp", () => {
-    act(() => root.render(<ScoreBreakdown row={RANKED} />));
+    act(() => root.render(<ScoreBreakdown row={RANKED} onClose={() => undefined} />));
     expect(container.textContent).toContain('Fleet: 123 buses.');
     expect(container.textContent).not.toContain('Computed');
-    act(() => root.render(<ScoreBreakdown row={SMALL} />));
+    act(() => root.render(<ScoreBreakdown row={SMALL} onClose={() => undefined} />));
     expect(container.textContent).toContain('Fleet: 7 buses.');
   });
 });

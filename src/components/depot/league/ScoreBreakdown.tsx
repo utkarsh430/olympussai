@@ -20,14 +20,18 @@ function signed(n: number): string {
 /**
  * Why one depot scored what it did: each component's value, the peer median,
  * the robust z against peers and the weighted contribution, then one sentence.
+ * Escape anywhere inside it closes it, as the economics breakdown does; the page
+ * then returns focus to the row that opened it.
  */
 export function ScoreBreakdown({
   row,
   headingRef,
+  onClose,
 }: {
   readonly row: LeagueRow;
   /** Lets the page move focus here after a selection. */
   readonly headingRef?: React.Ref<HTMLHeadingElement>;
+  readonly onClose: () => void;
 }) {
   const group = row.peerGroup === null ? null : PEER_GROUP_LABEL[row.peerGroup];
   const frame = useRef<HTMLDivElement>(null);
@@ -37,6 +41,11 @@ export function ScoreBreakdown({
       aria-labelledby="score-breakdown-title"
       data-testid="depot-score-breakdown"
       className="depot-panel min-w-0 p-4"
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape') return;
+        event.preventDefault();
+        onClose();
+      }}
     >
       <div className="depot-label">Score breakdown</div>
       <h2
