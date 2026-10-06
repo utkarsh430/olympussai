@@ -29,6 +29,7 @@ export const NETWORK_NAV: readonly DepotNavGroup[] = [
       { href: `${DEPOTS_ROOT}/routes`, label: 'Routes' },
       { href: `${DEPOTS_ROOT}/exceptions`, label: 'Exceptions' },
       { href: `${DEPOTS_ROOT}/economics`, label: 'Economics' },
+      { href: `${DEPOTS_ROOT}/trends`, label: 'Trends' },
     ],
   },
   {
