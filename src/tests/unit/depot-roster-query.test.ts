@@ -5,7 +5,6 @@ import {
   buildRosterRows,
   filterRosterRows,
   notHeardText,
-  scheduleText,
 } from '@/lib/depot/roster/rosterModel';
 import { busLocationText } from '@/lib/depot/infer/locationText';
 import { drawerFacts } from '@/lib/depot/roster/drawerFacts';
@@ -123,24 +122,17 @@ describe('drawerFacts', () => {
     expect(value('Location')).toBe(busLocationText(row!.bus));
     expect(value('Location')).toBe('Away, 14 km from yard');
     expect(value('Scheduled start')).toBe('Mon 05 Oct, 08:51');
-    expect(value('State')).toBe('Standing; not heard 87 min');
+    expect(value('State')).toBe('Standing');
+    expect(value('Last heard')).toBe('not heard 1 h 27 min');
     expect(JSON.stringify(facts)).not.toMatch(/\d{4}-\d{2}-\d{2}T/);
     expect(facts.every((f) => !('provenance' in f))).toBe(true);
   });
 });
 
 describe('roster times and words', () => {
-  const FEED_NOW = '2026-10-05T14:00:00.000Z';
-
-  it('shows a schedule on the feed date as a time, another day with its date, never ISO', () => {
-    expect(scheduleText('2026-10-05T08:51:00.000Z', FEED_NOW)).toBe('08:51');
-    expect(scheduleText('2026-10-04T08:51:00.000Z', FEED_NOW)).toBe('Sun 04 Oct, 08:51');
-    expect(scheduleText(null, FEED_NOW)).toBe('—');
-  });
-
   it('words a bus not heard for a while', () => {
-    expect(notHeardText(bus({ notHeardMin: 87 }))).toBe('not heard 87 min');
-    expect(notHeardText(bus({ notHeardMin: 200 }))).toBe('not heard 3 h');
+    expect(notHeardText(bus({ notHeardMin: 87 }))).toBe('not heard 1 h 27 min');
+    expect(notHeardText(bus({ notHeardMin: 200 }))).toBe('not heard 3 h 20 min');
     expect(notHeardText(bus({ notHeardMin: null }))).toBeNull();
     expect(notHeardText(bus({ notHeardMin: undefined }))).toBeNull();
   });

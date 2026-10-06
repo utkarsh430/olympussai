@@ -140,7 +140,8 @@ describe('RosterPage filters in the URL', () => {
     await click(toggle('In service'));
     expect(search).toBe('state=in_service');
     expect(toggle('In service').getAttribute('aria-pressed')).toBe('true');
-    expect(container.textContent).toContain('Showing 2 of 2 buses');
+    expect(container.textContent).toContain('Roster · 2');
+    expect(container.textContent).not.toContain('Showing');
     await click(openerFor('MH12AB1000'));
     expect(new URLSearchParams(search).get('state')).toBe('in_service');
     await click(document.querySelector('[role="dialog"] button') as HTMLElement);
@@ -153,6 +154,7 @@ describe('RosterPage filters in the URL', () => {
     const clear = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Clear the filters');
     await click(clear as HTMLElement);
     expect(search).toBe('');
-    expect(container.textContent).toContain('Showing 2 of 2 buses');
+    expect(container.textContent).toContain('Roster · 2');
+    expect(container.textContent).not.toContain('Showing');
   });
 });

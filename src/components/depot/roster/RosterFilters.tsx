@@ -17,8 +17,6 @@ export interface RosterFiltersProps {
   readonly filters: Filters;
   readonly counts: Readonly<Record<BusOpState, number>>;
   readonly onChange: (next: Filters) => void;
-  /** "Showing 25 of 200 buses", on the right of the row. */
-  readonly countText: string;
 }
 
 /** Short words for the toggles; the full label is in `title`. */
@@ -29,11 +27,11 @@ function isLocation(value: string): value is BusLocation {
 }
 
 /**
- * One row: state toggles with counts, location, search, "Has a route", and the
- * count on the right. A flag set by a link (main power off, not heard, tamper)
+ * One row: state toggles with counts, location, search, "Has a route", and nothing
+ * else: the count is the section label's and the pager's. A flag set by a link (main power off, not heard, tamper)
  * shows as one more pressed toggle that clears it.
  */
-export function RosterFilters({ filters, counts, onChange, countText }: RosterFiltersProps) {
+export function RosterFilters({ filters, counts, onChange }: RosterFiltersProps) {
   const toggleState = (state: BusOpState): void => {
     const on = !filters.states.includes(state);
     const states = on
@@ -107,9 +105,6 @@ export function RosterFilters({ filters, counts, onChange, countText }: RosterFi
         checked={filters.hasRouteOnly}
         onChange={(event) => onChange({ ...filters, hasRouteOnly: event.target.checked })}
       />
-      <p className="ml-auto font-mono text-xs tabular-nums text-depot-muted" role="status">
-        {countText}
-      </p>
     </form>
   );
 }

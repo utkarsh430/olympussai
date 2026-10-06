@@ -1,7 +1,7 @@
 import { formatCount, formatFeedDateTime } from '@/lib/depot/format';
 import { busLocationText } from '@/lib/depot/infer/locationText';
 import { BUS_STATE_LABEL } from '@/lib/depot/labels';
-import { notHeardText, type RosterRow } from './rosterModel';
+import type { RosterRow } from './rosterModel';
 
 /**
  * The bus drawer's facts. The roster page declares its default once (DERIVED, from
@@ -18,9 +18,8 @@ const DASH = '—';
 
 export function drawerFacts(row: RosterRow): readonly DrawerFact[] {
   const { bus } = row;
-  const quiet = notHeardText(bus);
   return [
-    { label: 'State', value: quiet ? `${BUS_STATE_LABEL[bus.state]}; ${quiet}` : BUS_STATE_LABEL[bus.state] },
+    { label: 'State', value: BUS_STATE_LABEL[bus.state] },
     { label: 'Location', value: busLocationText(bus) },
     { label: 'Route', value: bus.routeName ?? DASH },
     { label: 'Scheduled start', value: formatFeedDateTime(bus.scheduledStart) },

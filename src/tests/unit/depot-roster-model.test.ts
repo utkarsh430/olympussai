@@ -124,11 +124,12 @@ describe('lastHeardText', () => {
     [0, 'just now'],
     [0.9, 'just now'],
     [1, '1 min ago'],
-    [119, '119 min ago'],
+    [59, '59 min ago'],
+    [119, '1 h 59 min ago'],
     [120, '2 h ago'],
-    [2879, '47 h ago'],
-    [2880, '2 days ago'],
-    [14400, '10 days ago'],
+    [2879, '1 d 23 h ago'],
+    [2880, '2 d ago'],
+    [14400, '10 d ago'],
   ])('%s -> %s', (age, text) => {
     expect(lastHeardText(age)).toBe(text);
   });
