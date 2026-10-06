@@ -206,13 +206,14 @@
 
   /* Sticky layers, defined once. Every sticky element, scroll margin and max-height
      in the depot module reads these instead of a literal height. One navigation strip
-     below 900px (no depot tabs since the design wave), the rail beside the page above.
+     below 1280px (Tailwind xl; no depot tabs since the design wave), the rail beside the
+     page from 1280px. The breakpoint matches the shell's `xl:` classes.
        --depot-bar-h     the top bar's sticky height: 0 below 640px (it scrolls away),
-                         3.25rem (one row, as on a phone) from 640 to 899px, 3.5rem (one
-                         row) from 900px
-       --depot-nav-h     the strip's own height: 2.5rem; auto from 900px (the rail)
+                         3.25rem (one row, as on a phone) from 640 to 1279px, 3.5rem (one
+                         row) from 1280px
+       --depot-nav-h     the strip's own height: 2.5rem; auto from 1280px (the rail)
        --depot-strip-h   how much the strip adds to the sticky stack: 2.5rem from 640 to
-                         899px only (below 640 it scrolls away; from 900 it is the rail)
+                         1279px only (below 640 it scrolls away; from 1280 it is the rail)
        --depot-sticky-top  where the first sticky layer inside <main> sticks (the fleet
                          distribution strip): below the bar and the strip
        --depot-subnav-h  0: the depot tabs are gone; kept so older calc()s still resolve
@@ -243,7 +244,7 @@
     }
   }
 
-  @media (min-width: 900px) {
+  @media (min-width: 1280px) {
     .depot-shell {
       --depot-bar-h: 3.5rem;
       --depot-nav-h: auto;
@@ -325,7 +326,7 @@
       disabled:cursor-not-allowed disabled:opacity-40;
   }
 
-  /* The bar's in-row actions from 900px: 32px and no outline at rest, so they never
+  /* The bar's in-row actions from 1280px: 32px and no outline at rest, so they never
      weigh more than the feed chip beside them; the hairline appears on hover. */
   .depot-bar-button-quiet {
     @apply h-8 border-transparent py-0 hover:border-depot-line hover:bg-depot-raised;

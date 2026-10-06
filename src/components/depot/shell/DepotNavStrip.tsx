@@ -9,7 +9,7 @@ const SCROLLER =
   'flex h-full items-center gap-4 overflow-x-auto px-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden';
 
 /**
- * The single navigation strip below 900px. In depot scope it shows the depot's pages,
+ * The single navigation strip below 1280px (the rail's breakpoint). In depot scope it shows the depot's pages,
  * with a "Network" disclosure at its left (a real button with `aria-expanded`) that
  * opens the network links in a panel under the strip; in network scope it shows the
  * network links. It scrolls inside itself with the existing edge cue and centres the
@@ -36,7 +36,7 @@ export function DepotNavStrip({ nav, pathname }: { readonly nav: ShellNav; reado
       aria-label={depot ? `${depot.heading} pages` : 'Depot management'}
       data-testid="depot-nav-strip"
       onKeyDown={onKeyDown}
-      className="relative z-30 flex h-[var(--depot-nav-h)] min-w-0 shrink-0 border-b border-depot-line bg-depot-page sm:sticky sm:top-[var(--depot-bar-h)] min-[900px]:hidden"
+      className="relative z-30 flex h-[var(--depot-nav-h)] min-w-0 shrink-0 border-b border-depot-line bg-depot-page sm:sticky sm:top-[var(--depot-bar-h)] xl:hidden"
     >
       {depot ? (
         <button

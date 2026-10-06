@@ -15,7 +15,17 @@ vi.mock('@/components/depot/data/DepotNetworkProvider', () => ({
 
 afterEach(cleanup);
 
-describe('the navigation strip below 900px', () => {
+describe('the navigation strip below 1280px', () => {
+  it('shows below the rail breakpoint only, and sticks under the bar from 640px', () => {
+    route.path = '/project/depots/d/49/yard';
+    render(<DepotNav />);
+    const own = (screen.getByTestId('depot-nav-strip').getAttribute('class') ?? '').split(/\s+/);
+    expect(own).toEqual(
+      expect.arrayContaining(['xl:hidden', 'sm:sticky', 'sm:top-[var(--depot-bar-h)]']),
+    );
+    expect(own).toContain('h-[var(--depot-nav-h)]');
+  });
+
   it('shows the depot pages with a Network disclosure in depot scope', () => {
     route.path = '/project/depots/d/49/yard';
     render(<DepotNav />);
@@ -47,7 +57,7 @@ describe('the navigation strip below 900px', () => {
   });
 });
 
-describe('the rail from 900px', () => {
+describe('the rail from 1280px', () => {
   it('leads with the depot name and its pages, then the network groups', () => {
     route.path = '/project/depots/d/49';
     render(<DepotNav />);

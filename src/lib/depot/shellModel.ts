@@ -4,7 +4,7 @@ import { depotScopeState } from './scopeState';
 
 /**
  * Navigation model for the shell (rulings, section 4): which groups the left rail shows
- * from 900px, and what the single strip shows below 900px. One decision for both, so
+ * from 1280px, and what the single strip shows below 1280px. One decision for both, so
  * the rail and the strip never disagree about the scope. Pure, so it is tested.
  */
 
@@ -33,7 +33,7 @@ export function shellNav(pathname: string, depots: readonly ScopeDepot[] | null)
   };
 }
 
-/** The rail's groups from 900px: the depot first when there is one, then the network. */
+/** The rail's groups from 1280px: the depot first when there is one, then the network. */
 export function railGroups(nav: ShellNav): readonly DepotNavGroup[] {
   return nav.depotGroup ? [nav.depotGroup, ...nav.networkGroups] : nav.networkGroups;
 }
