@@ -37,14 +37,17 @@ export interface BandFigure {
 
 /**
  * The "Buses running duties" caption: the buses with no duty, and the duties with no bus
- * when there are any ("97 with no duty · 57 duties without a bus").
+ * (the duty board's "Unmatched") when there are any: "97 no duty · 57 duties unmatched".
+ * Short enough for one band figure's width at every page width, so it is never cut.
  */
 export function ranCaption(notRunCount: number, dutiesWithoutBus: number): string {
-  const notRun =
-    notRunCount > 0 ? `${formatCount(notRunCount)} with no duty` : 'every bus has a duty';
-  if (dutiesWithoutBus <= 0) return notRun;
-  const duties = dutiesWithoutBus === 1 ? 'duty' : 'duties';
-  return `${notRun} · ${formatCount(dutiesWithoutBus)} ${duties} without a bus`;
+  const duties =
+    dutiesWithoutBus > 0
+      ? `${formatCount(dutiesWithoutBus)} ${dutiesWithoutBus === 1 ? 'duty' : 'duties'} unmatched`
+      : null;
+  if (notRunCount <= 0) return duties ?? 'every bus has a duty';
+  const notRun = `${formatCount(notRunCount)} no duty`;
+  return duties === null ? notRun : `${notRun} · ${duties}`;
 }
 
 /** The depot's modelled day as five figures; "N of M buses running duties" is the first. */
