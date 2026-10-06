@@ -1,8 +1,10 @@
 /**
  * Depot Efficiency Index types.
  *
- * The index compares a depot with peers of similar fleet size on one snapshot
- * of the live feed. It scores depots, never individuals.
+ * The index compares a depot with peers of similar fleet size. In the live
+ * analysis the rates are summed over a rolling window of snapshots (see
+ * `window.ts`); `scoreDepots` alone scores one snapshot. It scores depots,
+ * never individuals.
  */
 
 export type PeerGroupId = 'small' | 'medium' | 'large' | 'all';
@@ -20,6 +22,19 @@ export interface DeiComponent {
   readonly contribution: number;
 }
 
+/**
+ * The rolling window an index, its peer medians and the peer-comparison depot
+ * exceptions were computed over. Every time is the feed's own clock.
+ */
+export interface ScoreWindow {
+  /** The configured length of the window, in minutes. */
+  readonly lengthMin: number;
+  /** Feed time of the oldest sample used; null when no sample carries a feed time. */
+  readonly since: string | null;
+  /** Snapshots summed. One means the figure is from a single snapshot. */
+  readonly samples: number;
+}
+
 export type RankReason = 'ok' | 'not_a_depot' | 'fleet_too_small';
 
 export interface DepotScore {
@@ -35,4 +50,6 @@ export interface DepotScore {
   readonly peerCount: number | null;
   /** Raw values are always present; z and contribution only when ranked. */
   readonly components: readonly DeiComponent[];
+  /** The window the component values were summed over. Always set by the live analysis. */
+  readonly window?: ScoreWindow;
 }

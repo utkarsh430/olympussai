@@ -1,6 +1,7 @@
 import type { DepotBusView } from '../api';
 import type { AssignmentPlan, Duty, DutyAssignment, Ineligibility } from '../duties/types';
 import type { ModelledBus, ServiceClass } from '../sim/types';
+import { isRecentlyHeard } from '../infer/busState';
 import { hungarian } from './hungarian';
 
 const MINUTES_PER_HOUR = 60;
@@ -30,12 +31,31 @@ function medianAge(fleet: ReadonlyMap<string, ModelledBus>): number {
     : ((ages[mid - 1] as number) + (ages[mid] as number)) / 2;
 }
 
-/** Exactly one reason, by precedence: off road, then dark, then away from the yard. */
-function exclusionOf(bus: DepotBusView): Exclusion | null {
+export interface AssignDutiesOptions {
+  /**
+   * False when the depot has no yard established. Location is then unknown,
+   * not "away", so it cannot decide eligibility: a standing bus heard within
+   * the reporting window is eligible. Defaults to true (location decides).
+   */
+  readonly yardEstablished?: boolean;
+}
+
+/** Standing, on a report recent enough to say where the bus is standing now. */
+function isStandingNow(bus: DepotBusView): boolean {
+  return (
+    bus.state === 'standing' && isRecentlyHeard(bus.gpsAgeMin) && (bus.notHeardMin ?? null) === null
+  );
+}
+
+/**
+ * Exactly one reason, by precedence: off road, then dark, then away from the
+ * yard. With no yard, `not_in_yard` instead means "not standing on a recent report".
+ */
+function exclusionOf(bus: DepotBusView, yardEstablished: boolean): Exclusion | null {
   if (bus.state === 'off_road') return 'off_road';
   if (bus.state === 'dark') return 'dark';
-  if (bus.location !== 'in_yard') return 'not_in_yard';
-  return null;
+  const available = yardEstablished ? bus.location === 'in_yard' : isStandingNow(bus);
+  return available ? null : 'not_in_yard';
 }
 
 /**
@@ -49,13 +69,16 @@ function exclusionOf(bus: DepotBusView): Exclusion | null {
  * a repeated registration throws a RangeError). A bus missing from the fleet
  * master counts as ordinary and is costed at the master's median age, so
  * unknown buses are neither always preferred nor always avoided for the longest
- * duties. Recommendation only.
+ * duties. With `yardEstablished: false` location is ignored (see the option).
+ * Recommendation only.
  */
 export function assignDuties(
   duties: readonly Duty[],
   buses: readonly DepotBusView[],
   fleet: ReadonlyMap<string, ModelledBus>,
+  options: AssignDutiesOptions = {},
 ): AssignmentPlan {
+  const yardEstablished = options.yardEstablished ?? true;
   const seen = new Set<string>();
   for (const bus of buses) {
     if (seen.has(bus.registrationNumber)) {
@@ -69,7 +92,7 @@ export function assignDuties(
   const excluded: { registrationNumber: string; reason: Ineligibility }[] = [];
   const eligible: DepotBusView[] = [];
   for (const bus of sorted) {
-    const reason = exclusionOf(bus);
+    const reason = exclusionOf(bus, yardEstablished);
     if (reason === null) eligible.push(bus);
     else excluded.push({ registrationNumber: bus.registrationNumber, reason });
   }

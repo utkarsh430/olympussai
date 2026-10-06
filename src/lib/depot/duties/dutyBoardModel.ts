@@ -129,8 +129,20 @@ export function nowSentence(feedNow: string | null): string {
 
 const plural = (n: number, one: string, many: string): string => (n === 1 ? one : many);
 
+/**
+ * Why no bus is spare, from the number of duties given a bus. Both sentences
+ * below read it, so one cannot say "every eligible bus has a duty" while the
+ * other says the matching proposed none. Null when that number is not known.
+ */
+function noSpareReason(assigned: number | null): string | null {
+  if (assigned === null) return null;
+  return assigned === 0 ? 'no bus is eligible for a duty' : 'every eligible bus has a duty';
+}
+
 export function summarySentence(counts: DutyBoardCounts): string {
-  const spare = `${formatCount(counts.spare)} ${plural(counts.spare, 'bus is', 'buses are')} spare`;
+  const some = `${formatCount(counts.spare)} ${plural(counts.spare, 'bus is', 'buses are')} spare`;
+  const none = counts.assigned === 0 ? 'no bus is eligible, so none is spare' : 'no bus is spare';
+  const spare = counts.spare > 0 ? some : none;
   return (
     `MODELLED: ${formatCount(counts.duties)} ${plural(counts.duties, 'duty', 'duties')}. ` +
     `The matching proposes a bus for ${formatCount(counts.assigned)} and leaves ` +
@@ -158,9 +170,21 @@ export function routesWithoutDutySentence(routes: readonly string[]): string | n
   );
 }
 
-export function spareSentence(spare: readonly string[]): string {
-  if (spare.length === 0) return 'No bus is spare: every eligible bus has a duty.';
-  return `${formatCount(spare.length)} ${plural(spare.length, 'bus is', 'buses are')} in the yard with no duty.`;
+/** What the footer needs beside the spare list: both come from the same response. */
+export interface SpareContext {
+  /** `counts.assigned`: duties the matching gave a bus. */
+  readonly assigned: number;
+  /** `eligibilityIgnoredLocation`: no yard, so "in the yard" cannot be said. */
+  readonly locationIgnored: boolean;
+}
+
+export function spareSentence(spare: readonly string[], context?: SpareContext): string {
+  if (spare.length === 0) {
+    const reason = noSpareReason(context?.assigned ?? null);
+    return reason === null ? 'No bus is spare.' : `No bus is spare: ${reason}.`;
+  }
+  const where = context?.locationIgnored ? 'standing' : 'in the yard';
+  return `${formatCount(spare.length)} ${plural(spare.length, 'bus is', 'buses are')} ${where} with no duty.`;
 }
 
 function heldOut(blockers: DutyBlockers): string {

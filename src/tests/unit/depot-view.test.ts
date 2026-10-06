@@ -143,6 +143,7 @@ describe('buildDepotDetail', () => {
       registrationNumber: 'A9',
       speedKmph: 30,
       routeName: 'R1',
+      scheduledStart: '2026-10-06T06:00:00Z',
       vehicleStatus: 'live',
     });
     const dark = row({ registrationNumber: 'A0X', vehicleStatus: 'no_signal' });

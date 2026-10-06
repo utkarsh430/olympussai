@@ -143,6 +143,7 @@ describe('buildNetworkResponse', () => {
       'fetchedAt',
       'kpis',
       'recordCount',
+      'scoreWindow',
       'scores',
       'source',
       'stale',

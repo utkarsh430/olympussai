@@ -1,22 +1,13 @@
-import { clamp, median, ratio, robustZ } from '../stats/robust';
+import { clamp, median, robustZ } from '../stats/robust';
 import type { DepotSummary } from '../types';
 import { DEI_COMPONENTS, Z_CLAMP } from './config';
 import { assignPeerGroups } from './peerGroups';
-import type { DeiComponent, DeiComponentKey, DepotScore, PeerGroupId } from './types';
+import type { DeiComponent, DepotScore, PeerGroupId } from './types';
+import { countsOf, valuesOfCounts, type ComponentValues } from './window';
 
-type ComponentValues = Record<DeiComponentKey, number | null>;
-
-/** Rates in 0..1. A null means the denominator was zero, not that the rate is bad. */
+/** Rates in 0..1 from this depot's own counts on one snapshot. */
 export function componentValues(depot: DepotSummary): ComponentValues {
-  const { fleet, states } = depot;
-  const health = ratio(depot.powerCut + depot.tamperFlagged, fleet);
-  return {
-    onRoad: ratio(states.inService + states.onRoad, fleet - states.offRoad),
-    offRoad: ratio(states.offRoad, fleet),
-    dark: ratio(states.dark, fleet),
-    scheduled: ratio(depot.assigned, fleet),
-    deviceHealth: health === null ? null : Math.max(0, 1 - health),
-  };
+  return valuesOfCounts(countsOf(depot));
 }
 
 function roundOneDecimal(value: number): number {
@@ -33,7 +24,7 @@ function rawComponents(values: ComponentValues): DeiComponent[] {
   }));
 }
 
-function unranked(depot: DepotSummary): DepotScore {
+function unranked(depot: DepotSummary, values: ComponentValues): DepotScore {
   return {
     depotId: depot.id,
     peerGroup: null,
@@ -42,7 +33,7 @@ function unranked(depot: DepotSummary): DepotScore {
     index: null,
     rank: null,
     peerCount: null,
-    components: rawComponents(componentValues(depot)),
+    components: rawComponents(values),
   };
 }
 
@@ -69,11 +60,19 @@ function scoreAgainstPeers(
 
 /**
  * Scores every depot against peers of similar fleet size. Output follows the
- * input order; the result for a depot never depends on that order.
+ * input order; the result for a depot never depends on that order. `windowed`
+ * supplies component values summed over a window for the depots it names; any
+ * other depot is scored on its own counts. Peer groups always follow the
+ * depots' present fleet sizes.
  */
-export function scoreDepots(depots: readonly DepotSummary[]): DepotScore[] {
+export function scoreDepots(
+  depots: readonly DepotSummary[],
+  windowed: ReadonlyMap<string, ComponentValues> = new Map(),
+): DepotScore[] {
   const groups = assignPeerGroups(depots);
-  const valuesById = new Map(depots.map((d) => [d.id, componentValues(d)] as const));
+  const valuesById = new Map(
+    depots.map((d) => [d.id, windowed.get(d.id) ?? componentValues(d)] as const),
+  );
 
   const members = new Map<PeerGroupId, string[]>();
   for (const [id, group] of groups) members.set(group, [...(members.get(group) ?? []), id]);
@@ -99,7 +98,9 @@ export function scoreDepots(depots: readonly DepotSummary[]): DepotScore[] {
   return depots.map((depot): DepotScore => {
     const group = groups.get(depot.id);
     const result = scored.get(depot.id);
-    if (group === undefined || result === undefined) return unranked(depot);
+    if (group === undefined || result === undefined) {
+      return unranked(depot, valuesById.get(depot.id) as ComponentValues);
+    }
     return {
       depotId: depot.id,
       peerGroup: group,

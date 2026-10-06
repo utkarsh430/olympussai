@@ -121,7 +121,11 @@ describe('buildDutyBoard', () => {
   });
 
   it('carries the reason through: a depot with no usable bus leaves every duty without one', () => {
-    const b = board(scattered());
+    // No yard, and none of the buses was heard inside the reporting window: with no yard
+    // only a standing bus on a recent report is eligible, so every bus is held out.
+    const quietSince = new Date(Date.parse(FEED_NOW) - 90 * 60_000).toISOString();
+    const b = board(scattered().map((r) => ({ ...r, gpsTimestamp: quietSince })));
+    expect(b.eligibilityIgnoredLocation).toBe(true);
     expect(b.counts.assigned).toBe(0);
     expect(b.counts.unassigned).toBe(b.counts.duties);
     expect(b.counts.excluded.notInYard).toBe(6);
@@ -180,5 +184,33 @@ describe('buildDutyBoard', () => {
     expect(buildDutyBoard(view(rows), '999')).toBeNull();
     expect(spy).toHaveBeenCalledTimes(1);
     spy.mockRestore();
+  });
+});
+
+describe('buildDutyBoard without a yard, and with repeated rows', () => {
+  it('matches standing buses heard recently and says location was ignored', () => {
+    const b = board(scattered(6));
+    expect(b.eligibilityIgnoredLocation).toBe(true);
+    expect(b.counts.excluded).toEqual({ notInYard: 0, offRoad: 0, dark: 0 });
+    expect(b.counts.assigned + b.counts.spare).toBe(6);
+    expect(b.counts.assigned).toBeGreaterThan(0);
+  });
+
+  it('says location counted when a yard exists', () => {
+    const b = board(parked());
+    expect(b.eligibilityIgnoredLocation).toBe(false);
+    expect(b.duplicateRowsDropped).toBe(0);
+  });
+
+  it('keeps the first row of a repeated registration and reports how many it dropped', () => {
+    const repeats = [
+      row({ registrationNumber: 'A0', routeName: 'ORD_0' }),
+      row({ registrationNumber: ' A1 ', routeName: 'ORD_1' }),
+    ];
+    const b = board([...parked(), ...repeats]);
+    expect(b.duplicateRowsDropped).toBe(2);
+    const proposed = b.duties.flatMap((d) => (d.registrationNumber ? [d.registrationNumber] : []));
+    expect(new Set([...proposed, ...b.spareBuses]).size).toBe(proposed.length + b.spareBuses.length);
+    expect(b.counts.assigned + b.counts.spare).toBe(8);
   });
 });

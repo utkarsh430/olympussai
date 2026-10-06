@@ -3,9 +3,8 @@ import type { DepotBusView, DepotDetailResponse, VisitorBus } from '../api';
 import type { FleetSnapshotView } from '../repositories/types';
 import type { BusOpState, Figure } from '../types';
 import type { BusLocation, LocatedBus, Yard } from '../infer/types';
-import { gpsAgeMinutes } from '../infer/busState';
+import { gpsAgeMinutes, notHeardMinutes } from '../infer/busState';
 import { hasUsablePosition } from '../infer/geo';
-import { locateBus } from '../infer/location';
 import {
   MAX_PLAUSIBLE_DELAY_MIN,
   isScheduledForFeedDate,
@@ -26,6 +25,8 @@ const STATE_ORDER: Readonly<Record<BusOpState, number>> = {
 };
 
 const YARD_NOTE = "Learned from where the depot's buses park; not a surveyed location.";
+const HELD_YARD_NOTE =
+  "Kept where the depot's yard was learned earlier: this snapshot alone would not place it.";
 const NO_YARD_NOTE =
   "Not enough of the depot's buses are parked together to learn where its yard is.";
 
@@ -64,6 +65,7 @@ function toBusView(
     delayMinutes: plausibleDelay(row, feedNow),
     mainPowerOn: row.mainPowerOn,
     tamperCode: row.tamperCode,
+    notHeardMin: notHeardMinutes(row, state, feedNow),
   };
 }
 
@@ -80,7 +82,7 @@ function yardFigure(yard: Yard | null): Figure<Yard | null> {
     value: yard,
     provenance: 'derived',
     coverage: { n: yard.inCluster, of: yard.parked },
-    note: YARD_NOTE,
+    note: yard.heldSince === undefined ? YARD_NOTE : HELD_YARD_NOTE,
   };
 }
 
@@ -106,16 +108,9 @@ function visitorsOf(analysis: SnapshotAnalysis, depotId: string): VisitorBus[] {
  * exception work, so a network-wide caller can use it for every depot.
  */
 export function depotBusViews(analysis: SnapshotAnalysis, depotId: string): DepotBusView[] {
-  const { feedNow, yards, stateOf } = analysis;
+  const { feedNow, stateOf, locate } = analysis;
   return (analysis.rowsByDepot.get(depotId) ?? [])
-    .map((row) =>
-      toBusView(
-        row,
-        stateOf(row),
-        analysis.locations.get(row.registrationNumber) ?? locateBus(row, yards),
-        feedNow,
-      ),
-    )
+    .map((row) => toBusView(row, stateOf(row), locate(row), feedNow))
     .sort(compareBuses);
 }
 
@@ -147,5 +142,6 @@ export function buildDepotDetail(
     outshed: summariseOutshed(rows, yards, feedNow, stateOf),
     exceptions: { depot: exceptions?.depot ?? [], bus: exceptions?.bus ?? [] },
     visitors: visitorsOf(analysis, depotId),
+    scoreWindow: analysis.scoresById.get(depotId)?.window ?? analysis.scoreWindow,
   };
 }

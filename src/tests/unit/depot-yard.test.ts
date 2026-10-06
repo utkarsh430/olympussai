@@ -17,6 +17,7 @@ import {
 import {
   blob,
   busAt,
+  row,
   centreOf,
   far,
   file,
@@ -67,6 +68,33 @@ describe('the yard rule (Ruling S25)', () => {
     const underQuarter = [...blob('A', 6, HERE), ...scattered('N', 19)];
     expect(inferYard(atQuarter)).toMatchObject({ parked: 24, inCluster: 6 });
     expect(inferYard(underQuarter)).toBeNull();
+  });
+
+  it('takes the share over standing buses with a position, not over every row', () => {
+    // Moving and unpositioned buses are not candidates: they must not dilute the quarter.
+    const others = [
+      ...blob('MOV', 9, { x: 9_000, y: 9_000 }, 20, { speedKmph: 40 }),
+      ...Array.from({ length: 9 }, (_, i) =>
+        row({ registrationNumber: `UNP${i}`, latitude: null, longitude: null }),
+      ),
+    ];
+    const rows = [...blob('A', 6, HERE), ...scattered('N', 18), ...others];
+    expect(inferYard(rows)).toMatchObject({ parked: 24, inCluster: 6 });
+  });
+
+  it('makes a bus with exactly three others in reach a core bus', () => {
+    // Two hubs 140 m apart, each with two more buses in reach that reach nobody else.
+    // Each hub has exactly three others within the link distance; nobody has more.
+    const hubs = [busAt('H1', { x: 0, y: 0 }), busAt('H2', { x: 140, y: 0 })];
+    const spokes = [
+      busAt('P1', { x: -140, y: 0 }),
+      busAt('P2', { x: 0, y: 140 }),
+      busAt('P3', { x: 280, y: 0 }),
+      busAt('P4', { x: 140, y: -140 }),
+    ];
+    expect(inferYard([...hubs, ...spokes])).toMatchObject({ parked: 6, inCluster: 6 });
+    // Without P4 the second hub has two others, is not core, and P3 borders nothing.
+    expect(inferYard([...hubs, ...spokes.slice(0, 3)])).toBeNull();
   });
 
   it.each([
