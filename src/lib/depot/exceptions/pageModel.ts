@@ -66,7 +66,7 @@ export function groupDepotExceptions(
 
 export interface SeveritySection {
   readonly severity: ExceptionSeverity;
-  /** "Critical (4 depots)". */
+  /** "Critical · 4 depots" (the group-row "·" form). */
   readonly heading: string;
   /** Critical is always open; a lesser section only when nothing worse exists. */
   readonly open: boolean;
@@ -80,9 +80,9 @@ export function severitySections(groups: readonly DepotExceptionGroup[]): Severi
   })).filter((s) => s.groups.length > 0);
   return sections.map((s, i) => ({
     ...s,
-    heading: `${SEVERITY_LABEL[s.severity]} (${formatCount(s.groups.length)} ${
+    heading: `${SEVERITY_LABEL[s.severity]}${SEP}${formatCount(s.groups.length)} ${
       s.groups.length === 1 ? 'depot' : 'depots'
-    })`,
+    }`,
     open: i === 0,
   }));
 }
@@ -107,17 +107,19 @@ function severityBracket(counts: Readonly<Record<ExceptionSeverity, number>>): s
 /** "73 depot exceptions (4 critical, 69 warning) · 1,968 bus exceptions (43 critical, …)". */
 export function exceptionTotalsLine(
   depot: readonly DepotException[],
-  busTotal: number,
-  busSeverity: Readonly<Record<ExceptionSeverity, number>>,
+  busTotal: number | null,
+  busSeverity: Readonly<Record<ExceptionSeverity, number>> | null,
 ): string {
   const depotSeverity: Record<ExceptionSeverity, number> = { critical: 0, warning: 0, info: 0 };
   for (const e of depot) depotSeverity[e.severity] += 1;
   const depotPart = `${formatCount(depot.length)} depot ${
     depot.length === 1 ? 'exception' : 'exceptions'
   }${severityBracket(depotSeverity)}`;
+  // One depot's bus severities are not sent, and its bus total may still be loading.
+  if (busTotal === null) return depotPart;
   const busPart = `${formatCount(busTotal)} bus ${
     busTotal === 1 ? 'exception' : 'exceptions'
-  }${severityBracket(busSeverity)}`;
+  }${busSeverity === null ? '' : severityBracket(busSeverity)}`;
   return `${depotPart}${SEP}${busPart}`;
 }
 

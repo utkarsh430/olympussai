@@ -17,6 +17,7 @@ import {
   groupDepotExceptions,
   severitySections,
 } from '@/lib/depot/exceptions/pageModel';
+import { exceptionPageScope } from '@/lib/depot/exceptions/pageScope';
 import { entryParams, exceptionSearch, type ExceptionEntry } from '@/lib/depot/exceptions/pageParams';
 import { depotWindowNote } from '@/lib/depot/score/windowWords';
 import type {
@@ -30,7 +31,7 @@ import { ExceptionCounts } from './ExceptionCounts';
 
 const HOW_PRODUCED: readonly string[] = [
   'A depot is flagged when its dark, off-road or on-road rate is both statistically unusual against its peers and at least 10 points from the peer median; critical at the statistical ceiling. Power-cut clusters need at least 3 buses and 10% of the fleet.',
-  "Rates and peer medians are summed over a rolling window of the feed's own snapshots, so each depot exception says the window it was compared over; a depot new to the window says how few snapshots it was scored on. The number of buses affected, and every bus exception, is as of the feed time. Bus exceptions are paged 25 at a time by the server.",
+  "Rates and peer medians are summed over a rolling window of the feed's own snapshots, the section note says the window, and a depot new to the window says how few snapshots it was scored on. The number of buses affected, and every bus exception, is as of the feed time. Bus exceptions are paged 25 at a time by the server.",
   'Exceptions name depots and vehicles, never a person.',
 ];
 
@@ -71,9 +72,13 @@ export function ExceptionCentre() {
   const shown = data ?? lastGood.current;
   const failure = data === null && !loading ? error : null;
 
+  const scope = useMemo(
+    () => (shown ? exceptionPageScope(shown, depotId, depotKind) : null),
+    [shown, depotId, depotKind],
+  );
   const groups = useMemo(
-    () => (shown ? groupDepotExceptions(shown.report.depot, depotKind) : []),
-    [shown, depotKind],
+    () => (scope ? groupDepotExceptions(scope.depotList, depotKind) : []),
+    [scope, depotKind],
   );
   const sections = useMemo(() => severitySections(groups), [groups]);
   const scopeLine = depotScopeLine(groups);
@@ -107,7 +112,7 @@ export function ExceptionCentre() {
     pushFilters({ kind, depotId: next });
   };
 
-  if (!shown) {
+  if (!shown || !scope) {
     if (loading) return <LoadingBlock rows={8} label="Loading exceptions" />;
     return (
       <ErrorPanel
@@ -147,16 +152,29 @@ export function ExceptionCentre() {
           </button>
         </p>
       ) : null}
+      {scope.depotName === null ? null : (
+        <p className="depot-prose mb-3 flex flex-wrap items-center gap-3" data-testid="depot-exception-scope">
+          <span>{`Exceptions at ${scope.depotName} only.`}</span>
+          <button
+            type="button"
+            data-testid="bus-depot-chip"
+            aria-label={`Clear the depot filter ${scope.depotName}: show every depot`}
+            onClick={() => chooseDepot(null)}
+            className="depot-filter-button font-mono text-[11px] uppercase tracking-wider"
+          >
+            {scope.depotName} <span aria-hidden>×</span>
+          </button>
+        </p>
+      )}
       <ExceptionCounts
-        counts={report.counts}
+        counts={scope.counts}
         selected={kind}
         onToggle={toggleKind}
-        totalsLine={exceptionTotalsLine(report.depot, report.busTotal, shown.busSeverityCounts)}
+        totalsLine={exceptionTotalsLine(scope.depotList, scope.busTotal, scope.busSeverity)}
       />
-
       <SectionLabel
         label="Depot exceptions"
-        count={report.depot.length}
+        count={scope.depotCount}
         note={depotWindowNote(shown.scoreWindow, shown.feedNow)}
       />
       {scopeLine === '' ? null : <p className="depot-prose mb-2">{scopeLine}</p>}
@@ -175,6 +193,7 @@ export function ExceptionCentre() {
         feedNow={shown.feedNow}
         onDepotChange={chooseDepot}
         onOffsetChange={setOffset}
+        kindTotals={scope.counts}
       />
 
       <HowProduced id="how-produced" testId="depot-produced" className="mt-10" paragraphs={HOW_PRODUCED} />
