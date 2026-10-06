@@ -107,11 +107,12 @@ interface CostContext {
  * Weights that make the tiers lexicographic: each tier's weight exceeds the
  * most every lower tier can add up to over a whole matching (`pairs` pairs),
  * so no number of lower-tier savings can pay for one higher-tier cost. The
- * weights grow as (pairs + 1)^4 x (largest base + 1): for a depot of 400 buses
- * and a base of 20 years x 20 hours that is about 1e13, and the matching's
- * total about 4e15, both below 2^53 (9e15), so every sum is exact. Should a
- * depot ever be large enough to pass that, the base tier (age x hours, the
- * least important) is dropped rather than letting a sum lose precision.
+ * top weight grows as (pairs + 1)^4 x largest base: for 400 pairs (a larger
+ * depot than any in the network) and a base of 20 years x 20 hours it is about
+ * 1.03e13, and a matching's total is under pairs x 2 x the top weight, about
+ * 8.2e15, below 2^53 (9.0e15), so every sum and every reduced cost is exact.
+ * The guard checks that bound; should a depot ever pass it, the base tier (age
+ * x hours, the least important) is dropped rather than lose precision.
  */
 function tierWeights(pairs: number, largestBase: number): readonly number[] {
   const build = (base: number): number[] => {
@@ -125,7 +126,7 @@ function tierWeights(pairs: number, largestBase: number): readonly number[] {
     return weights;
   };
   const full = build(largestBase);
-  const top = (full[0] as number) * (pairs + 1) * (pairs + 1);
+  const top = (full[0] as number) * 2 * (pairs + 1);
   return top < Number.MAX_SAFE_INTEGER ? full : [...build(0).slice(0, -1), 0];
 }
 
