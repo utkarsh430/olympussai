@@ -90,8 +90,20 @@ const OUTSHED_ROWS: readonly OutshedRow[] = [
 ];
 
 const VISITORS: readonly VisitorBus[] = [
-  { registrationNumber: 'V-2', homeDepotId: '7', homeDepotName: 'Agra', state: 'standing' },
-  { registrationNumber: 'V-1', homeDepotId: null, homeDepotName: null, state: 'dark' },
+  {
+    registrationNumber: 'V-2',
+    homeDepotId: '7',
+    homeDepotName: 'Agra',
+    state: 'standing',
+    position: null,
+  },
+  {
+    registrationNumber: 'V-1',
+    homeDepotId: null,
+    homeDepotName: null,
+    state: 'dark',
+    position: null,
+  },
 ];
 
 function detail(overrides: Partial<DepotDetailResponse> = {}): DepotDetailResponse {

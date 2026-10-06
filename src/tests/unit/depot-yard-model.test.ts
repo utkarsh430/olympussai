@@ -182,7 +182,9 @@ describe('buildYardModel', () => {
     expect(m.points.find((p) => p.registration === 'Z1')).toBeUndefined();
     expect(m.beyondCount).toBe(0);
     expect(m.parkedWithPosition).toBe(6);
-    const none = buildYardModel(response([bus('Z', 'standing', 'unknown', { latitude: 0, longitude: 0 })], null));
+    const none = buildYardModel(
+      response([bus('Z', 'standing', 'unknown', { latitude: 0, longitude: 0 })], null),
+    );
     expect(none.parkedWithPosition).toBe(0);
   });
 
