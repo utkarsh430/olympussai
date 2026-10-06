@@ -9,13 +9,13 @@ export function DepotTopBar() {
   return (
     <header
       data-testid="depot-top-bar"
-      className="sticky top-0 z-40 flex h-14 shrink-0 items-center justify-between gap-4 border-b border-depot-line bg-depot-page px-6"
+      className="sticky top-0 z-40 flex min-h-14 shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-depot-line bg-depot-page px-6 py-2 sm:h-14 sm:flex-nowrap sm:py-0"
     >
       <div className="flex min-w-0 items-center gap-4">
         <span className="whitespace-nowrap font-display text-sm uppercase tracking-[0.14em] text-depot-ink">
           Depot Management
         </span>
-        <div className="hidden min-w-0 sm:block">
+        <div className="min-w-0">
           <ScopeSwitcher />
         </div>
       </div>

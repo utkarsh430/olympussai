@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { DepotBusView, DepotDetailResponse, VisitorBus } from '@/lib/depot/api';
 import { buildCockpit, coverageSentence } from '@/lib/depot/cockpit/cockpitModel';
+import { noSchedulesSentence, THIN_SCHEDULE_SHARE } from '@/lib/depot/cockpit/outshedTracker';
 import type { BusLocation, OutshedRow, OutshedState } from '@/lib/depot/infer/types';
 import type { DepotScore } from '@/lib/depot/score/types';
 import type { BusOpState, DepotSummary } from '@/lib/depot/types';
@@ -259,6 +260,17 @@ describe('buildCockpit outshedding tracker', () => {
     expect(texts).toEqual(['3 min early', 'On time', 'Left the yard; no departure time']);
   });
 
+  it('puts the most overdue first, whatever the scheduled time', () => {
+    const rows = [
+      row('LESS', 'overdue', '2026-10-06T05:00:00Z', { minutesOverdue: 10 }),
+      row('MORE', 'overdue', '2026-10-06T05:10:00Z', { minutesOverdue: 40 }),
+      row('NONE', 'overdue', '2026-10-06T04:00:00Z'),
+    ];
+    const outshed = { ...detail().outshed, rows };
+    const order = buildCockpit(detail({ outshed })).tracker.map((r) => r.registrationNumber);
+    expect(order).toEqual(['MORE', 'LESS', 'NONE']);
+  });
+
   it('shows no minutes when the feed has no clock', () => {
     const noClock = buildCockpit(detail({ feedNow: null })).tracker;
     expect(noClock.find((r) => r.state === 'upcoming')?.minutes).toBeNull();
@@ -266,19 +278,49 @@ describe('buildCockpit outshedding tracker', () => {
 });
 
 describe('coverageSentence', () => {
-  it('says how many buses carry a schedule for today', () => {
-    expect(coverageSentence({ n: 31, of: 142 })).toBe(
-      '31 of 142 buses carry a schedule for today.',
+  const DATE = '2026-10-06';
+  const THIN =
+    ' Only these buses can be tracked: the other 111 carry no schedule for that date, so their departures are not shown.';
+
+  it('names the feed date, never "today"', () => {
+    expect(coverageSentence({ n: 100, of: 142 }, DATE)).toBe(
+      '100 of 142 buses carry a schedule for the feed date, 2026-10-06.',
     );
-    expect(coverageSentence({ n: 1, of: 142 })).toBe(
-      '1 of 142 buses carries a schedule for today.',
+    expect(coverageSentence({ n: 1, of: 1 }, null)).toBe(
+      '1 of 1 bus carries a schedule for the feed date.',
     );
-    expect(coverageSentence({ n: 0, of: 1 })).toBe('0 of 1 bus carries a schedule for today.');
-    expect(coverageSentence({ n: 0, of: 0 })).toBe(
-      'This depot has no buses, so none carries a schedule for today.',
+    expect(coverageSentence({ n: 0, of: 0 }, DATE)).toBe(
+      'This depot has no buses, so none carries a schedule for the feed date.',
     );
   });
+
+  it('adds the warning only below the thin-coverage threshold', () => {
+    expect(THIN_SCHEDULE_SHARE).toBe(0.5);
+    expect(coverageSentence({ n: 71, of: 142 }, DATE)).not.toContain('Only these buses');
+    expect(coverageSentence({ n: 31, of: 142 }, DATE)).toBe(
+      `31 of 142 buses carry a schedule for the feed date, 2026-10-06.${THIN}`,
+    );
+    expect(coverageSentence({ n: 70, of: 142 }, DATE)).toContain('the other 72 carry');
+  });
+
+  it('leaves the empty state to say a zero coverage', () => {
+    expect(coverageSentence({ n: 0, of: 10 }, DATE)).toBe(
+      '0 of 10 buses carry a schedule for the feed date, 2026-10-06.',
+    );
+    expect(noSchedulesSentence(DATE)).toBe(
+      'No bus carries a schedule for the feed date, 2026-10-06, so there are no departures to track.',
+    );
+    expect(noSchedulesSentence(null)).toBe(
+      'No bus carries a schedule for the feed date, so there are no departures to track.',
+    );
+  });
+
+  it('reads the feed date from the feed clock', () => {
+    expect(buildCockpit(detail()).coverageSentence).toContain('the feed date, 2026-10-06.');
+    expect(buildCockpit(detail({ feedNow: null })).coverageSentence).toContain('the feed date.');
+  });
 });
+
 
 describe('buildCockpit header', () => {
   it('gives a ranked depot its index and rank within its peer group', () => {

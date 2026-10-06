@@ -17,6 +17,9 @@ export interface OutshedTrackerProps {
   readonly rows: readonly TrackerRow[];
   readonly coverage: Coverage;
   readonly coverageSentence: string;
+  /** False when no bus carries a schedule for the feed date. */
+  readonly hasSchedules: boolean;
+  readonly noSchedulesSentence: string;
 }
 
 /** The word carries the state; the colour only reinforces the two that need action. */
@@ -84,7 +87,14 @@ function trackerColumns(depotId: string): readonly Column<TrackerRow>[] {
  * is always shown because a short list can mean few schedules in the feed rather
  * than few departures.
  */
-export function OutshedTracker({ depotId, rows, coverage, coverageSentence }: OutshedTrackerProps) {
+export function OutshedTracker({
+  depotId,
+  rows,
+  coverage,
+  coverageSentence,
+  hasSchedules,
+  noSchedulesSentence,
+}: OutshedTrackerProps) {
   const columns = useMemo(() => trackerColumns(depotId), [depotId]);
 
   return (
@@ -102,10 +112,8 @@ export function OutshedTracker({ depotId, rows, coverage, coverageSentence }: Ou
           {coverageSentence}
         </p>
       </div>
-      {rows.length === 0 ? (
-        <EmptyState>
-          No bus carries a schedule for today on this snapshot, so there are no departures to track.
-        </EmptyState>
+      {!hasSchedules ? (
+        <EmptyState>{noSchedulesSentence}</EmptyState>
       ) : (
         <DataTable
           columns={columns}

@@ -9,6 +9,7 @@ import {
   moveActiveIndex,
   rosterBusHref,
   scopeLabel,
+  scopeLabelForPath,
   scopeOptions,
   type ScopeDepot,
 } from '@/lib/depot/depotNav';
@@ -154,5 +155,13 @@ describe('scopeLabel', () => {
     expect(scopeLabel('20', DEPOTS)).toBe('UPSRTC / Varanasi');
     expect(scopeLabel('99', DEPOTS)).toBe('UPSRTC / Depot 99');
     expect(scopeLabel('99', null)).toBe('UPSRTC / Depot 99');
+  });
+});
+
+describe('scopeLabelForPath', () => {
+  it('never claims the network for a malformed depot address', () => {
+    expect(scopeLabelForPath('/project/depots/d/abc', DEPOTS)).toBe('UPSRTC / Unknown depot');
+    expect(scopeLabelForPath('/project/depots/d/20/roster', DEPOTS)).toBe('UPSRTC / Varanasi');
+    expect(scopeLabelForPath('/project/depots/league', DEPOTS)).toBe('UPSRTC / Network');
   });
 });

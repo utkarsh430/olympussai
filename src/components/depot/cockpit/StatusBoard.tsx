@@ -1,4 +1,5 @@
 import { describeMix, statusSegments } from '@/components/depot/network/StatusMixBar';
+import { EmptyState } from '@/components/depot/shell/DataStates';
 import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
 import type { StatusBoard as StatusBoardModel } from '@/lib/depot/cockpit/cockpitModel';
 import { formatCount, formatShare } from '@/lib/depot/format';
@@ -52,6 +53,15 @@ function StandingSplit({ board }: { readonly board: StatusBoardModel }) {
  * nothing rests on colour. The feed's own status counts follow as a LIVE line.
  */
 export function StatusBoard({ board, status }: StatusBoardProps) {
+  if (board.fleet === 0) {
+    return (
+      <section aria-label="Status board" data-testid="depot-status-board">
+        <EmptyState>
+          No bus is homed at this depot on this snapshot, so there is no status to show.
+        </EmptyState>
+      </section>
+    );
+  }
   return (
     <section
       aria-labelledby="depot-status-board-heading"
