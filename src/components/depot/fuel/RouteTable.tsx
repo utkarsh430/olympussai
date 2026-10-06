@@ -21,20 +21,15 @@ const COLUMNS: readonly Column<RouteRow>[] = [
   {
     key: 'distance',
     header: 'Distance',
+    unit: 'km',
     align: 'right',
     sortValue: (r) => r.distanceKm,
     render: (r) => routeCell(r, 'distance'),
   },
   {
-    key: 'litres',
-    header: 'Litres',
-    align: 'right',
-    sortValue: (r) => r.fuelLitres,
-    render: (r) => routeCell(r, 'litres'),
-  },
-  {
     key: 'cost',
-    header: 'Cost',
+    header: 'Fuel cost',
+    unit: '₹',
     align: 'right',
     sortValue: (r) => r.cost,
     render: (r) => routeCell(r, 'cost'),
@@ -48,7 +43,8 @@ const COLUMNS: readonly Column<RouteRow>[] = [
   },
   {
     key: 'cpk',
-    header: 'Cost per km',
+    header: 'Fuel cost',
+    unit: '₹/km',
     align: 'right',
     sortValue: (r) => r.costPerKm,
     render: (r) => routeCell(r, 'cpk'),
@@ -66,19 +62,25 @@ export function RouteTable({ rows, total, other }: RouteTableProps) {
   const shaped = useMemo(() => routeRows(rows, other), [rows, other]);
   const note =
     total > rows.length
-      ? `Highest cost first: ${formatCount(rows.length)} of ${formatCount(total)} routes, the rest summed in one row`
-      : 'Highest cost first';
+      ? `Highest fuel cost first: ${formatCount(rows.length)} of ${formatCount(total)} routes, the rest summed in one row`
+      : 'Highest fuel cost first';
   return (
     <section aria-labelledby="depot-fuel-routes-heading" className="min-w-0">
-      <SectionLabel id="depot-fuel-routes-heading" label="By route" count={total} note={note} />
+      <SectionLabel
+        id="depot-fuel-routes-heading"
+        label="By route"
+        count={total}
+        note={note}
+        tag="modelled"
+      />
       {rows.length === 0 ? (
-        <StatePanel kind="empty" sentence="No route has fuel figures for this date." />
+        <StatePanel kind="empty" sentence="No route has fuel figures in the modelled day." />
       ) : (
         <DataTable
           columns={COLUMNS}
           rows={shaped}
           rowKey={(r) => r.rowKey}
-          caption="Fuel and cost by route"
+          caption="Fuel and fuel cost by route"
           fixedRows
           freezeFirstColumn
           overflowCue

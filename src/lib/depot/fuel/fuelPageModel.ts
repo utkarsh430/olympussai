@@ -121,17 +121,18 @@ export type RouteField = 'distance' | 'litres' | 'cost' | 'kmpl' | 'cpk';
 export function routeCell(row: FuelGroupRow, field: RouteField): string {
   const noDistance = row.distanceKm <= 0;
   const nothing = noDistance && row.fuelLitres <= 0 && row.cost <= 0;
+  // Bare figures: the unit is in the column header.
   switch (field) {
     case 'distance':
-      return noDistance ? NO_DISTANCE : formatKm(row.distanceKm);
+      return noDistance ? NO_DISTANCE : formatTenths(row.distanceKm);
     case 'kmpl':
       return noDistance ? NO_DISTANCE : formatKmPerLitre(row.kmPerLitre);
     case 'cpk':
-      return noDistance ? NO_DISTANCE : formatCostPerKm(row.costPerKm);
+      return noDistance || row.costPerKm === null ? NO_DISTANCE : row.costPerKm.toFixed(2);
     case 'litres':
-      return nothing ? NO_DISTANCE : formatLitres(row.fuelLitres);
+      return nothing ? NO_DISTANCE : formatTenths(row.fuelLitres);
     case 'cost':
-      return nothing ? NO_DISTANCE : formatRupees(row.cost);
+      return nothing ? NO_DISTANCE : formatCount(Math.round(row.cost));
   }
 }
 

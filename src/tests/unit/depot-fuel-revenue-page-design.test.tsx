@@ -109,6 +109,13 @@ async function render(element: React.ReactElement): Promise<void> {
   });
 }
 
+function sectionTags(): (string | null)[][] {
+  return [...host.querySelectorAll('[data-testid="depot-section-label"]')].map((label) => [
+    (label.querySelector('h2, h3, h4')?.textContent ?? '').replace(/ · .*$/, '').trim(),
+    label.querySelector('[data-provenance]')?.getAttribute('data-provenance') ?? null,
+  ]);
+}
+
 function withoutDisclosure(): string {
   const clone = host.cloneNode(true) as HTMLElement;
   clone.querySelector('[data-testid="depot-how-produced"]')?.remove();
@@ -256,12 +263,36 @@ describe('FuelPage', () => {
     expect(standOut?.textContent).not.toMatch(/km per litre|above the peers/i);
     expect(first).toContain('class in depot');
     expect(standOut?.textContent).not.toContain('a sentence that must not appear');
-    expect(host.querySelector('[data-provenance]')).toBeNull();
-    expect(withoutDisclosure()).not.toMatch(/MODELLED|\(modelled\)/);
+    // Ruling S51 (round 2): the sections that put generated figures beside real
+    // registrations and route names carry ONE tag on their label; nothing else does.
+    expect(sectionTags()).toEqual([
+      ['Buses that stand out', 'modelled'],
+      ['By service class', null],
+      ['By route', 'modelled'],
+    ]);
+    expect(host.querySelectorAll('[data-provenance]')).toHaveLength(2);
+    expect(withoutDisclosure().match(/MODELLED/g)).toHaveLength(2);
+    expect(withoutDisclosure()).not.toMatch(/\(modelled\)/);
     expect(
       host.querySelector('details[data-testid="depot-how-produced"]')?.hasAttribute('open'),
     ).toBe(false);
     expect(host.querySelectorAll('tbody tr')).toHaveLength(3 + 4 + 1);
+    // Critique fuel #3: LITRES dropped from BY ROUTE so it fits at 800; units in headers.
+    const routeHeaders = [...(tables[2]?.querySelectorAll('thead th') ?? [])].map((th) =>
+      th.textContent?.trim(),
+    );
+    expect(routeHeaders).toEqual([
+      'Route',
+      'Buses',
+      'Distance km',
+      'Fuel cost ₹',
+      'Km per litre',
+      'Fuel cost ₹/km',
+    ]);
+    const routeCells = [...(tables[2]?.querySelectorAll('tbody tr:first-child td') ?? [])].map(
+      (td) => td.textContent,
+    );
+    expect(routeCells.slice(2)).toEqual(['100', '1,800', '4.4', '18.00']);
     expect(host.textContent).not.toMatch(BANNED);
   });
 

@@ -184,8 +184,8 @@ describe('route rows with no distance and the Other row', () => {
     });
     expect(routeCell(fuelOnly, 'distance')).toBe('No distance');
     expect(routeCell(fuelOnly, 'kmpl')).toBe('No distance');
-    expect(routeCell(fuelOnly, 'litres')).toBe('12 L');
-    expect(routeCell(row({ distanceKm: 300, fuelLitres: 60 }), 'distance')).toBe('300 km');
+    expect(routeCell(fuelOnly, 'litres')).toBe('12');
+    expect(routeCell(row({ distanceKm: 300, fuelLitres: 60 }), 'distance')).toBe('300');
   });
 
   it('adds one Other routes row with its own key after the listed routes', () => {

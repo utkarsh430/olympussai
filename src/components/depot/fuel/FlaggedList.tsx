@@ -101,6 +101,7 @@ export function FlaggedList({ data }: { readonly data: FuelResponse }) {
         label="Buses that stand out"
         count={data.flaggedTotal}
         note={standOutNote(threshold)}
+        tag="modelled"
       />
       {data.flagged.length === 0 ? (
         <StatePanel kind="empty" compact tone="ok" sentence={nothingStandsOut(threshold)} />

@@ -31,8 +31,20 @@ const COLUMNS: readonly Column<ClassTableRow>[] = [
     sortValue: (r) => r.busCount,
     render: (r) => formatCount(r.busCount),
   },
-  { key: 'distance', header: 'Distance', align: 'right', render: (r) => r.distanceText },
-  { key: 'cpk', header: 'Cost per km', align: 'right', render: (r) => r.costPerKmText },
+  {
+    key: 'distance',
+    header: 'Distance',
+    unit: 'km',
+    align: 'right',
+    render: (r) => r.distanceText,
+  },
+  {
+    key: 'cpk',
+    header: 'Fuel cost',
+    unit: '₹/km',
+    align: 'right',
+    render: (r) => r.costPerKmText,
+  },
 ];
 
 /** Kilometres per litre by service class: four rows, each with an inline bar and its value at the bar's end. */

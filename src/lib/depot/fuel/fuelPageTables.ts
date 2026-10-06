@@ -5,6 +5,7 @@ import {
   COST_NOTE,
   formatCostPerKm,
   formatKm,
+  formatTenths,
   formatKmPerLitre,
   formatLitres,
   modelledStatement,
@@ -113,10 +114,10 @@ export function classTableRows(
       key: row.key ?? '',
       label: labelOf(row.key),
       busCount: row.busCount,
-      distanceText: row.distanceKm > 0 ? formatKm(row.distanceKm) : DASH,
+      distanceText: row.distanceKm > 0 ? formatTenths(row.distanceKm) : DASH,
       kmPerLitre: row.kmPerLitre,
       valueText: has ? formatKmPerLitre(row.kmPerLitre) : DASH,
-      costPerKmText: has ? formatCostPerKm(row.costPerKm) : DASH,
+      costPerKmText: has && row.costPerKm !== null ? row.costPerKm.toFixed(2) : DASH,
       widthPct: has ? Math.round(Math.max(MIN_BAR_PCT, share * FULL_BAR_PCT)) : 0,
     };
   });
