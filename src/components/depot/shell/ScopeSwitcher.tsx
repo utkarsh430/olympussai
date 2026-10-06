@@ -111,7 +111,7 @@ export function ScopeSwitcher() {
         aria-label={`Scope: ${label}. Change scope`}
         disabled={!data}
         onClick={() => (open ? close(false) : openList())}
-        className={`${CRUMB} flex min-w-0 max-w-[22rem] items-center gap-1.5 rounded-[3px] px-1.5 py-1 text-depot-muted hover:bg-depot-raised hover:text-depot-ink disabled:cursor-wait disabled:hover:bg-transparent`}
+        className={`${CRUMB} flex min-w-0 max-w-[min(22rem,100%)] items-center gap-1.5 rounded-[3px] px-1.5 py-1 text-depot-muted hover:bg-depot-raised hover:text-depot-ink disabled:cursor-wait disabled:hover:bg-transparent`}
       >
         <span className="truncate">{label}</span>
         <ChevronDown className="h-3.5 w-3.5 shrink-0" aria-hidden />
