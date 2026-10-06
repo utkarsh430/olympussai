@@ -23,13 +23,14 @@ const WEEKLY_SHARE = 0.03;
 const WEEKEND_DAYS: ReadonlySet<number> = new Set([0, 6]);
 const MIN_AVAILABLE_SPAN = 20;
 
-interface MetricRange {
+export interface MetricRange {
   readonly min: number;
   readonly max: number;
   readonly decimals: number;
 }
 
-const RANGES: Readonly<Record<MetricKey, MetricRange>> = {
+/** Each metric's valid range and stored precision; the forecast clips to the same range. */
+export const METRIC_RANGES: Readonly<Record<MetricKey, MetricRange>> = {
   onRoadShare: { min: 0, max: 1, decimals: 4 },
   offRoadRate: { min: 0, max: 1, decimals: 4 },
   darkRate: { min: 0, max: 1, decimals: 4 },
@@ -46,7 +47,7 @@ function round(value: number, decimals: number): number {
   return Math.round(value * factor) / factor;
 }
 
-const RATE_METRICS: ReadonlySet<MetricKey> = new Set(['onRoadShare', 'offRoadRate', 'darkRate']);
+export const RATE_METRICS: ReadonlySet<MetricKey> = new Set(['onRoadShare', 'offRoadRate', 'darkRate']);
 /** Keeps a rate anchored at exactly 0 or 1 from drawing a flat line. */
 const MIN_RATE_SCALE = 0.05;
 
@@ -61,7 +62,7 @@ function variationScale(metric: MetricKey, anchorValue: number): number {
     return Math.max(Math.sqrt(anchorValue * (1 - anchorValue)), MIN_RATE_SCALE);
   }
   if (metric === 'available') return Math.max(anchorValue, MIN_AVAILABLE_SPAN);
-  return RANGES[metric].max - RANGES[metric].min;
+  return METRIC_RANGES[metric].max - METRIC_RANGES[metric].min;
 }
 
 function parseDay(date: string): number {
@@ -112,7 +113,7 @@ export function modelSeries(
     throw new RangeError(`Anchor value must be finite, got ${anchor.value}`);
   }
   const anchorTime = parseDay(anchor.date);
-  const { min, max, decimals } = RANGES[metric];
+  const { min, max, decimals } = METRIC_RANGES[metric];
   const count = clamp(Math.trunc(Number.isFinite(days) ? days : MIN_DAYS), MIN_DAYS, MAX_DAYS);
   const anchorValue = round(clamp(anchor.value, min, max), decimals);
 
