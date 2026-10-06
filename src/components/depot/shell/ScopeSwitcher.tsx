@@ -13,6 +13,7 @@ import {
   scopeOptions,
   type ScopeOption,
 } from '@/lib/depot/depotNav';
+import { depotScopeState } from '@/lib/depot/scopeState';
 
 const CRUMB = 'font-mono text-[11px] uppercase tracking-[0.16em]';
 
@@ -30,7 +31,10 @@ export function ScopeSwitcher() {
   const { data, error, loading } = useDepotNetworkContext();
   const depotId = depotIdFromPath(pathname);
   const depots = data?.depots ?? null;
-  const label = scopeLabelForPath(pathname, depots);
+  const label =
+    depotId === null
+      ? scopeLabelForPath(pathname, depots)
+      : depotScopeState({ depotId, depots, detailError: null }).label;
   const currentKey = depotId ?? NETWORK_SCOPE_KEY;
   const options = useMemo(() => (depots ? scopeOptions(depots) : []), [depots]);
 

@@ -62,7 +62,7 @@ export function ScenarioPanel(props: ScenarioPanelProps) {
         id="rebalance-sandbox-heading"
         ref={headingRef}
         tabIndex={-1}
-        className="depot-section-label scroll-mt-40"
+        className="depot-section-label scroll-mt-[var(--depot-scroll-mt)]"
       >
         What-if sandbox
       </h2>

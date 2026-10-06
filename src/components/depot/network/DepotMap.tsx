@@ -13,7 +13,7 @@ import {
 } from '@/lib/depot/network/overviewModel';
 import { markerLabel } from '@/lib/depot/network/mapWords';
 import { removeMapListeners } from '@/lib/maps/listeners';
-import { useDepotMap } from './useDepotMap';
+import { useDepotMap, type DepotMapStatus } from './useDepotMap';
 
 /** One drawn depot. Not `Node`, which would shadow the DOM type. */
 interface DepotMarker {
@@ -64,6 +64,8 @@ export interface DepotMapProps {
   readonly maxFleet: number;
   readonly selectedId: string | null;
   readonly onSelect: (depotId: string) => void;
+  /** Reports the basemap's state, so the page can drop what describes a missing map. */
+  readonly onStatusChange?: (status: DepotMapStatus) => void;
 }
 
 /**
@@ -72,7 +74,7 @@ export interface DepotMapProps {
  * map id is needed. Polls move and restyle markers in place, keyed by depot
  * id; the camera is framed once and never moved by a poll.
  */
-export function DepotMap({ rows, maxFleet, selectedId, onSelect }: DepotMapProps) {
+export function DepotMap({ rows, maxFleet, selectedId, onSelect, onStatusChange }: DepotMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const { mapRef, status } = useDepotMap(containerRef);
   const markersRef = useRef<Map<string, DepotMarker>>(new Map());
@@ -80,6 +82,8 @@ export function DepotMap({ rows, maxFleet, selectedId, onSelect }: DepotMapProps
   const selectedRef = useRef(selectedId);
   const onSelectRef = useRef(onSelect);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+
+  useEffect(() => onStatusChange?.(status), [status, onStatusChange]);
 
   // Listeners read the latest selection and callback without being re-registered.
   useEffect(() => {
@@ -171,7 +175,12 @@ export function DepotMap({ rows, maxFleet, selectedId, onSelect }: DepotMapProps
   const hoveredIndex = hovered ? rankedIndex(hovered) : null;
 
   return (
-    <div className="depot-map-frame" data-testid="depot-map">
+    // Unavailable, the frame shrinks from the map's 460px to a short panel, so the
+    // page does not keep a tall blank box for a picture that is not there.
+    <div
+      className={`depot-map-frame ${status === 'error' ? '!h-48' : ''}`}
+      data-testid="depot-map"
+    >
       <div
         ref={containerRef}
         className="absolute inset-0"

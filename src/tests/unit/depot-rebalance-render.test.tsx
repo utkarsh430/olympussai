@@ -232,3 +232,59 @@ describe('transfer rationale row', () => {
     );
   });
 });
+
+function resetButtons(): HTMLButtonElement[] {
+  return [...container.querySelectorAll('button')].filter((b) =>
+    (b.getAttribute('aria-label') ?? b.textContent ?? '').startsWith('Reset to the server plan'),
+  );
+}
+
+function accessibleName(b: HTMLElement): string {
+  return b.getAttribute('aria-label') ?? b.textContent ?? '';
+}
+
+async function typeInto(id: string, text: string): Promise<void> {
+  const input = container.querySelector<HTMLInputElement>(`#${id}`);
+  if (!input) throw new Error(`no field ${id}`);
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+  await act(async () => {
+    setter?.call(input, text);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await act(async () => {
+    input.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+  });
+}
+
+describe('reset to the server plan', () => {
+  it('offers one reset while no what-if shows, in the sandbox', async () => {
+    await render(<Distribution data={response()} state={{ error: null }} />);
+    expect(resetButtons()).toHaveLength(1);
+    expect(container.querySelector('[data-testid="rebalance-notice"] button')).toBeNull();
+  });
+
+  it('adds one in the sticky strip while a what-if shows, with a distinct accessible name', async () => {
+    await render(<Distribution data={response()} state={{ error: null }} />);
+    await typeInto('scenario-spare', '15');
+    const inStrip = container.querySelectorAll('[data-testid="rebalance-notice"] button');
+    expect(inStrip).toHaveLength(1);
+    const names = resetButtons().map(accessibleName);
+    expect(names).toHaveLength(2);
+    expect(new Set(names).size).toBe(2);
+  });
+
+  it('shows each field empty with its default as the placeholder, and no strip reset', async () => {
+    await render(<Distribution data={response()} state={{ error: null }} />);
+    await typeInto('scenario-spare', '15');
+    const inStrip = container.querySelector('[data-testid="rebalance-notice"] button');
+    await act(async () => (inStrip as HTMLButtonElement).click());
+    const spare = container.querySelector<HTMLInputElement>('#scenario-spare');
+    const distance = container.querySelector<HTMLInputElement>('#scenario-distance');
+    expect(spare?.value).toBe('');
+    expect(spare?.placeholder).toBe('8 (default)');
+    expect(distance?.placeholder).toBe('250 (default)');
+    expect(container.querySelector('[data-testid="rebalance-notice"] button')).toBeNull();
+    expect(container.querySelector('[data-testid="rebalance-whatif-sentence"]')).toBeNull();
+    expect(resetButtons()).toHaveLength(1);
+  });
+});

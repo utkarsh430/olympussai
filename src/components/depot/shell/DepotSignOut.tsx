@@ -17,7 +17,7 @@ export function DepotSignOut() {
       onClick={signOut}
       disabled={pending}
       data-testid="depot-sign-out"
-      className="hud-button whitespace-nowrap"
+      className="depot-bar-button"
     >
       <LogOut className="h-3.5 w-3.5" aria-hidden />
       {pending ? 'Signing out…' : 'Sign out'}
