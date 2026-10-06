@@ -36,9 +36,8 @@ export interface DayPlanInput {
   readonly operatingDate: string;
   /** False when the depot has no yard: location then cannot decide eligibility. */
   readonly yardEstablished: boolean;
-  /** Minutes past midnight on the feed clock when it reads the operating date, else null. */
-  readonly feedMinute?: number | null;
-  readonly now?: PlanNow;
+  /** As of when the plan is made: the feed clock, no clock, or a later day (ruling S55). */
+  readonly now: PlanNow;
 }
 
 const FEED_CLOCK = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})/;
@@ -109,7 +108,7 @@ export function planDay(input: DayPlanInput): DutyPlan {
   );
   const plan = assignDuties(duties, buses, fleet, {
     yardEstablished: input.yardEstablished,
-    feedMinute: input.feedMinute ?? null,
+    now: input.now,
   });
   return {
     duties,

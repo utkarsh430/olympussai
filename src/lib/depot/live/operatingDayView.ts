@@ -2,7 +2,7 @@ import type { FleetSnapshotView } from '../repositories/types';
 import { cachedRouteProfiles, routeCatalogueRevision } from '../routes/routeCatalogue';
 import { DEFAULT_REQUIREMENT_PARAMS } from '../sim/config';
 import { feedMinuteOn, planDay, type DutyPlan } from '../sim/dayPlan';
-import { dayFromPlan } from '../sim/operatingDay';
+import { dayFromPlan, nowOnFeedClock } from '../sim/operatingDay';
 import type { OperatingDay } from '../sim/operatingDayTypes';
 import { modelBalances } from '../sim/requirement';
 import { operatingDateOf } from '../sim/seed';
@@ -15,15 +15,20 @@ import { depotBusViews } from './depotView';
  * read these objects, so they cannot disagree. Two layers, each in one slot
  * per analysis that is reset (never grown) when its key changes:
  *  - the plan (duties and the bus for each), per depot, for at most two
- *    operating dates (the feed's, and the next one the parking order plans);
+ *    operating dates: the feed's, as of the feed clock, and the next one the
+ *    parking order plans, as a later day (ruling S55);
  *  - the day (the plan with route lengths and distances), per depot, for one
  *    operating date and route-catalogue revision. A newly cached profile
  *    changes lengths, never which bus runs which duty, so the plan is kept.
  * The analysis is held per rows array, so both go with the snapshot.
  */
 
+/** Today's plan is as of the feed; the parking order's plan is for a later day (ruling S55). */
+type PlanKind = 'as_of_feed' | 'later_day';
+
 interface PlanSlot {
   readonly operatingDate: string;
+  readonly kind: PlanKind;
   readonly peaks: ReadonlyMap<string, number>;
   readonly byDepot: Map<string, DutyPlan | null>;
 }
@@ -53,31 +58,33 @@ function peakRequirements(
   );
 }
 
-function planSlotFor(analysis: SnapshotAnalysis, operatingDate: string): PlanSlot {
+function planSlotFor(analysis: SnapshotAnalysis, operatingDate: string, kind: PlanKind): PlanSlot {
   const byDate = plans.get(analysis) ?? new Map<string, PlanSlot>();
   plans.set(analysis, byDate);
-  const held = byDate.get(operatingDate);
+  const key = `${kind}|${operatingDate}`;
+  const held = byDate.get(key);
   if (held) return held;
   const oldest = byDate.keys().next();
   if (byDate.size >= PLAN_DATES_HELD && !oldest.done) byDate.delete(oldest.value);
-  const slot = { operatingDate, peaks: peakRequirements(analysis, operatingDate), byDepot: new Map() };
-  byDate.set(operatingDate, slot);
+  const peaks = peakRequirements(analysis, operatingDate);
+  const slot = { operatingDate, kind, peaks, byDepot: new Map() };
+  byDate.set(key, slot);
   return slot;
 }
 
-/**
- * The depot's one duty plan for an operating date, or null for an unknown
- * depot. The bus set is the depot's bus views, one per trimmed registration.
- * No upstream call is made.
- */
-export function dutyPlanFor(
+function planFor(
   analysis: SnapshotAnalysis,
   depotId: string,
   operatingDate: string,
+  kind: PlanKind,
 ): DutyPlan | null {
-  const slot = planSlotFor(analysis, operatingDate);
+  const slot = planSlotFor(analysis, operatingDate, kind);
   if (slot.byDepot.has(depotId)) return slot.byDepot.get(depotId) ?? null;
   const depot = analysis.depotsById.get(depotId);
+  const now =
+    kind === 'later_day'
+      ? ({ kind: 'later_day' } as const)
+      : nowOnFeedClock(feedMinuteOn(analysis.feedNow, operatingDate));
   const planned =
     depot === undefined
       ? null
@@ -87,10 +94,38 @@ export function dutyPlanFor(
           peakRequirement: slot.peaks.get(depotId) ?? 0,
           operatingDate,
           yardEstablished: analysis.yards.has(depotId),
-          feedMinute: feedMinuteOn(analysis.feedNow, operatingDate),
+          now,
         });
   slot.byDepot.set(depotId, planned);
   return planned;
+}
+
+/**
+ * The depot's one duty plan for the feed's operating date, as of the feed
+ * clock (no clock when the feed has none), or null for an unknown depot. The
+ * bus set is the depot's bus views, one per trimmed registration. No upstream
+ * call is made.
+ */
+export function dutyPlanFor(
+  analysis: SnapshotAnalysis,
+  depotId: string,
+  operatingDate: string,
+): DutyPlan | null {
+  return planFor(analysis, depotId, operatingDate, 'as_of_feed');
+}
+
+/**
+ * The depot's duty plan for a LATER operating date (the night parking order
+ * plans tomorrow), or null for an unknown depot. It does not rank buses by how
+ * they stand now: the buses standing in the yard are the ones that will leave
+ * it (ruling S55).
+ */
+export function laterDayPlanFor(
+  analysis: SnapshotAnalysis,
+  depotId: string,
+  operatingDate: string,
+): DutyPlan | null {
+  return planFor(analysis, depotId, operatingDate, 'later_day');
 }
 
 function daySlotFor(view: FleetSnapshotView, analysis: SnapshotAnalysis, date: string): DaySlot {

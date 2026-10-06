@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import type { DepotBusRow } from '@/models/depotLive';
 import { fromMetres } from '@/lib/depot/infer/geo';
 import { analyseSnapshot, resetAnalysisForTests } from '@/lib/depot/live/analysis';
-import { dutyPlanFor } from '@/lib/depot/live/operatingDayView';
+import { laterDayPlanFor } from '@/lib/depot/live/operatingDayView';
 import { buildDepotDetail } from '@/lib/depot/live/depotView';
 import { buildParkingResponse, nextOperatingDate } from '@/lib/depot/live/parkingView';
 import type { FleetSnapshotView } from '@/lib/depot/repositories/types';
@@ -271,7 +271,7 @@ describe('buildParkingResponse', () => {
     });
     const rows = [...parked(12), ...out];
     const next = nextOperatingDate('2026-10-06');
-    const tomorrow = dutyPlanFor(analyseSnapshot(view(rows)), '1', next);
+    const tomorrow = laterDayPlanFor(analyseSnapshot(view(rows)), '1', next);
     expect(tomorrow?.duties.length ?? 0).toBeGreaterThanOrEqual(12);
     const slots = parking(rows).order!.lanes.flatMap((l) => l.slots);
     expect(slots).toHaveLength(12);

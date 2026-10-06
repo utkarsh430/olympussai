@@ -5,6 +5,7 @@ import type {
   Duty,
   DutyAssignment,
   Ineligibility,
+  PlanNow,
 } from '../duties/types';
 import type { ModelledBus, ServiceClass } from '../sim/types';
 import { isRecentlyHeard } from '../infer/busState';
@@ -45,12 +46,17 @@ export interface AssignDutiesOptions {
    */
   readonly yardEstablished?: boolean;
   /**
-   * Minutes past midnight on the feed clock. A duty that has started by then
-   * prefers a bus on the road; one still to start prefers a standing bus. Null
-   * or absent: no duty is treated as started.
+   * As of when the plan is made (ruling S55). On the feed clock, a duty that
+   * has started by then prefers a bus on the road and one still to start a
+   * standing bus. For a later day, how the buses stand now does not count: the
+   * buses standing in the yard are the ones that will leave it, so only they
+   * are eligible, and nothing is ranked by being on the road. Defaults to a
+   * feed with no clock: no duty is treated as started.
    */
-  readonly feedMinute?: number | null;
+  readonly now?: PlanNow;
 }
+
+const NO_FEED_CLOCK: PlanNow = { kind: 'no_feed_clock' };
 
 /** Standing, on a report recent enough to say where the bus is standing now. */
 function isStandingNow(bus: DepotBusView): boolean {
@@ -66,11 +72,26 @@ function isStandingNow(bus: DepotBusView): boolean {
  * stands now, which `not_in_yard` covers) and, when a yard is established,
  * only in it.
  */
-function standingOf(bus: DepotBusView, yardEstablished: boolean): BusStandingNow | Exclusion {
+function standingOf(
+  bus: DepotBusView,
+  yardEstablished: boolean,
+  now: PlanNow,
+): BusStandingNow | Exclusion {
   if (bus.state === 'off_road') return 'off_road';
   if (bus.state === 'dark') return 'dark';
+  if (now.kind === 'later_day') return laterDayStanding(bus, yardEstablished);
   if (bus.state === 'in_service' || bus.state === 'on_road') return 'on_road';
   if (!isStandingNow(bus)) return 'not_in_yard';
+  if (!yardEstablished) return 'standing';
+  return bus.location === 'in_yard' ? 'in_yard' : 'not_in_yard';
+}
+
+/**
+ * For a later day: a bus the feed places in the yard will leave it (the yard's
+ * parking order is about exactly these buses); every other bus is not in the
+ * yard. With no yard established, location cannot decide: every available bus.
+ */
+function laterDayStanding(bus: DepotBusView, yardEstablished: boolean): BusStandingNow | Exclusion {
   if (!yardEstablished) return 'standing';
   return bus.location === 'in_yard' ? 'in_yard' : 'not_in_yard';
 }
@@ -158,6 +179,7 @@ export function assignDuties(
   options: AssignDutiesOptions = {},
 ): AssignmentPlan {
   const yardEstablished = options.yardEstablished ?? true;
+  const now = options.now ?? NO_FEED_CLOCK;
   const seen = new Set<string>();
   for (const bus of buses) {
     if (seen.has(bus.registrationNumber)) {
@@ -169,12 +191,13 @@ export function assignDuties(
   const excluded: { registrationNumber: string; reason: Ineligibility }[] = [];
   const eligible: Candidate[] = [];
   for (const bus of sorted) {
-    const standing = standingOf(bus, yardEstablished);
+    const standing = standingOf(bus, yardEstablished, now);
     if (standing === 'on_road' || standing === 'in_yard' || standing === 'standing') {
       eligible.push({ bus, standing });
     } else excluded.push({ registrationNumber: bus.registrationNumber, reason: standing });
   }
-  const ctx = { fleet, fallbackAge: medianAge(fleet), feedMinute: options.feedMinute ?? null };
+  const feedMinute = now.kind === 'feed_time' ? now.feedMinute : null;
+  const ctx = { fleet, fallbackAge: medianAge(fleet), feedMinute };
   const tiers = duties.map((duty) => eligible.map((c) => tiersOf(duty, c, ctx)));
   const largestBase = tiers.reduce(
     (most, row) => row.reduce((m, t) => Math.max(m, t[TIERS - 1] as number), most),

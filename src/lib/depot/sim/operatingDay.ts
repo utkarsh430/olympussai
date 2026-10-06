@@ -1,6 +1,6 @@
 import { SeededRandom } from '../../simulation/seededRandom';
 import type { DepotBusView } from '../api';
-import type { Duty } from '../duties/types';
+import type { Duty, PlanNow } from '../duties/types';
 import { compareText } from '../fuel/compare';
 import { STATIC_SEED_DATE } from './config';
 import { planDay, type DutyPlan } from './dayPlan';
@@ -137,6 +137,11 @@ export function dayFromPlan(
   };
 }
 
+/** A plan as of the feed clock's minute, or of no clock when there is none. */
+export function nowOnFeedClock(feedMinute: number | null): PlanNow {
+  return feedMinute === null ? { kind: 'no_feed_clock' } : { kind: 'feed_time', feedMinute };
+}
+
 /**
  * The day for one depot from its raw inputs: the plan, then the day read off
  * it. The views use the same two steps with each held once per snapshot.
@@ -148,7 +153,7 @@ export function modelOperatingDay(input: OperatingDayInput): OperatingDay {
     peakRequirement: input.peakRequirement,
     operatingDate: input.operatingDate,
     yardEstablished: input.yardEstablished ?? true,
-    feedMinute: input.feedMinute ?? null,
+    now: input.now ?? nowOnFeedClock(input.feedMinute ?? null),
   });
   return dayFromPlan(input.depot.id, input.operatingDate, planned, input.realLengthKm);
 }
