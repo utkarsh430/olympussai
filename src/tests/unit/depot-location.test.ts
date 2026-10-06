@@ -60,7 +60,7 @@ describe('locateBus', () => {
   });
 
   it('is in_yard inside its own yard', () => {
-    const result = locateBus(row(place(east(50))), new Map([['1', homeYard]]));
+    const result = locateBus(row(place(east(80))), new Map([['1', homeYard]]));
     expect(result.location).toBe('in_yard');
     expect(result.otherDepotId).toBeNull();
     expect(result.distanceFromYardKm).toBe(0.1);
