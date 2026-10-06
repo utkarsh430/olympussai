@@ -37,7 +37,7 @@ export function TransferDecisionControls({ row, onDecide }: TransferDecisionCont
 
   return (
     <div className="mt-3 flex min-w-0 flex-col gap-1.5">
-      <p className="depot-label">Record a decision</p>
+      <div className="depot-label">Record a decision</div>
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <label htmlFor={noteId} className="sr-only">
           Note for {row.fromName} to {row.toName}, optional, up to {NOTE_MAX_CHARS} characters

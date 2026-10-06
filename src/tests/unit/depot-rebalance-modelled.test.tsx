@@ -127,14 +127,18 @@ describe('MODELLED wording', () => {
     expect(headers[2]).toMatch(/modelled/i);
   });
 
-  it('is on every legend entry', async () => {
+  it('is on no legend entry and no legend label: the transfers section carries the tag', async () => {
     await render(<TransferMapLegend maxBuses={10} />);
     const entries = texts('[data-testid="rebalance-map-legend"] > div:first-child li');
-    expect(entries).toHaveLength(3);
-    for (const entry of entries) expect(entry).toMatch(/modelled/i);
-    expect(texts('[data-testid="rebalance-map-legend"] p.depot-label').join(' ')).toMatch(
-      /transfers · modelled/i,
-    );
+    expect(entries).toEqual(['Spare buses', 'Short of buses', 'Balanced']);
+    const legend = container.querySelector('[data-testid="rebalance-map-legend"]');
+    expect(legend?.textContent).not.toMatch(/modelled/i);
+    expect(legend?.querySelector('p')).toBeNull();
+    expect(texts('[data-testid="rebalance-map-legend"] > div:last-child li')).toEqual([
+      '10 buses',
+      '3 buses',
+      '1 bus',
+    ]);
   });
 
   it('is on the hover card for a depot and for a transfer', async () => {
