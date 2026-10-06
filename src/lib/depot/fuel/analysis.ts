@@ -1,5 +1,6 @@
 import { compareText } from './compare';
 import { median } from '../stats/robust';
+import { isSupportedMedian } from './support';
 import {
   DEFAULT_PRICE_PER_LITRE,
   FUEL_VARIANCE_FLAG_PCT,
@@ -103,10 +104,10 @@ const depotKey = (row: BusFuelFigure): string => `depot${KEY_SEPARATOR}${row.ser
 const routeKey = (row: BusFuelFigure): string =>
   `route${KEY_SEPARATOR}${row.serviceClass}${KEY_SEPARATOR}${row.routeName ?? ''}`;
 
-/** Median kilometres per litre of the other buses in the group; null with too few peers. */
-function peerMedian(group: readonly Peer[], position: number): number | null {
+/** Kilometres per litre of the other buses in the group; null with too few peers. */
+function peersOf(group: readonly Peer[], position: number): readonly number[] | null {
   const peers = group.filter((p) => p.position !== position).map((p) => p.kmPerLitre);
-  return peers.length >= MIN_PEERS ? median(peers) : null;
+  return peers.length >= MIN_PEERS ? peers : null;
 }
 
 function compared(
@@ -123,10 +124,15 @@ function compared(
           ['depot', depotKey(row)],
         ];
   for (const [comparison, key] of candidates) {
-    const centre = peerMedian(index.get(key) ?? [], position);
-    if (centre === null) continue;
+    const peers = peersOf(index.get(key) ?? [], position);
+    const centre = peers === null ? null : median(peers);
+    if (peers === null || centre === null) continue;
     // More fuel per km than the peers' median is the same as fewer km per litre.
-    return { ...row, comparison, variancePct: round1((centre / row.kmPerLitre - 1) * PERCENT) };
+    const variancePct = round1((centre / row.kmPerLitre - 1) * PERCENT);
+    // The figure stays; only the flag is held back when the peers do not stand behind the median.
+    const unsupported = variancePct > FUEL_VARIANCE_FLAG_PCT && !isSupportedMedian(peers);
+    const withheldReason = unsupported ? 'peers_differ' : null;
+    return { ...row, comparison, variancePct, withheldReason };
   }
   return { ...row, withheldReason: 'no_comparison_group' };
 }
@@ -139,6 +145,7 @@ function statementFor(variancePct: number, comparison: FuelComparisonScope): str
 
 function flagFor(row: BusFuelFigure): FlaggedBus | null {
   if (row.variancePct === null || row.comparison === null) return null;
+  if (row.withheldReason !== null) return null;
   if (row.variancePct <= FUEL_VARIANCE_FLAG_PCT) return null;
   return {
     registrationNumber: row.registrationNumber,

@@ -20,8 +20,8 @@ export const FUEL_CLASS_DAILY_KM: Readonly<Record<ServiceClass, number>> = {
 
 /**
  * Typical diesel economy in kilometres per litre, by class. Basis: planning
- * figures for heavy diesel buses; air-conditioned and premium coaches carry
- * more weight and fitted equipment, so they cover fewer kilometres per litre.
+ * figures for heavy diesel buses; the modelled class figure is lower for
+ * air-conditioned and premium coaches.
  */
 export const FUEL_CLASS_KM_PER_LITRE: Readonly<Record<ServiceClass, number>> = {
   ordinary: 4.8,

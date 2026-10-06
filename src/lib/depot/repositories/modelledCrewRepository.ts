@@ -4,7 +4,7 @@ import type { DepotSummary } from '../types';
 
 /**
  * Crew until a real roster feed exists: modelled availability anchored on the
- * depot's duty count. Async so a roster adapter can replace it without
+ * depot's shift count. Async so a roster adapter can replace it without
  * changing a caller. Screens label it MODELLED.
  */
 export const modelledCrewRepository: CrewRepository = {

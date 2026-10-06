@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { modelCrew } from '@/lib/depot/sim/crew';
+import { CREW_PER_SHIFT, CREW_RESERVE_SLOTS, modelCrew } from '@/lib/depot/sim/crew';
 import { crewShiftsFor, rosterCrew } from '@/lib/depot/crew/roster';
 import { MAX_HOURS_PER_WEEK } from '@/lib/depot/crew/types';
 import { modelDuties } from '@/lib/depot/sim/duties';
@@ -44,6 +44,22 @@ describe('modelCrew', () => {
     }
   });
 
+  it('gives each role the ratio plus a fixed reserve of two slots', () => {
+    expect(CREW_RESERVE_SLOTS).toBe(2);
+    for (const shifts of [1, 5, 20, 40, 100]) {
+      const crew = modelCrew(depot, shifts, DATE);
+      for (const role of ['driver', 'conductor'] as const) {
+        const ratio = Math.max(shifts, Math.ceil(shifts * CREW_PER_SHIFT[role]));
+        expect(count(crew, role)).toBe(ratio + CREW_RESERVE_SLOTS);
+      }
+    }
+  });
+
+  it('keeps the slot ids of a small depot the same on every date', () => {
+    const ids = (date: string): string[] => modelCrew(depot, 20, date).map((s) => s.id);
+    expect(ids('2026-10-06')).toEqual(ids('2026-11-17'));
+  });
+
   it('seeds hours inside the weekly limit and a mix of availabilities', () => {
     const crew = modelCrew(depot, 200, DATE);
     expect(crew.every((s) => s.hoursThisWeek >= 0 && s.hoursThisWeek <= MAX_HOURS_PER_WEEK)).toBe(
@@ -75,12 +91,14 @@ describe('modelCrew', () => {
     expect(crew.every((s) => s.hoursThisWeek <= HOURS_THIS_WEEK_RANGE.max)).toBe(true);
   });
 
-  it('shows a small but non-zero shortfall on some dates for a typical depot', () => {
-    const MAX_SHORTFALL_SHARE = 0.2;
-    const MAX_MEAN_SHORTFALL_SHARE = 0.1;
-    for (const [id, count, minutes] of [
-      ['D-40', 40, 200],
-      ['D-80', 80, 300],
+  it('shows a small but non-zero shortfall on some dates, bounded by depot size', () => {
+    // Observed over these 28 seeded dates (worst day, mean): 20 shifts 15%, 2.5%;
+    // 40 shifts 10%, 1.6%; 100 shifts 7%, 0.4%. Bounds leave a little headroom.
+    const MAX_MEAN_SHORTFALL_SHARE = 0.05;
+    for (const [id, count, minutes, maxShare] of [
+      ['D-20', 20, 200, 0.2],
+      ['D-40', 40, 200, 0.15],
+      ['D-100', 100, 200, 0.1],
     ] as const) {
       const typical = { id, name: 'T' } as unknown as DepotSummary;
       const shares = Array.from({ length: 28 }, (_, day) => {
@@ -92,7 +110,7 @@ describe('modelCrew', () => {
         return summary.shiftsUncovered / summary.shiftsRequired;
       });
       expect(shares.some((share) => share > 0)).toBe(true);
-      expect(Math.max(...shares)).toBeLessThanOrEqual(MAX_SHORTFALL_SHARE);
+      expect(Math.max(...shares)).toBeLessThanOrEqual(maxShare);
       expect(shares.reduce((a, b) => a + b, 0) / shares.length).toBeLessThan(
         MAX_MEAN_SHORTFALL_SHARE,
       );
