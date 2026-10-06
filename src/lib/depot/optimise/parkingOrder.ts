@@ -6,6 +6,14 @@ interface ParkingBus {
 }
 
 /** A bus with no duty tomorrow leaves last, so it sorts as infinitely late. */
+/**
+ * Lane ids order by length then text, so L99 precedes L100: ids are padded to
+ * two digits only, and a yard of more than 99 lanes must not list L10, L100, L11.
+ */
+function compareLaneIds(a: string, b: string): number {
+  return a.length - b.length || (a < b ? -1 : a > b ? 1 : 0);
+}
+
 function departure(bus: ParkingBus): number {
   return bus.firstDutyStartMin ?? Infinity;
 }
@@ -94,7 +102,7 @@ function countBlocked(slots: readonly ParkingSlot[]): number {
  */
 export function planParking(lanes: readonly Lane[], buses: readonly ParkingBus[]): ParkingPlan {
   validate(lanes, buses);
-  const orderedLanes = [...lanes].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const orderedLanes = [...lanes].sort((a, b) => compareLaneIds(a.id, b.id));
   const capacity = orderedLanes.reduce((sum, lane) => sum + lane.depth, 0);
   const earliestFirst = [...buses].sort(byDepartureThenRegistration);
   const parked = earliestFirst.slice(0, capacity);
@@ -125,7 +133,7 @@ export function planParking(lanes: readonly Lane[], buses: readonly ParkingBus[]
     });
   }
   slots.sort((a, b) =>
-    a.laneId === b.laneId ? a.position - b.position : a.laneId < b.laneId ? -1 : 1,
+    a.laneId === b.laneId ? a.position - b.position : compareLaneIds(a.laneId, b.laneId),
   );
   return { slots, blocked: countBlocked(slots), overflow };
 }

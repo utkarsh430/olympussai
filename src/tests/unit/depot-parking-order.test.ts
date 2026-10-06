@@ -180,3 +180,18 @@ describe('modelYardLayout', () => {
     expect(() => modelYardLayout(depot('D1'), 2.5)).toThrow(RangeError);
   });
 });
+
+describe('planParking lane order in a large yard', () => {
+  it('lists lanes in numeric order past 99 lanes (L99, L100, ..., never L10, L100, L11)', () => {
+    const lanes = modelYardLayout(depot('big'), 1_100);
+    expect(lanes.length).toBeGreaterThan(99);
+    const buses = Array.from({ length: 1_100 }, (_, i) => ({
+      registrationNumber: `UP${String(i).padStart(5, '0')}`,
+      firstDutyStartMin: 300 + (i % 400),
+    }));
+    const plan = planParking(lanes, buses);
+    const laneOrder = [...new Set(plan.slots.map((s) => s.laneId))];
+    expect(laneOrder).toEqual(lanes.map((l) => l.id));
+    expect(plan.blocked).toBe(0);
+  });
+});
