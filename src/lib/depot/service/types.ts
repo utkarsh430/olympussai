@@ -229,6 +229,8 @@ export interface ProposalSource {
   /** Standing buses in that depot's yard in the hour before the band, as observed; null when modelled. */
   readonly standingInYard: number | null;
   readonly basis: 'observed' | 'modelled';
+  /** Buses the modelled day plan leaves idle at that depot; set only when the basis is modelled. */
+  readonly idleInDayPlan?: number | null;
 }
 
 export interface Proposal {

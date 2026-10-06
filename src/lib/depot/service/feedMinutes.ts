@@ -32,3 +32,9 @@ export function spanMinutes(start: string | null, end: string | null): number | 
 export function hourLabel(hour: number): string {
   return `${String(hour).padStart(2, '0')}:00`;
 }
+
+/** `HH:MM` for minutes past midnight. */
+export function clockOf(minute: number): string {
+  const hours = String(Math.floor(minute / MINUTES_PER_HOUR)).padStart(2, '0');
+  return `${hours}:${String(minute % MINUTES_PER_HOUR).padStart(2, '0')}`;
+}
