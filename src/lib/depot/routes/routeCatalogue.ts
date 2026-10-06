@@ -1,6 +1,7 @@
 import { indiaDate } from '@/lib/upsrtc/client';
 import { fetchBusSchedule } from '@/lib/upsrtc/scheduleService';
 import { isValidRouteName } from '../ids';
+import { logDepotError } from '../log';
 import { classifyBusState, gpsAgeMinutes } from '../infer/busState';
 import type { FleetSnapshotView } from '../repositories/types';
 import type { DepotBusRow } from '@/models/depotLive';
@@ -98,7 +99,8 @@ async function fetchProfile(
       status: 'ok',
       profile: { ...built, routeNameConfirmed, description: bus.routeDescription },
     };
-  } catch {
+  } catch (error) {
+    logDepotError('route-catalogue', error);
     return unavailable('upstream_error');
   }
 }

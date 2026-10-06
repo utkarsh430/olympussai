@@ -3,6 +3,7 @@ import { requireUpsrtcAccess, unauthorizedResponse } from '@/lib/auth/authorize'
 import { jsonResponse } from '@/lib/upsrtc/respond';
 import { getLiveSnapshot } from '@/lib/upsrtc/liveSnapshot';
 import { isValidRouteName } from '@/lib/depot/ids';
+import { logDepotError } from '@/lib/depot/log';
 import { getRouteProfile } from '@/lib/depot/routes/routeCatalogue';
 import type { RouteProfileResponse } from '@/lib/depot/routes/types';
 import type { FleetSnapshotView } from '@/lib/depot/repositories/types';
@@ -45,7 +46,8 @@ export async function GET(request: NextRequest, context: RouteContext): Promise<
     const result = await getRouteProfile(routeName, view, now);
     const body: RouteProfileResponse = { ...result, fetchedAt: new Date(now).toISOString() };
     return jsonResponse(body, { acceptEncoding });
-  } catch {
+  } catch (error) {
+    logDepotError('route-api', error);
     return jsonResponse({ error: 'Route data unavailable' }, { status: 503, acceptEncoding });
   }
 }
