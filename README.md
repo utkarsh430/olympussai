@@ -1356,13 +1356,13 @@ Each of these was made against a measured problem, not on principle:
 ```bash
 npm run lint         # ESLint (next lint)
 npm run typecheck    # tsc --noEmit, strict
-npm run test         # Vitest — 224 unit tests, no network required
+npm run test         # Vitest — 243 unit tests, no network required
 npm run test:watch   # Vitest in watch mode
 npm run test:e2e     # Playwright — 31 specs (starts the app via npm run start; E2E_PORT overrides port 3000)
 npm run format       # Prettier over src/**/*.{ts,tsx,css} and docs/**/*.md
 ```
 
-### Unit tests (Vitest, jsdom) — 224 tests across 7 files
+### Unit tests (Vitest, jsdom) — 243 tests across 10 files
 
 | File | Tests | Covers |
 | --- | --- | --- |
@@ -1373,6 +1373,9 @@ npm run format       # Prettier over src/**/*.{ts,tsx,css} and docs/**/*.md
 | `audit.test.ts` | 21 | Audit append/cap/round-trip/clear/export, TTL cache semantics, upstream client helpers, formatters |
 | `alerts.test.ts` | 19 | Alert anchoring to real vehicles, seeding (exactly five, exactly one fault), even rotation, candidate selection tiers, graceful degradation |
 | `globeExtras.test.ts` | 9 | Orbit radii and inclination, great-circle arc packing and lift, deterministic route picking |
+| `redirect.test.ts` | 11 | The post-login redirect allowlist: accepted roots, traversal, lookalike prefixes and protocol-relative tricks |
+| `requireProjectSession.test.ts` | 4 | The server-component session gate and its login redirect |
+| `depot-nav.test.ts` | 4 | The Depot Management navigation rail definition |
 
 The bunching suite is the reason the simulator's arithmetic can be trusted: it
 asserts the control equations against hand-computed values, that the overtaking
