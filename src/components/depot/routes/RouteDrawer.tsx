@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { depotPortalRoot } from '@/lib/depot/portalRoot';
 import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
 import { useRouteProfile } from '@/hooks/useRouteProfile';
 import { DataTable, type Column } from '@/components/depot/shell/DataTable';
@@ -182,5 +183,5 @@ export function RouteDrawer({ route, move, onClose, onProfiled, restoreFocusTo }
       </div>
     </div>
   );
-  return createPortal(dialog, document.body);
+  return createPortal(dialog, depotPortalRoot());
 }

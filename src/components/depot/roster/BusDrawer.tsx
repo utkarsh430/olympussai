@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { depotPortalRoot } from '@/lib/depot/portalRoot';
 import { drawerFacts } from '@/lib/depot/roster/drawerFacts';
 import type { RosterRow } from '@/lib/depot/roster/rosterModel';
 import { BusTimetable } from './BusTimetable';
@@ -149,5 +150,5 @@ export function BusDrawer({
       </div>
     </div>
   );
-  return createPortal(dialog, document.body);
+  return createPortal(dialog, depotPortalRoot());
 }

@@ -1,5 +1,6 @@
 import { FooterDisclaimer } from '@/components/shared/FooterDisclaimer';
 import { DepotNetworkProvider } from '@/components/depot/data/DepotNetworkProvider';
+import { DEPOT_PORTAL_ROOT_ID } from '@/lib/depot/portalRoot';
 import { DepotNav } from './DepotNav';
 import { DepotTopBar } from './DepotTopBar';
 
@@ -37,6 +38,8 @@ export function DepotShell({ children }: { readonly children: React.ReactNode })
           </main>
         </div>
         <FooterDisclaimer variant="dark" />
+        {/* Dialogs and drawers are portalled here, inside the shell's type and typeface. */}
+        <div id={DEPOT_PORTAL_ROOT_ID} />
       </div>
     </DepotNetworkProvider>
   );
