@@ -146,6 +146,34 @@ describe('buildParkingResponse', () => {
     expect(order.parkedCount + order.overflow.length).toBe(rows.length);
   });
 
+  it('parks only buses the feed places in this yard, never one away or at another yard', () => {
+    const far = fromMetres({ x: 15_000, y: 0 }, HOME.lat, HOME.lng);
+    const away = Array.from({ length: 3 }, (_, i) =>
+      row({ registrationNumber: `AW${i}`, latitude: far.lat, longitude: far.lng }),
+    );
+    const rows = [...parked(), ...away];
+    const v = view(rows);
+    const detail = buildDepotDetail(v, '1')!;
+    expect(detail.buses.filter((b) => b.location !== 'in_yard').length).toBeGreaterThan(0);
+    const order = parking(rows, v).order!;
+    const placed = [
+      ...order.lanes.flatMap((l) => l.slots.map((s) => s.registrationNumber)),
+      ...order.overflow.map((o) => o.registrationNumber),
+    ];
+    expect(placed.some((r) => r.startsWith('AW'))).toBe(false);
+    expect(order.parkedCount + order.overflow.length).toBe(detail.locationMix.in_yard);
+  });
+
+  it('reconciles with the in-yard count minus the rows it dropped, and says how many', () => {
+    const rows = [...parked(), row({ registrationNumber: '   ' }), row({ registrationNumber: 'A3 ' })];
+    const v = view(rows);
+    const p = parking(rows, v);
+    const inYard = buildDepotDetail(v, '1')!.locationMix.in_yard;
+    expect(p.droppedRows).toBe(2);
+    expect(p.order!.parkedCount + p.order!.overflow.length).toBe(inYard - p.droppedRows);
+    expect(parking(parked()).droppedRows).toBe(0);
+  });
+
   it('counts a bus of another depot standing in the yard against capacity but does not order it', () => {
     const rows = [...parked(), row({ registrationNumber: 'V1', depotId: '2', depotName: 'Other' })];
     const p = parking(rows);

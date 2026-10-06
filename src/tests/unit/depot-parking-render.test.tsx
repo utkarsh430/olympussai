@@ -48,6 +48,7 @@ const BASE: ParkingResponse = {
   operatingDate: '2026-10-07',
   state: 'planned',
   capacity: CAPACITY,
+  droppedRows: 0,
   order: ORDER,
 };
 
