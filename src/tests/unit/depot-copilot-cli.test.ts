@@ -545,7 +545,7 @@ describe('parseCliOutput', () => {
     JSON.stringify({ type: 'result', is_error: false, ...extra });
 
   it('extracts and validates structured_output', () => {
-    const draft = { headline: 'Head', paragraphs: ['One {{fact:buses}}'] };
+    const draft = { headline: 'Heading', paragraphs: ['One {{fact:buses}}'] };
     expect(parseCliOutput(envelope({ structured_output: draft }))).toEqual({ ok: true, draft });
   });
 

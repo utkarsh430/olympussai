@@ -61,6 +61,8 @@ const GRAMMAR_REASONS: Readonly<Record<GrammarProblem, string>> = {
   figure_window: 'Draft puts a word near a figure that is not allowed there',
   figure_clause:
     'Draft puts a negation, rate, total, limiter or other-day word in the clause of a figure',
+  sentence_address: 'Draft addresses the reader',
+  sentence_imperative: 'Draft opens a sentence with an instruction',
 };
 
 const fail = (reason: string): RenderResult => ({ ok: false, reason });
