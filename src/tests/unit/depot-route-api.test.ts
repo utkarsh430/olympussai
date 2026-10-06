@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/lib/auth/authorize', () => ({
+// The real 401 is kept, so this route's own unauthorised answer is what is checked.
+vi.mock('@/lib/auth/authorize', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/auth/authorize')>()),
   requireUpsrtcAccess: vi.fn(),
-  unauthorizedResponse: () => Response.json({ error: 'Unauthorized' }, { status: 401 }),
 }));
 vi.mock('@/lib/upsrtc/liveSnapshot', () => ({ getLiveSnapshot: vi.fn() }));
 vi.mock('@/lib/depot/routes/routeCatalogue', () => ({
@@ -46,7 +47,10 @@ describe('GET /api/upsrtc/depot/route/[routeName]', () => {
 
   it('refuses an unauthorised caller first', async () => {
     mockAccess.mockResolvedValue(null);
-    expect((await call('R_1')).status).toBe(401);
+    const response = await call('R_1');
+    expect(response.status).toBe(401);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(await response.json()).toEqual({ error: 'Unauthorized' });
     expect(mockSnapshot).not.toHaveBeenCalled();
   });
 
@@ -55,6 +59,7 @@ describe('GET /api/upsrtc/depot/route/[routeName]', () => {
     async (name) => {
       const response = await call(name);
       expect(response.status).toBe(400);
+      expect(response.headers.get('cache-control')).toBe('no-store');
       expect(await response.json()).toEqual({ error: 'Invalid route name' });
       expect(mockSnapshot).not.toHaveBeenCalled();
       expect(mockProfile).not.toHaveBeenCalled();
@@ -64,6 +69,7 @@ describe('GET /api/upsrtc/depot/route/[routeName]', () => {
   it('answers an unavailable result as a 200 with that body', async () => {
     const response = await call('RKD_4560_ORD_OUT');
     expect(response.status).toBe(200);
+    expect(response.headers.get('cache-control')).toBe('no-store');
     const body = (await response.json()) as Record<string, unknown>;
     expect(body.status).toBe('unavailable');
     expect(body.reason).toBe('no_schedule');
@@ -78,6 +84,7 @@ describe('GET /api/upsrtc/depot/route/[routeName]', () => {
     expect(errorSpy).toHaveBeenCalledWith('[depot:route-api] secret upstream detail');
     errorSpy.mockRestore();
     expect(response.status).toBe(503);
+    expect(response.headers.get('cache-control')).toBe('no-store');
     const text = await response.text();
     expect(JSON.parse(text)).toEqual({ error: 'Route data unavailable' });
     expect(text).not.toContain('secret');
