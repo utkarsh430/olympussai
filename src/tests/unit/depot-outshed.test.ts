@@ -159,41 +159,54 @@ describe('classifyOutshed', () => {
     expect(out).toMatchObject({ state: 'departed', evidence: 'left_yard', minutesLate: null });
   });
 
-  it('rule 3: moving in service after the start means left the yard', () => {
-    const result = classify({ scheduledStart: at(-20) }, 'in_service', IN_YARD);
-    expect(result).toMatchObject({ state: 'departed', evidence: 'left_yard', minutesLate: null });
-  });
-
-  it('rule 3: on_road, away or at another yard also count as out', () => {
-    expect(classify({}, 'on_road', IN_YARD)?.state).toBe('departed');
-    expect(classify({}, 'standing', AWAY)?.state).toBe('departed');
-    expect(classify({}, 'standing', OTHER)?.state).toBe('departed');
+  it('rule 3: a start after feedNow is upcoming', () => {
+    expect(classify({ scheduledStart: at(1), scheduledEnd: at(200) }, 'standing', IN_YARD)).toMatchObject({
+      state: 'upcoming',
+      minutesLate: null,
+      minutesOverdue: null,
+    });
   });
 
   it('rule 3: a bus moving before its start has not departed for this journey', () => {
     expect(classify({ scheduledStart: at(20) }, 'in_service', AWAY)?.state).toBe('upcoming');
   });
 
-  it('rule 3: a dark bus last heard away is not evidence it left', () => {
-    expect(classify({}, 'dark', AWAY)?.state).toBe('unknown');
+  it('rule 3: a dark bus with a future start is upcoming, wherever it was last heard', () => {
+    expect(classify({ scheduledStart: at(45) }, 'dark', IN_YARD)?.state).toBe('upcoming');
+    expect(classify({ scheduledStart: at(45) }, 'dark', AWAY)?.state).toBe('upcoming');
+    expect(classify({ scheduledStart: at(45) }, 'dark', UNKNOWN)?.state).toBe('upcoming');
+  });
+
+  it('rule 3: an unlocated bus with a future start is upcoming', () => {
+    expect(classify({ scheduledStart: at(45) }, 'standing', UNKNOWN)?.state).toBe('upcoming');
   });
 
   it('rule 4: a dark bus at its scheduled start is unknown, never overdue', () => {
     const result = classify({ scheduledStart: at(0) }, 'dark', IN_YARD);
     expect(result).toMatchObject({ state: 'unknown', minutesOverdue: null, evidence: 'none' });
+  });
+
+  it('rule 4: a dark bus whose start has passed is unknown', () => {
     expect(classify({ scheduledStart: at(-90) }, 'dark', IN_YARD)?.state).toBe('unknown');
   });
 
-  it('rule 4: an unlocatable bus is unknown', () => {
+  it('rule 4: an unlocated bus whose start has passed is unknown', () => {
     expect(classify({ scheduledStart: at(-90) }, 'standing', UNKNOWN)?.state).toBe('unknown');
   });
 
-  it('rule 5: a start after feedNow is upcoming', () => {
-    expect(classify({ scheduledStart: at(1), scheduledEnd: at(200) }, 'standing', IN_YARD)).toMatchObject({
-      state: 'upcoming',
-      minutesLate: null,
-      minutesOverdue: null,
-    });
+  it('rule 4: a dark bus last heard away is not evidence it left', () => {
+    expect(classify({}, 'dark', AWAY)?.state).toBe('unknown');
+  });
+
+  it('rule 5: moving in service after the start means left the yard', () => {
+    const result = classify({ scheduledStart: at(-20) }, 'in_service', IN_YARD);
+    expect(result).toMatchObject({ state: 'departed', evidence: 'left_yard', minutesLate: null });
+  });
+
+  it('rule 5: on_road, away or at another yard also count as out', () => {
+    expect(classify({}, 'on_road', IN_YARD)?.state).toBe('departed');
+    expect(classify({}, 'standing', AWAY)?.state).toBe('departed');
+    expect(classify({}, 'standing', OTHER)?.state).toBe('departed');
   });
 
   it('rule 6: due at the start and up to the end of the grace period', () => {
@@ -262,7 +275,8 @@ describe('summariseOutshed', () => {
     });
     expect(seen.length).toBeGreaterThan(0);
     const dark = summariseOutshed(rows, yards, FEED_NOW, () => 'dark');
-    expect(dark.counts.unknown).toBe(3);
+    expect(dark.counts.unknown).toBe(2);
+    expect(dark.counts.upcoming).toBe(1);
     expect(dark.counts.overdue).toBe(0);
   });
 
