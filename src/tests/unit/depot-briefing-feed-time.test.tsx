@@ -68,3 +68,34 @@ describe('BriefingCard and the page feed time', () => {
     expect(container.textContent).not.toContain('The page has updated since');
   });
 });
+
+describe('BriefingCard embedded in a row that already names it', () => {
+  it('draws no heading of its own and lands focus on the first paragraph', async () => {
+    // A page row labelled "Briefing" opens the card: a second label and the answer's
+    // headline would make three headings for one panel.
+    await act(async () =>
+      root?.render(
+        <BriefingCard
+          scope={{ kind: 'network' }}
+          title="Network briefing"
+          currentFeedTime={WRITTEN_AT}
+          embedded
+        />,
+      ),
+    );
+    expect(container.querySelectorAll('h2, h3, h4')).toHaveLength(0);
+    expect(container.querySelector('section')?.getAttribute('aria-label')).toBe('Network briefing');
+    await act(async () => buttonsNamed('Write briefing')[0]?.click());
+    expect(container.querySelectorAll('h2, h3, h4')).toHaveLength(0);
+    expect(container.textContent).not.toContain('Headline');
+    expect(container.textContent).toContain('Body.');
+    expect(document.activeElement?.textContent).toBe('Body.');
+  });
+
+  it('keeps its label and the headline when it stands alone', async () => {
+    await show(WRITTEN_AT);
+    expect(container.querySelector('h2')?.textContent).toBe('Network briefing');
+    await act(async () => buttonsNamed('Write briefing')[0]?.click());
+    expect(container.querySelector('h3')?.textContent).toBe('Headline');
+  });
+});

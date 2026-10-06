@@ -18,6 +18,12 @@ export interface BriefingCardProps {
    * again.
    */
   readonly currentFeedTime?: string | null;
+  /**
+   * The card sits inside a row or panel that already names it: it draws no label of its own
+   * and not the answer's headline (one panel, one heading). The section keeps `title` as its
+   * accessible name.
+   */
+  readonly embedded?: boolean;
 }
 
 /** Failures worth a retry; the others (session, unknown depot, refused) will not change. */
@@ -45,7 +51,12 @@ function statusText(state: CopilotState): string {
   }
 }
 
-function BriefingBody({ scope, title, currentFeedTime = null }: BriefingCardProps) {
+function BriefingBody({
+  scope,
+  title,
+  currentFeedTime = null,
+  embedded = false,
+}: BriefingCardProps) {
   const { state, request } = useCopilot();
   const [writtenFrom, setWrittenFrom] = useState<string | null>(null);
   const body = useMemo<CopilotApiRequest>(() => ({ task: 'briefing', scope }), [scope]);
@@ -58,7 +69,7 @@ function BriefingBody({ scope, title, currentFeedTime = null }: BriefingCardProp
 
   return (
     <section aria-label={title} className="depot-panel min-w-0 p-4" data-testid="briefing-card">
-      <h2 className="depot-label">{title}</h2>
+      {embedded ? null : <h2 className="depot-label">{title}</h2>}
       <p role="status" className="sr-only" data-testid="briefing-status">
         {statusText(state)}
       </p>
@@ -91,6 +102,7 @@ function BriefingBody({ scope, title, currentFeedTime = null }: BriefingCardProp
             paragraphs={state.response.paragraphs}
             headingLevel={3}
             focusOnMount
+            hideHeadline={embedded}
           />
           <CopilotFooter
             provider={state.response.provider}
@@ -137,13 +149,14 @@ function BriefingBody({ scope, title, currentFeedTime = null }: BriefingCardProp
  * operator's quota. Keyed by scope, so a changed scope starts from idle and
  * the previous text (and any request still running) is discarded.
  */
-export function BriefingCard({ scope, title, currentFeedTime }: BriefingCardProps) {
+export function BriefingCard({ scope, title, currentFeedTime, embedded }: BriefingCardProps) {
   return (
     <BriefingBody
       key={scopeKey(scope)}
       scope={scope}
       title={title}
       currentFeedTime={currentFeedTime}
+      embedded={embedded}
     />
   );
 }
