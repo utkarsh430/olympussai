@@ -27,13 +27,16 @@ export const KPI_MEANING: Readonly<Partial<Record<keyof NetworkKpis, DepotMeanin
 };
 
 /**
- * A depot exception kind takes the state it measures (a high dark rate is about dark
- * buses), the power-off cluster its warning; a bus kind takes its one fixed severity.
+ * Every exception figure is coloured by severity, so the exceptions page reads one way:
+ * a depot with too many buses off the road is critical (crimson), a high dark rate, a low
+ * on-road share and a power-off cluster are warnings (amber); a bus kind takes its one
+ * fixed severity. A figure never takes the colour of the bus state it counts, which would
+ * make cyan "info" in one row and "on road" in the next.
  */
 const DEPOT_KIND_MEANING: Readonly<Record<DepotExceptionKind, DepotMeaning>> = {
-  dark_share_high: 'dark',
-  off_road_high: 'offRoad',
-  on_road_low: 'onRoad',
+  dark_share_high: 'warning',
+  off_road_high: 'critical',
+  on_road_low: 'warning',
   power_cut_cluster: 'warning',
 };
 
