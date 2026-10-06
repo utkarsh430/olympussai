@@ -20,6 +20,14 @@ export function logDepotError(scope: string, error: unknown): void {
   console.error(`[depot:${scope}] ${describeError(error)}`);
 }
 
+/**
+ * A state change worth one line in the server log that is not an error, such as a feed
+ * recovering. Written as a warning, in the same one-line form as `logDepotError`.
+ */
+export function logDepotNotice(scope: string, message: string): void {
+  console.warn(`[depot:${scope}] ${neutralise(message)}`);
+}
+
 function describeError(error: unknown): string {
   if (error instanceof Error) return neutralise(error.message);
   if (typeof error === 'string') return neutralise(error);
