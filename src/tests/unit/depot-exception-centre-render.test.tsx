@@ -129,6 +129,24 @@ describe('exceptions page when a new query fails', () => {
 });
 
 describe('exceptions page filters and paging', () => {
+  it('writes a pressed kind tile to the URL and clears it on a second press', () => {
+    hook.result = (q) => ({
+      data: response(q as BusPageQuery, 60, 25),
+      error: null,
+      loading: false,
+      refresh: () => undefined,
+    });
+    act(() => root.render(<ExceptionCentre />));
+    const tile = Array.from(container.querySelectorAll('button[aria-pressed]')).find((b) =>
+      b.textContent?.includes('Long dark'),
+    ) as HTMLElement;
+    click(tile);
+    expect(window.location.search).toBe('?kind=long_dark');
+    expect(tile.getAttribute('aria-pressed')).toBe('true');
+    click(tile);
+    expect(window.location.search).toBe('');
+  });
+
   it('reads ?kind= before the first fetch, so no unfiltered request is made', () => {
     window.history.replaceState({}, '', '/project/depots/exceptions?kind=long_dark');
     hook.result = (q) => ({
@@ -171,7 +189,10 @@ describe('exceptions page filters and paging', () => {
     next.focus();
     click(next);
     expect(button('Next').disabled).toBe(true);
-    expect(document.activeElement).toBe(container.querySelector('[data-testid="bus-page-status"]'));
+    // The shared pager owns the focus rescue: its own status line takes it.
+    expect(document.activeElement).toBe(
+      container.querySelector('[data-testid="depot-pager"] [role="status"]'),
+    );
   });
 
   it('resets the offset and disables Previous when the total for a filter is zero', () => {
