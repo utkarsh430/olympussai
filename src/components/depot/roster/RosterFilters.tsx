@@ -7,6 +7,7 @@ import { BUS_LOCATION_LABEL, BUS_STATE_LABEL } from '@/lib/depot/labels';
 import {
   BUS_STATE_ORDER,
   ROSTER_FLAG_LABEL,
+  ROSTER_STATE_WORD,
   type RosterFilters as Filters,
 } from '@/lib/depot/roster/rosterModel';
 import { MAX_SEARCH_LENGTH, ROSTER_LOCATIONS } from '@/lib/depot/roster/rosterQuery';
@@ -18,9 +19,6 @@ export interface RosterFiltersProps {
   readonly counts: Readonly<Record<BusOpState, number>>;
   readonly onChange: (next: Filters) => void;
 }
-
-/** Short words for the toggles; the full label is in `title`. */
-const SHORT_STATE: Readonly<Record<BusOpState, string>> = { ...BUS_STATE_LABEL, on_road: 'On road' };
 
 function isLocation(value: string): value is BusLocation {
   return (ROSTER_LOCATIONS as readonly string[]).includes(value);
@@ -58,7 +56,7 @@ export function RosterFilters({ filters, counts, onChange }: RosterFiltersProps)
             className="depot-filter-button inline-flex items-center gap-1.5"
           >
             <span aria-hidden className={`h-1.5 w-1.5 shrink-0 ${BUS_STATE_SQUARE[state]}`} />
-            {SHORT_STATE[state]} <span className="tabular-nums">{formatCount(counts[state])}</span>
+            {ROSTER_STATE_WORD[state]} <span className="tabular-nums">{formatCount(counts[state])}</span>
           </button>
         ))}
         {filters.flag !== 'any' ? (

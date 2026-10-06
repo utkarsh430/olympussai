@@ -1,6 +1,7 @@
 import type { DepotBusView } from '@/lib/depot/api';
 import { NORMAL_TAMPER_CODE } from '@/lib/depot/exceptions/config';
 import type { BusLocation } from '@/lib/depot/infer/types';
+import { BUS_STATE_LABEL } from '@/lib/depot/labels';
 import type { BusOpState } from '@/lib/depot/types';
 import { lastHeardAgo, lastHeardCell } from './rosterCells';
 
@@ -12,6 +13,12 @@ export const BUS_STATE_ORDER: readonly BusOpState[] = [
   'dark',
   'off_road',
 ];
+
+/** The short word for a state where room is tight; the full label goes in `title`. */
+export const ROSTER_STATE_WORD: Readonly<Record<BusOpState, string>> = {
+  ...BUS_STATE_LABEL,
+  on_road: 'On road',
+};
 
 export interface RosterFilters {
   /** Buses in any of these states; empty means every state. */

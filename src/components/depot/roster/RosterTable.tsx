@@ -11,7 +11,7 @@ import {
   rosterColumnWidth,
   type RosterColumnKey,
 } from '@/lib/depot/roster/rosterColumns';
-import { BUS_STATE_ORDER, type RosterRow } from '@/lib/depot/roster/rosterModel';
+import { BUS_STATE_ORDER, ROSTER_STATE_WORD, type RosterRow } from '@/lib/depot/roster/rosterModel';
 
 export interface RosterTableProps {
   readonly rows: readonly RosterRow[];
@@ -81,7 +81,7 @@ function buildColumnSet(
             className="inline-flex items-center"
           >
             <span aria-hidden className={`h-1.5 w-1.5 shrink-0 ${BUS_STATE_SQUARE[row.bus.state]}`} />
-            <span className="sr-only">{BUS_STATE_LABEL[row.bus.state]}</span>
+            <span className="sr-only">{ROSTER_STATE_WORD[row.bus.state]}</span>
           </span>
         ) : (
           <BusStateMark state={row.bus.state} short />

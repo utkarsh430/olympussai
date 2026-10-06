@@ -3,6 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BusDrawer } from '@/components/depot/roster/BusDrawer';
 import type { DepotBusView } from '@/lib/depot/api';
+import { DEPOT_PORTAL_ROOT_ID } from '@/lib/depot/portalRoot';
 import { buildRosterRows } from '@/lib/depot/roster/rosterModel';
 
 const actGlobal = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
@@ -212,5 +213,52 @@ describe('BusDrawer opened without an opener', () => {
     await settle();
     expect(document.activeElement).toBe(fallback);
     fallback.remove();
+  });
+});
+
+describe('BusDrawer typeface and words', () => {
+  it('is portalled inside the shell, so its sentences take the module sans face, not the browser serif', async () => {
+    const shellRoot = document.createElement('div');
+    shellRoot.id = DEPOT_PORTAL_ROOT_ID;
+    document.body.appendChild(shellRoot);
+    const [noRoute] = buildRosterRows([{ ...BUS, routeName: null } as DepotBusView]);
+    await act(async () => {
+      root.render(
+        <BusDrawer
+          registration="MH12AB1000"
+          row={noRoute ?? null}
+          feedNow={null}
+          onClose={() => {}}
+          restoreFocusTo={() => null}
+        />,
+      );
+    });
+    expect(shellRoot.contains(panel())).toBe(true);
+    // The "no route" sentence is a sans-class paragraph, not an unclassed one.
+    const sentence = Array.from(panel().querySelectorAll('p')).find((p) =>
+      (p.textContent ?? '').includes('no timetable'),
+    );
+    expect(sentence?.className).toContain('depot-prose');
+    shellRoot.remove();
+  });
+
+  it('names the state by its word alone and carries the quiet in Last heard', async () => {
+    const [quiet] = buildRosterRows([
+      { ...BUS, state: 'on_road', gpsAgeMin: 192, notHeardMin: 192 } as DepotBusView,
+    ]);
+    await act(async () => {
+      root.render(
+        <BusDrawer
+          registration="MH12AB1000"
+          row={quiet ?? null}
+          feedNow={null}
+          onClose={() => {}}
+          restoreFocusTo={() => null}
+        />,
+      );
+    });
+    const facts = Array.from(panel().querySelectorAll('dl > div')).map((div) => div.textContent);
+    expect(facts.find((f) => f?.startsWith('State'))).toBe('StateOn road, no schedule in feed');
+    expect(facts.find((f) => f?.startsWith('Last heard'))).toBe('Last heardnot heard 3 h 12 min');
   });
 });
