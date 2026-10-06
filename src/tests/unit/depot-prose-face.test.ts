@@ -25,11 +25,7 @@ const ALLOWED = ['depot-prose', 'depot-note', 'depot-caption', 'sr-only', 'font-
  * chrome's owner, not by a page.
  */
 const EXEMPT: readonly string[] = [
-  'src/components/depot/copilot/AnswerView.tsx',
-  'src/components/depot/copilot/AskPanel.tsx',
-  'src/components/depot/exceptions/BusExceptionSection.tsx',
-  'src/components/depot/exceptions/ExceptionCentre.tsx',
-  'src/components/depot/sources/SourcesRegistry.tsx',
+
 ];
 
 /** Chrome files in the shell that may sit on the list: none since the chrome was converted. */

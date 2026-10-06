@@ -78,6 +78,26 @@ export function schemaSummary(feed: Pick<FeedEntry, 'status' | 'fields'>): strin
   return `${feed.fields.length} ${feed.fields.length === 1 ? 'field' : 'fields'} ${verb} this feed`;
 }
 
+/** The feeds-table row's expander label: the field count lives here, not in a column. */
+export function fieldsExpandLabel(feed: Pick<FeedEntry, 'name' | 'status' | 'fields'>): string {
+  return `${feed.name}: show ${schemaSummary(feed)}`;
+}
+
+/** The registry id of the GPS and device feed, whose row carries the feed-clock note. */
+export const GPS_FEED_ID = 'gps-device';
+
+/**
+ * One line on the GPS feed's row when the response's `feedClockAheadRows` is present:
+ * those rows were ignored when the feed clock was read, so the clock may lag.
+ */
+export function clockAheadSentence(rows: number | undefined): string | null {
+  if (rows === undefined || !Number.isFinite(rows) || rows <= 0) return null;
+  const one = rows === 1;
+  return `${formatCount(rows)} ${one ? 'row' : 'rows'} carried a receive time ahead of the server's clock and ${
+    one ? 'was' : 'were'
+  } ignored for the feed clock.`;
+}
+
 /** The in-page anchor of a feed: other pages link to `/project/depots/sources#feed-<id>`. */
 export function feedAnchor(feedId: string): string {
   return `feed-${feedId}`;
