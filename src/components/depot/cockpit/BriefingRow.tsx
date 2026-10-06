@@ -8,7 +8,14 @@ import type { CopilotScope } from '@/lib/depot/copilot/wire';
  * The depot briefing as one collapsed row. Opening it mounts the briefing card in
  * place; closing hides it without unmounting, so a written text is kept.
  */
-export function BriefingRow({ scope }: { readonly scope: CopilotScope }) {
+export function BriefingRow({
+  scope,
+  feedNow,
+}: {
+  readonly scope: CopilotScope;
+  /** The page's feed time, so the card can say when the page has moved on. */
+  readonly feedNow: string | null;
+}) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const bodyId = useId();
@@ -30,7 +37,7 @@ export function BriefingRow({ scope }: { readonly scope: CopilotScope }) {
         </button>
       </div>
       <div id={bodyId} hidden={!open} className="pb-3">
-        {mounted ? <BriefingCard scope={scope} title="Depot briefing" /> : null}
+        {mounted ? <BriefingCard scope={scope} title="Depot briefing" currentFeedTime={feedNow} /> : null}
       </div>
     </section>
   );
