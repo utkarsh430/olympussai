@@ -4,8 +4,9 @@ import { useMemo, useState } from 'react';
 import { ErrorPanel, LoadingBlock } from '@/components/depot/shell/DataStates';
 import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
 import { useBusSchedule } from '@/hooks/useBusSchedule';
-import { feedTimeOfDay, inferNextStop, type BusPosition } from '@/lib/depot/routes/nextStop';
-import type { CanonicalStop } from '@/models/canonical';
+import { feedTimeOfDay, resolveNextStop, type BusPosition } from '@/lib/depot/routes/nextStop';
+import type { BusOpState } from '@/lib/depot/types';
+import type { CanonicalStop, ScheduleResponse } from '@/models/canonical';
 
 export interface BusTimetableProps {
   readonly registration: string;
@@ -14,12 +15,19 @@ export interface BusTimetableProps {
   readonly tripDate: string | null;
   readonly journeyId: string | null;
   readonly position: BusPosition | null;
+  readonly gpsAgeMin: number | null;
+  readonly state: BusOpState;
   readonly feedNow: string | null;
 }
 
 const NO_ROUTE_MESSAGE = 'This bus carries no route in the feed, so there is no timetable to show.';
 const NO_TIMETABLE_MESSAGE = 'No timetable was returned for this bus.';
 const CLOCK_PATTERN = /^(\d{1,2}:\d{2}):\d{2}$/;
+
+/** The reason sentence reads as "No next stop shown: this bus ..." */
+function lowerFirst(sentence: string): string {
+  return sentence.charAt(0).toLowerCase() + sentence.slice(1);
+}
 
 function scheduledTime(stop: CanonicalStop): string {
   const time = stop.scheduledArrival ?? stop.scheduledDeparture;
@@ -33,27 +41,37 @@ function TimetableBody({
   tripDate,
   journeyId,
   position,
+  gpsAgeMin,
+  state,
   feedNow,
   onRetry,
 }: BusTimetableProps & { readonly onRetry: () => void }) {
-  const { data, error, loading } = useBusSchedule(
-    hasRoute ? registration : null,
-    tripDate,
-    journeyId,
-  );
+  const fetched = useBusSchedule(hasRoute ? registration : null, tripDate, journeyId);
+  const { error, loading } = fetched;
+  // Keep the last good response while a changed trip is refetched, so the list does not flash.
+  const [kept, setKept] = useState<ScheduleResponse | null>(null);
+  if (fetched.data && fetched.data !== kept) setKept(fetched.data);
+  const data = fetched.data ?? kept;
+  const updating = loading && kept !== null;
   const schedule = data?.schedule ?? null;
   const sample = data?.source === 'fixture';
   // A sample timetable belongs to no real bus, so no next stop is claimed from it.
-  const next = useMemo(
+  const { next, reason } = useMemo(
     () =>
       schedule && !sample
-        ? inferNextStop(schedule.stops, position, feedTimeOfDay(feedNow))
-        : null,
-    [schedule, sample, position, feedNow],
+        ? resolveNextStop(
+            schedule.stops,
+            { position, gpsAgeMin, state },
+            feedTimeOfDay(feedNow),
+          )
+        : { next: null, reason: null },
+    [schedule, sample, position, gpsAgeMin, state, feedNow],
   );
 
   if (!hasRoute) return <p className="depot-prose">{NO_ROUTE_MESSAGE}</p>;
-  if (loading) return <LoadingBlock rows={6} rowHeight={28} label="Loading the timetable" />;
+  if (loading && !updating) {
+    return <LoadingBlock rows={6} rowHeight={28} label="Loading the timetable" />;
+  }
   if (!data) {
     return (
       <ErrorPanel
@@ -84,7 +102,18 @@ function TimetableBody({
           This is sample data, not this bus&apos;s timetable.
         </p>
       ) : null}
+      {updating ? (
+        <p className="depot-prose" role="status">
+          Updating the timetable.
+        </p>
+      ) : null}
       {data.stale ? <p className="depot-prose">Showing the last good timetable.</p> : null}
+      {next === null && reason ? (
+        <p className="depot-prose" role="note">{`No next stop shown: ${lowerFirst(reason)}`}</p>
+      ) : null}
+      {next && reason ? (
+        <p className="depot-prose" role="note">{`Position not used for the next stop: ${lowerFirst(reason)}`}</p>
+      ) : null}
       {next ? (
         <p className="flex flex-wrap items-center gap-2 font-mono text-xs text-depot-muted">
           <ProvenanceBadge provenance="derived" />
@@ -98,7 +127,8 @@ function TimetableBody({
       ) : (
         <ol className="m-0 list-none p-0" aria-label="Stops in order">
           {stops.map((stop) => {
-            const isNext = next?.stop.id === stop.id;
+            // By sequence: a loop route repeats a stop id.
+            const isNext = next?.stop.sequence === stop.sequence;
             return (
               <li
                 key={`${stop.sequence}-${stop.id}`}

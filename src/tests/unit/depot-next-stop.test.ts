@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { CanonicalStop } from '@/models/canonical';
-import { feedTimeOfDay, inferNextStop } from '@/lib/depot/routes/nextStop';
+import { REPORTING_WINDOW_MIN } from '@/lib/depot/infer/thresholds';
+import { feedTimeOfDay, inferNextStop, resolveNextStop } from '@/lib/depot/routes/nextStop';
+import type { BusOpState } from '@/lib/depot/types';
 
 /** Stops spaced 0.1 degrees of longitude apart along one latitude, in sequence order. */
 function stop(sequence: number, longitude: number | null, time: string | null): CanonicalStop {
@@ -105,5 +107,72 @@ describe('feedTimeOfDay', () => {
   it('is null when there is no usable feed time', () => {
     expect(feedTimeOfDay(null)).toBeNull();
     expect(feedTimeOfDay('nonsense')).toBeNull();
+  });
+});
+
+describe('resolveNextStop trust rule', () => {
+  interface Bus {
+    readonly position: { latitude: number; longitude: number } | null;
+    readonly gpsAgeMin: number | null;
+    readonly state: BusOpState;
+  }
+  const fresh: Bus = { position: at(73.02), gpsAgeMin: 5, state: 'in_service' };
+  const resolve = (bus: Partial<Bus>, time = '08:10') =>
+    resolveNextStop(STOPS, { ...fresh, ...bus }, time);
+
+  it('uses the position for a fresh fix on a bus in service', () => {
+    expect(resolve({})).toEqual({ next: { stop: B, method: 'position' }, reason: null });
+  });
+  it('accepts a bus on the road with no schedule', () => {
+    expect(resolve({ state: 'on_road' }).next?.method).toBe('position');
+  });
+  it('accepts a fix exactly at the reporting window', () => {
+    expect(resolve({ gpsAgeMin: REPORTING_WINDOW_MIN }).next?.method).toBe('position');
+  });
+  it('falls back to the timetable just past the reporting window, and says why', () => {
+    const result = resolve({ gpsAgeMin: REPORTING_WINDOW_MIN + 1 });
+    expect(result.next).toEqual({ stop: B, method: 'schedule' });
+    expect(result.reason).toBe('This bus last reported 31 min ago.');
+  });
+  it('treats an unknown fix age as stale', () => {
+    const result = resolve({ gpsAgeMin: null });
+    expect(result.next?.method).toBe('schedule');
+    expect(result.reason).toBe("This bus's last report time is unknown.");
+  });
+  it.each(['standing', 'dark', 'off_road'] as const)('does not trust a %s bus position', (state) => {
+    const result = resolve({ state });
+    expect(result.next?.method).toBe('schedule');
+    expect(result.reason).toBe('This bus is not in service.');
+  });
+  it('accepts a bus just inside the longest gap between located stops', () => {
+    // The gap between neighbouring stops is 0.1 degrees of longitude.
+    expect(resolve({ position: at(72.91) }).next).toEqual({ stop: A, method: 'position' });
+  });
+  it('treats a bus just beyond the longest gap as off the route', () => {
+    const result = resolve({ position: at(72.89) });
+    expect(result.next).toEqual({ stop: B, method: 'schedule' });
+    expect(result.reason).toBe('This bus is away from this route.');
+  });
+  it('shows no next stop, with the reason, when the fallback has nothing either', () => {
+    const result = resolve({ state: 'dark' }, '09:30');
+    expect(result.next).toBeNull();
+    expect(result.reason).toBe('This bus is not in service.');
+  });
+  it('says the bus has passed the last stop rather than falling back', () => {
+    const result = resolve({ position: at(73.2) });
+    expect(result.next).toBeNull();
+    expect(result.reason).toBe('This bus has passed the last stop.');
+  });
+  it('uses the timetable with no reason when the bus has no position at all', () => {
+    expect(resolve({ position: null })).toEqual({
+      next: { stop: B, method: 'schedule' },
+      reason: null,
+    });
+  });
+  it('says so when neither method can answer', () => {
+    expect(resolve({ position: null }, '09:30')).toEqual({
+      next: null,
+      reason: 'No stop is scheduled later than the feed time.',
+    });
   });
 });

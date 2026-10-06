@@ -15,6 +15,8 @@ export interface BusDrawerProps {
   readonly row: RosterRow | null;
   readonly feedNow: string | null;
   readonly onClose: () => void;
+  /** Where focus goes when the sheet closes: the opener, else a page fallback. */
+  readonly restoreFocusTo: () => HTMLElement | null;
 }
 
 const DASH = '—';
@@ -63,11 +65,30 @@ function factsOf(row: RosterRow): readonly Fact[] {
  * Escape and the close button leave, and focus is handed back by the caller's
  * `onClose` (the page restores it to the button that opened the sheet).
  */
-export function BusDrawer({ registration, row, feedNow, onClose }: BusDrawerProps) {
+export function BusDrawer({
+  registration,
+  row,
+  feedNow,
+  onClose,
+  restoreFocusTo,
+}: BusDrawerProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const closeRef = useRef(onClose);
-  closeRef.current = onClose;
+  const restoreRef = useRef(restoreFocusTo);
+  useEffect(() => {
+    closeRef.current = onClose;
+    restoreRef.current = restoreFocusTo;
+  });
+
+  // The page behind does not scroll while the sheet is open.
+  useEffect(() => {
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, []);
 
   useEffect(() => {
     titleRef.current?.focus();
@@ -78,15 +99,19 @@ export function BusDrawer({ registration, row, feedNow, onClose }: BusDrawerProp
         return;
       }
       if (event.key !== 'Tab' || !panelRef.current) return;
-      const items = Array.from(panelRef.current.querySelectorAll<HTMLElement>(FOCUSABLE));
+      const panel = panelRef.current;
+      const items = Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE));
       const first = items[0];
       const last = items[items.length - 1];
       if (!first || !last) return;
       const active = document.activeElement;
-      if (event.shiftKey && (active === first || active === titleRef.current)) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && active === last) {
+      const outside = !(active instanceof Node) || !panel.contains(active);
+      if (event.shiftKey) {
+        if (outside || active === first || active === titleRef.current) {
+          event.preventDefault();
+          last.focus();
+        }
+      } else if (outside || active === last) {
         event.preventDefault();
         first.focus();
       }
@@ -94,6 +119,15 @@ export function BusDrawer({ registration, row, feedNow, onClose }: BusDrawerProp
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
   }, []);
+
+  // On close, hand focus back to the opener, or to the page's fallback.
+  useEffect(
+    () => () => {
+      const target = restoreRef.current();
+      if (target?.isConnected) target.focus();
+    },
+    [],
+  );
 
   const bus = row?.bus ?? null;
   const dialog = (
@@ -148,6 +182,8 @@ export function BusDrawer({ registration, row, feedNow, onClose }: BusDrawerProp
                   ? { latitude: bus.latitude, longitude: bus.longitude }
                   : null
               }
+              gpsAgeMin={bus.gpsAgeMin}
+              state={bus.state}
               feedNow={feedNow}
             />
           </>

@@ -1,6 +1,9 @@
 import type { CanonicalStop } from '@/models/canonical';
 import { formatFeedTime } from '@/lib/depot/format';
 import { haversineKm } from '@/lib/depot/infer/geo';
+import { REPORTING_WINDOW_MIN } from '@/lib/depot/infer/thresholds';
+import { lastHeardText } from '@/lib/depot/roster/rosterModel';
+import type { BusOpState } from '@/lib/depot/types';
 
 export type NextStopMethod = 'position' | 'schedule';
 
@@ -121,4 +124,80 @@ export function inferNextStop(
   }
   const stop = bySchedule(ordered, timeOfDay);
   return stop ? { stop, method: 'schedule' } : null;
+}
+
+export interface NextStopBus {
+  readonly position: BusPosition | null;
+  readonly gpsAgeMin: number | null;
+  readonly state: BusOpState;
+}
+
+export interface NextStopResolution {
+  readonly next: NextStop | null;
+  /** One sentence for why a position was not used, or why there is no next stop. */
+  readonly reason: string | null;
+}
+
+const TRUSTED_STATES: readonly BusOpState[] = ['in_service', 'on_road'];
+
+/** The longest straight-line gap between consecutive located stops, in km. */
+function longestGapKm(located: readonly LocatedStop[]): number {
+  return located.reduce((longest, stop, index) => {
+    const previous = located[index - 1];
+    return previous ? Math.max(longest, distance(previous, stop)) : longest;
+  }, 0);
+}
+
+function nearestKm(located: readonly LocatedStop[], position: BusPosition): number {
+  return Math.min(...located.map((stop) => distance(position, stop)));
+}
+
+/** Why a position cannot be trusted for this bus, or null when it can. */
+function positionDistrust(
+  bus: NextStopBus,
+  located: readonly LocatedStop[],
+  position: BusPosition,
+): string | null {
+  if (bus.gpsAgeMin === null || !Number.isFinite(bus.gpsAgeMin)) {
+    return "This bus's last report time is unknown.";
+  }
+  if (bus.gpsAgeMin > REPORTING_WINDOW_MIN) {
+    return `This bus last reported ${lastHeardText(bus.gpsAgeMin)}.`;
+  }
+  if (!TRUSTED_STATES.includes(bus.state)) return 'This bus is not in service.';
+  if (nearestKm(located, position) > longestGapKm(located)) {
+    return 'This bus is away from this route.';
+  }
+  return null;
+}
+
+/**
+ * The next stop, claiming a position only when it can be trusted: a fix within
+ * the reporting window, on a bus in service or on the road, and no farther from
+ * the nearest located stop than the longest gap between consecutive located
+ * stops (beyond that the bus is not on this route). When the rule fails the
+ * timetable answers if it can; otherwise there is no next stop and a sentence
+ * says why.
+ */
+export function resolveNextStop(
+  stops: readonly CanonicalStop[],
+  bus: NextStopBus,
+  timeOfDay: string | null,
+): NextStopResolution {
+  const ordered = [...stops].sort((a, b) => a.sequence - b.sequence);
+  const located = ordered.filter(isLocated);
+  const { position } = bus;
+  let reason: string | null = null;
+  if (isUsablePosition(position) && located.length >= MIN_LOCATED_STOPS) {
+    reason = positionDistrust(bus, located, position);
+    if (reason === null) {
+      const stop = byPosition(located, position);
+      return stop
+        ? { next: { stop, method: 'position' }, reason: null }
+        : { next: null, reason: 'This bus has passed the last stop.' };
+    }
+  }
+  const stop = bySchedule(ordered, timeOfDay);
+  if (stop) return { next: { stop, method: 'schedule' }, reason };
+  return { next: null, reason: reason ?? 'No stop is scheduled later than the feed time.' };
 }
