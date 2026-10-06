@@ -129,6 +129,18 @@ export function moveActiveIndex(current: number, move: ActiveMove, count: number
   }
 }
 
+/**
+ * The crumb for any depot-module path. A depot address whose id is malformed is
+ * not the network, so it reads "Unknown depot" rather than claiming "Network".
+ */
+export function scopeLabelForPath(pathname: string, depots: readonly ScopeDepot[] | null): string {
+  const depotId = depotIdFromPath(pathname);
+  if (depotId === null && pathname.startsWith(`${DEPOTS_ROOT}/d/`)) {
+    return `${SCOPE_PREFIX}Unknown depot`;
+  }
+  return scopeLabel(depotId, depots);
+}
+
 /** The crumb: the network, a depot by name, or its id while the list is unavailable. */
 export function scopeLabel(depotId: string | null, depots: readonly ScopeDepot[] | null): string {
   if (depotId === null) return `${SCOPE_PREFIX}Network`;
