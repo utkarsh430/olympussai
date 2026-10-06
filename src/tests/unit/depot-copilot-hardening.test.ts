@@ -144,7 +144,7 @@ describe('provider factory', () => {
   it('refuses a HOME or working directory that is relative or inside the repository', async () => {
     expect(() => createClaudeCliProvider(deps({ home: 'home' }))).toThrow(/HOME/);
     expect(() => createClaudeCliProvider(deps({ home: '/srv/app/tmp' }))).toThrow(/HOME/);
-    // Review L6: a folder inside the repository whose name merely starts with "..".
+    // A folder inside the repository whose name merely starts with "..".
     expect(() => createClaudeCliProvider(deps({ home: '/srv/app/..home' }))).toThrow(/HOME/);
     expect(() => createClaudeCliProvider(deps({ home: '/srv/..app/home' }))).not.toThrow();
     const provider = createClaudeCliProvider(deps({ cwd: () => '/srv/app/work' }));

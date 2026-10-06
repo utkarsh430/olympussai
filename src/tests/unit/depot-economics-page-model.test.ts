@@ -136,7 +136,7 @@ describe('buildEconomicsRows', () => {
     expect(rows.find((r) => r.depotId === '9')?.reasonText).toBe(
       'No duty in the modelled day (none of its buses reports a route, or none is available), so it has no earnings per kilometre.',
     );
-    // Dated once the response names the operating day; never "ran" or "today" (review m1).
+    // Dated once the response names the operating day; never "ran" or "today".
     const dated = buildEconomicsRows([UNRANKED_NO_LENGTH], '2026-10-06').find((r) => r.depotId === '9');
     expect(dated?.reasonText).toContain('No duty in the modelled day for 6 Oct 2026');
     expect(dated?.reasonText).not.toMatch(/\bran\b|today/);

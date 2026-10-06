@@ -20,7 +20,7 @@ const fact = (id: string, text: string, kind?: 'name'): CopilotFact => ({
   ...(kind ? { kind } : {}),
 });
 
-/** The facts the final security review probed with (copilot-sec-final/p.mts). */
+/** The facts the hostile drafts below are checked against. */
 const FACTS: readonly CopilotFact[] = [
   fact('dark', '3 buses'),
   fact('fleet', '200 buses'),

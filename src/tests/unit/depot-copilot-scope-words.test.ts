@@ -16,7 +16,7 @@ const FACTS: readonly CopilotFact[] = [
 const ok = (paragraph: string): boolean =>
   renderDraft({ headline: 'Depot briefing', paragraphs: [paragraph] }, FACTS).ok;
 
-/** The review's scope and period drafts (section 4), then more of the same kind. */
+/** Drafts that misstate scope or period, then more of the same kind. */
 const SCOPE_AND_PERIOD_DRAFTS: readonly string[] = [
   'All depots in the network have {{fact:dark}} dark.',
   'Several depots have {{fact:dark}} dark.',

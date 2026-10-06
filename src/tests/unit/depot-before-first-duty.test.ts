@@ -55,7 +55,7 @@ function row(feedNow: string, over: Partial<DepotBusRow>): DepotBusRow {
   };
 }
 
-/** The review's depot: 12 buses standing in the yard, 60 out in service far from it. */
+/** A depot with 12 buses standing in the yard, 60 out in service far from it. */
 function depotRows(feedNow: string, withRoutes = true): DepotBusRow[] {
   const yard = Array.from({ length: 12 }, (_, i) =>
     row(feedNow, { registrationNumber: `A${i}`, routeName: withRoutes ? `ORD_${i % 3}` : null }),

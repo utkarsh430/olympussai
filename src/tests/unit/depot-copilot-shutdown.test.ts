@@ -10,7 +10,7 @@ import {
 } from '@/lib/depot/copilot/service/shutdown';
 
 /**
- * Review L4. On SIGTERM or SIGINT the service kills the process groups it started
+ * On SIGTERM or SIGINT the service kills the process groups it started
  * that are still alive and removes their folders, then lets the signal take its
  * course. No test here sends a real signal: the kill, the removal and the signal
  * source are fakes, and every pid is above every OS pid limit, so the global
@@ -52,7 +52,7 @@ function setup(otherListeners = 0) {
   return { calls, signals, killGroup, removeDirSync, install };
 }
 
-describe('shutdown cleanup (review L4)', () => {
+describe('shutdown cleanup', () => {
   it('registers once for SIGTERM and SIGINT, however often it is installed', () => {
     const t = setup();
     expect(t.install()).toBe(true);

@@ -21,7 +21,7 @@ const VOCABULARY_REASON = 'Draft uses a word outside the vocabulary';
 const render = (headline: string, paragraph: string): ReturnType<typeof renderDraft> =>
   renderDraft({ headline, paragraphs: [paragraph] }, FACTS);
 
-/** The review's M-B drafts (section 4), then more of the same kind. */
+/** Drafts that state a cause, blame or alarm, then more of the same kind. */
 const CAUSE_BLAME_ALARM_DRAFTS: readonly string[] = [
   'The driver at {{fact:name}} is the cause of the diesel loss.',
   'The fuel variance at {{fact:name}} is because of the staff.',
@@ -66,7 +66,7 @@ const CAUSE_BLAME_ALARM_DRAFTS: readonly string[] = [
 ];
 
 describe('M-B: cause, blame and alarm drafts are refused', () => {
-  it('holds the review drafts and at least twenty more', () => {
+  it('holds the listed drafts and at least twenty more', () => {
     expect(CAUSE_BLAME_ALARM_DRAFTS.length).toBeGreaterThanOrEqual(25);
   });
 

@@ -585,7 +585,7 @@ describe('no title repeats a name', () => {
       for (const name of names) {
         expect(rendered.headline.split(name).length - 1).toBeLessThanOrEqual(1);
       }
-      // The page shows "Understood as: ..." directly above the headline (browser capture:
+      // The page shows "Understood as: ..." directly above the headline (seen in a browser:
       // "A summary of KAUSHAMBI" then "KAUSHAMBI: depot briefing" read as a doubled name).
       const joined = `${interpretQuery(query, nameOf)} ${rendered.headline}`;
       for (const name of names) expect(joined).not.toContain(`${name} ${name}`);

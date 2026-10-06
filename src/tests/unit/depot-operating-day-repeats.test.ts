@@ -14,7 +14,7 @@ import type { FleetSnapshotView } from '@/lib/depot/repositories/types';
 /*
  * A registration the feed repeats (the same text twice, or once
  * with a trailing space) must not give the duty board and crew one day and
- * fuel and revenue another. Both scenarios of the review, through the real
+ * fuel and revenue another. Both scenarios, through the real
  * response builders.
  */
 

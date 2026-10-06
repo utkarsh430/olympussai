@@ -195,7 +195,7 @@ describe('per-call directories', () => {
     expect(events).toHaveLength(4);
   });
 
-  it('are known to the shutdown handler from creation until removed (review L4)', async () => {
+  it('are known to the shutdown handler from creation until removed', async () => {
     const child = fakeChild();
     const calls = createLiveCalls();
     const provider = createCliProvider({

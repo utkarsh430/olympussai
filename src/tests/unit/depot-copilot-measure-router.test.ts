@@ -5,7 +5,7 @@ import { interpretQuery } from '@/lib/depot/copilot/service/interpret';
 
 /**
  * A question for ONE measure at a named depot is that measure at that
- * depot, not the depot's summary (browser capture: "How many buses are dark at
+ * depot, not the depot's summary (seen in a browser: "How many buses are dark at
  * KAUSHAMBI right now?" was understood as "A summary of KAUSHAMBI").
  */
 const DEPOTS = [

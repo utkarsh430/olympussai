@@ -100,7 +100,7 @@ describe('vocabulary endings', () => {
 
 describe('what the model may write around a figure', () => {
   const REFUSED: readonly string[] = [
-    // The review's passing inputs.
+    // Inputs that once passed.
     'Demand triply exceeds {{fact:a}}.',
     'The backlog is {{fact:a}} monthes old.',
     'The plan covers {{fact:a}} yeares.',

@@ -29,7 +29,7 @@ function bus(
   } as unknown as DepotBusView;
 }
 
-/** The review's case: 'UP1' out on the road, heard 300 min ago; 'UP1 ' in the yard, 1 min ago. */
+/** The case: 'UP1' out on the road, heard 300 min ago; 'UP1 ' in the yard, 1 min ago. */
 const STALE = bus('UP1', 'on_road', 300);
 const FRESH = bus('UP1 ', 'standing', 1);
 const OTHER = bus('UP2', 'standing', 1);
