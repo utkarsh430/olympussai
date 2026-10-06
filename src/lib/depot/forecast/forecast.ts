@@ -32,9 +32,20 @@ import { fitHoltWinters, holtWintersForecast } from './holtWinters';
 import { seasonalNaiveForecast } from './seasonalNaive';
 import { addDays, insufficientHistory, prepareSeries } from './series';
 import type { ForecastError, ForecastResult } from './types';
+import type { ValidRange } from './config';
 
 function validHorizon(horizonDays: number): boolean {
   return Number.isInteger(horizonDays) && horizonDays >= 1 && horizonDays <= MAX_HORIZON_DAYS;
+}
+
+/**
+ * The metric's valid range, its top lowered to the unit's own ceiling when the
+ * latest day carries one: a forecast of available buses never passes the fleet.
+ */
+function rangeFor(metric: MetricKey, latest: SeriesPoint): ValidRange {
+  const range = validRangeOf(metric);
+  if (latest.ceiling === undefined) return range;
+  return { min: range.min, max: Math.min(range.max, Math.max(range.min, latest.ceiling)) };
 }
 
 interface MethodRun {
@@ -64,7 +75,8 @@ function errorOf(metric: MetricKey, score: HorizonScore): ForecastError {
 }
 
 /**
- * Forecasts `horizonDays` days after the series' latest date. Refuses (with
+ * Forecasts `horizonDays` days after the series' latest date, clipped to the
+ * metric's valid range and to the latest day's ceiling when it has one. Refuses (with
  * a typed result, never a throw) bad input, and any run of contiguous days
  * shorter than `MIN_HISTORY_DAYS`.
  */
@@ -91,7 +103,7 @@ export function forecastSeries(
       ? holtWintersRun(values, horizonDays, holtWinters)
       : { values: seasonalNaiveForecast(values, horizonDays), score: naive };
 
-  const range = validRangeOf(metric);
+  const range = rangeFor(metric, last);
   const wholeNumbers = metricKindOf(metric) === 'count';
   const points = chosen.values.map((value, i) => {
     const half = bandHalfWidth(chosen.score.errorsByDay[i] as readonly number[], BAND_QUANTILE);

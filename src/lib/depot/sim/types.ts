@@ -44,10 +44,18 @@ export interface SeriesPoint {
   /** YYYY-MM-DD. */
   readonly date: string;
   readonly value: number;
+  /**
+   * The most this day's value can be, when the unit sets a tighter limit than
+   * the metric does (available buses never exceed the fleet). A forecast reads
+   * it from the latest day, so the limit travels with the series.
+   */
+  readonly ceiling?: number;
 }
 
 /** The live value a modelled series must end on. */
 export interface SeriesAnchor {
   readonly date: string;
   readonly value: number;
+  /** An upper limit for every modelled day, e.g. the fleet for available buses. */
+  readonly ceiling?: number;
 }

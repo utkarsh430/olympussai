@@ -42,6 +42,10 @@ function invalidReason(point: SeriesPoint, rules: SeriesRules): SeriesInputReaso
   if (parseDay(point.date) === null) return 'invalid_date';
   if (!Number.isFinite(point.value)) return 'non_finite_value';
   if (point.value < rules.min || point.value > rules.max) return 'out_of_range';
+  if (point.ceiling !== undefined) {
+    if (!Number.isFinite(point.ceiling)) return 'non_finite_value';
+    if (point.value > point.ceiling) return 'out_of_range';
+  }
   if (rules.wholeNumbers && !Number.isInteger(point.value)) return 'non_integer_count';
   return null;
 }
