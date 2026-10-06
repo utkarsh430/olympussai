@@ -6,7 +6,12 @@
  * shared chart model is read, never changed. Pure.
  */
 import { BAND_QUANTILE } from './config';
-import { buildTrendChartModel, type LegendEntry, type TrendChartInput } from './chartModel';
+import {
+  buildTrendChartModel,
+  type LegendEntry,
+  type TrendChartInput,
+  type TrendChartModel,
+} from './chartModel';
 import { formatDate, formatValue } from './chartScale';
 import type { TrendChange, TrendResult } from './trend';
 import type { Forecast, TrendUnit } from './types';
@@ -108,6 +113,8 @@ export interface TrendsTableRow {
 }
 
 export interface TrendsChartView {
+  /** The shared model the plot draws; its own wording is not printed by these pages. */
+  readonly model: TrendChartModel;
   readonly label: string;
   readonly legend: readonly LegendEntry[];
   readonly summary: string;
@@ -148,6 +155,7 @@ export function buildTrendsChartView(input: TrendChartInput): TrendsChartView {
     };
   });
   return {
+    model,
     label: `${input.metric.label}: trend and forecast`,
     legend,
     summary: summaryOnce(model.summary),

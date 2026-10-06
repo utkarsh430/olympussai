@@ -124,7 +124,9 @@ export function UnitTrendTable({ data }: UnitTrendTableProps) {
         freezeFirstColumn
         overflowCue
       />
-      <Pager page={range.page} total={sorted.length} pageSize={TREND_ROW_CAP} onPage={setPage} />
+      {sorted.length > TREND_ROW_CAP ? (
+        <Pager page={range.page} total={sorted.length} pageSize={TREND_ROW_CAP} onPage={setPage} />
+      ) : null}
     </div>
   );
 }

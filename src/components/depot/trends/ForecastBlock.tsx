@@ -1,13 +1,10 @@
 import { ErrorPanel, LoadingBlock } from '@/components/depot/shell/DataStates';
-import { TREND_CHART_MIN_HEIGHT, TrendChart } from '@/components/depot/shared/TrendChart';
+import { TREND_CHART_MIN_HEIGHT } from '@/components/depot/shared/TrendChart';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
-import { noTrendSentence, trendLinesBesideChart } from '@/lib/depot/forecast/trendsPageModel';
+import { NO_FORECAST_REMEDY, noTrendSentence } from '@/lib/depot/forecast/trendsPageModel';
 import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/usePolledJson';
 import type { DepotForecastState } from '@/hooks/useDepotForecast';
-
-/** Sentence rows under the chart: trend, method, error, horizon. */
-const SENTENCE_ROWS = 4;
-const SENTENCE_ROW_PX = 20;
+import { TrendsChart } from './TrendsChart';
 
 export interface ForecastBlockProps {
   readonly state: DepotForecastState;
@@ -15,25 +12,26 @@ export interface ForecastBlockProps {
   readonly errorTitle: string;
 }
 
+/** Why there is nothing to forecast or trend, said once: the forecast's reason first. */
+function stateSentence(data: NonNullable<DepotForecastState['data']>): string | null {
+  const { unavailable } = data.sentences;
+  if (unavailable !== null) return unavailable;
+  const { result } = data.trend;
+  return result.status === 'ok' ? null : noTrendSentence(result);
+}
+
 /**
- * The page's hero: one metric's MODELLED history ending on the live value,
- * its forecast with the band, the method and error in words (all printed by
- * the shared chart, with the headline trend), then the other trend sentence. When
- * no forecast is possible the chart shows the history and says why.
+ * The page's hero: one metric's MODELLED history ending on the live value, its forecast
+ * with the band, and the one caption line (all from `TrendsChart`). When no forecast is
+ * possible the chart still draws the history and one state panel says why, with the date
+ * of a gap when a gap is the reason; a forecast is never drawn from too little history.
  */
 export function ForecastBlock({ state, errorTitle }: ForecastBlockProps) {
   const { data } = state;
   if (data === null) {
     if (state.loading || state.error === null) {
       return (
-        <div className="flex flex-col gap-2">
-          <LoadingBlock rows={1} rowHeight={TREND_CHART_MIN_HEIGHT} label="Loading the trend" />
-          <LoadingBlock
-            rows={SENTENCE_ROWS}
-            rowHeight={SENTENCE_ROW_PX}
-            label="Loading the forecast"
-          />
-        </div>
+        <LoadingBlock rows={1} rowHeight={TREND_CHART_MIN_HEIGHT} label="Loading the trend" />
       );
     }
     return (
@@ -44,24 +42,18 @@ export function ForecastBlock({ state, errorTitle }: ForecastBlockProps) {
       />
     );
   }
+  const why = stateSentence(data);
   return (
     <div className="flex min-w-0 flex-col gap-3" data-testid="trends-forecast">
-      <TrendChart data={data} headingLevel={2} />
-      {data.trend.result.status !== 'ok' ? (
+      <TrendsChart data={data} />
+      {why !== null ? (
         <StatePanel
           kind="not-established"
-          sentence={noTrendSentence(data.trend.result)}
-          remedy="The trend appears once the history is long enough and has no gap."
-          testId="trends-no-trend"
+          sentence={why}
+          remedy={NO_FORECAST_REMEDY}
+          testId="trends-no-forecast"
         />
       ) : null}
-      <ul className="depot-prose flex flex-col gap-1" data-testid="trends-trend-lines">
-        {data.trend.result.status === 'ok'
-          ? trendLinesBesideChart(data.trend.result, data.sentences.trend).map((line) => (
-              <li key={line}>{line}</li>
-            ))
-          : null}
-      </ul>
     </div>
   );
 }

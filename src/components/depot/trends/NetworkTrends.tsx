@@ -3,7 +3,7 @@
 import { ErrorPanel, LoadingBlock, StaleStrip } from '@/components/depot/shell/DataStates';
 import { SectionLabel } from '@/components/depot/shell/SectionLabel';
 import { HowProduced } from '@/components/depot/shell/HowProduced';
-import { MODELLED_HISTORY_NOTE, NETWORK_TRENDS_PATH } from '@/lib/depot/forecast/trendsPageModel';
+import { chartDisclosureParagraphs, NETWORK_TRENDS_PATH } from '@/lib/depot/forecast/trendsPageModel';
 import type { MetricKey } from '@/lib/depot/sim/types';
 import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/usePolledJson';
 import { useDepotForecast } from '@/hooks/useDepotForecast';
@@ -14,6 +14,10 @@ import { UnitTrendTable } from './UnitTrendTable';
 
 /** Placeholder rows for the unit table: a first page of rows. */
 const TABLE_LOADING_ROWS = 10;
+
+const DEAD_BAND_RULE =
+  "A change smaller than the series' own usual movement at that lag reads as steady, so " +
+  'noise is never reported as a direction. The 7-day and 4-week words use the same rule.';
 
 export interface NetworkTrendsProps {
   readonly metric: MetricKey;
@@ -46,6 +50,7 @@ export function NetworkTrends({ metric }: NetworkTrendsProps) {
           label="Every unit"
           count={trends.data?.units.length}
           note="Worst four-week change first"
+          tag="modelled"
         />
         {trends.data ? (
           <UnitTrendTable data={trends.data} />
@@ -59,13 +64,11 @@ export function NetworkTrends({ metric }: NetworkTrendsProps) {
           />
         )}
       </section>
-      <HowProduced testId="depot-produced" className="mt-8">
-        <p>{MODELLED_HISTORY_NOTE}</p>
-        <p>
-          A change smaller than the series&apos; own usual movement at that lag reads as steady, so
-          noise is never reported as a direction. The week and the four-week words use the same rule.
-        </p>
-      </HowProduced>
+      <HowProduced
+        testId="depot-produced"
+        className="mt-8"
+        paragraphs={[...chartDisclosureParagraphs(forecast.data?.sentences ?? null), DEAD_BAND_RULE]}
+      />
     </div>
   );
 }

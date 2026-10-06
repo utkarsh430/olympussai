@@ -5,6 +5,7 @@
  * new history metric appears here without a second list to update.
  */
 import { depotHref } from '../depotNav';
+import type { ForecastSentences } from './api';
 import type { MetricKey } from '../sim/types';
 import { formatDate } from './chartScale';
 import { FOUR_WEEK_DAYS, type TrendResult } from './trend';
@@ -24,6 +25,23 @@ export const MODELLED_HISTORY_NOTE =
   'Every history on this page is MODELLED: it is generated until a database of real history ' +
   'exists, and the same charts will then show measured history. Only the last point of each ' +
   'line, the live value, comes from the feed today.';
+
+/**
+ * The closing disclosure's paragraphs about the chart: what the history is, then the
+ * method, the typical error and the horizon with the band's meaning, in the words the
+ * response carries. A forecast is never drawn without these, and they stand here, not
+ * under the chart, where one caption line says the error and the trends.
+ */
+export function chartDisclosureParagraphs(
+  sentences: Pick<ForecastSentences, 'method' | 'error' | 'horizon'> | null,
+): readonly string[] {
+  const forecast = sentences === null ? [] : [sentences.method, sentences.error, sentences.horizon];
+  return [MODELLED_HISTORY_NOTE, ...forecast.filter((s): s is string => s !== null)];
+}
+
+/** Said under the "no forecast" state: what changes it. */
+export const NO_FORECAST_REMEDY =
+  'A forecast appears once the history is long enough and has no gap.';
 
 export interface MetricOption {
   readonly key: MetricKey;
