@@ -407,6 +407,33 @@ describe('shortfall the plan cannot cover', () => {
   });
 });
 
+describe('decision trail', () => {
+  it('is one line and the append-only note while empty, with no group headings', async () => {
+    await render(<Distribution data={response()} state={{ error: null }} />);
+    const trail = container.querySelector('[data-testid="rebalance-trail"]');
+    expect(trail?.querySelector('h2')?.textContent).toBe(
+      'Decision trail · 2026-10-06: none recorded in this browser',
+    );
+    expect(trail?.querySelector('h3')).toBeNull();
+    expect(trail?.querySelector('ol')).toBeNull();
+    const note = trail?.querySelector('[data-testid="rebalance-trail-note"]');
+    expect(note?.className).toContain('depot-note');
+    expect(note?.textContent).toMatch(/append-only/);
+    expect(note?.textContent).toMatch(/kept in this browser only.*no transfer order is issued/);
+  });
+
+  it('expands to the group with entries once a decision is recorded', async () => {
+    await render(<Distribution data={response()} state={{ error: null }} />);
+    await approve();
+    const trail = container.querySelector('[data-testid="rebalance-trail"]');
+    expect(trail?.querySelector('h2')?.textContent).toBe('Decision trail · 2026-10-06');
+    expect([...(trail?.querySelectorAll('h3') ?? [])].map((h) => h.textContent)).toEqual([
+      'On the modelled plan',
+    ]);
+    expect(trail?.querySelector('[data-testid="rebalance-trail-note"]')).not.toBeNull();
+  });
+});
+
 describe('transfer plan split', () => {
   it('puts the table in 55% and the map in 45% at xl, the table first below xl', async () => {
     await render(<Distribution data={response()} state={{ error: null }} />);

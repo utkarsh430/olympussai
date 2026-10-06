@@ -68,3 +68,15 @@ export function describeTrailItem(item: TrailItem): string {
   ].filter((m): m is string => m !== null);
   return [`${word}: ${route}`, ...marks].join(' ');
 }
+
+/** Said under the trail's heading in every state: the trail is a local record only. */
+export const TRAIL_NOTE =
+  'Decisions are kept in this browser only and are not sent anywhere. The trail is ' +
+  'append-only: Undo records a further entry and deletes nothing. A decision changes ' +
+  'nothing but this record; no transfer order is issued.';
+
+/** The trail's heading: one line that also says when nothing is recorded yet. */
+export function trailHeading(operatingDate: string, entries: number): string {
+  const base = `Decision trail · ${operatingDate}`;
+  return entries === 0 ? `${base}: none recorded in this browser` : base;
+}
