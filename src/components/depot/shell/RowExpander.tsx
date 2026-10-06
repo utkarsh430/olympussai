@@ -30,16 +30,18 @@ export function expandedRowId(tableId: string, key: string): string {
 }
 
 /**
- * The disclosure button in the expander column: a real button, so keyboard and
- * assistive technology work as usual. It does not select the row it sits in.
+ * The disclosure chevron in the expander column: a real button, so assistive technology
+ * reads its state. It does not select the row it sits in. Where the row itself is the
+ * control (`tabIndex` -1), the row takes the one tab stop and the button stays clickable.
  */
 export function ExpandToggle(props: {
   readonly open: boolean;
   readonly controls: string;
   readonly label: string;
   readonly onToggle: () => void;
+  readonly tabIndex?: number;
 }) {
-  const { open, controls, label, onToggle } = props;
+  const { open, controls, label, onToggle, tabIndex } = props;
   return (
     <button
       type="button"
@@ -47,11 +49,12 @@ export function ExpandToggle(props: {
       aria-controls={open ? controls : undefined}
       aria-label={label}
       title={label}
+      tabIndex={tabIndex}
       onClick={(event) => {
         event.stopPropagation();
         onToggle();
       }}
-      className="inline-flex h-6 w-6 items-center justify-center text-depot-muted hover:text-depot-ink"
+      className="inline-flex h-6 w-5 items-center justify-center text-depot-muted hover:text-depot-ink"
     >
       <DisclosureChevron open={open} />
     </button>
