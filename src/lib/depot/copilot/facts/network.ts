@@ -113,7 +113,10 @@ function networkFacts(network: DepotNetworkResponse): CopilotFact[] {
   ];
   const feedTime = formatFeedTime(network.feedNow);
   if (network.feedNow !== null && feedTime !== '—') {
-    facts.push(makeFact('network.feed_time', 'Feed time', feedTime, 'live'));
+    // The saved sample's feed time is the time a file was captured, not a reading of the
+    // live feed: it is tagged as a saved reference, never LIVE.
+    const tag = network.source === 'fixture' ? 'reference' : 'live';
+    facts.push(makeFact('network.feed_time', 'Feed time', feedTime, tag));
   }
   const ranked = rankedDepots(network);
   const best = ranked[0];

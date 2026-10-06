@@ -53,7 +53,8 @@ const STATUS_KIND: Readonly<Record<number, Exclude<CopilotFailureKind, 'rate_lim
 
 const PROVIDERS: readonly string[] = ['claude', 'scripted'];
 const NOTICES: readonly string[] = ['none', 'claude_unavailable', 'summary_unavailable'];
-const PROVENANCES: readonly Provenance[] = ['live', 'derived', 'modelled', 'reference'];
+const DATA_SOURCES: readonly string[] = ['last_good', 'sample'];
+const PROVENANCES: readonly Provenance[] =['live', 'derived', 'modelled', 'reference'];
 
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -160,7 +161,8 @@ function isCopilotResponse(value: unknown): value is CopilotApiResponse {
       (typeof value.interpretedAs === 'string' &&
         value.interpretedAs.length <= MAX_RENDERED_PARAGRAPH_CHARS)) &&
     (value.table === undefined || isTable(value.table)) &&
-    (value.answerScope === undefined || isAnswerScope(value.answerScope))
+    (value.answerScope === undefined || isAnswerScope(value.answerScope)) &&
+    (value.dataSource === undefined || DATA_SOURCES.some((s) => s === value.dataSource))
   );
 }
 

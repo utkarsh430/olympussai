@@ -147,6 +147,7 @@ export function RationalePanel({
             generatedAt={state.response.generatedAt}
             cached={state.response.cached}
             facts={state.response.facts}
+            dataSource={state.response.dataSource}
           />
         </div>
       ) : null}

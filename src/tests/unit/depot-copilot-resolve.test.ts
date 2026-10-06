@@ -102,9 +102,10 @@ describe('config', () => {
     [{ DEPOT_COPILOT_PROVIDER: 'auto' }, 'auto'],
     [{ DEPOT_COPILOT_PROVIDER: 'claude-cli' }, 'claude-cli'],
     [{ DEPOT_COPILOT_PROVIDER: 'scripted' }, 'scripted'],
-    [{ DEPOT_COPILOT_PROVIDER: 'gpt' }, 'auto'],
+    [{ DEPOT_COPILOT_PROVIDER: 'gpt' }, 'scripted'],
     [{ DEPOT_COPILOT_PROVIDER: '' }, 'auto'],
-    [{ DEPOT_COPILOT_PROVIDER: 'SCRIPTED' }, 'auto'],
+    [{ DEPOT_COPILOT_PROVIDER: 'SCRIPTED' }, 'scripted'],
+    [{ DEPOT_COPILOT_PROVIDER: 'Auto' }, 'scripted'],
   ] as const)('reads %j as %s', (env, expected) => {
     expect(readProviderSetting(env)).toBe(expected);
   });

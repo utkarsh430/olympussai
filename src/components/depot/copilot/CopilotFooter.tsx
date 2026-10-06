@@ -1,8 +1,9 @@
 'use client';
 
 import { useId, useState } from 'react';
-import { noticeSentence } from '@/lib/depot/copilot/ui/copilotView';
+import { dataSourceWords, noticeSentence } from '@/lib/depot/copilot/ui/copilotView';
 import type {
+  CopilotDataSource,
   CopilotFactView,
   CopilotPublicNotice,
   CopilotPublicProvider,
@@ -22,6 +23,8 @@ export interface CopilotFooterProps {
   readonly generatedAt: string;
   readonly cached: boolean;
   readonly facts: readonly CopilotFactView[];
+  /** Set when the figures are not from the live feed: said in words on the line. */
+  readonly dataSource?: CopilotDataSource;
   /** The page's feed time when the text was requested. */
   readonly writtenFromFeedTime?: string | null;
   /** The page's current feed time; with the above, says when the text is behind the page. */
@@ -32,7 +35,8 @@ export interface CopilotFooterProps {
 
 /**
  * The single footer under copilot prose and any evidence table:
- * `SCRIPTED · written 14:00 · 18 figures`, the figures opening from the last part. A
+ * `SCRIPTED · written 14:00 · 18 figures`, the figures opening from the last part; off the
+ * live feed it also says `sample data` or `last good data`. A
  * fallback notice stays a sentence above it. Everything is a React text node; nothing
  * is requested on mount (writing again is the caller's, on a press only).
  */
@@ -55,6 +59,17 @@ export function CopilotFooter(props: CopilotFooterProps) {
         {' · '}
         <span className="normal-case tracking-normal">{writtenWords(generatedAt, cached)}</span>
         {' · '}
+        {props.dataSource ? (
+          <>
+            <span
+              data-testid="copilot-data-source"
+              className="normal-case tracking-normal text-alert-amber"
+            >
+              {dataSourceWords(props.dataSource)}
+            </span>
+            {' · '}
+          </>
+        ) : null}
         {facts.length === 0 ? (
           <span className="normal-case tracking-normal">{figureWords(0)}</span>
         ) : (

@@ -121,7 +121,7 @@ available, so this is a scripted response." Users never see an error because of 
 
 | Variable | Meaning |
 |---|---|
-| `DEPOT_COPILOT_PROVIDER` | `auto` (default: Claude when it works, scripted otherwise), `claude-cli` (as auto, but the notice is shown if Claude is not set up), or `scripted` (Claude never runs). |
+| `DEPOT_COPILOT_PROVIDER` | `auto` (default: Claude when it works, scripted otherwise), `claude-cli` (as auto, but the notice is shown if Claude is not set up), or `scripted` (Claude never runs). Unset or empty means `auto`. Any other value, such as the typo `Scripted`, selects `scripted` and is logged once, when the server first builds the copilot: `provider_setting_unrecognised: "<value>"; the scripted writer is used`. The value is shown cut to 24 characters, with anything other than letters, digits, `.`, `_` and `-` shown as `?`. |
 | `CLAUDE_BIN` | Absolute path to the `claude` binary. The binary and its folder must belong to root or the server's user, and they and every folder above them up to `/` must be writable only by their owner, or Claude is switched off. |
 | `CLAUDE_CODE_OAUTH_TOKEN` | The Claude sign-in token. It is the only secret passed to the `claude` process. Keep it in the server's secret store, never in the repository. |
 | `DEPOT_COPILOT_MODEL` | Optional model name; defaults to `sonnet`. |
@@ -147,6 +147,47 @@ factor of 8, kept to a fifth of one core.
 
 **All limits are held in memory, per server process.** A restart clears them, and if the app runs
 as several processes each has its own limits and its own Claude budget.
+
+## When the figures are not from the live feed
+
+The server adds one sentence of its own to every briefing, rationale and answer built from a
+snapshot that is not the live feed, outside the response cache, and the response's `dataSource`
+tells the footer which words to show beside the writer:
+
+| Snapshot | Last sentence | Footer |
+|---|---|---|
+| Live feed | none | none |
+| Last good data (an outage) | "These figures are from the last good data, at the feed time of HH:MM." | `last good data` |
+| Saved sample | "These figures are from sample data, not the live feed (feed time HH:MM)." | `sample data` |
+
+On the saved sample the feed-time figure is tagged REFERENCE, never LIVE: it is the time the
+sample was captured.
+
+## Server log
+
+Each failure writes one line under `[depot:copilot-api]` (or `[depot:copilot]` for the writers
+themselves). The answer the user gets never changes: a failure before the text is a fixed 503
+body; a failure while writing it is a scripted answer.
+
+| Line | Stage |
+|---|---|
+| `snapshot_failed writer=<w>: <Class>: <message>` | Reading the fleet snapshot |
+| `snapshot_deadline` | The snapshot did not arrive before the request deadline |
+| `prepare_failed writer=<w>: <Class>: <message>` | Building the facts from the snapshot |
+| `engine_failed writer=<w>: <Class>: <message>` | The writer threw outside its own fallbacks |
+| `scripted_failed writer=scripted: <Class>: <message>` | The scripted last resort threw |
+| `unexpected writer=<w>: <Class>: <message>` | Anything else in the handler |
+| `runtime_failed: <Class>: <message>` | Building the copilot itself (the route answers its fixed 503) |
+| `scripted <task> draft failed: <reason>` (with `: <Class>: <message>` when it threw) | The scripted draft did not render |
+| `claude-cli fell back: <reason>` | Claude was not used for this answer |
+| `no_time`, `allowance_used`, `deadline`, `aborted` | A Claude call was not started, or the request stopped waiting for it |
+| `cli_unavailable`, `cleanup_failed` | Claude could not be set up; a call's private folders could not be removed |
+| `provider_setting_unrecognised: "<value>"; the scripted writer is used` | Once per process: see `DEPOT_COPILOT_PROVIDER` |
+
+`<w>` is the writer the server is set up with (`scripted` or `claude-cli`). The message is cut to
+160 characters, and before that the user's question, every fact value and every environment
+value of 8 characters or more are replaced with `[withheld]`. The prompt is never logged. The
+Claude fallback line carries only its reason code, never the child's output or the binary's path.
 
 ## What one person holding the shared PIN can still do
 
@@ -196,8 +237,8 @@ its own terminal, never by closing the window.
 2. In that server's environment only, set `DEPOT_COPILOT_PROVIDER=claude-cli` (so a failure shows
    the notice, not a silent scripted answer), `CLAUDE_BIN=~/.local/bin/claude` (the stable link,
    not a versioned folder) and `CLAUDE_CODE_OAUTH_TOKEN`.
-3. Keep the server log visible: reason codes such as `cli_unavailable` and
-   `claude-cli fell back: <reason>` are the only diagnostics.
+3. Keep the server log visible: for Claude, reason codes such as `cli_unavailable` and
+   `claude-cli fell back: <reason>` are the only diagnostics (see "Server log").
 4. Save `ls -la ~/.claude` to compare afterwards, and run `ls "$TMPDIR" | grep depot-copilot`:
    it should show nothing.
 

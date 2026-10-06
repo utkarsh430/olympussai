@@ -10,6 +10,7 @@ import {
   CLI_MAX_CALLS_PER_HOUR,
   CLI_QUEUE,
   readProviderSetting,
+  unrecognisedProviderSetting,
   type ProviderSetting,
 } from '@/lib/depot/copilot/config';
 import { createCallLimiter } from '@/lib/depot/copilot/limiter';
@@ -33,8 +34,10 @@ import {
   RESPONSE_CACHE_MS,
   ADDRESS_CLAUDE_CALLS_PER_HOUR,
   ADDRESS_REQUESTS_PER_MINUTE,
+  LOG_SCOPE,
 } from '@/lib/depot/copilot/service/constants';
 import { createInflightCalls, type InflightCalls } from '@/lib/depot/copilot/service/inflight';
+import { logDepotError } from '@/lib/depot/log';
 import { createWindowLimiter, type WindowLimiter } from '@/lib/depot/rateLimit';
 
 /** Everything the route shares between requests. Built once per process. */
@@ -123,6 +126,14 @@ export function buildCopilotRuntime(options: RuntimeOptions): CopilotRuntime {
 /** The real wiring: the server's environment, `spawn`, temp directories, the system clock. */
 function createProcessRuntime(): CopilotRuntime {
   const env = process.env;
+  // Built once per process, so a mistyped writer setting is said once, not per request.
+  const unrecognised = unrecognisedProviderSetting(env);
+  if (unrecognised !== null) {
+    logDepotError(
+      LOG_SCOPE,
+      `provider_setting_unrecognised: "${unrecognised}"; the scripted writer is used`,
+    );
+  }
   const cli = createCliProvider({
     env,
     spawn,

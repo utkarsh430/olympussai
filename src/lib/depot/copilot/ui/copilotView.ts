@@ -1,12 +1,25 @@
 import type { Provenance } from '@/lib/depot/types';
 import { MAX_QUESTION_CHARS } from '../limits';
 import type { CopilotFailureKind } from './copilotClient';
-import type { CopilotFactView, CopilotPublicNotice, CopilotPublicProvider } from '../wire';
+import type {
+  CopilotDataSource,
+  CopilotFactView,
+  CopilotPublicNotice,
+  CopilotPublicProvider,
+} from '../wire';
 
 /** Wording and small pure decisions for the copilot UI; components only render these. */
 
 export function providerTagText(provider: CopilotPublicProvider): string {
   return provider === 'claude' ? 'Written by Claude' : 'Scripted response';
+}
+
+/**
+ * The footer's words for figures that are not from the live feed, the same words the
+ * pages' provenance line uses for each source.
+ */
+export function dataSourceWords(source: CopilotDataSource): string {
+  return source === 'sample' ? 'sample data' : 'last good data';
 }
 
 export function noticeSentence(notice: CopilotPublicNotice): string | null {

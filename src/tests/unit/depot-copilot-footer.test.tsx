@@ -52,6 +52,17 @@ describe('CopilotFooter', () => {
     expect(footer.textContent).toContain('<b>bold</b>');
   });
 
+  it('says in words when the figures are not from the live feed', () => {
+    const line = (): string | null | undefined =>
+      screen.getByTestId('copilot-footer-line').textContent;
+    const { rerender } = render(<CopilotFooter {...BASE} dataSource="sample" />);
+    expect(line()).toBe('SCRIPTED · written 14:00 · sample data · 2 figures');
+    rerender(<CopilotFooter {...BASE} dataSource="last_good" />);
+    expect(line()).toBe('SCRIPTED · written 14:00 · last good data · 2 figures');
+    rerender(<CopilotFooter {...BASE} />);
+    expect(line()).toBe('SCRIPTED · written 14:00 · 2 figures');
+  });
+
   it('names Claude and keeps the fallback sentence', () => {
     const { rerender } = render(<CopilotFooter {...BASE} provider="claude" />);
     expect(screen.getByTestId('copilot-provider').textContent).toBe('CLAUDE');

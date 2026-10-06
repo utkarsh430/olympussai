@@ -3,6 +3,8 @@ import { isSameOrigin } from '@/lib/auth/origin';
 import type { FleetSnapshotView } from '@/lib/depot/repositories/types';
 import { requestLimitChecks } from '@/lib/depot/copilot/service/allowance';
 import { logDepotError } from '@/lib/depot/log';
+import { withheldStrings } from '@/lib/depot/copilot/errorText';
+import { logCopilotFailure } from '@/lib/depot/copilot/service/failureLog';
 import { requestAddress, requestIdentity, takeAll, type IdentityClaims } from '@/lib/depot/rateLimit';
 import { readCappedBody } from '@/lib/depot/copilot/service/body';
 import { BODY_READ_MS, LOG_SCOPE, MAX_BODY_BYTES } from '@/lib/depot/copilot/service/constants';
@@ -11,11 +13,16 @@ import { prepareCopilotRequest, type Prepared } from '@/lib/depot/copilot/servic
 import { fail, isJsonMediaType, reply, tooMany } from '@/lib/depot/copilot/service/respond';
 import type { CopilotRuntime } from '@/lib/depot/copilot/service/runtime';
 import { parseCopilotBody, type ValidCopilotRequest } from '@/lib/depot/copilot/service/schema';
-import { staleSentence } from '@/lib/depot/copilot/service/stale';
+import { dataSourceOf, staleSentence } from '@/lib/depot/copilot/service/stale';
+import type { CopilotDataSource } from '@/lib/depot/copilot/wire';
 
 const SNAPSHOT_DEADLINE = Symbol('snapshot-deadline');
 
-type Loaded = { readonly prepared: Prepared; readonly staleSentence?: string };
+type Loaded = {
+  readonly prepared: Prepared;
+  readonly staleSentence?: string;
+  readonly dataSource?: CopilotDataSource;
+};
 
 async function loadWithin(
   load: () => Promise<FleetSnapshotView>,
@@ -37,10 +44,15 @@ async function loadAndPrepare(
   deadlineAt: number,
 ): Promise<Loaded | null> {
   let view: FleetSnapshotView | typeof SNAPSHOT_DEADLINE;
+  const withheld = (): readonly string[] =>
+    withheldStrings({
+      env: runtime.env,
+      question: body.task === 'ask' ? body.question : undefined,
+    });
   try {
     view = await loadWithin(load, deadlineAt, runtime.now());
-  } catch {
-    logDepotError(LOG_SCOPE, 'snapshot_failed');
+  } catch (error: unknown) {
+    logCopilotFailure(runtime, 'snapshot_failed', error, withheld());
     return null;
   }
   if (view === SNAPSHOT_DEADLINE) {
@@ -48,9 +60,13 @@ async function loadAndPrepare(
     return null;
   }
   try {
-    return { prepared: prepareCopilotRequest(body, view), staleSentence: staleSentence(view) };
-  } catch {
-    logDepotError(LOG_SCOPE, 'prepare_failed');
+    return {
+      prepared: prepareCopilotRequest(body, view),
+      staleSentence: staleSentence(view),
+      dataSource: dataSourceOf(view),
+    };
+  } catch (error: unknown) {
+    logCopilotFailure(runtime, 'prepare_failed', error, withheld());
     return null;
   }
 }
@@ -92,6 +108,7 @@ async function handleChecked(
       identity,
       address,
       staleSentence: loaded.staleSentence,
+      dataSource: loaded.dataSource,
     }),
   );
 }
@@ -99,8 +116,8 @@ async function handleChecked(
 /**
  * The route's handler. The caller has already verified the session and
  * passes its claims, which identify the caller for the limits. Anything that
- * throws past the guards is a fixed 503 with `no-store` and one reason code,
- * as in the house pattern; the error itself never leaves the server.
+ * throws past the guards is a fixed 503 with `no-store` and one log line (reason code,
+ * writer, the error's class and bounded message); the error never leaves the server.
  */
 export async function handleCopilotPost(
   request: NextRequest,
@@ -110,8 +127,8 @@ export async function handleCopilotPost(
 ): Promise<NextResponse> {
   try {
     return await handleChecked(request, runtime, loadSnapshot, claims);
-  } catch {
-    logDepotError(LOG_SCOPE, 'unexpected');
+  } catch (error: unknown) {
+    logCopilotFailure(runtime, 'unexpected', error, withheldStrings({ env: runtime.env }));
     return fail('unavailable');
   }
 }
