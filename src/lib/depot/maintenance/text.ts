@@ -22,7 +22,7 @@ export function offRoadHeadline(count: number): string {
 }
 
 export function offRoadEmptyText(): string {
-  return 'The live feed reports no bus under maintenance at this depot.';
+  return 'The feed reports no bus under maintenance at this depot.';
 }
 
 const STATUS_WORD: Readonly<Record<DepotVehicleStatus, string>> = {
@@ -177,6 +177,6 @@ export function workshopSentence(load: WorkshopLoad): string {
 export function workshopBaysNote(): string {
   return (
     'The number of workshop bays is modelled, not read from any record. Buses off the road ' +
-    'are the live count above; those beyond the modelled bays are the ones that would wait.'
+    'are the feed\'s count above; those beyond the modelled bays are the ones that would wait.'
   );
 }

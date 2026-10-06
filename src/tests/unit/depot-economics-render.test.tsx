@@ -198,7 +198,7 @@ describe('EconomicsPage', () => {
     expect(details?.hasAttribute('open')).toBe(false);
     const text = details?.textContent ?? '';
     expect(text).toContain(
-      'The Depot Economics Index is modelled from planning assumptions and is separate from the Depot Efficiency Index, which is built from live data. The efficiency index is on the league table.',
+      'The Depot Economics Index is modelled from planning assumptions and is separate from the Depot Efficiency Index, which is built from the feed. The efficiency index is on the league table.',
     );
     expect(text).toContain(
       "This index is driven by the model's class mix and load-factor assumptions; it shows how a ranking will work once ticketing data is supplied and is not a finding about any depot.",

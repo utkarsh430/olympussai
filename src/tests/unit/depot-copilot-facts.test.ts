@@ -889,6 +889,29 @@ describe('answers', () => {
     }
   });
 
+  it('says what data a declined question would be answered from: live, sample or last good', () => {
+    const closing = (network: AnswerData['network'], reason?: 'people'): string => {
+      const query: CopilotQuery =
+        reason === undefined ? { kind: 'unsupported' } : { kind: 'unsupported', reason };
+      const request = buildAnswer(query, { ...data, network });
+      const rendered = renderDraft(request.scriptedDraft, request.facts);
+      expect(rendered.ok).toBe(true);
+      return proseOf(request);
+    };
+    const fresh = { ...data.network, source: 'live', stale: false } as const;
+    expect(closing(fresh)).toContain('would be answered from the live data.');
+    for (const reason of [undefined, 'people'] as const) {
+      const sample = closing({ ...fresh, source: 'fixture' }, reason);
+      expect(sample).toContain('would be answered from sample data.');
+      expect(sample).not.toMatch(/\blive\b/i);
+      const sampleStale = closing({ ...fresh, source: 'fixture', stale: true }, reason);
+      expect(sampleStale).toContain('would be answered from sample data.');
+      const lastGood = closing({ ...fresh, stale: true }, reason);
+      expect(lastGood).toContain('would be answered from the last good data.');
+      expect(lastGood).not.toMatch(/\blive\b/i);
+    }
+  });
+
   it('says an answer is unavailable instead of inventing one', () => {
     const request = buildAnswer(
       { kind: 'transfersFor', depotId: '101' },

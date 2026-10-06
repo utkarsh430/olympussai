@@ -39,7 +39,7 @@ export const INDEX_TITLE =
   'Efficiency index, 0 to 100. A typical peer scores 50; the tick on the bar marks 50. ' +
   'Select a depot’s index to see how its score is made up.';
 export const TREND_TITLE =
-  `Efficiency index over the last ${DEFAULT_HISTORY_DAYS} days: a MODELLED history ending on the live value, and ` +
+  `Efficiency index over the last ${DEFAULT_HISTORY_DAYS} days: a MODELLED history ending on today's feed value, and ` +
   'its direction over 4 weeks. Sorts by the change over 4 weeks.';
 
 const COMPONENT_BY_KEY = new Map(DEI_COMPONENTS.map((c) => [c.key, c]));

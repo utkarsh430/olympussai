@@ -91,7 +91,7 @@ describe('one modelled day behind every page', () => {
     expect(
       modelledDaySentence({ scheduled: { n: 5, of: 200 }, duties: 158, routes: 14, operatingDate: '2026-10-06' }),
     ).toBe(
-      "The live feed carries a schedule for 5 of 200 of this depot's buses at the feed time. This page is built on the modelled day for 2026-10-06, rebuilt from the live fleet as of the feed time: 158 duties on 14 routes.",
+      "The feed carries a schedule for 5 of 200 of this depot's buses at the feed time. This page is built on the modelled day for 2026-10-06, rebuilt from the feed's fleet as of the feed time: 158 duties on 14 routes.",
     );
     const empty = modelledDaySentence({ scheduled: null, duties: 0, routes: 0, operatingDate: '2026-10-06' });
     expect(empty).toBe(

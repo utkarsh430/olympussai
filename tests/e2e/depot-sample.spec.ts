@@ -263,12 +263,6 @@ const ISO_DATE = /\b\d{4}-\d{2}-\d{2}\b/;
 const HYDRATION_MISMATCH = /Minified React error #418\b/;
 const HYDRATION_PROBE_LOADS = 8;
 
-/** Pages whose wording check fails today because of a product defect, each with what is wrong. */
-const WORDING_DEFECTS: Readonly<Record<string, string>> = {
-  // The suggested roster prints duty ids such as "49-2026-10-06-009": a raw date, cell and title.
-  '/project/depots/d/[depotId]/crew': 'duty ids carry a raw YYYY-MM-DD date',
-};
-
 test.describe('2. every depot page renders honestly on the sample', () => {
   test.skip(!E2E_PIN, `SKIPPED: ${PIN_MISSING}`);
 
@@ -294,7 +288,6 @@ test.describe('2. every depot page renders honestly on the sample', () => {
     });
 
     test(`${template} never says "simulated" or prints a raw date`, async ({ page, sample }) => {
-      test.fixme(template in WORDING_DEFECTS, WORDING_DEFECTS[template]);
       await openPage(page, template.replace(DEPOT_SEGMENT, sample.depotId), headingOf(template));
 
       const texts = await allPageText(page);
@@ -352,7 +345,6 @@ test.describe('3. no sideways page scroll on any depot page', () => {
   }
 
   test('the transfers table fits its box at 1280 px', async ({ page, sample }) => {
-    test.fixme(true, 'the transfers table is wider than its scroll box at 1280 px');
     expect(sample.depotId).toBeTruthy();
     await page.setViewportSize({ width: 1280, height: 900 });
     await openPage(page, '/project/depots/rebalance', 'Fleet distribution');
@@ -582,10 +574,6 @@ test.describe('7. keyboard: open a row, close it, focus returns', () => {
     page,
     sample,
   }) => {
-    test.fixme(
-      true,
-      'Escape does not yet close the open score breakdown; fixed by the page polish unit',
-    );
     expect(sample.depotId).toBeTruthy();
     await openPage(page, '/project/depots/league', 'League table');
     const row = page.locator('tr[data-league-row]').first();
@@ -642,15 +630,15 @@ test.describe('8. the copilot on its scripted writer', () => {
   });
 
   test('the decline does not call the sample the live data', async ({ page, sample }) => {
-    test.fixme(
-      true,
-      'the decline says questions "would be answered from the live data" on the sample',
-    );
     expect(sample.depotId).toBeTruthy();
     await openPage(page, '/project/depots/ask', 'Ask');
     await ask(page, PERSON_QUESTION);
-    await expect(page.getByTestId('ask-answer').first()).toContainText(DECLINE_HEADLINE);
-    await expect(page.getByTestId('ask-answer').first()).not.toContainText(/\blive\b/i);
+    const answer = page.getByTestId('ask-answer').first();
+    await expect(answer).toContainText(DECLINE_HEADLINE);
+    await expect(answer).toContainText('would be answered from sample data.');
+    // The server's own sample sentence says "not the live feed", as the feed chip does.
+    const words = (await answer.innerText()).replace(/not the live feed/gi, '');
+    expect(words).not.toMatch(/\blive\b/i);
   });
 
   test('past the limit the page shows the cooldown', async ({ page, sample, baseURL }) => {
@@ -701,16 +689,6 @@ test.describe('9. the route drawer on the sample', () => {
   });
 });
 
-/** Pages that call the sample live today, each with what is wrong. */
-const LIVE_DEFECTS: Readonly<Record<string, string>> = {
-  '/project/depots/trends':
-    'the trends chart calls the sample\'s latest value "Now (live)" and "LIVE value"',
-  '/project/depots/d/[depotId]/trends':
-    'the trends chart calls the sample\'s latest value "Now (live)" and "LIVE value"',
-  '/project/depots/league': 'each index trend says it ends "on the live value" on the sample',
-  '/project/depots/routes': 'the routes table caption says "Every route in the live feed"',
-};
-
 /**
  * Every sentence on the page, in its text, titles and labels, that uses the word live, except
  * inside the feed chip (which says the sample is not the live feed), the footer disclaimer
@@ -750,7 +728,6 @@ test.describe('10. the sample is never presented as live', () => {
     });
 
     test(`${template} never calls the sample live`, async ({ page, sample }) => {
-      test.fixme(template in LIVE_DEFECTS, LIVE_DEFECTS[template]);
       await openPage(page, template.replace(DEPOT_SEGMENT, sample.depotId), headingOf(template));
 
       expect(await liveClaims(page)).toEqual([]);
@@ -758,10 +735,6 @@ test.describe('10. the sample is never presented as live', () => {
   }
 
   test('the footer disclaimer does not call the sample live', async ({ page, sample }) => {
-    test.fixme(
-      true,
-      'the footer says "Vehicle positions and schedules are live UPSRTC data" on the sample',
-    );
     expect(sample.depotId).toBeTruthy();
     await openPage(page, '/project/depots', 'Network overview');
     await expect(page.getByTestId('footer-disclaimer')).not.toContainText(/\blive\b/i);

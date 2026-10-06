@@ -88,7 +88,7 @@ export function EconomicsPage() {
       ) : data.depots.length === 0 ? (
         <StatePanel
           kind="empty"
-          sentence="The live feed returned no depots, so there is nothing to rank yet."
+          sentence="The feed returned no depots, so there is nothing to rank yet."
         />
       ) : (
         <EconomicsBody data={data} error={error} />

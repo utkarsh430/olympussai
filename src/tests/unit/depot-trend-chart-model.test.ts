@@ -101,12 +101,12 @@ describe('buildTrendChartModel', () => {
     expect(model.title).toBe('Efficiency index: trend and forecast, MODELLED');
     expect(model.legend.map((e) => e.label)).toEqual([
       'History, MODELLED',
-      'Live value, LIVE',
+      'Feed value, LIVE',
       'Forecast, MODELLED',
       'Forecast range (80% of past errors at each day ahead), MODELLED',
     ]);
     expect(model.points[0]?.description).toBe('MODELLED history');
-    expect(model.now?.description).toBe('LIVE value');
+    expect(model.now?.description).toBe('Feed value');
     expect(model.points.at(-1)?.description).toMatch(/^MODELLED forecast, range \d+\.\d to \d+\.\d$/);
   });
 
@@ -160,7 +160,7 @@ describe('buildTrendChartModel', () => {
       expect(row.value).toBe(formatValue(point?.value ?? NaN, 'fraction'));
     });
     expect(model.table[0]).toMatchObject({ kind: 'MODELLED history', low: '', high: '' });
-    expect(model.table[39]?.kind).toBe('LIVE value');
+    expect(model.table[39]?.kind).toBe('Feed value');
     expect(model.table.at(-1)?.kind).toBe('MODELLED forecast');
     expect(model.table.at(-1)?.low).toMatch(/%$/);
   });
@@ -191,7 +191,7 @@ describe('sparkline', () => {
   it('labels itself from the trend summary sentence', () => {
     const { trend } = forecastSections(dailySeries(40, (i) => 50 + i * 0.2), 'index', 14);
     expect(sparklineLabel('Efficiency index', trend.result)).toBe(
-      'Efficiency index, MODELLED trend: up 5.6 points over 4 weeks, ending on the live value',
+      'Efficiency index, MODELLED trend: up 5.6 points over 4 weeks, ending on today\'s feed value',
     );
     const short = forecastSections(dailySeries(5, () => 50), 'index', 14).trend.result;
     expect(sparklineLabel('Efficiency index', short)).toBe('Efficiency index: no trend yet');

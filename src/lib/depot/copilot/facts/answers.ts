@@ -14,7 +14,9 @@ import { answer, unavailable } from '@/lib/depot/copilot/facts/answers/shared';
 import { transfersAnswer } from '@/lib/depot/copilot/facts/answers/transfers';
 import { buildDepotBriefing } from '@/lib/depot/copilot/facts/depot';
 import { buildNetworkBriefing } from '@/lib/depot/copilot/facts/network';
+import { dataSourceOf } from '@/lib/depot/copilot/service/stale';
 import type { CopilotRequest } from '@/lib/depot/copilot/types';
+import type { CopilotDataSource } from '@/lib/depot/copilot/wire';
 
 /** The views a query may need. Only `network` is always present. */
 export interface AnswerData {
@@ -28,17 +30,28 @@ const SCOPE_SENTENCE =
 
 type UnsupportedReason = Extract<CopilotQuery, { kind: 'unsupported' }>['reason'];
 
-function unsupported(reason: UnsupportedReason): CopilotRequest {
+/**
+ * What a supported question would be answered from, in the words the pages' provenance
+ * line uses for each source: the saved sample and last-good data are never called live.
+ */
+const ANSWERED_FROM: Readonly<Record<CopilotDataSource | 'live', string>> = {
+  live: 'the live data',
+  sample: 'sample data',
+  last_good: 'the last good data',
+};
+
+function unsupported(reason: UnsupportedReason, network: DepotNetworkResponse): CopilotRequest {
   if (reason === 'ambiguous_depot') {
     return answer('an unsupported question', [], {
       headline: 'That depot name is not specific enough',
       paragraphs: ["That name matches several depots. The depot's full name would settle which depot is meant."],
     });
   }
+  const offer = `A question on any topic above would be answered from ${
+    ANSWERED_FROM[dataSourceOf(network) ?? 'live']
+  }.`;
   const closing =
-    reason === 'people'
-      ? 'Questions about people are outside that scope. A question on any topic above would be answered from the live data.'
-      : 'A question on any topic above would be answered from the live data.';
+    reason === 'people' ? `Questions about people are outside that scope. ${offer}` : offer;
   return answer('an unsupported question', [], {
     headline: 'That question is outside what can be answered here',
     paragraphs: [SCOPE_SENTENCE, closing],
@@ -72,6 +85,6 @@ export function buildAnswer(query: CopilotQuery, data: AnswerData): CopilotReque
     case 'outshedStatus':
       return outshedAnswer(data, query.depotId);
     case 'unsupported':
-      return unsupported(query.reason);
+      return unsupported(query.reason, data.network);
   }
 }

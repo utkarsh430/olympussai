@@ -185,5 +185,5 @@ export function emptyRosterSentence(
   if (envelope.source === 'cache' || envelope.stale || requestFailed) {
     return 'The last good copy of the feed lists no buses homed at this depot.';
   }
-  return 'The live feed lists no buses homed at this depot.';
+  return 'The feed lists no buses homed at this depot.';
 }

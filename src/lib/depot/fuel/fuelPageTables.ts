@@ -168,6 +168,6 @@ export function fuelDisclosure(data: FuelResponse): readonly string[] {
 /** The empty modelled day's one muted line: what would bring figures to the page. */
 export function emptyRemedy(day: FuelResponse['day']): string {
   return day.duties === 0
-    ? 'Figures appear once a route is seen running from this depot in the live feed.'
+    ? 'Figures appear once a route is seen running from this depot in the feed.'
     : 'Figures appear once a bus of this depot is free to run a duty.';
 }
