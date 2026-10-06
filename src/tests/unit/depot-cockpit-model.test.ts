@@ -215,7 +215,7 @@ describe('buildCockpit status board', () => {
     expect(yardless.board.yard.sentence).toContain('No yard is established for this depot');
     expect(yardless.board.yard.sentence).toContain('at least 6 parked buses');
     expect(yardless.board.yard.sentence).toContain('at least 25% of');
-    expect(yardless.board.yard.sentence).toContain('within 150 m of one another');
+    expect(yardless.board.yard.sentence).toContain('each within 150 m of the next');
     expect(yardless.board.yard.sentence).toContain('no more than 1.5 km across');
     expect(yardless.board.yard.sentence).toContain('1.5 times');
   });
