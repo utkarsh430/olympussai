@@ -130,8 +130,9 @@ let fixture: FixtureProjection | null = null;
 function fixtureResult(now: number): LiveSnapshotResult {
   if (!fixture) {
     const payload: unknown = loadFleetFixture() ?? liveFixture;
-    // Recorded rows are all older than any fetch, so the first fetch time serves for good.
-    fixture = { payload, depot: projectDepot(payload, now) };
+    // No upper limit (P3): the sample's clock is its own newest receive time, never "ahead"
+    // of this machine's clock, which may even be set before the sample was captured.
+    fixture = { payload, depot: projectDepot(payload, Number.POSITIVE_INFINITY) };
   }
   return {
     snapshot: buildSnapshot(fixture.payload, now, fixture.depot),

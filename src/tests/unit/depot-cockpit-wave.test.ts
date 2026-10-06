@@ -171,12 +171,13 @@ describe('availability bar', () => {
     });
   });
 
-  it('says the server has only just started when it has decided the yard on at most one snapshot', () => {
+  // P2: the count restarts after an epoch, so the sentence claims only what it knows.
+  it('says how many snapshots it has decided the yard on when that is at most one', () => {
     const noYard = { ...BOARD, locations: null, yard: { established: false, sentence: 'Rule.' } } as StatusBoard;
-    for (const snapshotsSeen of [0, 1]) {
+    for (const [snapshotsSeen, words] of [[0, '0 snapshots'], [1, '1 snapshot']] as const) {
       expect(yardLine(noYard, { ...SEEN, snapshotsSeen })).toEqual({
         kind: 'starting',
-        sentence: 'The server has only just started, so no yard is placed yet; one may be found within a few snapshots.',
+        sentence: `This server has decided this depot's yard on ${words} so far; a yard may be found as more arrive.`,
       });
     }
     expect(yardLine(noYard, { ...SEEN, snapshotsSeen: undefined }).kind).toBe('no-yard');

@@ -6,8 +6,9 @@ import { blob, type XY } from './depot-yard.fixtures';
 
 /*
  * Ruling S56b for the yard memory (N4): a snapshot more than one window behind
- * the newest is decided against the memory and never writes it; the third such
- * snapshot in a row starts a new epoch (the memory is emptied, then written),
+ * the newest is decided against the memory and never writes it; a run of such
+ * snapshots that spans three minutes (P1) starts a new epoch (the memory is
+ * emptied, then written),
  * so a clock that really went back does not leave the memory read-only, with
  * entries from the future deciding every depot, for hours. The fixture never
  * reads, writes or counts.
@@ -31,23 +32,22 @@ function step(store: Store, rows: DepotBusRow[], feedNow: string, fixture = fals
 const yardLng = (store: Store): number | undefined => store.byDepot.get('1')?.yard.lng;
 
 describe('yard memory epochs (S56b, N4)', () => {
-  it('starts a new epoch on the third snapshot in a row more than a window behind', () => {
+  it('starts a new epoch once a run of snapshots a window behind spans three minutes', () => {
     const store = createYardMemoryStore();
     // The clock ran 5 h 30 ahead, and the memory learned yard A there.
     step(store, standingAt(A, atMin(330)), atMin(330));
     step(store, standingAt(A, atMin(331)), atMin(331));
     const future = store.byDepot.get('1');
     // The clock really goes back; the depot's buses now stand at B.
-    step(store, standingAt(B, atMin(0)), atMin(0));
-    step(store, standingAt(B, atMin(1)), atMin(1));
+    for (const at of [0, 1, 2]) step(store, standingAt(B, atMin(at)), atMin(at));
     expect(store.byDepot.get('1')).toBe(future);
     expect(store.lastFeedMs).toBe(T0 + 331 * 60_000);
-    const third = step(store, standingAt(B, atMin(2)), atMin(2));
-    expect(store.lastFeedMs).toBe(T0 + 2 * 60_000);
-    expect(store.byDepot.get('1')).toEqual({ yard: third, seenMs: T0 + 2 * 60_000 });
-    expect(yardLng(store)).not.toBe(future?.yard.lng);
-    step(store, standingAt(B, atMin(3)), atMin(3));
+    const last = step(store, standingAt(B, atMin(3)), atMin(3));
     expect(store.lastFeedMs).toBe(T0 + 3 * 60_000);
+    expect(store.byDepot.get('1')).toEqual({ yard: last, seenMs: T0 + 3 * 60_000 });
+    expect(yardLng(store)).not.toBe(future?.yard.lng);
+    step(store, standingAt(B, atMin(4)), atMin(4));
+    expect(store.lastFeedMs).toBe(T0 + 4 * 60_000);
   });
 
   it('keeps the live memory beside a backend stuck 25 minutes behind', () => {

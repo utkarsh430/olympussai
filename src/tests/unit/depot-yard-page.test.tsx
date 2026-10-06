@@ -156,8 +156,8 @@ describe('the yard page', () => {
     expect(text(visible)).toContain('Nothing is instructed or dispatched.');
   });
 
-  it('says the server has only just started when no yard is placed after one snapshot', async () => {
+  it('says how many snapshots it has decided the yard on when no yard is placed after one', async () => {
     hooks.detail = { ...base, data: { ...detail([], false), yardSnapshotsSeen: 1 }, error: null, loading: false };
-    expect(text(await renderPage())).toContain('The server has only just started');
+    expect(text(await renderPage())).toContain("This server has decided this depot's yard on 1 snapshot so far");
   });
 });

@@ -1,6 +1,6 @@
 import type { DepotBusRow } from '@/models/depotLive';
 import type { Yard } from './types';
-import { arrivalOf } from '../score/epoch';
+import { arrivalOf, type BehindRun } from '../score/epoch';
 import { YARD_HOLD_MAX_MS, continueYard, type RememberedYard } from './yardContinuity';
 
 /*
@@ -17,9 +17,10 @@ import { YARD_HOLD_MAX_MS, continueYard, type RememberedYard } from './yardConti
  *  - An older feed time: decided against the memory, which is not written,
  *    so it is never fed out of order and a late response still sees the yard.
  *  - More than one score window behind the newest (a straggler, ruling S56b,
- *    see score/epoch.ts): the same, and counted; the third in a row, with no
- *    current snapshot between, starts a new epoch: the memory is emptied, then
- *    written as for a first snapshot. So a clock that really went back does
+ *    see score/epoch.ts): the same, and offered to the straggler run; the
+ *    snapshot that completes a coherent, lasting run (the same rule and
+ *    counter as the score window) starts a new epoch: the memory is emptied,
+ *    then written as for a first snapshot. So a clock that really went back does
  *    not leave entries from its future deciding every depot for hours.
  *  - No usable feed time, or the recorded fixture: the single-snapshot rule
  *    alone; the memory is neither read nor written, and nothing is counted.
@@ -33,8 +34,8 @@ export const YARD_MEMORY_MAX_DEPOTS = 1000;
 
 export interface YardMemoryStore {
   lastFeedMs: number | null;
-  /** Stragglers seen in a row (ruling S56b). */
-  behindRun: number;
+  /** The current run of stragglers (ruling S56b, P1); null when there is none. */
+  behindRun: BehindRun | null;
   readonly byDepot: Map<string, RememberedYard>;
   /** Per depot: the feed times its yard was decided on and written (N10). */
   readonly seenByDepot: Map<string, DepotSeen>;
@@ -49,7 +50,7 @@ export interface DepotSeen {
 export function createYardMemoryStore(): YardMemoryStore {
   return {
     lastFeedMs: null,
-    behindRun: 0,
+    behindRun: null,
     byDepot: new Map(),
     seenByDepot: new Map(),
   };
@@ -68,7 +69,7 @@ export function defaultYardMemoryStore(): YardMemoryStore {
 /** Test seam: empty a store (the process-wide one by default). */
 export function resetYardMemoryStore(store: YardMemoryStore = defaultYardMemoryStore()): void {
   store.lastFeedMs = null;
-  store.behindRun = 0;
+  store.behindRun = null;
   store.byDepot.clear();
   store.seenByDepot.clear();
 }

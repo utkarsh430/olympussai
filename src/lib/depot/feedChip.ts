@@ -1,12 +1,14 @@
 import type { UpstreamSource } from '@/models/canonical';
-import { formatFeedTime } from './format';
+import { formatCount, formatFeedTime } from './format';
 import type { Provenance } from './types';
 
 /**
  * Wording of the top bar's feed chip. It says how fresh the data is, never
  * which server cache layer answered: a cached answer inside the cache window is
  * as fresh as the feed, so it reads LIVE. STALE means the last good data is
- * being shown during an outage. The age goes in `title` and screen-reader text.
+ * being shown during an outage. CHECK CLOCK means the feed is live but enough
+ * reports are stamped ahead of the server's clock that the feed clock may lag
+ * (P4). The age goes in `title` and screen-reader text.
  */
 
 export type FeedChipTone = 'live' | 'stale' | 'fixture' | 'neutral';
@@ -17,7 +19,16 @@ export interface FeedChipData {
   readonly feedNow: string | null;
   /** When the server built the answer: a real ISO instant, unlike `feedNow`. */
   readonly fetchedAt: string;
+  /** Rows stamped later than the server's own clock allows (sent only above zero). */
+  readonly feedClockAheadRows?: number;
+  /** The response's rows: what the ahead count is a share of. */
+  readonly recordCount?: number;
 }
+
+/** From this share of a response's rows stamped ahead, the feed clock may lag (P4). */
+export const FEED_CLOCK_AHEAD_WARN_SHARE = 0.01;
+/** Never fewer ahead rows than this before the chip warns, however small the response. */
+export const FEED_CLOCK_AHEAD_WARN_MIN_ROWS = 20;
 
 export interface FeedChipInput {
   readonly data: FeedChipData | null;
@@ -55,6 +66,24 @@ function received(data: FeedChipData, nowMs: number): string {
   return `received ${when} (feed time ${formatFeedTime(data.feedNow)})`;
 }
 
+/**
+ * When enough rows are stamped later than the server's clock allows, the feed clock was
+ * read from the newest row that is not, so it may lag a slow server clock (P4). The
+ * sentence that says so, or null below the share. Never for the saved sample.
+ */
+function clockWarning(data: FeedChipData): string | null {
+  const ahead = data.feedClockAheadRows ?? 0;
+  const share = Math.ceil((data.recordCount ?? 0) * FEED_CLOCK_AHEAD_WARN_SHARE);
+  if (data.source === 'fixture' || ahead < Math.max(FEED_CLOCK_AHEAD_WARN_MIN_ROWS, share)) {
+    return null;
+  }
+  return (
+    `${formatCount(ahead)} ${ahead === 1 ? 'report carries' : 'reports carry'} a time later ` +
+    "than the server's own clock allows, so the feed clock may lag and the server's clock " +
+    'should be checked'
+  );
+}
+
 function plain(text: string, title: string): FeedChip {
   return { text, tone: 'neutral', title, srText: `Feed status: ${title}` };
 }
@@ -76,13 +105,25 @@ export function feedChip({ data, error, loading, nowMs }: FeedChipInput): FeedCh
     return { text, tone: 'fixture', title, srText: `Feed status: ${title}` };
   }
 
+  const clock = clockWarning(data);
   if (stale) {
-    const title = `Showing the last good data, ${received(data, nowMs)}`;
+    const lastGood = `Showing the last good data, ${received(data, nowMs)}`;
+    const title = clock === null ? lastGood : `${lastGood}. ${clock}.`;
     return {
       text: `STALE · ${time}`,
       tone: 'stale',
       title,
       srText: `Feed status: stale. ${title}`,
+    };
+  }
+
+  if (clock !== null) {
+    const title = `${clock}. Data ${received(data, nowMs)}`;
+    return {
+      text: `CHECK CLOCK · ${time}`,
+      tone: 'stale',
+      title,
+      srText: `Feed status: check clock. ${title}`,
     };
   }
 

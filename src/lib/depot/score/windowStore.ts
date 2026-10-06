@@ -1,6 +1,6 @@
 import type { DepotSummary } from '../types';
 import type { ScoreWindow } from './types';
-import { arrivalOf } from './epoch';
+import { arrivalOf, type BehindRun } from './epoch';
 import {
   SCORE_WINDOW_MIN,
   insertSample,
@@ -35,20 +35,25 @@ import {
  *    older cache, as seen live): inserted in feed-time order and scored on the
  *    window as it then stands, up to its own feed time (N7).
  *  - A feed time more than one window behind the newest (a straggler, see
- *    epoch.ts): scored on its own counts; the store is not touched. The third
- *    straggler in a row, with no current sample between, starts a new epoch:
- *    the store is emptied and that sample accepted.
+ *    epoch.ts): scored on its own counts; the store is not touched. A run of
+ *    stragglers that is coherent and lasting (epoch.ts: at least three, each
+ *    later than the one before, spanning three minutes of feed time, with no
+ *    current sample between) starts a new epoch: the store is emptied and the
+ *    straggler that completes the run accepted.
  *  - The recorded fixture (`fixture: true`) or no usable feed time: the store
  *    is neither read nor written, nor is the straggler run; the snapshot is
  *    scored on its own counts.
  *
- * Order. Within an epoch the store's content depends only on WHICH current
- * samples arrived, not on their order: a sample is kept exactly when it is
- * within one window of the newest feed time held. What is NOT order-free: a
- * sample counts as a straggler (and is then scored alone and never stored) by
- * the newest feed time seen when it arrives; a repeated feed time keeps the
- * last rows to arrive; and an epoch starts on the order of arrivals (three
- * stragglers in a row), after which everything before it is forgotten.
+ * Order. Within an epoch the store's stored samples depend only on WHICH
+ * current samples arrived, not on their order: a sample is kept exactly when
+ * it is within one window of the newest feed time held. What is NOT
+ * order-free: a sample counts as a straggler (and is then scored alone and
+ * never stored) by the newest feed time seen when it arrives; a repeated feed
+ * time keeps the last rows to arrive; the straggler run itself depends on
+ * order (A at T, B at T+15 min, then C at T-6 min leaves a run of one; A, C,
+ * B leaves none, with the same samples stored); so whether and when an epoch
+ * starts depends on the order of arrivals, and everything before it is then
+ * forgotten.
  *  - A process that has just started: the first snapshot is a window of one
  *    sample, so its scores equal the single-snapshot scores; `samples` says so.
  * The fixture and a stale last-good snapshot reuse one rows array, so the
@@ -62,8 +67,8 @@ import {
 
 export interface ScoreWindowStore {
   lastFeedMs: number | null;
-  /** Stragglers seen in a row (ruling S56b). */
-  behindRun: number;
+  /** The current run of stragglers (ruling S56b, P1); null when there is none. */
+  behindRun: BehindRun | null;
   readonly byDepot: Map<string, readonly DepotSample[]>;
 }
 
@@ -77,7 +82,7 @@ export interface WindowedScoring {
 }
 
 export function createScoreWindowStore(): ScoreWindowStore {
-  return { lastFeedMs: null, behindRun: 0, byDepot: new Map() };
+  return { lastFeedMs: null, behindRun: null, byDepot: new Map() };
 }
 
 const GLOBAL_KEY = '__depotScoreWindowStore';
@@ -93,7 +98,7 @@ export function defaultScoreWindowStore(): ScoreWindowStore {
 /** Test seam: empty a store (the process-wide one by default). */
 export function resetScoreWindowStore(store: ScoreWindowStore = defaultScoreWindowStore()): void {
   store.lastFeedMs = null;
-  store.behindRun = 0;
+  store.behindRun = null;
   store.byDepot.clear();
 }
 

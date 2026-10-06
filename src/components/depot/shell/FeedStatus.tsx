@@ -12,7 +12,9 @@ const TONE: Readonly<Record<FeedChipTone, string>> = {
 
 /**
  * Top-bar chip for the feed: LIVE or STALE with the feed's own clock, FIXTURE
- * for sample data. How old the data is goes in the tooltip and the
+ * for sample data, CHECK CLOCK when enough reports are stamped ahead of the
+ * server's clock that the feed clock may lag (read from the network response's
+ * `feedClockAheadRows` and `recordCount`, which `data` already carries). How old the data is goes in the tooltip and the
  * screen-reader text; the wording lives in `feedChip`. The age is worked out on
  * each render, which every poll triggers.
  */

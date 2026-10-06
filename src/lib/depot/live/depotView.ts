@@ -132,12 +132,14 @@ export function buildDepotDetail(
   const rows = analysis.rowsByDepot.get(depotId) ?? [];
   const buses = depotBusViews(analysis, depotId);
   const exceptions = analysis.exceptionsByDepot.get(depotId);
+  const seen = analysis.yardSnapshotsSeen?.[depotId];
   return {
     ...feedEnvelope(view),
     depot,
     score: analysis.scoresById.get(depotId) ?? null,
     yard: yardFigure(yards.get(depotId) ?? null),
-    yardSnapshotsSeen: analysis.yardSnapshotsSeen[depotId] ?? 0,
+    // Absent for the fixture and the unassigned group (P2): 0 there would not mean "just started".
+    ...(seen === undefined ? {} : { yardSnapshotsSeen: seen }),
     buses,
     locationMix: locationMixOf(buses),
     outshed: summariseOutshed(rows, yards, feedNow, stateOf),

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { DepotBusRow } from '@/models/depotLive';
 import type { FleetSnapshotView } from '@/lib/depot/repositories/types';
+import { UNASSIGNED_DEPOT_ID } from '@/lib/depot/types';
 import { inferYards } from '@/lib/depot/infer/yard';
 import {
   applyYardContinuity,
@@ -52,9 +53,9 @@ describe('yard memory: snapshots seen per depot (N10)', () => {
   it('starts again on a new epoch and after an absence longer than the hold cap', () => {
     const store = createYardMemoryStore();
     for (const at of [300, 301, 302]) step(store, atMin(at));
-    for (const at of [0, 1]) expect(step(store, atMin(at))).toBe(3);
-    expect(step(store, atMin(2))).toBe(1);
-    const later = atMin(2 + YARD_HOLD_MAX_HOURS * 60 + 1);
+    for (const at of [0, 1, 2]) expect(step(store, atMin(at))).toBe(3);
+    expect(step(store, atMin(3))).toBe(1);
+    const later = atMin(3 + YARD_HOLD_MAX_HOURS * 60 + 1);
     const otherRows = rowsAt(later, '2');
     applyYardContinuity(store, otherRows, inferYards(otherRows), later);
     expect(yardSnapshotsSeen(store, '1')).toBe(0);
@@ -78,8 +79,21 @@ describe('network response: yardSnapshotsSeen (N10)', () => {
     expect(buildNetworkResponse(viewAt(1)).yardSnapshotsSeen).toEqual({ '1': 2, '2': 2 });
   });
 
-  it('says 0 for the fixture, which never uses the memory', () => {
-    expect(buildNetworkResponse(viewAt(0, 'fixture')).yardSnapshotsSeen).toEqual({ '1': 0, '2': 0 });
+  // P2: 0 there would not mean "just started", so the count is not sent at all.
+  it('omits the count for the fixture, which never uses the memory', () => {
+    expect('yardSnapshotsSeen' in buildNetworkResponse(viewAt(0, 'fixture'))).toBe(false);
+    const detail = buildDepotDetail(viewAt(0, 'fixture'), '1');
+    expect(detail).not.toBeNull();
+    expect(detail && 'yardSnapshotsSeen' in detail).toBe(false);
+  });
+
+  it('omits the count for the unassigned group, which the memory never decides', () => {
+    const homeless = rowsAt(atMin(0), 'x').map((r) => ({ ...r, depotId: null }));
+    const view = { ...viewAt(0), rows: [...viewAt(0).rows, ...homeless] };
+    expect(buildNetworkResponse(view).yardSnapshotsSeen).toEqual({ '1': 1, '2': 1 });
+    const detail = buildDepotDetail(view, UNASSIGNED_DEPOT_ID);
+    expect(detail).not.toBeNull();
+    expect(detail && 'yardSnapshotsSeen' in detail).toBe(false);
   });
 
   it('gives a depot page the same count for its own depot', () => {
