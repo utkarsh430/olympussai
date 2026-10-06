@@ -20,7 +20,7 @@ import {
   type LeagueRow,
 } from '@/lib/depot/league/leagueModel';
 import { computedStamp, leagueStatusLine } from '@/lib/depot/league/leagueWording';
-import { scoreWindowSentence, scoreWindowShort } from '@/lib/depot/network/scoreWindowWords';
+import { scoreWindowSentence, scoreWindowShort } from '@/lib/depot/score/windowWords';
 import { MIN_FLEET_FOR_RANK } from '@/lib/depot/score/config';
 import type { PeerGroupId } from '@/lib/depot/score/types';
 import { LEAGUE_HOW_PRODUCED } from '@/lib/depot/network/howProduced';
