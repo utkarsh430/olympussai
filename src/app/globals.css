@@ -316,7 +316,7 @@
   /* Index bar: a thin fill on a 0-100 track, with a tick at 50 (the peer median).
      One hue; the value is always also written beside it. */
   .depot-bar-track {
-    @apply relative h-1.5 w-full min-w-[64px]rounded-[2px] bg-depot-raised;
+    @apply relative h-1.5 w-full min-w-[64px] rounded-[2px] bg-depot-raised;
   }
 
   .depot-bar-fill {

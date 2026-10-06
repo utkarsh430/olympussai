@@ -58,7 +58,7 @@ const GPS_DEVICE: FeedEntry = {
     {
       name: 'tripStatus',
       type: 'string | null',
-      note: 'The feed status word, kept as sent; a different vocabulary from vehicleStatus.',
+      note: 'The feed status word, kept as sent (observed: Offline, Live, Stationary, Towing); a different vocabulary from vehicleStatus.',
     },
     { name: 'routeId', type: 'string | null' },
     { name: 'routeName', type: 'string | null' },

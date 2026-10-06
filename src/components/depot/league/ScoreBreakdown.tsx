@@ -17,7 +17,14 @@ function signed(n: number): string {
  * Why one depot scored what it did: each component's value, the peer median,
  * the robust z against peers and the weighted contribution, then one sentence.
  */
-export function ScoreBreakdown({ row }: { readonly row: LeagueRow }) {
+export function ScoreBreakdown({
+  row,
+  headingRef,
+}: {
+  readonly row: LeagueRow;
+  /** Lets the page move focus here after a selection. */
+  readonly headingRef?: React.Ref<HTMLHeadingElement>;
+}) {
   const group = row.peerGroup === null ? null : PEER_GROUP_LABEL[row.peerGroup];
   return (
     <section
@@ -26,7 +33,12 @@ export function ScoreBreakdown({ row }: { readonly row: LeagueRow }) {
       className="depot-panel mt-4 p-4"
     >
       <p className="depot-label">Score breakdown</p>
-      <h2 id="score-breakdown-title" className="mt-1 font-mono text-sm text-depot-ink">
+      <h2
+        id="score-breakdown-title"
+        ref={headingRef}
+        tabIndex={-1}
+        className="mt-1 rounded-[3px] font-mono text-sm text-depot-ink focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-holo-glow"
+      >
         {row.name}
         {row.ranked && row.rank !== null && row.peerCount !== null && group !== null
           ? ` · rank ${row.rank} of ${row.peerCount} in ${group}`

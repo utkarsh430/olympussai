@@ -1,9 +1,10 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useDepotNetworkContext } from '@/components/depot/data/DepotNetworkProvider';
 import { useDepotExceptions, DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/useDepotExceptions';
 import { ErrorPanel, LoadingBlock, StaleStrip } from '@/components/depot/shell/DataStates';
-import { EXCEPTION_KIND_LABEL } from '@/lib/depot/exceptions/describe';
+import { EXCEPTION_KIND_LABEL, describeEmptyBusList } from '@/lib/depot/exceptions/describe';
 import type { BusExceptionKind } from '@/lib/depot/exceptions/types';
 import { formatCount } from '@/lib/depot/format';
 import { BusExceptionTable } from './BusExceptionTable';
@@ -30,11 +31,22 @@ export function ExceptionCentre() {
   const [depot, setDepot] = useState<string>(ANY);
 
   const bus = useMemo(() => data?.report.bus ?? [], [data]);
+  const network = useDepotNetworkContext();
+  // Every depot, not only those with rows in the capped list, so a depot whose
+  // exceptions all fall beyond the cap can still be chosen.
   const depotOptions = useMemo(() => {
     const byId = new Map<string, string>();
-    for (const row of bus) byId.set(row.depotId ?? NO_DEPOT, row.depotName ?? 'No home depot');
+    for (const d of network.data?.depots ?? []) byId.set(d.id, d.name);
+    for (const row of bus) {
+      const id = row.depotId ?? NO_DEPOT;
+      if (!byId.has(id)) byId.set(id, row.depotName ?? 'No home depot');
+    }
     return [...byId.entries()].sort((a, b) => a[1].localeCompare(b[1], 'en'));
-  }, [bus]);
+  }, [network.data, bus]);
+  // A poll can remove the chosen depot from the options; fall back to all depots.
+  useEffect(() => {
+    if (depot !== ANY && !depotOptions.some(([id]) => id === depot)) setDepot(ANY);
+  }, [depot, depotOptions]);
   const filtered = useMemo(
     () =>
       bus.filter(
@@ -110,11 +122,7 @@ export function ExceptionCentre() {
       </p>
       <BusExceptionTable
         rows={filtered}
-        emptyMessage={
-          report.busTotal === 0
-            ? 'No bus is flagged on this snapshot: none is dark for long, has main power off, reports a tamper code or has the emergency flag set.'
-            : 'No buses match these filters.'
-        }
+        emptyMessage={describeEmptyBusList(bus.length, report.busTotal)}
       />
     </>
   );

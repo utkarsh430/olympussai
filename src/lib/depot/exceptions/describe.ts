@@ -2,7 +2,6 @@ import { formatCount, formatFeedTime } from '@/lib/depot/format';
 import type {
   BusException,
   DepotException,
-  DepotExceptionKind,
   ExceptionKind,
   ExceptionSeverity,
 } from './types';
@@ -28,27 +27,51 @@ export const SEVERITY_LABEL: Readonly<Record<ExceptionSeverity, string>> = {
 
 const PERCENT = 100;
 
-const RATE_MEASURE: Readonly<Record<Exclude<DepotExceptionKind, 'power_cut_cluster'>, string>> = {
-  dark_share_high: 'Dark rate',
-  off_road_high: 'Off-road rate',
-  on_road_low: 'On-road share',
-};
-
+/** One decimal, as the league uses, so a flagged depot never reads equal to its peers. */
 function percent(rate: number): string {
-  return `${Math.round(rate * PERCENT)}%`;
+  return `${(rate * PERCENT).toFixed(1)}%`;
 }
 
-function busesPhrase(affected: number, fleet: number): string {
-  return `${formatCount(affected)} of ${formatCount(fleet)} ${fleet === 1 ? 'bus' : 'buses'}`;
+function busWord(n: number): string {
+  return n === 1 ? 'bus' : 'buses';
 }
 
-/** A plain sentence built from the exception's own numbers. */
+function verb(n: number, one: string, many: string): string {
+  return n === 1 ? one : many;
+}
+
+/** A plain sentence that says what each number counts, built from the exception's own figures. */
 export function describeDepotException(e: DepotException): string {
-  if (e.kind === 'power_cut_cluster') {
-    return `Main power reads off on ${busesPhrase(e.affected, e.fleet)}.`;
+  const affected = formatCount(e.affected);
+  const fleet = formatCount(e.fleet);
+  const peers = e.peerMedian === null ? '' : ` against a peer median of ${percent(e.peerMedian)}`;
+  switch (e.kind) {
+    case 'power_cut_cluster':
+      return `${affected} of ${fleet} ${busWord(e.fleet)} ${verb(e.affected, 'reports', 'report')} main power off.`;
+    case 'on_road_low': {
+      // `value` is a share of AVAILABLE buses (fleet minus off-road), so the count is not out of fleet.
+      const median = e.peerMedian === null ? '' : `,${peers}`;
+      return `On-road share ${percent(e.value)} of available buses${median}: ${affected} available ${busWord(e.affected)} ${verb(e.affected, 'is', 'are')} not on the road (fleet ${fleet}).`;
+    }
+    case 'dark_share_high':
+      return `Dark rate ${percent(e.value)}${peers}: ${affected} of ${fleet} ${busWord(e.fleet)} ${verb(e.affected, 'is', 'are')} dark.`;
+    case 'off_road_high':
+      return `Off-road rate ${percent(e.value)}${peers}: ${affected} of ${fleet} ${busWord(e.fleet)} ${verb(e.affected, 'is', 'are')} off road.`;
   }
-  const comparison = e.peerMedian === null ? '' : ` against a peer median of ${percent(e.peerMedian)}`;
-  return `${RATE_MEASURE[e.kind]} ${percent(e.value)}${comparison}: ${busesPhrase(e.affected, e.fleet)}.`;
+}
+
+/**
+ * What to say when the bus table has no rows. A capped list is only part of
+ * the story, so an empty filter result must not read as "none exist".
+ */
+export function describeEmptyBusList(listed: number, total: number): string {
+  if (total === 0) {
+    return 'No bus is flagged on this snapshot: none is dark for long, has main power off, reports a tamper code or has the emergency flag set.';
+  }
+  if (listed < total) {
+    return `None of the ${formatCount(listed)} listed buses match. The other ${formatCount(total - listed)} are not in this list; open a depot to see all of its exceptions.`;
+  }
+  return 'No buses match these filters.';
 }
 
 function bodyFor(e: BusException): string {
