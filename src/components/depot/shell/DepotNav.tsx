@@ -21,7 +21,7 @@ export function DepotNav({ groups }: { readonly groups: readonly DepotNavGroup[]
     <nav
       aria-label="Depot management"
       data-testid="depot-nav"
-      className="sticky top-14 z-30 flex shrink-0 gap-4 overflow-x-auto border-b border-depot-line bg-depot-page px-2 py-1 min-[900px]:max-h-[calc(100dvh-3.5rem)] min-[900px]:w-[200px] min-[900px]:flex-col min-[900px]:gap-5 min-[900px]:overflow-y-auto min-[900px]:overflow-x-hidden min-[900px]:border-b-0 min-[900px]:border-r min-[900px]:px-0 min-[900px]:py-5 min-[1280px]:w-[232px]"
+      className="sticky top-0 z-30 sm:top-14 flex shrink-0 gap-4 overflow-x-auto border-b border-depot-line bg-depot-page px-2 py-1 min-[900px]:max-h-[calc(100dvh-3.5rem)] min-[900px]:w-[200px] min-[900px]:flex-col min-[900px]:gap-5 min-[900px]:overflow-y-auto min-[900px]:overflow-x-hidden min-[900px]:border-b-0 min-[900px]:border-r min-[900px]:px-0 min-[900px]:py-5 min-[1280px]:w-[232px]"
     >
       {groups.map((group, position) => (
         <div

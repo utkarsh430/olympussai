@@ -1,16 +1,20 @@
 import { liveFleetRepository } from './liveFleetRepository';
+import { modelledCrewRepository } from './modelledCrewRepository';
+import { modelledFuelRepository } from './modelledFuelRepository';
 import { modelledHistoryRepository } from './modelledHistoryRepository';
 import type { DepotRepositories } from './types';
 
 const repositories: DepotRepositories = {
   fleet: liveFleetRepository,
   history: modelledHistoryRepository,
+  crew: modelledCrewRepository,
+  fuel: modelledFuelRepository,
 };
 
 /**
  * The composition root for depot data. This is the one place a real feed or a
  * database is swapped in: write a new adapter behind `FleetRepository` or
- * `HistoryRepository` and wire it here. Routes and views never import an
+ * `HistoryRepository`, `CrewRepository` or `FuelRepository` and wire it here. Routes and views never import an
  * adapter directly.
  */
 export function getRepositories(): DepotRepositories {

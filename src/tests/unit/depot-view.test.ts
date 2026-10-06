@@ -5,6 +5,8 @@ import type { DepotBusRow } from '@/models/depotLive';
 import { requireUpsrtcAccess } from '@/lib/auth/authorize';
 import { getRepositories } from '@/lib/depot/repositories';
 import { modelledHistoryRepository } from '@/lib/depot/repositories/modelledHistoryRepository';
+import { modelledCrewRepository } from '@/lib/depot/repositories/modelledCrewRepository';
+import { modelledFuelRepository } from '@/lib/depot/repositories/modelledFuelRepository';
 import type { DepotRepositories, FleetSnapshotView } from '@/lib/depot/repositories/types';
 import { fromMetres } from '@/lib/depot/infer/geo';
 import { inferYards } from '@/lib/depot/infer/yard';
@@ -302,6 +304,8 @@ describe('GET /api/upsrtc/depot/[depotId]', () => {
     });
   const reposWith = (snapshot: () => Promise<FleetSnapshotView>): DepotRepositories => ({
     history: modelledHistoryRepository,
+    crew: modelledCrewRepository,
+    fuel: modelledFuelRepository,
     fleet: { snapshot },
   });
 

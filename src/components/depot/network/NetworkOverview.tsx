@@ -15,6 +15,8 @@ import { loadErrorBody } from '@/lib/depot/loadError';
 import { unpositionedSentence } from '@/lib/depot/network/mapWords';
 import { joinScores, unpositionedCount, type DepotRow } from '@/lib/depot/network/overviewModel';
 import type { DepotNetworkResponse } from '@/lib/depot/api';
+import { BriefingCard } from '@/components/depot/copilot/BriefingCard';
+import type { CopilotScope } from '@/lib/depot/copilot/wire';
 import { DepotMap } from './DepotMap';
 import { DepotMapLegend } from './DepotMapLegend';
 import { DepotMapPanel } from './DepotMapPanel';
@@ -26,6 +28,8 @@ import { SelectionBar, SelectionLine } from './SelectionBar';
 
 const SECTION = 'animate-rise';
 const OPERATIONS_HREF = '/project/upsrtc';
+/** Module-level so the card's request body keeps one identity across polls. */
+const NETWORK_SCOPE: CopilotScope = { kind: 'network' };
 
 function OverviewLoading() {
   return (
@@ -123,6 +127,9 @@ function OverviewBody({ data }: { readonly data: DepotNetworkResponse }) {
     <div className="space-y-8">
       <div className={SECTION}>
         <KpiBand kpis={data.kpis} depots={data.depots} />
+      </div>
+      <div className={SECTION}>
+        <BriefingCard scope={NETWORK_SCOPE} title="Network briefing" />
       </div>
       {rows.length === 0 ? (
         <EmptyState>

@@ -6,6 +6,9 @@ import {
   exceptionKindHref,
   exceptionScope,
 } from '@/lib/depot/network/exceptionScope';
+import { exceptionRows } from '@/lib/depot/network/overviewModel';
+import { parseKindParam } from '@/lib/depot/exceptions/pageModel';
+import { EXCEPTION_KINDS } from '@/lib/depot/exceptions/config';
 import type { ExceptionKind, ExceptionSeverity } from '@/lib/depot/exceptions/types';
 
 /** The captured snapshot: 73 depot and 1,968 bus exceptions. */
@@ -82,5 +85,23 @@ describe('exceptionKindHref', () => {
     expect(exceptionKindHref('dark_share_high')).toBe(
       '/project/depots/exceptions?kind=dark_share_high',
     );
+  });
+});
+
+describe('overview link to exceptions page round trip', () => {
+  const emitted = exceptionRows(COUNTS).map((row) => row.kind);
+
+  it('emits exactly the kinds the page knows', () => {
+    expect([...emitted].sort()).toEqual([...EXCEPTION_KINDS].sort());
+  });
+
+  it.each(emitted)('the page parses the overview link for %s back to the same kind', (kind) => {
+    const query = exceptionKindHref(kind).split('?')[1] ?? '';
+    expect(parseKindParam(new URLSearchParams(query).get('kind'))).toBe(kind);
+  });
+
+  it('rejects a kind the page does not know', () => {
+    expect(parseKindParam('nonsense')).toBeNull();
+    expect(parseKindParam(null)).toBeNull();
   });
 });

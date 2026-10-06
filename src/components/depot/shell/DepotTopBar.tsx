@@ -4,12 +4,12 @@ import { DepotSignOut } from './DepotSignOut';
 import { FeedStatus } from './FeedStatus';
 import { ScopeSwitcher } from './ScopeSwitcher';
 
-/** Sticky 56px bar: product title and scope on the left, exits on the right. */
+/** 56px bar, sticky from sm up (it can wrap to two rows below, so it scrolls away there): product title and scope on the left, exits on the right. */
 export function DepotTopBar() {
   return (
     <header
       data-testid="depot-top-bar"
-      className="sticky top-0 z-40 flex min-h-14 shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-depot-line bg-depot-page px-6 py-2 sm:h-14 sm:flex-nowrap sm:py-0"
+      className="z-40 flex min-h-14 shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-depot-line bg-depot-page px-6 py-2 sm:sticky sm:top-0 sm:h-14 sm:flex-nowrap sm:py-0"
     >
       <div className="flex min-w-0 items-center gap-4">
         <span className="whitespace-nowrap font-display text-sm uppercase tracking-[0.14em] text-depot-ink">

@@ -65,7 +65,6 @@ function minutesFor(
   }
 }
 
-/** Overdue first, then due, upcoming, unknown, departed, ended; by scheduled time within each. */
 /** Most overdue first: an unknown overdue time sorts after every known one. */
 function compareOverdue(a: TrackerRow, b: TrackerRow): number {
   if (a.minutes === b.minutes) return 0;

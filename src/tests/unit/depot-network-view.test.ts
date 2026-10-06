@@ -12,6 +12,8 @@ import { GET } from '@/app/api/upsrtc/depot/network/route';
 import { modelSeries } from '@/lib/depot/sim/history';
 import { createLiveFleetRepository } from '@/lib/depot/repositories/liveFleetRepository';
 import { modelledHistoryRepository } from '@/lib/depot/repositories/modelledHistoryRepository';
+import { modelledCrewRepository } from '@/lib/depot/repositories/modelledCrewRepository';
+import { modelledFuelRepository } from '@/lib/depot/repositories/modelledFuelRepository';
 import { getRepositories } from '@/lib/depot/repositories';
 
 vi.mock('@/lib/auth/authorize', async (importOriginal) => {
@@ -42,7 +44,12 @@ function fixtureView(over: Partial<FleetSnapshotView> = {}): FleetSnapshotView {
 
 /** The real composition root with its fleet read replaced. */
 function reposWith(snapshot: () => Promise<FleetSnapshotView>): DepotRepositories {
-  return { history: modelledHistoryRepository, fleet: { snapshot } };
+  return {
+    history: modelledHistoryRepository,
+    crew: modelledCrewRepository,
+    fuel: modelledFuelRepository,
+    fleet: { snapshot },
+  };
 }
 
 /** A fleet read failing with a message that must never reach a client. */
@@ -92,6 +99,8 @@ describe('depot repositories', () => {
     const repos = getRepositories();
     expect(getRepositories()).toBe(repos);
     expect(repos.history).toBe(modelledHistoryRepository);
+    expect(repos.crew).toBe(modelledCrewRepository);
+    expect(repos.fuel).toBe(modelledFuelRepository);
     expect(typeof repos.fleet.snapshot).toBe('function');
   });
 });

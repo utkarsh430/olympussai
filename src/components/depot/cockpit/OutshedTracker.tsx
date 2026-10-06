@@ -83,7 +83,7 @@ function trackerColumns(depotId: string): readonly Column<TrackerRow>[] {
 }
 
 /**
- * Today's departures against the feed clock, most urgent first. The coverage line
+ * Scheduled departures for the feed date against the feed clock, most urgent first. The coverage line
  * is always shown because a short list can mean few schedules in the feed rather
  * than few departures.
  */
@@ -119,7 +119,7 @@ export function OutshedTracker({
           columns={columns}
           rows={rows}
           rowKey={(row) => row.key}
-          caption="Today's scheduled departures, most urgent first"
+          caption="Scheduled departures for the feed date, most urgent first"
         />
       )}
     </section>

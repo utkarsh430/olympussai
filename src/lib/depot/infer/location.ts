@@ -10,6 +10,25 @@ function oneDecimalKm(metres: number): number {
   return Math.round((metres / METRES_PER_KM) * 10) / 10;
 }
 
+type YardEntry = readonly [string, Yard];
+
+/**
+ * Yard entries in id order, built once per map. `locateBus` runs for every bus in a
+ * snapshot, and the yards map is built once per snapshot and not changed after, so
+ * sorting per call repeated the same work thousands of times. Keyed weakly by the map,
+ * so a new map gets a fresh list and a dropped one is collected. The size is checked
+ * so a map that was grown after first use is not answered from a stale list.
+ */
+const SORTED_ENTRIES = new WeakMap<ReadonlyMap<string, Yard>, readonly YardEntry[]>();
+
+function sortedEntries(yards: ReadonlyMap<string, Yard>): readonly YardEntry[] {
+  const cached = SORTED_ENTRIES.get(yards);
+  if (cached && cached.length === yards.size) return cached;
+  const entries = [...yards.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  SORTED_ENTRIES.set(yards, entries);
+  return entries;
+}
+
 /**
  * Place a bus against the learned yards.
  *
@@ -33,10 +52,8 @@ export function locateBus(row: DepotBusRow, yards: ReadonlyMap<string, Yard>): L
   }
 
   let nearest: { readonly id: string; readonly metres: number } | null = null;
-  for (const id of [...yards.keys()].sort()) {
+  for (const [id, yard] of sortedEntries(yards)) {
     if (id === row.depotId) continue;
-    const yard = yards.get(id);
-    if (!yard) continue;
     const metres = distanceM(latitude, longitude, yard.lat, yard.lng);
     if (metres > yard.radiusM) continue;
     if (nearest === null || metres < nearest.metres) nearest = { id, metres };
