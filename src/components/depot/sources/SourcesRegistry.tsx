@@ -1,18 +1,25 @@
 'use client';
 
+import { useEffect, useMemo } from 'react';
 import { useDepotNetworkContext } from '@/components/depot/data/DepotNetworkProvider';
 import { ErrorPanel, LoadingBlock, StaleStrip } from '@/components/depot/shell/DataStates';
 import { DataTable, type Column } from '@/components/depot/shell/DataTable';
 import { SectionLabel } from '@/components/depot/shell/SectionLabel';
 import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/useDepotNetwork';
-import { formatCount } from '@/lib/depot/format';
 import {
   FEED_REGISTRY,
   FEED_STATUS_LABEL,
   type FeedEntry,
   type FeedStatus,
 } from '@/lib/depot/sources/registry';
-import { feedAnchor, recordsSentence } from '@/lib/depot/sources/sourcesModel';
+import {
+  GPS_FEED_ID,
+  clockAheadSentence,
+  feedAnchor,
+  feedIdFromHash,
+  fieldsExpandLabel,
+  recordsSentence,
+} from '@/lib/depot/sources/sourcesModel';
 import { CoverageBars } from './CoverageBars';
 import { FeedSchema } from './FeedSchema';
 import { HowProduced } from '@/components/depot/shell/HowProduced';
@@ -25,37 +32,76 @@ const STATUS_TONE: Readonly<Record<FeedStatus, string>> = {
 
 const FEED_IDS: readonly string[] = FEED_REGISTRY.map((feed) => feed.id);
 
-const FEED_COLUMNS: readonly Column<FeedEntry>[] = [
-  {
-    key: 'name',
-    header: 'Feed',
-    render: (feed) => (
-      <a href={`#${feedAnchor(feed.id)}`} className="depot-link">
-        {feed.name}
-      </a>
-    ),
-    title: (feed) => `${feed.name}: show its field list`,
-  },
-  {
-    key: 'status',
-    header: 'Status',
-    render: (feed) => (
-      <span className={`depot-tag ${STATUS_TONE[feed.status]}`}>{FEED_STATUS_LABEL[feed.status]}</span>
-    ),
-  },
-  {
-    key: 'fields',
-    header: 'Fields',
-    align: 'right',
-    sortValue: (feed) => feed.fields.length,
-    render: (feed) => formatCount(feed.fields.length),
-  },
-  {
-    key: 'summary',
-    header: 'What it provides',
-    render: (feed) => feed.summary,
-    title: (feed) => `${feed.summary} Unlocks: ${feed.unlocks}`,
-  },
+/**
+ * The feeds table's columns. Each row is the expander for its own field list (the count is
+ * in the expander's label, so there is no FIELDS column). The table does not use
+ * `fixedRows`: "What it provides" may wrap to two lines, the one exception to the no-wrap
+ * rule, because this is a reference table read for its descriptions.
+ */
+function feedColumns(clockAhead: string | null): readonly Column<FeedEntry>[] {
+  return [
+    {
+      key: 'name',
+      header: 'Feed',
+      render: (feed) => (
+        <span
+          id={feedAnchor(feed.id)}
+          className="scroll-mt-[var(--depot-anchor-mt,5rem)] whitespace-nowrap text-depot-ink"
+        >
+          {feed.name}
+        </span>
+      ),
+      title: (feed) => feed.name,
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (feed) => (
+        <span className={`depot-tag whitespace-nowrap ${STATUS_TONE[feed.status]}`}>
+          {FEED_STATUS_LABEL[feed.status]}
+        </span>
+      ),
+    },
+    {
+      key: 'summary',
+      header: 'What it provides',
+      render: (feed) => (
+        <span className="block min-w-[16rem] whitespace-normal font-sans text-[13px]">
+          <span className="line-clamp-2" title={feed.summary}>
+            {feed.summary}
+          </span>
+          {feed.id === GPS_FEED_ID && clockAhead !== null ? (
+            <span className="depot-note block" data-testid="depot-clock-ahead">
+              {clockAhead}
+            </span>
+          ) : null}
+        </span>
+      ),
+      title: (feed) => feed.summary,
+    },
+  ];
+}
+
+/** Arriving with `#feed-<id>` (other pages link here) scrolls to that row and opens it. */
+function useOpenFeedFromHash(): void {
+  useEffect(() => {
+    const open = (): void => {
+      const id = feedIdFromHash(window.location.hash, FEED_IDS);
+      if (id === null) return;
+      const row = document.getElementById(feedAnchor(id))?.closest('tr');
+      if (!row) return;
+      row.querySelector<HTMLButtonElement>('button[aria-expanded="false"]')?.click();
+      row.scrollIntoView?.({ block: 'start' });
+    };
+    open();
+    window.addEventListener('hashchange', open);
+    return () => window.removeEventListener('hashchange', open);
+  }, []);
+}
+
+const HOW_PRODUCED: readonly string[] = [
+  'A coverage bar shows how many of the buses counted carry each field, most complete first; a field a bus lacks is not guessed. A field is Complete when every bus carries it, Partial from half the buses, and Sparse below that.',
+  'LIVE feeds are read from the upstream service; MODELLED feeds are generated from planning assumptions; AWAITING FEED is not connected yet and its expected schema is listed so a real feed can replace the model.',
 ];
 
 function CoverageSection() {
@@ -98,41 +144,28 @@ function CoverageSection() {
 
 /** Every feed, whether it is live, how well it is populated, and the schema a real feed provides. */
 export function SourcesRegistry() {
+  const { data } = useDepotNetworkContext();
+  const clockAhead = clockAheadSentence(data?.feedClockAheadRows);
+  const columns = useMemo(() => feedColumns(clockAhead), [clockAhead]);
+  useOpenFeedFromHash();
   return (
     <>
       <CoverageSection />
-      <SectionLabel label="Feeds" count={FEED_REGISTRY.length} note="Status of each feed behind this module" />
+      <SectionLabel label="Feeds" count={FEED_REGISTRY.length} note="Open a feed for its field list" />
       <div data-testid="depot-feed-registry">
         <DataTable
-          columns={FEED_COLUMNS}
+          columns={columns}
           rows={FEED_REGISTRY}
           rowKey={(feed) => feed.id}
           caption="Feeds behind this module"
-          fixedRows
+          renderExpanded={(feed) => <FeedSchema feed={feed} />}
+          expandLabel={fieldsExpandLabel}
+          multipleExpanded
           freezeFirstColumn
           overflowCue
         />
       </div>
-      <div className="mt-6">
-        <SectionLabel label="Field lists" note="One feed at a time" />
-        <div className="flex flex-col divide-y divide-depot-line border-b border-depot-line">
-          {FEED_REGISTRY.map((feed) => (
-            <FeedSchema key={feed.id} feed={feed} allIds={FEED_IDS} />
-          ))}
-        </div>
-      </div>
-      <HowProduced testId="depot-produced" className="mt-8">
-        <p>
-          A coverage bar shows how many of the buses counted carry each field, most complete
-          first; a field a bus lacks is not guessed. A field is Complete when every bus carries it,
-          Partial from half the buses, and Sparse below that.
-        </p>
-        <p>
-          LIVE feeds are read from the upstream service; MODELLED feeds are generated from
-          planning assumptions; AWAITING FEED is not connected yet and its expected schema is
-          listed so a real feed can replace the model.
-        </p>
-      </HowProduced>
+      <HowProduced testId="depot-produced" className="mt-10" paragraphs={HOW_PRODUCED} />
     </>
   );
 }
