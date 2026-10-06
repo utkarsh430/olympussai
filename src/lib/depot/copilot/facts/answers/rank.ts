@@ -25,7 +25,9 @@ export function rankAnswer(
     .flatMap((s) => {
       const value =
         metric === 'index' ? s.index : (s.components.find((c) => c.key === metric)?.value ?? null);
-      return s.ranked && value !== null ? [{ name: names.get(s.depotId) ?? s.depotId, value }] : [];
+      return s.ranked && value !== null
+        ? [{ id: s.depotId, name: names.get(s.depotId) ?? s.depotId, value }]
+        : [];
     })
     .sort((a, b) => (order === 'top' ? b.value - a.value : a.value - b.value))
     .slice(0, Math.min(limit, MAX_LIST_ROWS * 2));
@@ -38,12 +40,13 @@ export function rankAnswer(
     });
   }
   const facts = rows.flatMap((row, i) => [
-    nameFact(`rank.${i + 1}.name`, `Depot ${i + 1}`, cleanName(row.name), 'derived'),
+    nameFact(`rank.${i + 1}.name`, `Depot ${i + 1}`, cleanName(row.name), 'derived', row.id),
     makeFact(
       `rank.${i + 1}.value`,
       `Value ${i + 1}`,
       metric === 'index' ? index1(row.value) : `${Math.round(row.value * 100)}%`,
       'derived',
+      row.id,
     ),
   ]);
   const entries = rows.map((_, i) => `${ph(`rank.${i + 1}.name`)} at ${ph(`rank.${i + 1}.value`)}`);
