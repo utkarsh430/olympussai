@@ -67,12 +67,12 @@ describe('cockpit empty states', () => {
       <OutshedTracker
         depotId="20"
         rows={[]}
-        coverageSentence="0 of 10 buses carry a schedule for the feed date, 2026-10-06."
+        coverageSentence="0 of 10 buses carry a schedule for the feed date, 6 Oct 2026."
         hasSchedules={false}
-        noSchedulesSentence="No bus carries a schedule for the feed date, 2026-10-06, so there are no departures to track."
+        noSchedulesSentence="No bus carries a schedule for the feed date, 6 Oct 2026, so there are no departures to track."
       />,
     );
-    expect(textOf(markup)).toContain('No bus carries a schedule for the feed date, 2026-10-06');
+    expect(textOf(markup)).toContain('No bus carries a schedule for the feed date, 6 Oct 2026');
     expect(textOf(markup)).not.toContain('today');
     expect(markup).not.toContain('depot-table');
     // Critique §9, cockpit C: the label's "· 0" and one muted line, no coverage sentence, no box.
@@ -91,6 +91,11 @@ describe('cockpit empty states', () => {
     expect(textOf(markup)).toContain('All 2 tracked departures are past their window.');
     expect(markup).not.toContain('<table');
     expect(textOf(markup)).toContain('Show all 2');
+    // The status leads the section; the schedule sentence is the label's note.
+    const doc = new DOMParser().parseFromString(markup, 'text/html');
+    const firstAfterLabel = doc.querySelector('[data-testid="depot-outshed-ended"]');
+    expect(firstAfterLabel?.previousElementSibling?.querySelector('h2')?.textContent).toContain('Outshedding');
+    expect(firstAfterLabel?.previousElementSibling?.querySelector('.depot-note')?.textContent).toBe('2 of 2.');
   });
 
   it('captions the tracker for the feed date, not for today', () => {
