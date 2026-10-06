@@ -52,9 +52,9 @@ describe('yard memory: snapshots seen per depot (N10)', () => {
   it('starts again on a new epoch and after an absence longer than the hold cap', () => {
     const store = createYardMemoryStore();
     for (const at of [300, 301, 302]) step(store, atMin(at));
-    for (const at of [0, 1]) expect(step(store, atMin(at))).toBe(3);
-    expect(step(store, atMin(2))).toBe(1);
-    const later = atMin(2 + YARD_HOLD_MAX_HOURS * 60 + 1);
+    for (const at of [0, 1, 2]) expect(step(store, atMin(at))).toBe(3);
+    expect(step(store, atMin(3))).toBe(1);
+    const later = atMin(3 + YARD_HOLD_MAX_HOURS * 60 + 1);
     const otherRows = rowsAt(later, '2');
     applyYardContinuity(store, otherRows, inferYards(otherRows), later);
     expect(yardSnapshotsSeen(store, '1')).toBe(0);

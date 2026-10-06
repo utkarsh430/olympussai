@@ -13,7 +13,9 @@ import { T0, feedTime, network, seeded, snapshotOf } from './depot-score-window.
  * Ruling S56b: a sample more than one window behind the newest is scored on
  * its own and never touches the window. A new epoch starts only after
  * NEW_EPOCH_AFTER_BEHIND such samples in a row, with no in-window sample
- * between them; the window then resets and accepts the last of them.
+ * between them, each later than the one before and spanning
+ * EPOCH_RUN_MIN_SPAN_MS of feed time (P1); the window then resets and accepts
+ * the last of them.
  */
 
 const WINDOW_S = SCORE_WINDOW_MIN * 60;
@@ -35,7 +37,7 @@ function expectScoredAlone(store: ScoreWindowStore, s: number, fixture = false):
 }
 
 describe('score window epochs (S56b)', () => {
-  it('names three stragglers in a row as the epoch rule', () => {
+  it('names three stragglers as the least run that starts an epoch', () => {
     expect(NEW_EPOCH_AFTER_BEHIND).toBe(3);
   });
 
@@ -61,17 +63,16 @@ describe('score window epochs (S56b)', () => {
     expect(heldSeconds(store)).toEqual([3000, 3010, 3020]);
   });
 
-  it('starts a new epoch on the third straggler in a row and accepts it', () => {
+  it('starts a new epoch once the run of stragglers spans three minutes, and accepts it', () => {
     const store = createScoreWindowStore();
     for (const at of [WINDOW_S * 3, WINDOW_S * 3 + 40]) observeDepots(store, snapAt(at), feedTime(at));
-    expectScoredAlone(store, 0);
-    expectScoredAlone(store, 40);
-    const third = observeDepots(store, snapAt(80), feedTime(80));
-    expect(store.lastFeedMs).toBe(T0 + 80_000);
-    expect(heldSeconds(store)).toEqual([80]);
-    expect(third.window).toMatchObject({ since: feedTime(80), samples: 1 });
-    observeDepots(store, snapAt(120), feedTime(120));
-    expect(heldSeconds(store)).toEqual([80, 120]);
+    for (const at of [0, 60, 120]) expectScoredAlone(store, at);
+    const last = observeDepots(store, snapAt(180), feedTime(180));
+    expect(store.lastFeedMs).toBe(T0 + 180_000);
+    expect(heldSeconds(store)).toEqual([180]);
+    expect(last.window).toMatchObject({ since: feedTime(180), samples: 1 });
+    observeDepots(store, snapAt(220), feedTime(220));
+    expect(heldSeconds(store)).toEqual([180, 220]);
   });
 
   it('two stragglers then an in-window sample start no epoch', () => {

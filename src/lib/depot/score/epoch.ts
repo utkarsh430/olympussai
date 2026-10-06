@@ -16,6 +16,8 @@ import { SCORE_WINDOW_MIN } from './window';
 
 /** Stragglers in a row that start a new epoch. */
 export const NEW_EPOCH_AFTER_BEHIND = 3;
+/** Feed time a run of stragglers must span before it starts a new epoch (P1). */
+export const EPOCH_RUN_MIN_SPAN_MS = 3 * 60_000;
 /** Further behind the newest than this, a sample is a straggler. */
 export const BEHIND_AFTER_MS = SCORE_WINDOW_MIN * 60_000;
 
