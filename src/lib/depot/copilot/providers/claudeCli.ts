@@ -1,4 +1,4 @@
-import { dirname, isAbsolute, relative, resolve } from 'node:path';
+import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { buildCliArgs, isValidModelName } from '@/lib/depot/copilot/cli/args';
 import { classifyCliFailure, parseCliOutput } from '@/lib/depot/copilot/cli/classify';
 import { buildChildEnv } from '@/lib/depot/copilot/cli/env';
@@ -76,7 +76,8 @@ export function createClaudeCliProvider(deps: ClaudeCliDeps): CopilotProvider {
   const isPrivateDir = (path: string): boolean => {
     if (!isAbsolute(path) || path.includes('\0')) return false;
     const fromRepo = relative(repoRoot, resolve(path));
-    return fromRepo.startsWith('..') || isAbsolute(fromRepo);
+    // Not a bare startsWith('..'): `<repo>/..name` is inside (review L6).
+    return fromRepo === '..' || fromRepo.startsWith(`..${sep}`) || isAbsolute(fromRepo);
   };
   if (!isPrivateDir(deps.home)) {
     throw new Error('The child HOME must be absolute and outside the repository');
