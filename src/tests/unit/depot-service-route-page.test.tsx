@@ -106,20 +106,22 @@ describe('the route day page in every state', () => {
     expect(container.querySelectorAll('[data-testid="depot-provenance-line"]')).toHaveLength(1);
     expect(line()?.getAttribute('data-tone')).toBe('mixed');
     expect(line()?.textContent).toContain('MIXED');
-    expect(line()?.textContent).toContain('passenger demand, buses needed and the proposals');
+    expect(line()?.textContent).toContain('demand, need and proposals are MODELLED');
     expect(container.querySelector('h1')?.textContent).toBe('Hour by hour');
     expect(container.querySelector('.depot-eyebrow')?.textContent).toBe(ROUTE);
     expect(container.textContent).toContain(words);
     expect(bannedOnScreen(container)).toEqual([]);
   });
 
-  it('carries the coverage in the provenance line once the day has loaded', async () => {
+  it('keeps the provenance line to one sentence in every state, the coverage elsewhere', async () => {
     state.polled = polled({ data: routeHourlyFixture() });
     await renderPage();
-    expect(line()?.textContent).toContain('Scheduled trips known for 12 of 40 buses');
+    expect(line()?.textContent).not.toContain('trips known');
+    expect(line()?.textContent).not.toContain('Observed by this server');
+    expect(container.textContent).toContain('Scheduled (trips known for 12 of 40 buses)');
     state.polled = polled({ loading: true });
     await renderPage();
-    expect(line()?.textContent).not.toContain('Scheduled trips known');
+    expect(line()?.textContent).not.toContain('trips known');
   });
 
   it.each([

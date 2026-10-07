@@ -1,13 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import {
   PROPOSAL_COLUMN_WIDTHS,
-  coverageSentences,
   proposalColumnKeys,
   proposalRow,
   proposalTierFor,
-  routeHourlyProvenance,
   serviceFigures,
 } from '@/lib/depot/service/servicePageModel';
+import {
+  chartNote,
+  coverageSentences,
+  routeHourlyProvenance,
+  scheduledLegendText,
+} from '@/lib/depot/service/serviceCoverage';
 import { bandLabel, hourLabel, PROPOSAL_KIND_LABEL } from '@/lib/depot/service/serviceWording';
 import { TABLE_FRAME_BORDER_PX, contentWidthAt } from '@/lib/depot/shell/geometry';
 import { tableWidth } from '@/lib/depot/shell/tableWidth';
@@ -49,40 +53,54 @@ describe('service figures', () => {
 });
 
 describe('coverage and provenance', () => {
-  it('words the coverage sentences from the response', () => {
+  it('puts the route-name share and the standing buses in the closing disclosure', () => {
     expect(coverageSentences(routeHourlyFixture())).toEqual([
-      'Observed by this server since 05:02 (79 samples).',
       'Only buses that report a route name are counted: 10 of the 14 buses in the feed report one.',
       '4 standing now carry this route’s name; they are not counted as deployed.',
-      'Scheduled trips known for 12 of 40 buses seen on this route today.',
     ]);
     const one = coverageSentences(routeHourlyFixture({ standingNow: 1 }));
     expect(one).toContain('1 standing now carries this route’s name; it is not counted as deployed.');
-    expect(coverageSentences(routeHourlyFixture({ standingNow: 0 }))).toHaveLength(3);
-    expect(coverageSentences(routeHourlyFixture({ observed: null }))[0]).toBe(
-      'Not yet observed by this server today.',
+    expect(coverageSentences(routeHourlyFixture({ standingNow: 0 }))).toHaveLength(1);
+  });
+
+  it('says what the server observed in the chart section’s note, with the operating day', () => {
+    expect(chartNote(routeHourlyFixture())).toBe(
+      'Operating day 6 Oct 2026 · Observed by this server since 05:02 (79 samples)',
+    );
+    expect(chartNote(routeHourlyFixture({ observed: null }))).toBe(
+      'Operating day 6 Oct 2026 · Not yet observed by this server today',
     );
   });
 
-  it('says one bus in the singular', () => {
-    const one = coverageSentences(
-      routeHourlyFixture({ scheduledCoverage: { n: 1, of: 1 }, routeCoverage: { n: 1, of: 1 } }),
+  it('names the scheduled coverage on the Scheduled legend entry, one bus in the singular', () => {
+    expect(scheduledLegendText(routeHourlyFixture().scheduledCoverage)).toBe(
+      'Scheduled (trips known for 12 of 40 buses)',
     );
-    expect(one).toContain('Scheduled trips known for 1 of 1 bus seen on this route today.');
-    expect(one).toContain('Only buses that report a route name are counted: 1 of the 1 bus in the feed reports one.');
+    expect(scheduledLegendText({ n: 1, of: 1 })).toBe('Scheduled (trips known for 1 of 1 bus)');
+    expect(coverageSentences(routeHourlyFixture({ routeCoverage: { n: 1, of: 1 } }))).toContain(
+      'Only buses that report a route name are counted: 1 of the 1 bus in the feed reports one.',
+    );
   });
 
-  it('is a MIXED line with live, derived and modelled parts and the coverage as its second', () => {
+  it('is one short MIXED sentence with no second sentence', () => {
     const line = routeHourlyProvenance(routeHourlyFixture());
     expect(line.default).toBe('mixed');
     if (line.default !== 'mixed') return;
-    expect(line.live).toBeTruthy();
-    expect(line.derived).toBeTruthy();
-    expect(line.modelled).toMatch(/demand/);
-    // Most hours of a day not yet observed come from the modelled day: the line says so.
-    expect(line.derived).toBe('observed and scheduled buses by hour');
-    expect(line.modelled).toMatch(/^deployment in hours not observed, /);
-    expect(line.second).toContain('Observed by this server since 05:02 (79 samples).');
+    expect(line).toEqual({
+      default: 'mixed',
+      live: 'Buses now',
+      derived: 'observed hours and scheduled trips',
+      modelled: 'other hours, demand, need and proposals',
+    });
+    expect(line.second).toBeUndefined();
+  });
+
+  it('never names observed hours when the server has observed none', () => {
+    const line = routeHourlyProvenance(routeHourlyFixture({ observed: null }));
+    if (line.default !== 'mixed') throw new Error('mixed');
+    expect(line.derived).toBe('scheduled trips');
+    expect(line.modelled).toBe('deployment by hour, demand, need and proposals');
+    expect(routeHourlyProvenance(null)).toMatchObject({ derived: 'observed hours and scheduled trips' });
   });
 });
 

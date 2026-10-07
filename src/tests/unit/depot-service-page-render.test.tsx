@@ -200,14 +200,18 @@ describe('RouteHourlyPage words', () => {
     expect(mono.map((p) => p.textContent)).toEqual([]);
   });
 
-  it('declares a MIXED provenance line with the coverage sentences', () => {
+  it('declares one short MIXED sentence and re-homes the coverage', () => {
     const response = routeHourlyFixture();
     const line = provenanceLine(routeHourlyProvenance(response), { data: response, error: null });
     expect(line.tag).toBe('MIXED');
-    expect(line.sentence).toContain('LIVE');
-    expect(line.sentence).toContain('DERIVED');
-    expect(line.sentence).toContain('MODELLED');
-    expect(line.sentence).toContain('Scheduled trips known for 12 of 40 buses seen on this route today.');
-    expect(line.sentence).toContain('Only buses that report a route name are counted: 10 of the 14 buses in the feed report one.');
+    expect(line.sentence).toBe(
+      'Buses now are LIVE; observed hours and scheduled trips are DERIVED; other hours, demand, need and proposals are MODELLED.',
+    );
+    render();
+    const chart = section('hour-chart')?.textContent ?? '';
+    expect(chart).toContain('Observed by this server since 05:02 (79 samples)');
+    expect(chart).toContain('Scheduled (trips known for 12 of 40 buses)');
+    expect(text()).toContain('Only buses that report a route name are counted: 10 of the 14 buses in the feed report one.');
+    expect(text()).toContain('4 standing now carry this route’s name');
   });
 });

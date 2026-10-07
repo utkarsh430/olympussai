@@ -5,16 +5,19 @@ import { SectionLabel } from '@/components/depot/shell/SectionLabel';
 import { useWidthTier } from '@/components/depot/shell/useWidthTier';
 import { GAP_ROW_TIERS } from '@/lib/depot/service/gapRowLayout';
 import { buildHourChartModel, hourTableRows } from '@/lib/depot/service/hourChartModel';
-import { chartNote } from '@/lib/depot/service/servicePageModel';
+import { chartNote, scheduledLegendText } from '@/lib/depot/service/serviceCoverage';
 import { SERVICE_TEXT } from '@/lib/depot/service/serviceWording';
-import type { RouteHourlyBody } from '@/lib/depot/service/types';
+import type { RouteHourlyResponse } from '@/lib/depot/service/types';
 import { formatPlainDate } from '@/lib/depot/format';
 import { HourLegend } from './HourLegend';
 import { HourPlot } from './HourPlot';
 import { HourTable } from './HourTable';
 
 export interface HourChartProps {
-  readonly body: Pick<RouteHourlyBody, 'hours' | 'currentHour' | 'operatingDate' | 'routeName'>;
+  readonly body: Pick<
+    RouteHourlyResponse,
+    'hours' | 'currentHour' | 'operatingDate' | 'routeName' | 'observed' | 'scheduledCoverage' | 'feedNow'
+  >;
   /** Plot height in pixels; the chart takes its container's width. */
   readonly height?: number;
 }
@@ -60,7 +63,10 @@ export function HourChart({ body, height = PLOT_HEIGHT_PX }: HourChartProps) {
             <div role="img" aria-label={label} className="min-w-0" data-testid="hour-chart-plot">
               <HourPlot model={model} height={height} staggered={gapRow === 'staggered'} />
             </div>
-            <HourLegend hasNow={model.nowLabel !== null} />
+            <HourLegend
+              hasNow={model.nowLabel !== null}
+              scheduled={scheduledLegendText(body.scheduledCoverage)}
+            />
           </>
         )}
       </div>

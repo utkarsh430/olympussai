@@ -1,6 +1,5 @@
-import type { ProvenanceDescription } from '../provenanceLine';
 import type { DepotMeaning } from '../palette';
-import { MINUS, countPhrase, formatCount, formatFeedTimeOn, formatPlainDate, pluralWord } from '../format';
+import { MINUS, formatCount, formatFeedTimeOn } from '../format';
 import { BREAKPOINT_PX, WIDE_VIEWPORT_PX } from '../shell/geometry';
 import type { Provenance } from '../types';
 import {
@@ -14,12 +13,12 @@ import {
   gapFigure,
   gapWords,
 } from './serviceWording';
-import type { ImpactRange, Proposal, RouteHourlyBody, RouteHourlyResponse } from './types';
+import type { ImpactRange, Proposal, RouteHourlyResponse } from './types';
 
 /*
- * The route's hour-by-hour page as data: the figure band for the current hour, the
- * coverage sentences, the provenance line and the proposals table's rows and column
- * sets per width. The components render what these return.
+ * The route's hour-by-hour page as data: the figure band for the current hour and the
+ * proposals table's rows and column sets per width (the coverage and the provenance line
+ * are in `serviceCoverage`). The components render what these return.
  */
 
 export interface ServiceFigure {
@@ -77,47 +76,6 @@ const TENTHS = 10;
 function neededAt(hour: Body['hours'][number], end: 'low' | 'high'): number {
   if (hour.demand <= 0) return hour.needed;
   return Math.round((hour.demandBand[end] * hour.needed * TENTHS) / hour.demand) / TENTHS;
-}
-
-/** The route's standing buses, said once: they carry its name but are not deployed. */
-function standingSentence(standing: number): readonly string[] {
-  if (standing <= 0) return [];
-  return standing === 1
-    ? ['1 standing now carries this route’s name; it is not counted as deployed.']
-    : [`${formatCount(standing)} standing now carry this route’s name; they are not counted as deployed.`];
-}
-
-/** The coverage sentences: what the day's figures rest on. */
-export function coverageSentences(body: Body): readonly string[] {
-  const observed =
-    body.observed === null
-      ? 'Not yet observed by this server today.'
-      : `Observed by this server since ${formatFeedTimeOn(body.observed.since, body.feedNow)} (${formatCount(body.observed.samples)} samples).`;
-  return [
-    observed,
-    `Only buses that report a route name are counted: ${formatCount(body.routeCoverage.n)} of the ${countPhrase(body.routeCoverage.of, 'bus', 'buses')} in the feed ${pluralWord(body.routeCoverage.n, 'reports', 'report')} one.`,
-    ...standingSentence(body.standingNow),
-    `Scheduled trips known for ${formatCount(body.scheduledCoverage.n)} of ${countPhrase(body.scheduledCoverage.of, 'bus', 'buses')} seen on this route today.`,
-  ];
-}
-
-/**
- * The page's MIXED line: what is live, derived and modelled, then the coverage. Before the
- * day has loaded (or when it cannot) the line names the classes alone.
- */
-export function routeHourlyProvenance(body: Body | null): ProvenanceDescription {
-  const classes: ProvenanceDescription = {
-    default: 'mixed',
-    live: 'Buses on the route now',
-    derived: 'observed and scheduled buses by hour',
-    modelled: 'deployment in hours not observed, passenger demand, buses needed and the proposals',
-  };
-  return body === null ? classes : { ...classes, second: coverageSentences(body).join(' ') };
-}
-
-/** The chart section's note: the operating date in words. */
-export function chartNote(body: Pick<RouteHourlyBody, 'operatingDate'>): string {
-  return `Operating day ${formatPlainDate(body.operatingDate)}`;
 }
 
 export interface ProposalRow {

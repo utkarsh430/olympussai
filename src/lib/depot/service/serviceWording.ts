@@ -126,7 +126,6 @@ export const LEGEND_TEXT = {
   observed: 'Deployed, observed',
   modelled: 'Deployed, modelled day',
   notObserved: 'Not observed (modelled day)',
-  scheduled: 'Scheduled',
   needed: 'Needed, from modelled demand, with its range',
   now: 'Now',
   gap: 'Gap row: + short, − over',

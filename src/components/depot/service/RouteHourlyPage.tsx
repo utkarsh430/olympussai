@@ -10,7 +10,9 @@ import { PunctualitySection } from './PunctualitySection';
 import { ServiceFigureBand } from './ServiceFigureBand';
 import { ServiceMethod } from './ServiceMethod';
 
-export { routeHourlyProvenance, coverageSentences } from '@/lib/depot/service/servicePageModel';
+import { coverageSentences } from '@/lib/depot/service/serviceCoverage';
+
+export { routeHourlyProvenance, coverageSentences } from '@/lib/depot/service/serviceCoverage';
 
 export interface RouteHourlyPageProps {
   readonly response: RouteHourlyResponse | null;
@@ -65,7 +67,11 @@ export function RouteHourlyPage({ response, error, loading, onRetry }: RouteHour
         </div>
         <ProposalsTable proposals={response.proposals} />
         <PunctualitySection reliability={response.reliability} />
-        <ServiceMethod need={response.need} demandBasis={response.demandBasis} />
+        <ServiceMethod
+          need={response.need}
+          demandBasis={response.demandBasis}
+          coverage={coverageSentences(response)}
+        />
       </div>
     </>
   );
