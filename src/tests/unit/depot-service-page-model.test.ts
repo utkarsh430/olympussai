@@ -89,6 +89,13 @@ describe('proposal rows', () => {
     expect(hold).toMatchObject({ change: 'Hold 2', source: 'Alambagh · day plan', impact: '−20–0' });
     expect(run).toMatchObject({ change: 'Running time', source: '—', impact: '—', restsOn: 'A · Measured' });
     expect(run?.impactTitle).toMatch(/No modelled impact/);
+    expect(run?.sourceTitle).toBe('No bus moves for this finding.');
+  });
+
+  it('says an add with no source has none identified, not that no bus moves', () => {
+    const sourceless = proposalRow({ ...FIXTURE_PROPOSALS[0]!, source: null, tier: 'C' });
+    expect(sourceless.source).toBe('—');
+    expect(sourceless.sourceTitle).toBe('No source was identified for these buses.');
   });
 
   it('holds the impact ranges for the expanded row', () => {

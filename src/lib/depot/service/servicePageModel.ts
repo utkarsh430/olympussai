@@ -150,7 +150,10 @@ function rangeText(range: ImpactRange, figure: (n: number) => string, joiner: st
 }
 
 function sourceCell(p: Proposal): Pick<ProposalRow, 'source' | 'sourceTitle'> {
-  if (p.source === null) return { source: DASH, sourceTitle: SERVICE_TEXT.noSource };
+  if (p.source === null) {
+    const title = p.change === 0 ? SERVICE_TEXT.noSource : SERVICE_TEXT.noSourceFound;
+    return { source: DASH, sourceTitle: title };
+  }
   const { depotName, standingInYard, basis } = p.source;
   if (basis === 'observed' && standingInYard !== null) {
     return {

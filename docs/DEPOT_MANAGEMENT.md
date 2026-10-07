@@ -854,7 +854,9 @@ REFERENCE, for the owner to set): `TARGET_LOAD = 0.75`, `BUSIEST_STRETCH_SHARE =
 - **Add buses**: each hour short by at least the larger of `ADD_MIN_BUSES = 2` and
   `ADD_MIN_SHARE = 0.2` of the need; the change is the band's mean gap rounded up. The
   source is the route's main depot: its standing buses in the yard in the hour before the
-  band when observed, else the buses its modelled day leaves idle. An add is never larger
+  band when observed, else the buses its modelled day leaves idle. When neither offers a bus
+  (no yard observed and none idle in the day plan) the add names no source, says no source
+  was identified, and is tier C. An add is never larger
   than an observed standing pool; when the pool is smaller the reason says so, and a yard
   with no standing bus gives an add of none, with no impact claimed.
 - **Hold buses**: each hour over by at least `HOLD_MIN_SURPLUS = 1`, keeping at least

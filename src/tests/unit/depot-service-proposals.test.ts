@@ -84,6 +84,15 @@ describe('add_buses', () => {
     expect(add?.reason).toContain('5 idle in the modelled day plan');
   });
 
+  it('gives no source, tier C, when the modelled day plan leaves no bus idle and no yard was seen', () => {
+    const [add] = buildProposals(context({ hours: short, depotHours: [], modelledIdleBuses: 0 }));
+    expect(add?.kind).toBe('add_buses');
+    expect(add?.source).toBeNull();
+    expect(add?.tier).toBe('C');
+    expect(add?.reason).toContain('no source was identified');
+    expect(add?.reason).not.toContain('0 idle');
+  });
+
   it('names no source without an operating depot', () => {
     const [add] = buildProposals(context({ hours: short, depot: null }));
     expect(add?.source).toBeNull();
