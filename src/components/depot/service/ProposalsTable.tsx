@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { ProposalRationaleButton } from '@/components/depot/copilot/RationaleButton';
 import { DataTable, type Column } from '@/components/depot/shell/DataTable';
 import { Pager } from '@/components/depot/shell/LongLists';
 import { Notice } from '@/components/depot/shell/Notice';
@@ -87,7 +88,8 @@ const GROUP: TableGrouping<ProposalRow> = { key: (r) => proposalGroup(r.proposal
 /**
  * The expanded row: the full reason, the peak, the band means the table at this width
  * hides, where the buses come from and what the proposal rests on, then the impact as a
- * 2×2 grid and the net a day (a loss in the worse tone, said in words).
+ * 2×2 grid and the net a day (a loss in the worse tone, said in words), and the copilot's
+ * explanation of the proposal on request.
  */
 function ProposalDetail({ row, shown }: { readonly row: ProposalRow; readonly shown: readonly string[] }) {
   const figures = hiddenFigures(row, shown);
@@ -126,6 +128,13 @@ function ProposalDetail({ row, shown }: { readonly row: ProposalRow; readonly sh
       ) : (
         <p className="depot-note">{SERVICE_TEXT.noImpact}</p>
       )}
+      <div className="pt-2">
+        <ProposalRationaleButton
+          proposalId={row.proposal.id}
+          routeName={row.proposal.routeName}
+          label={`${row.band} ${row.change}`}
+        />
+      </div>
     </div>
   );
 }
