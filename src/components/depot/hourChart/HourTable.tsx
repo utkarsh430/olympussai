@@ -17,7 +17,7 @@ const COLUMNS: readonly Column<HourTableRow>[] = [
     render: (r) => r.needed,
     title: (r) => `Range ${r.neededRange}`,
   },
-  { key: 'gap', header: 'Gap', align: 'right', render: (r) => r.gap },
+  { key: 'gap', header: 'Gap', align: 'right', render: (r) => r.gap, title: (r) => r.gapTitle },
   { key: 'delay', header: 'Delay', align: 'right', render: (r) => r.delay },
   { key: 'late', header: 'Late share', align: 'right', render: (r) => r.lateShare },
 ];

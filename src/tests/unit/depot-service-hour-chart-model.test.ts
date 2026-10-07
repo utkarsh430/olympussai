@@ -43,6 +43,17 @@ describe('hour chart model', () => {
     expect(model.columns[0]?.gapTone).toBe('even');
   });
 
+  it('counts a gap as seen only where the deployment was seen in the feed', () => {
+    const seen = model.columns.map((c) => c.gapSeen);
+    expect(seen.slice(0, 5)).toEqual(Array(5).fill(false));
+    expect(seen.slice(5, 12)).toEqual(Array(7).fill(true));
+    expect(seen.slice(12)).toEqual(Array(12).fill(false));
+    const rows = hourTableRows(model);
+    expect(rows[8]?.gapTitle).toBeUndefined();
+    expect(rows[15]?.gapTitle).toBe('Modelled: the deployment in this hour is modelled.');
+    expect(rows[2]?.gapTitle).toBe('Modelled: the deployment in this hour is modelled.');
+  });
+
   it('marks the current hour and builds a y-scale above every figure', () => {
     expect(model.nowLabel).toBe('11:00');
     expect(model.yDomain[0]).toBe(0);

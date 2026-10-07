@@ -38,6 +38,12 @@ export interface HourColumn {
   readonly gap: number;
   readonly gapText: string;
   readonly gapTone: GapTone;
+  /**
+   * True when the hour's deployment was seen in the feed (observed, or the current hour):
+   * only then is its gap a measured shortfall worth its tone. Elsewhere both sides of the
+   * gap are modelled.
+   */
+  readonly gapSeen: boolean;
   readonly figures: RouteHourFigures;
 }
 
@@ -94,6 +100,7 @@ function column(figures: RouteHourFigures, currentHour: number | null): HourColu
     gap: figures.gap,
     gapText: gapFigure(figures.gap),
     gapTone: gapTone(figures.gap),
+    gapSeen: solid,
     figures,
   };
 }
@@ -139,6 +146,8 @@ export const BASIS_WORD: Readonly<Record<HourColumnKind, string>> = {
   not_observed: 'Not observed',
 };
 
+const MODELLED_GAP_TITLE = 'Modelled: the deployment in this hour is modelled.';
+
 /** One hour of the text table that stands in for the chart. */
 export interface HourTableRow {
   readonly key: string;
@@ -149,6 +158,8 @@ export interface HourTableRow {
   readonly needed: string;
   readonly neededRange: string;
   readonly gap: string;
+  /** Set for an hour whose deployment is modelled, so its gap is modelled too. */
+  readonly gapTitle: string | undefined;
   readonly delay: string;
   readonly lateShare: string;
 }
@@ -163,6 +174,7 @@ export function hourTableRows(model: HourChartModel): readonly HourTableRow[] {
     needed: busFigure(c.needed),
     neededRange: `${busFigure(c.neededBand[0])} to ${busFigure(c.neededBand[1])}`,
     gap: c.gapText,
+    gapTitle: c.gapSeen ? undefined : MODELLED_GAP_TITLE,
     delay: delayFigure(c.figures.delayMedianMin),
     lateShare: c.figures.lateShare === null ? DASH : formatPercent(c.figures.lateShare),
   }));

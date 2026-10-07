@@ -128,7 +128,7 @@ export const LEGEND_TEXT = {
   notObserved: 'Not observed (modelled day)',
   needed: 'Needed, from modelled demand, with its range',
   now: 'Now',
-  gap: 'Gap row: + short, − over',
+  gap: 'Gap row: + short, − over; gaps in modelled hours are modelled',
 } as const;
 
 /** Where the journey time came from, in words. */

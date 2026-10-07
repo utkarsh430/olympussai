@@ -3,6 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { HourChart } from '@/components/depot/hourChart/HourChart';
 import { GapTick } from '@/components/depot/hourChart/HourPlotParts';
+import { GAP_COLOUR, HOUR_COLOUR } from '@/components/depot/hourChart/hourChartStyle';
 import { buildHourChartModel } from '@/lib/depot/service/hourChartModel';
 import { bannedOnScreen } from './depot-guard-rendered';
 import { routeHourlyFixture } from './depot-service-fixtures';
@@ -52,6 +53,31 @@ describe('HourChart', () => {
     expect(cells[12]?.textContent).toBe('−2');
     expect(cells[12]?.getAttribute('data-gap')).toBe('over');
     expect(cells[0]?.textContent).toBe('Gap0');
+  });
+
+  it('colours a gap only for an hour seen in the feed; a modelled hour’s gap is in the axis colour', () => {
+    const { columns } = buildHourChartModel({ hours: routeHourlyFixture().hours, currentHour: 11 });
+    const fillAt = (hour: number): string | null | undefined => {
+      act(() =>
+        root.render(
+          <svg>
+            <GapTick x={100} y={10} width={240} column={columns[hour]} />
+          </svg>,
+        ),
+      );
+      return Array.from(container.querySelectorAll('text')).pop()?.getAttribute('fill');
+    };
+    expect(fillAt(7)).toBe(GAP_COLOUR.short);
+    expect(fillAt(11)).toBe(GAP_COLOUR.over);
+    expect(fillAt(17)).toBe(HOUR_COLOUR.axisText);
+    expect(fillAt(2)).toBe(HOUR_COLOUR.axisText);
+    expect(container.querySelector('[data-testid="hour-gap-cell"]')?.getAttribute('data-seen')).toBe('false');
+  });
+
+  it('says in the legend that gaps in modelled hours are modelled', () => {
+    render();
+    const legend = container.querySelector('[data-testid="hour-legend"]')?.textContent ?? '';
+    expect(legend).toContain('gaps in modelled hours are modelled');
   });
 
   it('puts every other gap a line lower when the row is staggered, the first line unchanged', () => {
