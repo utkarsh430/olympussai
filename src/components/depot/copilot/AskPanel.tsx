@@ -127,7 +127,7 @@ export function AskPanel() {
           <div className="flex min-w-0 items-center gap-3">
             <span aria-hidden className="depot-lamp" />
             <h2 id={`${ids.text}-h`} className="depot-eyebrow mb-0">
-              Copilot console
+              AI Engine
             </h2>
             <span className="truncate font-mono text-[11px] uppercase tracking-[0.12em] text-depot-muted" data-testid="ask-lamp">
               {lampState}

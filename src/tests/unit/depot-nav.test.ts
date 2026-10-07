@@ -47,7 +47,7 @@ describe('NETWORK_NAV', () => {
       ['Economics', '/project/depots/economics'],
       ['Network trends', '/project/depots/trends'],
       ['Service by the hour', '/project/depots/service'],
-      ['Ask', '/project/depots/ask'],
+      ['AI Engine', '/project/depots/ask'],
       ['Data sources', '/project/depots/sources'],
     ]);
     expect(new Set(items.map((item) => item.href)).size).toBe(items.length);

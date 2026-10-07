@@ -252,7 +252,7 @@ const PAGE_TEMPLATES: readonly string[] = discover(PAGES_DIR, 'page.tsx').map((f
 /** Each page's heading, as the page writes it (the screen shows it in capitals). */
 const PAGE_HEADING: Readonly<Record<string, string>> = {
   '/project/depots': 'Network overview',
-  '/project/depots/ask': 'Ask',
+  '/project/depots/ask': 'AI Engine',
   '/project/depots/economics': 'Economics',
   '/project/depots/exceptions': 'Exceptions',
   '/project/depots/league': 'League table',
@@ -662,7 +662,7 @@ test.describe('8. the copilot on its scripted writer', () => {
     sample,
   }) => {
     expect(sample.depotId).toBeTruthy();
-    await openPage(page, '/project/depots/ask', 'Ask');
+    await openPage(page, '/project/depots/ask', 'AI Engine');
     await ask(page, SUPPORTED_QUESTION);
 
     const answer = page.getByTestId('ask-answer').first();
@@ -675,7 +675,7 @@ test.describe('8. the copilot on its scripted writer', () => {
 
   test('a question about a person gets the fixed decline', async ({ page, sample }) => {
     expect(sample.depotId).toBeTruthy();
-    await openPage(page, '/project/depots/ask', 'Ask');
+    await openPage(page, '/project/depots/ask', 'AI Engine');
     await ask(page, PERSON_QUESTION);
 
     const answer = page.getByTestId('ask-answer').first();
@@ -686,7 +686,7 @@ test.describe('8. the copilot on its scripted writer', () => {
 
   test('the decline does not call the sample the live data', async ({ page, sample }) => {
     expect(sample.depotId).toBeTruthy();
-    await openPage(page, '/project/depots/ask', 'Ask');
+    await openPage(page, '/project/depots/ask', 'AI Engine');
     await ask(page, PERSON_QUESTION);
     const answer = page.getByTestId('ask-answer').first();
     await expect(answer).toContainText(DECLINE_HEADLINE);
@@ -698,7 +698,7 @@ test.describe('8. the copilot on its scripted writer', () => {
 
   test('past the limit the page shows the cooldown', async ({ page, sample, baseURL }) => {
     expect(sample.depotId).toBeTruthy();
-    await openPage(page, '/project/depots/ask', 'Ask');
+    await openPage(page, '/project/depots/ask', 'AI Engine');
     let limited = false;
     for (let i = 0; i < COPILOT_LIMIT_PROBES && !limited; i += 1) {
       const res = await page.request.post('/api/upsrtc/depot/copilot', {
