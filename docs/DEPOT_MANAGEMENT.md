@@ -802,10 +802,12 @@ inside its yard and its buses on the road with no route name. The feed's own jou
 The feed clock is the only clock; the saved sample never writes. The view
 (`buildRouteHourlyResponse` in `live/routeHourlyView.ts`, composed in
 `live/routeHourlyBody.ts`) reads the route's row from the snapshot's route table, the store
-through `getServiceRepositories()`, and the shared modelled operating day of each depot
-running the route (`operatingDayFor`, the one the duty, crew, fuel and revenue pages read),
-then runs the engine in `src/lib/depot/service/`. The body is held per snapshot, route and
-route-catalogue revision (`queryMemo`); the feed envelope is built per request.
+through `getServiceRepositories()`, a modelled day of the route's own buses (below), and
+the shared modelled operating day of each depot running the route (`operatingDayFor`, the
+one the duty, crew, fuel and revenue pages read: the route length and the depot's idle
+buses for a proposal's source), then runs the engine in `src/lib/depot/service/`. The body
+is held per snapshot, route and route-catalogue revision (`queryMemo`); the feed envelope
+is built per request.
 
 **Three layers, each saying what it is.**
 
@@ -815,27 +817,44 @@ route-catalogue revision (`queryMemo`); the feed envelope is built per request.
    name stay in the state mix only and are said once on the page ("N standing now carry
    this route's name"). An hour needs at least
    `MIN_SLOTS_FOR_AN_HOUR = 6` of its 12 samples to count as observed. The feed clock's own
-   hour takes the snapshot's figure. Any other hour comes from the modelled day: the
-   minutes each modelled duty of the route that had a bus overlaps the hour, over 60, summed
-   over the route's depots (`modelledDeployment.ts`, MODELLED). The chart draws a modelled
-   hour hatched ahead of now and as an empty outline before it ("not observed").
+   hour takes the snapshot's figure. Any other hour comes from a modelled day anchored to
+   the route's own buses (`modelledRouteHours` in `modelledDeployment.ts`, MODELLED): each
+   bus carrying the route name in the snapshot (the route row's `buses`, whatever their
+   state) runs one duty drawn by the duty roll's rules (`drawDutySpan` in `sim/duties.ts`:
+   a start in the morning triangle or spread over the day; out and back plus a layover
+   when the journey time is known from the feed's schedule or the profile, else 4 to 10
+   hours; at most 16 hours), seeded by route and date; an hour's figure is the minutes
+   those duties overlap it, over 60. So the observed and modelled hours are one route on
+   one scale, and no hour runs more buses than the feed shows on the route. **This page's
+   modelled day is drawn from the buses the feed shows on the route, while the depot pages'
+   modelled day is drawn per depot** (the depot's peak requirement dealt round-robin over
+   its routes), so the two can differ for the same route. The chart draws a modelled hour
+   hatched ahead of now and as an empty outline before it ("not observed").
 2. **Scheduled** (DERIVED, partial): bus-hours, the minutes each known trip overlaps the
    hour, over 60 (`journeyLedger.ts`, `scheduledSupply.ts`). Trips are the journeys the feed
    reports on its rows (about one bus in five carries one) and the trips of bus days looked
    up from the schedule service; a trip known both ways counts once. Coverage is the buses
    whose trips are known, of the buses seen on the route that date. With no trip known,
    every hour says no scheduled trip is known, rather than zero.
-3. **Demand** (MODELLED): the day's boardings on the route are the revenue page's figure
-   (`modelRidershipDay` over the route's depots' modelled days), spread over the hours the
-   route runs by a reference hour-of-day shape per service class (`sim/hourlyDemand.ts`):
+3. **Demand** (MODELLED): the day's boardings on the route come from the same buses
+   (`routeDayBoardings` in `service/routeDayBoardings.ts`): the trip model's trips per day
+   on them (`modelTripsPerDay`, the Routes table's "trips/day"), times the class's seats in
+   the modelled fleet master, times the route's modelled load factor
+   (`modelLoadFactor` in `sim/ridership.ts`), by the revenue model's rule (`dayBoardings`
+   in `sim/ridershipFigures.ts`: two legs a trip, each carrying seats times load factor over
+   the average ride share), so the same route, date and trips give the revenue page's
+   figure. The journey time given to the trip model is the one the deployment uses (the
+   feed's schedule, else the profile, else none). The day's boardings are spread over the
+   hours the route runs by a reference hour-of-day shape per service class (`sim/hourlyDemand.ts`):
    ordinary and city peak at 08:00 and 18:00, express leans to a morning departure, AC and
    premium are flatter; a route longer than `LONG_ROUTE_JOURNEY_MIN = 240` minutes leans
    `LONG_ROUTE_LEAN = 0.4` of the way to a departure shape. Each hour carries a seeded
    spread of `HOURLY_JITTER = 0.08` and a band of `DEMAND_BAND_SHARE = 0.25` either way. With
    fewer than `MIN_SERVICE_HOURS = 4` running hours the shape falls back to
    `DEFAULT_ACTIVE_HOURS`, 05:00 to 22:00. Until ticketing is connected the day's boardings
-   follow the modelled duties, so the gap shows **when** in the day buses are short rather
-   than how many are short over the whole day; the page's method says so.
+   follow the modelled trips of the route's buses, so the gap shows **when** in the day
+   buses are short rather than how many are short over the whole day; the page's method
+   says so, and that its modelled day can differ from the depot pages'.
 
 **Need and gap** (`need.ts`, `gap.ts`). Trips needed in an hour are the hour's boardings
 times the busiest stretch's share, divided by seats per bus times the target load; buses
@@ -927,7 +946,7 @@ answers. In summary (detail, settings and limits in
 | Folder | Holds |
 | --- | --- |
 | `live/` | Snapshot analysis, aggregation, the held peak on-road shares and peak requirements, the hour store (`serviceHold.ts`, `serviceHoldReads.ts`), the bounded query memo, the feed-time hold of the allocation plan, and one view builder per API route (the route day's in `routeHourlyView.ts` and `routeHourlyBody.ts`) |
-| `service/` | One route's day hour by hour (section 7.15): the shared shapes (`types.ts`), sampling and hour roll-ups (`observe.ts`, `observeHours.ts`), the journey ledger and scheduled supply (`journeyLedger.ts`, `scheduledSupply.ts`), modelled deployment, need, gap, proposals and their cap, timetable findings, impact, punctuality, bands, reasons, and the page's wording and models (`serviceWording.ts`, `servicePageModel.ts`, `hourChartModel.ts`) |
+| `service/` | One route's day hour by hour (section 7.15): the shared shapes (`types.ts`), sampling and hour roll-ups (`observe.ts`, `observeHours.ts`), the journey ledger and scheduled supply (`journeyLedger.ts`, `scheduledSupply.ts`), modelled deployment and day boardings of the route's own buses (`modelledDeployment.ts`, `routeDayBoardings.ts`), need, gap, proposals and their cap, timetable findings, impact, punctuality, bands, reasons, and the page's wording and models (`serviceWording.ts`, `servicePageModel.ts`, `hourChartModel.ts`) |
 | `infer/` | Bus state, location, yard inference and continuity, outshedding |
 | `score/`, `stats/` | Efficiency index, peer groups, rolling window; robust statistics (`stats/robust.ts`), the rounding helpers and `clamp` (`stats/rounding.ts`), text ordering (`stats/order.ts`) |
 | `exceptions/` | Depot and bus exceptions, paging |
