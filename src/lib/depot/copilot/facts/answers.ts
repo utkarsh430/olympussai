@@ -41,6 +41,14 @@ const ANSWERED_FROM: Readonly<Record<CopilotDataSource | 'live', string>> = {
 };
 
 function unsupported(reason: UnsupportedReason, network: DepotNetworkResponse): CopilotRequest {
+  if (reason === 'unknown_route') {
+    return answer('an unsupported question', [], {
+      headline: 'That route is not in the current feed',
+      paragraphs: [
+        'No route with that name is reporting in the current feed. The Routes page lists the routes the feed carries.',
+      ],
+    });
+  }
   if (reason === 'ambiguous_depot') {
     return answer('an unsupported question', [], {
       headline: 'That depot name is not specific enough',
@@ -84,6 +92,11 @@ export function buildAnswer(query: CopilotQuery, data: AnswerData): CopilotReque
       return compareAnswer(data, query.depotA, query.depotB);
     case 'outshedStatus':
       return outshedAnswer(data, query.depotId);
+    case 'routeHour':
+    case 'routeProposals':
+    case 'hourProposals':
+    case 'serviceBrief':
+      return unavailable('the service by the hour');
     case 'unsupported':
       return unsupported(query.reason, data.network);
   }

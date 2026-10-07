@@ -3,6 +3,7 @@ import { cleanName } from '@/lib/depot/copilot/facts/format';
 import type { CopilotFact } from '@/lib/depot/copilot/types';
 import type { CopilotAnswerTable } from '@/lib/depot/copilot/wire';
 import type { Provenance } from '@/lib/depot/types';
+import { hourLabel } from '@/lib/depot/service/feedMinutes';
 
 /**
  * The "interpreted as" line and the result table for an answered question.
@@ -57,8 +58,20 @@ export function interpretQuery(query: CopilotQuery, nameOf: (depotId: string) =>
       return `A comparison of ${name(query.depotA)} and ${name(query.depotB)}`;
     case 'outshedStatus':
       return `Departures from the yard at ${name(query.depotId)}`;
+    case 'routeHour':
+      return `Route ${cleanName(query.routeName)} at ${hourLabel(query.hour)}`;
+    case 'routeProposals':
+      return `The day of route ${cleanName(query.routeName)} and its proposals`;
+    case 'hourProposals':
+      return query.depotId === undefined
+        ? `Routes short and over-served around ${hourLabel(query.hour)}`
+        : `Routes of ${name(query.depotId)} short and over-served around ${hourLabel(query.hour)}`;
+    case 'serviceBrief':
+      return query.date === undefined ? "The day's service brief" : `The service brief for ${query.date}`;
     case 'unsupported':
-      return 'A question outside what can be answered here';
+      return query.reason === 'unknown_route'
+        ? 'A route that is not in the current feed'
+        : 'A question outside what can be answered here';
   }
 }
 
