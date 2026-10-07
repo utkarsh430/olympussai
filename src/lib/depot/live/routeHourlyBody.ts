@@ -53,13 +53,13 @@ function routeLedger(
   return [...mergeJourneys(new Map(held.map((j) => [j.journeyId, j] as const)), seen).values()];
 }
 
-/** In service, on the road or standing, as an observed hour counts deployed. */
+/** In service or on the road, as an observed hour counts deployed; standing buses run nothing. */
 function currentHourOf(row: RouteRow, feedMinute: number | null): CurrentRouteHour | null {
   if (feedMinute === null) return null;
-  const { inService, onRoad, standing } = row.states;
+  const { inService, onRoad } = row.states;
   return {
     hour: Math.floor(feedMinute / MINUTES_PER_HOUR),
-    deployed: inService + onRoad + standing,
+    deployed: inService + onRoad,
     delayMedianMin: row.delay.medianMin,
     lateShare: row.delay.lateShare,
     delayCoverage: row.delay.coverage,
@@ -170,6 +170,7 @@ export async function routeHourlyBody(
     observed: summary,
     scheduledCoverage: supply.coverage,
     routeCoverage: routedShare(view),
+    standingNow: row.states.standing,
     proposals: capAddsAtStanding({ proposals, hours, need, lengthKm, deadKmPerTrip }),
     demandBasis: DEMAND_BASIS,
     reliability: reliabilityByHour(routeName, ledger),

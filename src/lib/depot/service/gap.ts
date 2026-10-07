@@ -16,7 +16,7 @@ import {
 /** The route as the current snapshot shows it, placed in the feed clock's hour (LIVE). */
 export interface CurrentRouteHour {
   readonly hour: number;
-  /** Buses carrying the route name now, whatever their state. */
+  /** Buses carrying the route name now in service or on the road; standing buses are not deployed. */
   readonly deployed: number;
   readonly delayMedianMin: number | null;
   readonly lateShare: number | null;

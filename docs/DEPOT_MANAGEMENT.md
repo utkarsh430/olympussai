@@ -810,7 +810,10 @@ route-catalogue revision (`queryMemo`); the feed envelope is built per request.
 **Three layers, each saying what it is.**
 
 1. **Deployed** (DERIVED): the mean, over an hour's samples, of the route's buses in
-   service, on the road or standing (`observeHours.ts`). An hour needs at least
+   service or on the road, the buses running it (`observeHours.ts`); the same definition
+   holds for the current hour and the modelled hours. Standing buses that carry the route
+   name stay in the state mix only and are said once on the page ("N standing now carry
+   this route's name"). An hour needs at least
    `MIN_SLOTS_FOR_AN_HOUR = 6` of its 12 samples to count as observed. The feed clock's own
    hour takes the snapshot's figure. Any other hour comes from the modelled day: the
    minutes each modelled duty of the route that had a bus overlaps the hour, over 60, summed
@@ -879,7 +882,8 @@ on. The feed does not state its delay unit, so the page says it is unconfirmed.
 
 **Coverage sentences**, in the provenance line: "Observed by this server since HH:MM
 (N samples)"; the buses that report a route name, of every bus in the feed (only they are
-counted); and the buses whose trips are known, of those seen on the route.
+counted); the route's standing buses now, not counted as deployed; and the buses whose
+trips are known, of those seen on the route.
 
 ## 8. The copilot
 

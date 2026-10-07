@@ -201,6 +201,17 @@ describe('hourFromSlots', () => {
     expect(hour.deployedMax).toBe(6);
   });
 
+  it('counts deployed as in service plus on the road, never the standing buses', () => {
+    const slots = hourEight().map((s) => ({
+      ...s,
+      routes: s.routes.map((r) => ({ ...r, states: { ...r.states, standing: 4 } })),
+    }));
+    const hour = hourFromSlots('R1', '2026-10-06', 8, slots)!;
+    expect(hour.deployedMean).toBeCloseTo(21 / 7, 2);
+    expect(hour.deployedMax).toBe(6);
+    expect(hour.states.standing).toBeCloseTo(24 / 7, 2);
+  });
+
   it('is not an observed hour with fewer than six slots', () => {
     expect(hourFromSlots('R1', '2026-10-06', 8, hourEight().slice(0, 5))).toBeNull();
     expect(hourFromSlots('R1', '2026-10-06', 8, hourEight().slice(0, 6))).not.toBeNull();

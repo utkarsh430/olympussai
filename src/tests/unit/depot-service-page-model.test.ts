@@ -37,6 +37,7 @@ describe('service figures', () => {
     expect(figures[1]?.tag).toBe('modelled');
     expect(figures[2]?.tone).toBe('better');
     expect(figures[3]?.caption).toBe('Observed since 05:02');
+    expect(figures[0]?.caption).toBe('In service or on the road');
   });
 
   it('says what is missing without a feed clock or any observation', () => {
@@ -52,8 +53,12 @@ describe('coverage and provenance', () => {
     expect(coverageSentences(routeHourlyFixture())).toEqual([
       'Observed by this server since 05:02 (79 samples).',
       'Only buses that report a route name are counted: 10 of 14.',
+      '4 standing now carry this route’s name; they are not counted as deployed.',
       'Scheduled trips known for 12 of 40 buses seen on this route today.',
     ]);
+    const one = coverageSentences(routeHourlyFixture({ standingNow: 1 }));
+    expect(one).toContain('1 standing now carries this route’s name; it is not counted as deployed.');
+    expect(coverageSentences(routeHourlyFixture({ standingNow: 0 }))).toHaveLength(3);
     expect(coverageSentences(routeHourlyFixture({ observed: null }))[0]).toBe(
       'Not yet observed by this server today.',
     );

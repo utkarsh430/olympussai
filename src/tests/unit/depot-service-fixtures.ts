@@ -175,6 +175,7 @@ export function routeHourlyFixture(
     observed: { since: '2026-10-06T05:02:00Z', hours: 6, samples: 79 },
     scheduledCoverage: { n: 12, of: 40 },
     routeCoverage: { n: 10, of: 14 },
+    standingNow: 4,
     proposals: PROPOSALS,
     demandBasis:
       'Seats offered for the day times the modelled load factor of an ordinary service, spread by its hour-of-day shape.',

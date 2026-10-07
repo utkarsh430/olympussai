@@ -14,7 +14,9 @@ function overlap(startMin: number, endMin: number, hour: number): number {
 
 /**
  * A route's MODELLED deployment per hour, for the hours this server did not
- * observe: the bus-hours of the modelled duties on the route that had a bus,
+ * observe: the bus-hours of the modelled duties on the route that had a bus
+ * (a duty spans the bus's running time on the route, so this counts buses
+ * running it, as an observed hour counts in service plus on the road),
  * summed over every depot's operating day for the date (minutes each duty
  * overlaps the hour, over 60, one decimal). A duty past midnight counts only
  * up to 24:00 of the date. Always 24 hours.

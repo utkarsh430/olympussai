@@ -65,7 +65,7 @@ export function serviceFigures(body: Body): readonly ServiceFigure[] {
   }
   const range = `Range ${busFigure(neededAt(now, 'low'))} to ${busFigure(neededAt(now, 'high'))}`;
   return [
-    { label: 'Deployed now', value: busFigure(now.deployed), caption: 'Carrying the route name' },
+    { label: 'Deployed now', value: busFigure(now.deployed), caption: SERVICE_TEXT.deployedCaption },
     { label: 'Needed now', value: busFigure(now.needed), caption: range, tag: 'modelled' },
     { label: 'Gap now', value: gapFigure(now.gap), caption: gapWords(now.gap), tone: gapTone(now.gap) },
     samplesFigure(body),
@@ -79,6 +79,14 @@ function neededAt(hour: Body['hours'][number], end: 'low' | 'high'): number {
   return Math.round((hour.demandBand[end] * hour.needed * TENTHS) / hour.demand) / TENTHS;
 }
 
+/** The route's standing buses, said once: they carry its name but are not deployed. */
+function standingSentence(standing: number): readonly string[] {
+  if (standing <= 0) return [];
+  return standing === 1
+    ? ['1 standing now carries this route’s name; it is not counted as deployed.']
+    : [`${formatCount(standing)} standing now carry this route’s name; they are not counted as deployed.`];
+}
+
 /** The coverage sentences: what the day's figures rest on. */
 export function coverageSentences(body: Body): readonly string[] {
   const observed =
@@ -88,6 +96,7 @@ export function coverageSentences(body: Body): readonly string[] {
   return [
     observed,
     `Only buses that report a route name are counted: ${formatCount(body.routeCoverage.n)} of ${formatCount(body.routeCoverage.of)}.`,
+    ...standingSentence(body.standingNow),
     `Scheduled trips known for ${formatCount(body.scheduledCoverage.n)} of ${formatCount(body.scheduledCoverage.of)} buses seen on this route today.`,
   ];
 }
