@@ -406,6 +406,22 @@ the chart and its table say the same thing.
 - Colours are the palette's meanings (`hourChartStyle.ts`); a series is never told apart by
   colour alone.
 
+## The heat map (Service by the hour)
+
+`src/components/depot/service/NetworkHeatMap.tsx`: routes by hour as an HTML grid, the
+network page's hero. A row per route (its name links to its day), 24 cells, a page of 25 by
+the band's largest peak gap. The fill diverges from an empty (even) cell: short in the
+"worse" crimson, over in the "standing" amber (the route day's gap-row colours), in three
+strengths by size (`HEAT_STEPS` = 1, 3, 6 buses); a measured hour (observed, or the feed
+clock's) is a solid wash, a modelled hour the same colour in thin diagonal strokes, as the
+route day hatches its modelled bars (`heatStyle.ts`, inline styles: a value per cell). Hours
+outside the chosen band are dimmed. Every cell carries its gap in words in its `title` and
+`aria-label` ("07:00: +4, short by 4 (measured)"); the legend names each side, strength and
+fill in words; "Show as table" (`aria-pressed`) swaps the grid for a `DataTable` with the
+route, depot, band peak and every hour as "+4 measured". The grid scrolls sideways inside
+its own frame below about 680px; the page never does. Pure shapes: `heatCell`,
+`heatTableRows` in `service/networkPageModel.ts`.
+
 ## StatePanel
 
 `kind`, `sentence` (ONE sentence: what is absent and why), `remedy?` (one muted line: what would
