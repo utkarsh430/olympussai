@@ -13,6 +13,7 @@ import {
   PROPOSAL_COLUMN_WIDTHS,
   PROPOSAL_TIERS,
   hasPastBand,
+  hiddenFigures,
   orderProposals,
   proposalColumnKeys,
   proposalGroup,
@@ -20,7 +21,8 @@ import {
   type ProposalColumnKey,
   type ProposalRow,
 } from '@/lib/depot/service/servicePageModel';
-import { PROPOSAL_KIND_LABEL, SERVICE_TEXT } from '@/lib/depot/service/serviceWording';
+import { SERVICE_TEXT } from '@/lib/depot/service/serviceWording';
+import { meaningTextClass } from '@/lib/depot/palette';
 import type { Proposal, RouteHourFigures } from '@/lib/depot/service/types';
 
 const TITLE_ID = 'service-proposals';
@@ -82,11 +84,16 @@ const COLUMNS: Readonly<Record<ProposalColumnKey, Column<ProposalRow>>> = {
 /** Changes (add, hold) first, then the timetable findings, each printed once as a group row. */
 const GROUP: TableGrouping<ProposalRow> = { key: (r) => proposalGroup(r.proposal) };
 
-/** The expanded row: the full reason, the figures a narrow width drops, the impact ranges. */
-function ProposalDetail({ row }: { readonly row: ProposalRow }) {
+/**
+ * The expanded row: the full reason, the peak, the band means the table at this width
+ * hides, where the buses come from and what the proposal rests on, then the impact as a
+ * 2×2 grid and the net a day (a loss in the worse tone, said in words).
+ */
+function ProposalDetail({ row, shown }: { readonly row: ProposalRow; readonly shown: readonly string[] }) {
+  const figures = hiddenFigures(row, shown);
   const lines = [
-    `${PROPOSAL_KIND_LABEL[row.proposal.kind]}, ${row.band}.`,
-    `Deployed ${row.deployed}, scheduled ${row.scheduled}, needed ${row.needed}.`,
+    ...(row.peak ? [row.peak] : []),
+    ...(figures ? [figures] : []),
     row.sourceTitle,
     row.restsOnTitle,
     ...(row.maybeCovered ? [SERVICE_TEXT.maybeCovered] : []),
@@ -94,16 +101,28 @@ function ProposalDetail({ row }: { readonly row: ProposalRow }) {
   return (
     <div className="space-y-1 py-2" data-testid="proposal-detail">
       <p className="depot-prose">{row.reason}</p>
-      {row.peak ? <p className="depot-note">{row.peak}</p> : null}
       {lines.map((line) => (
         <p key={line} className="depot-note">{line}</p>
       ))}
-      {row.impactLines.length > 0 ? (
-        <ul className="depot-note" aria-label="Modelled impact ranges">
-          {row.impactLines.map((line) => (
-            <li key={line}>{line}</li>
-          ))}
-        </ul>
+      {row.impactPairs.length > 0 ? (
+        <>
+          <dl
+            className="depot-note grid grid-cols-[max-content_auto] gap-x-4 gap-y-0.5 pt-1 sm:grid-cols-[max-content_auto_max-content_auto]"
+            aria-label="Modelled impact ranges"
+          >
+            {row.impactPairs.map(([label, value]) => (
+              <div key={label} className="contents">
+                <dt>{label}</dt>
+                <dd className="tabular-nums text-depot-ink">{value}</dd>
+              </div>
+            ))}
+          </dl>
+          {row.net ? (
+            <p className={`depot-note ${row.net.loss ? meaningTextClass('worse') : 'text-depot-ink'}`}>
+              {row.net.text}
+            </p>
+          ) : null}
+        </>
       ) : (
         <p className="depot-note">{SERVICE_TEXT.noImpact}</p>
       )}
@@ -127,6 +146,7 @@ export function ProposalsTable({ proposals, hours = [], currentHour = null }: Pr
     () => orderProposals(proposals).map((p) => proposalRow(p, hours)),
     [proposals, hours],
   );
+  const shownKeys = proposalColumnKeys(tier);
   const columns = useMemo(() => proposalColumnKeys(tier).map((key) => COLUMNS[key]), [tier]);
   const range = pageRange(page, rows.length);
   return (
@@ -151,7 +171,7 @@ export function ProposalsTable({ proposals, hours = [], currentHour = null }: Pr
             rowLabel={(r) => `${r.band} ${r.change}`}
             caption={SERVICE_TEXT.proposalsCaption}
             fixedRows
-            renderExpanded={(r) => <ProposalDetail row={r} />}
+            renderExpanded={(r) => <ProposalDetail row={r} shown={shownKeys} />}
             group={GROUP}
             multipleExpanded
           />

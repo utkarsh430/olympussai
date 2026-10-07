@@ -149,7 +149,8 @@ describe('RouteHourlyPage body', () => {
     const details = Array.from(container.querySelectorAll('[data-testid="proposal-detail"]'));
     expect(details).toHaveLength(3);
     expect(details[0]?.textContent).toContain(FIXTURE_PROPOSALS[0]?.reason);
-    expect(details[0]?.textContent).toContain('Revenue a day: ₹9,400 to ₹16,800');
+    expect(details[0]?.querySelector('dl')?.textContent).toContain('Revenue a day₹9,400 to ₹16,800');
+    expect(details[0]?.textContent).toContain('Net a day: −₹8,900 to ₹1,700');
     expect(details[2]?.textContent).toContain('No modelled impact');
   });
 

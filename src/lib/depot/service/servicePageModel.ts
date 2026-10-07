@@ -1,5 +1,5 @@
 import type { DepotMeaning } from '../palette';
-import { MINUS, formatCount } from '../format';
+import { formatCount } from '../format';
 import { BREAKPOINT_PX, WIDE_VIEWPORT_PX } from '../shell/geometry';
 import type { Provenance } from '../types';
 import {
@@ -14,6 +14,9 @@ import {
   hourLabel,
 } from './serviceWording';
 import { changeWords } from './proposalChange';
+import { impactPairs, netWords, type ImpactPair, type NetWords } from './proposalDetail';
+
+export { hiddenFigures } from './proposalDetail';
 import type { ImpactRange, Proposal, RouteHourFigures, RouteHourlyResponse } from './types';
 
 /*
@@ -108,15 +111,15 @@ export interface ProposalRow {
   readonly impact: string;
   readonly impactTitle: string;
   readonly impactLines: readonly string[];
+  /** The four impact ranges, labelled, for the expanded row's grid. */
+  readonly impactPairs: readonly ImpactPair[];
+  /** Revenue less cost a day; null for a finding with no impact. */
+  readonly net: NetWords | null;
   readonly restsOn: string;
   readonly restsOnTitle: string;
   readonly reason: string;
   readonly maybeCovered: boolean;
   readonly proposal: Proposal;
-}
-
-function money(n: number): string {
-  return n < 0 ? `${MINUS}₹${formatCount(-n)}` : `₹${formatCount(n)}`;
 }
 
 function rangeText(range: ImpactRange, figure: (n: number) => string, joiner: string): string {
@@ -151,20 +154,20 @@ function kmSaved(range: ImpactRange): ImpactRange {
  * The impact cell: the passengers an add carries, the bus-km a hold saves (a hold carries no
  * more passengers). The expanded row lists all four ranges either way.
  */
-function impactCells(p: Proposal): Pick<ProposalRow, 'impact' | 'impactTitle' | 'impactLines'> {
-  if (p.impact === null) return { impact: DASH, impactTitle: SERVICE_TEXT.noImpact, impactLines: [] };
+type ImpactCells = Pick<ProposalRow, 'impact' | 'impactTitle' | 'impactLines' | 'impactPairs' | 'net'>;
+
+function impactCells(p: Proposal): ImpactCells {
+  if (p.impact === null) {
+    return { impact: DASH, impactTitle: SERVICE_TEXT.noImpact, impactLines: [], impactPairs: [], net: null };
+  }
   const i = p.impact;
-  const lines = [
-    `Passengers a day: ${rangeText(i.passengersPerDay, formatCount, ' to ')}`,
-    `Revenue a day: ${rangeText(i.revenuePerDay, money, ' to ')}`,
-    `Bus-km a day: ${rangeText(i.busKmPerDay, formatCount, ' to ')}`,
-    `Cost a day: ${rangeText(i.costPerDay, money, ' to ')}`,
-  ];
+  const pairs = impactPairs(i);
+  const lines = pairs.map(([label, value]) => `${label}: ${value}`);
   const impact =
     p.change < 0
       ? `${rangeText(kmSaved(i.busKmPerDay), formatCount, '–')} km saved`
       : `${rangeText(i.passengersPerDay, formatCount, '–')} passengers`;
-  return { impact, impactTitle: lines.join('; '), impactLines: lines };
+  return { impact, impactTitle: lines.join('; '), impactLines: lines, impactPairs: pairs, net: netWords(i) };
 }
 
 /** One row of the proposals table; `hours` (the route's day) gives an add its hourly range. */

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   PROPOSAL_COLUMN_WIDTHS,
   hasPastBand,
+  hiddenFigures,
   orderProposals,
   proposalColumnKeys,
   proposalGroup,
@@ -194,6 +195,38 @@ describe('the change as a range', () => {
     expect(hasPastBand(FIXTURE_PROPOSALS, 7)).toBe(false);
     expect(hasPastBand(FIXTURE_PROPOSALS, null)).toBe(false);
     expect(SERVICE_TEXT.pastBands).toBe('Bands already past are notes for the next day’s plan.');
+  });
+});
+
+describe('the expanded row', () => {
+  it('names only the figures the table at this width hides, as band means', () => {
+    const add = proposalRow(FIXTURE_PROPOSALS[0]!);
+    expect(hiddenFigures(add, proposalColumnKeys('full'))).toBeNull();
+    expect(hiddenFigures(add, proposalColumnKeys('wide'))).toBe('Scheduled 5.6 (band mean).');
+    expect(hiddenFigures(add, proposalColumnKeys('phone'))).toBe(
+      'Deployed 8.8, scheduled 5.6, needed 11.8 (band means).',
+    );
+    const run = proposalRow(FIXTURE_PROPOSALS[2]!);
+    expect(hiddenFigures(run, proposalColumnKeys('wide'))).toBe('Scheduled 5.8 (band mean).');
+  });
+
+  it('gives the impact as four labelled ranges and the net a day, a loss said in words', () => {
+    const add = proposalRow(FIXTURE_PROPOSALS[0]!);
+    expect(add.impactPairs).toEqual([
+      ['Passengers a day', '180 to 320'],
+      ['Revenue a day', '₹9,400 to ₹16,800'],
+      ['Bus-km a day', '420 to 510'],
+      ['Cost a day', '₹15,100 to ₹18,300'],
+    ]);
+    expect(add.net).toEqual({ text: 'Net a day: −₹8,900 to ₹1,700', loss: false });
+    const hold = proposalRow(FIXTURE_PROPOSALS[1]!);
+    expect(hold.net).toEqual({ text: 'Net a day: ₹9,600 to ₹11,800', loss: false });
+    const losing = proposalRow({
+      ...FIXTURE_PROPOSALS[0]!,
+      impact: { ...FIXTURE_PROPOSALS[0]!.impact!, revenuePerDay: { low: 1000, high: 2000 } },
+    });
+    expect(losing.net).toEqual({ text: 'Net a day: a loss of ₹13,100 to ₹17,300', loss: true });
+    expect(proposalRow(FIXTURE_PROPOSALS[2]!).net).toBeNull();
   });
 });
 
