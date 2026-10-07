@@ -23,6 +23,65 @@ export function bandsOf(hours: readonly number[], minHours: number): HourBand[] 
   return bands;
 }
 
+export interface StepRule {
+  readonly minBuses: number;
+  readonly share: number;
+}
+
+/** True when the gap moves from `a` to `b` by more than max(min buses, the share of the larger). */
+function steps(a: number, b: number, rule: StepRule): boolean {
+  const larger = Math.max(Math.abs(a), Math.abs(b));
+  return Math.abs(b - a) > Math.max(rule.minBuses, rule.share * larger);
+}
+
+const bandMean = (band: HourBand, gapAt: (hour: number) => number): number => {
+  const hours = Array.from({ length: band.toHour - band.fromHour + 1 }, (_, i) => band.fromHour + i);
+  return hours.reduce((s, h) => s + gapAt(h), 0) / hours.length;
+};
+
+const bandHours = (band: HourBand): number => band.toHour - band.fromHour + 1;
+
+/** Joins the first piece shorter than `minHours` to the neighbour whose mean gap is nearest. */
+function joinShort(
+  pieces: readonly HourBand[],
+  gapAt: (hour: number) => number,
+  minHours: number,
+): readonly HourBand[] {
+  const i = pieces.findIndex((p) => bandHours(p) < minHours);
+  if (i < 0 || pieces.length < 2) return pieces;
+  const own = bandMean(pieces[i]!, gapAt);
+  const before = pieces[i - 1];
+  const after = pieces[i + 1];
+  const distance = (n: HourBand | undefined): number =>
+    n === undefined ? Number.POSITIVE_INFINITY : Math.abs(bandMean(n, gapAt) - own);
+  const withBefore = before !== undefined && distance(before) <= distance(after);
+  const [from, to] = withBefore ? [i - 1, i] : [i, i + 1];
+  const joined = { fromHour: pieces[from]!.fromHour, toHour: pieces[to]!.toHour };
+  return joinShort([...pieces.slice(0, from), joined, ...pieces.slice(to + 1)], gapAt, minHours);
+}
+
+/**
+ * A band cut where the hour-to-hour gap steps (see `StepRule`); a piece left shorter than
+ * `minHours` is joined to the neighbour whose gap is nearest, so every piece stays a band.
+ */
+export function splitOnSteps(
+  band: HourBand,
+  gapAt: (hour: number) => number,
+  rule: StepRule,
+  minHours: number,
+): readonly HourBand[] {
+  const pieces: HourBand[] = [];
+  let start = band.fromHour;
+  for (let h = band.fromHour + 1; h <= band.toHour; h += 1) {
+    if (steps(gapAt(h - 1), gapAt(h), rule)) {
+      pieces.push({ fromHour: start, toHour: h - 1 });
+      start = h;
+    }
+  }
+  pieces.push({ fromHour: start, toHour: band.toHour });
+  return joinShort(pieces, gapAt, minHours);
+}
+
 /** "07:00–10:00": the band from the start of its first hour to the end of its last. */
 export function bandLabel(band: HourBand): string {
   const end = band.toHour + 1;

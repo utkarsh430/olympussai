@@ -17,6 +17,14 @@ export const HOLD_KEEP_MIN = 1;
 export const MIN_BAND_HOURS = 2;
 
 /**
+ * A band is split where the gap steps from one hour to the next by more than this many
+ * buses and this share of the larger of the two gaps, so one proposal never covers a quiet
+ * stretch and a peak with a single figure.
+ */
+export const SPLIT_STEP_MIN_BUSES = 2;
+export const SPLIT_STEP_SHARE = 0.5;
+
+/**
  * A journey whose scheduled start is more than this many minutes behind the
  * feed clock, with no actual start, is counted as not run.
  */

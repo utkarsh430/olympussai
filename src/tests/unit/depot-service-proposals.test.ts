@@ -111,6 +111,51 @@ describe('add_buses', () => {
   });
 });
 
+describe('bands split where the gap steps', () => {
+  const adds = (hours: ReturnType<typeof day>) =>
+    buildProposals(context({ hours })).filter((p) => p.kind === 'add_buses');
+
+  it('splits an add band where the hour-to-hour gap changes by more than half the larger', () => {
+    // Gaps +3, +3, +10, +10: a step of 7, more than max(2, 5).
+    const stepped = day({ 7: 6, 8: 6, 9: 6, 10: 6 }, { 7: 9, 8: 9, 9: 16, 10: 16 });
+    expect(adds(stepped).map((p) => [p.band, p.change])).toEqual([
+      [{ fromHour: 9, toHour: 10 }, 10],
+      [{ fromHour: 7, toHour: 8 }, 3],
+    ]);
+  });
+
+  it('keeps a band whole when the gap climbs by small steps', () => {
+    // +3 to +8 a bus at a time: no step is more than max(2, half the larger).
+    const ramp = day({ 7: 6, 8: 6, 9: 6, 10: 6, 11: 6, 12: 6 }, { 7: 9, 8: 10, 9: 11, 10: 12, 11: 13, 12: 14 });
+    expect(adds(ramp).map((p) => p.band)).toEqual([{ fromHour: 7, toHour: 12 }]);
+  });
+
+  it('needs more than two buses of step, however small the gaps', () => {
+    // +2 then +4: a step of 2 is not more than 2.
+    const small = day({ 7: 6, 8: 6, 9: 6, 10: 6 }, { 7: 8, 8: 8, 9: 10, 10: 10 });
+    expect(adds(small).map((p) => p.band)).toEqual([{ fromHour: 7, toHour: 10 }]);
+  });
+
+  it('joins a one-hour piece to the neighbour whose gap is nearest, so no band is shorter than two hours', () => {
+    // +3, +3, +10, +4, +4: 09:00 alone is joined to the +4 hours after it.
+    const spike = day({ 7: 6, 8: 6, 9: 6, 10: 6, 11: 6 }, { 7: 9, 8: 9, 9: 16, 10: 10, 11: 10 });
+    expect(adds(spike).map((p) => p.band).sort((a, b) => a.fromHour - b.fromHour)).toEqual([
+      { fromHour: 7, toHour: 8 },
+      { fromHour: 9, toHour: 11 },
+    ]);
+  });
+
+  it('splits a hold band the same way', () => {
+    // Over by 2, 2, then 8, 8.
+    const quiet = day({ 13: 10, 14: 10, 15: 12, 16: 12 }, { 13: 8, 14: 8, 15: 4, 16: 4 });
+    const holds = buildProposals(context({ hours: quiet })).filter((p) => p.kind === 'hold_buses');
+    expect(holds.map((p) => p.band).sort((a, b) => a.fromHour - b.fromHour)).toEqual([
+      { fromHour: 13, toHour: 14 },
+      { fromHour: 15, toHour: 16 },
+    ]);
+  });
+});
+
 describe('hold_buses', () => {
   it('proposes holding the surplus while keeping a bus and the scheduled supply', () => {
     const quiet = day({ 13: 8, 14: 8, 15: 8 }, { 13: 3, 14: 2, 15: 4 });
