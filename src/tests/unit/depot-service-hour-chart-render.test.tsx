@@ -61,6 +61,9 @@ afterEach(() => {
   container.remove();
 });
 
+const toggleButton = (): HTMLButtonElement | null =>
+  container.querySelector<HTMLButtonElement>('[data-testid="hour-chart-toggle"]');
+
 function render(body = routeHourlyFixture()): void {
   act(() => root.render(<HourChart body={body} />));
 }
@@ -123,7 +126,9 @@ describe('HourChart', () => {
     render();
     const plot = container.querySelector('[data-testid="hour-chart-plot"]');
     expect(plot?.getAttribute('role')).toBe('img');
-    expect(plot?.getAttribute('aria-label')).toContain('6 Oct 2026');
+    expect(plot?.getAttribute('aria-label')).toBe(
+      'KANPUR-LUCKNOW by hour on 6 Oct 2026: bars for the buses deployed, lines for the buses scheduled and needed, and the gap under each hour. Show as table lists every figure.',
+    );
     expect(container.textContent).toContain('Now');
     expect(container.querySelector('pattern')).not.toBeNull();
   });
@@ -156,18 +161,28 @@ describe('HourChart', () => {
     }
   });
 
+  it('never calls the current hour observed when the server has observed nothing', () => {
+    render(routeHourlyFixture({ observed: null }));
+    const legend = container.querySelector('[data-testid="hour-legend"]')?.textContent ?? '';
+    expect(legend).toContain('Deployed now, from the feed');
+    expect(legend).not.toMatch(/Deployed, observed/);
+  });
+
   it('drops the now marker without a feed clock', () => {
     render(routeHourlyFixture({ currentHour: null }));
     const legend = container.querySelector('[data-testid="hour-legend"]')?.textContent ?? '';
     expect(legend).not.toContain('Now');
   });
 
-  it('swaps to a 24-row table and back with one pressed toggle', () => {
+  it('swaps to a 24-row table and back, the toggle saying what it will show next', () => {
     render();
-    const toggle = container.querySelector<HTMLButtonElement>('button[aria-pressed]');
+    const toggle = toggleButton();
     expect(toggle?.textContent).toBe('Show as table');
+    expect(toggle?.getAttribute('aria-controls')).toBeTruthy();
     act(() => toggle?.click());
-    expect(toggle?.getAttribute('aria-pressed')).toBe('true');
+    expect(toggle?.textContent).toBe('Show as chart');
+    // The words change with the view, so the button carries no pressed state as well.
+    expect(toggle?.hasAttribute('aria-pressed')).toBe(false);
     expect(container.querySelectorAll('tbody tr')).toHaveLength(24);
     expect(container.textContent).toContain('Not observed');
     expect(container.querySelector('[data-testid="hour-chart-plot"]')).toBeNull();
@@ -177,7 +192,7 @@ describe('HourChart', () => {
 
   it('says the gap in words, shows the needed range and the delay caveat in the table view', () => {
     render();
-    act(() => container.querySelector<HTMLButtonElement>('button[aria-pressed]')?.click());
+    act(() => toggleButton()?.click());
     const headers = Array.from(container.querySelectorAll('th')).map((th) => th.textContent ?? '');
     expect(headers.some((h) => h.startsWith('Range'))).toBe(true);
     const row8 = container.querySelectorAll('tbody tr')[8]?.textContent ?? '';
@@ -189,7 +204,7 @@ describe('HourChart', () => {
   it('shows no banned word or raw date, as chart or table', () => {
     render();
     expect(bannedOnScreen(container)).toEqual([]);
-    act(() => container.querySelector<HTMLButtonElement>('button[aria-pressed]')?.click());
+    act(() => toggleButton()?.click());
     expect(bannedOnScreen(container)).toEqual([]);
   });
 });

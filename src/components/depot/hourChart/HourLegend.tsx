@@ -16,14 +16,16 @@ function Swatch({ children }: { readonly children: ReactNode }) {
 
 export interface HourLegendProps {
   readonly hasNow: boolean;
+  /** False when this server has observed nothing today: the one solid bar is the feed now. */
+  readonly observed: boolean;
   /** The Scheduled entry's words, carrying the buses whose trips are known. */
   readonly scheduled: string;
 }
 
 /** Each entry is its mark and its words; nothing in the chart is told by colour alone. */
-export function HourLegend({ hasNow, scheduled }: HourLegendProps) {
+export function HourLegend({ hasNow, observed, scheduled }: HourLegendProps) {
   const entries: readonly (readonly [string, ReactNode])[] = [
-    [LEGEND_TEXT.observed, <rect key="o" x={2} y={2} width={10} height={10} fill={HOUR_COLOUR.deployed} />],
+    [observed ? LEGEND_TEXT.observed : LEGEND_TEXT.nowOnly, <rect key="o" x={2} y={2} width={10} height={10} fill={HOUR_COLOUR.deployed} />],
     [
       LEGEND_TEXT.modelled,
       <g key="m" stroke={HOUR_COLOUR.deployed} strokeWidth={1}>

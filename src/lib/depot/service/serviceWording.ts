@@ -94,6 +94,7 @@ export const TIER_SENTENCE: Readonly<Record<ProposalTier, string>> = {
 export const SERVICE_TEXT = {
   chartTitle: 'Buses by hour',
   showTable: 'Show as table',
+  showChart: 'Show as chart',
   tableCaption: 'Buses deployed, scheduled and needed for each hour of the day',
   bandLabel: 'This hour',
   deployedCaption: 'In service or on the road',
@@ -131,7 +132,8 @@ export function gapWords(gap: number): string {
 
 /** The chart's legend, in words; each entry also has its own mark. */
 export const LEGEND_TEXT = {
-  observed: 'Deployed, observed',
+  observed: 'Deployed, observed (and now, from the feed)',
+  nowOnly: 'Deployed now, from the feed',
   modelled: 'Deployed, modelled day',
   notObserved: 'Not observed (modelled day)',
   needed: 'Needed, from modelled demand, with its range',

@@ -115,7 +115,7 @@ describe('proposal rows', () => {
       band: '07:00–11:00',
       change: 'Add 3',
       source: 'Alambagh',
-      impact: '180–320 pax',
+      impact: '180–320 passengers',
       restsOn: 'Mixed',
       reason: FIXTURE_PROPOSALS[0]?.reason,
     });
@@ -137,7 +137,7 @@ describe('proposal rows', () => {
 
   it('shows the bus-km a hold saves, never its zero passengers, and all four ranges either way', () => {
     const hold = proposalRow(FIXTURE_PROPOSALS[1]!);
-    expect(hold.impact).not.toMatch(/pax/);
+    expect(hold.impact).not.toMatch(/pax|passengers/);
     expect(hold.impactLines).toEqual([
       'Passengers a day: 0 to 0',
       'Revenue a day: ₹0 to ₹0',

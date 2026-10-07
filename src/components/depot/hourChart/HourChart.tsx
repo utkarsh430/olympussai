@@ -27,7 +27,7 @@ const PLOT_HEIGHT_PX = 300;
 /**
  * The page's hero: the route's 24 hours as deployed bars, the scheduled step line and the
  * needed dashed line over its range, with the now marker and the signed gap row; "Show as
- * table" swaps the drawing for its 24-row text table.
+ * table" swaps the drawing for its 24-row text table and "Show as chart" swaps it back.
  */
 export function HourChart({ body, height = PLOT_HEIGHT_PX }: HourChartProps) {
   const [asTable, setAsTable] = useState(false);
@@ -40,16 +40,17 @@ export function HourChart({ body, height = PLOT_HEIGHT_PX }: HourChartProps) {
   const baseId = useId().replace(/:/g, '');
   const titleId = `hour-chart-${baseId}`;
   const viewId = `hour-chart-view-${baseId}`;
-  const label = `${body.routeName} by hour on ${formatPlainDate(body.operatingDate)}: buses deployed, scheduled and needed for each of the 24 hours, with the gap under each hour.`;
+  const label = `${body.routeName} by hour on ${formatPlainDate(body.operatingDate)}: bars for the buses deployed, lines for the buses scheduled and needed, and the gap under each hour. ${SERVICE_TEXT.showTable} lists every figure.`;
+  // The words say what the button will show next, so it carries no pressed state as well.
   const toggle = (
     <button
       type="button"
       className="depot-filter-button"
-      aria-pressed={asTable}
       aria-controls={viewId}
+      data-testid="hour-chart-toggle"
       onClick={() => setAsTable((on) => !on)}
     >
-      {SERVICE_TEXT.showTable}
+      {asTable ? SERVICE_TEXT.showChart : SERVICE_TEXT.showTable}
     </button>
   );
   return (
@@ -65,6 +66,7 @@ export function HourChart({ body, height = PLOT_HEIGHT_PX }: HourChartProps) {
             </div>
             <HourLegend
               hasNow={model.nowLabel !== null}
+              observed={body.observed !== null}
               scheduled={scheduledLegendText(body.scheduledCoverage)}
             />
           </>

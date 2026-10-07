@@ -149,7 +149,7 @@ function impactCells(p: Proposal): Pick<ProposalRow, 'impact' | 'impactTitle' | 
   const impact =
     p.change < 0
       ? `${rangeText(kmSaved(i.busKmPerDay), formatCount, '–')} km saved`
-      : `${rangeText(i.passengersPerDay, formatCount, '–')} pax`;
+      : `${rangeText(i.passengersPerDay, formatCount, '–')} passengers`;
   return { impact, impactTitle: lines.join('; '), impactLines: lines };
 }
 
