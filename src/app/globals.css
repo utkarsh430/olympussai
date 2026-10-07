@@ -208,10 +208,11 @@
     isolation: isolate;
   }
 
-  /* The command centre's grid and ambient glow, fixed behind the page and static. The
-     glow is half the dashboard's strength (0.08 and 0.05) and the grid its effective
-     0.033 (0.055 at 60% opacity), so the dimmest text tier still clears 4.5:1 where the
-     glow is brightest (depot-contrast.test.ts measures that point). */
+  /* The command centre's grid and ambient light, fixed behind the page and static: a
+     cyan glow from the top (0.1), teal from the lower right (0.07) and a hint of the
+     brand gold from the lower left (0.04), as the dashboard's backdrop has, and the grid
+     at its effective 0.033 (0.055 at 60% opacity). The dimmest text tier still clears
+     4.5:1 where the light is brightest (depot-contrast.test.ts measures that point). */
   .depot-shell::before {
     content: '';
     position: fixed;
@@ -219,11 +220,38 @@
     z-index: -1;
     pointer-events: none;
     background-image:
-      radial-gradient(ellipse 80% 60% at 50% 0%, rgba(34, 217, 245, 0.08), transparent 60%),
-      radial-gradient(ellipse 60% 50% at 90% 100%, rgba(46, 242, 196, 0.05), transparent 60%),
+      radial-gradient(ellipse 80% 60% at 50% 0%, rgba(34, 217, 245, 0.1), transparent 60%),
+      radial-gradient(ellipse 60% 50% at 90% 100%, rgba(46, 242, 196, 0.07), transparent 60%),
+      radial-gradient(ellipse 45% 40% at 8% 100%, rgba(214, 161, 58, 0.04), transparent 60%),
       linear-gradient(rgba(63, 240, 255, 0.033) 1px, transparent 1px),
       linear-gradient(90deg, rgba(63, 240, 255, 0.033) 1px, transparent 1px);
-    background-size: auto, auto, 44px 44px, 44px 44px;
+    background-size: auto, auto, auto, 44px 44px, 44px 44px;
+  }
+
+  /* Tones: each colour of the meaning table (DEPOT_MEANING_TONE in
+     src/lib/depot/palette.ts) as an RGB triple, so one rule can draw a figure's accent,
+     wash, value and glow in whichever tone its element carries. Cyan is the default. */
+  .depot-shell,
+  .depot-tone-cyan {
+    --depot-tone: 63 240 255;
+  }
+  .depot-tone-green {
+    --depot-tone: 43 255 136;
+  }
+  .depot-tone-amber {
+    --depot-tone: 255 176 32;
+  }
+  .depot-tone-slate {
+    --depot-tone: 148 163 184;
+  }
+  .depot-tone-crimson {
+    --depot-tone: 255 77 94;
+  }
+  .depot-tone-teal {
+    --depot-tone: 46 242 196;
+  }
+  .depot-tone-gold {
+    --depot-tone: 214 161 58;
   }
 
   .depot-shell ::selection {
@@ -311,6 +339,24 @@
       inset 0 1px 0 0 rgba(63, 240, 255, 0.08);
   }
 
+  .depot-panel {
+    transition:
+      border-color 160ms ease,
+      box-shadow 160ms ease;
+  }
+
+  /* Only a panel that can be clicked lights on hover; a plain panel promises nothing. */
+  a.depot-panel:hover,
+  button.depot-panel:hover,
+  [role='button'].depot-panel:hover {
+    border-color: rgba(63, 240, 255, 0.32);
+    box-shadow:
+      0 0 0 1px rgba(63, 240, 255, 0.1),
+      0 0 30px -12px rgba(63, 240, 255, 0.35),
+      0 18px 50px -22px rgba(0, 0, 0, 0.9),
+      inset 0 1px 0 0 rgba(63, 240, 255, 0.12);
+  }
+
   /* The panel's shadow stack alone, for a boxed surface that is not a depot-panel (a
      drawer, a map card, a chart tooltip, the notice strip): colour only, no position. */
   .depot-lit {
@@ -351,9 +397,26 @@
     @apply font-mono text-[11px] uppercase tracking-[0.12em] text-depot-muted;
   }
 
+  /* The page title: the dashboard's cyan running into its teal, with the cyan glow (a
+     drop shadow, as a text shadow would paint over gradient-clipped text). The colour
+     stays cyan where clipping is not supported. */
   .depot-title {
     @apply font-display text-xl font-semibold uppercase tracking-[0.12em] text-holo-glow;
-    text-shadow: 0 0 14px rgba(63, 240, 255, 0.35);
+    background-image: linear-gradient(90deg, #3ff0ff 0%, #22d9f5 45%, #2ef2c4 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 0 10px rgba(63, 240, 255, 0.35));
+  }
+
+  /* Forced colours (Windows High Contrast) drop the gradient: print the title in the
+     user's own text colour rather than leave it transparent. */
+  @media (forced-colors: active) {
+    .depot-title {
+      background-image: none;
+      -webkit-text-fill-color: currentColor;
+      filter: none;
+    }
   }
 
   /* The mono label above a page title (the depot's name on a depot page). */
@@ -398,15 +461,24 @@
 
   .depot-nav-link {
     @apply block border-l-2 border-transparent px-4 py-2 font-mono text-xs uppercase tracking-[0.1em]
-      text-depot-muted transition-colors hover:bg-depot-raised hover:text-holo-glow;
+      text-depot-muted transition-colors hover:bg-depot-raised;
+  }
+
+  /* A link takes its category's tone (`--depot-tone`, set by the rail group) on hover
+     and when current; cyan where no group sets one. */
+  .depot-nav-link:hover {
+    color: rgb(var(--depot-tone));
   }
 
   /* The current page reads like the command centre's active button: cyan rule, cyan
      tint and a soft glow drawn inside the link, so nothing outside it moves. */
   .depot-nav-link-active {
-    @apply border-holo-glow bg-depot-selected text-holo-glow;
-    box-shadow: inset 0 0 22px -8px rgba(63, 240, 255, 0.45);
-    text-shadow: 0 0 12px rgba(63, 240, 255, 0.45);
+    @apply bg-depot-selected;
+    border-left-color: rgb(var(--depot-tone));
+    color: rgb(var(--depot-tone));
+    background-image: linear-gradient(90deg, rgb(var(--depot-tone) / 0.1), transparent 85%);
+    box-shadow: inset 0 0 22px -8px rgb(var(--depot-tone) / 0.45);
+    text-shadow: 0 0 12px rgb(var(--depot-tone) / 0.45);
   }
 
   /* A rail group's heading, drawn as a category tab: a cyan-washed strip with a lit left
@@ -414,18 +486,24 @@
      pages. Its text starts where the links' text starts (18px from the rail's edge). The
      edge and the glow are shadows, so they take no room. */
   .depot-nav-category {
-    @apply mx-2 mb-1.5 rounded-[3px] border border-holo-glow/25 bg-holo-glow/[0.07] py-1.5 pl-[9px] pr-2
-      font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-holo-glow/80;
-    box-shadow: inset 2px 0 0 0 rgba(63, 240, 255, 0.5);
+    @apply mx-2 mb-1.5 rounded-[3px] border py-1.5 pl-[9px] pr-2
+      font-mono text-[11px] font-semibold uppercase tracking-[0.16em];
+    border-color: rgb(var(--depot-tone) / 0.15);
+    background-image: linear-gradient(90deg, rgb(var(--depot-tone) / 0.06), rgb(var(--depot-tone) / 0.02));
+    color: rgb(var(--depot-tone) / 0.85);
+    box-shadow: inset 2px 0 0 0 rgb(var(--depot-tone) / 0.4);
   }
 
-  /* The category that holds the current page is the lit tab. */
+  /* The category that holds the current page is the lit tab; the others stay quiet (a
+     fainter edge and wash, the same legible text), so the brand gold is not lit at rest. */
   .depot-nav-category-current {
-    @apply border-holo-glow/60 bg-holo-glow/[0.16] text-holo-glow;
+    border-color: rgb(var(--depot-tone) / 0.6);
+    background-image: linear-gradient(90deg, rgb(var(--depot-tone) / 0.2), rgb(var(--depot-tone) / 0.07));
+    color: rgb(var(--depot-tone));
     box-shadow:
-      inset 2px 0 0 0 rgb(63, 240, 255),
-      0 0 18px -6px rgba(63, 240, 255, 0.6);
-    text-shadow: 0 0 12px rgba(63, 240, 255, 0.45);
+      inset 2px 0 0 0 rgb(var(--depot-tone)),
+      0 0 18px -6px rgb(var(--depot-tone) / 0.6);
+    text-shadow: 0 0 12px rgb(var(--depot-tone) / 0.45);
   }
 
   /* Top-bar actions in the command centre's button colours (hud-button); transition on
@@ -446,6 +524,125 @@
   .depot-bar-button-quiet {
     @apply h-8 border-transparent bg-transparent py-0 text-depot-faint hover:border-depot-line hover:bg-depot-raised
       hover:text-depot-ink focus-visible:text-depot-ink;
+  }
+
+  /* Sign out in the brand's gold, as on the dashboard; the quiet form keeps no outline
+     at rest. */
+  .depot-bar-button-gold {
+    @apply border-ol-gold/40 bg-ol-gold/[0.07] text-ol-gold hover:border-ol-gold/80 hover:bg-ol-gold/15
+      hover:text-ol-gold-light focus-visible:text-ol-gold-light;
+  }
+
+  .depot-bar-button-quiet.depot-bar-button-gold {
+    @apply border-transparent bg-transparent hover:border-ol-gold/50;
+  }
+
+  /* The brand mark in the bar: the dashboard's gold emblem colour with its soft glow. */
+  .depot-brand {
+    color: #f3c86a;
+    text-shadow: 0 0 14px rgba(214, 161, 58, 0.45);
+  }
+
+  /* A live feed chip breathes, as the dashboard's live pills do: its glow, not its size. */
+  .depot-tag-breathe {
+    animation: depot-breathe 2.6s ease-in-out infinite;
+  }
+
+  @keyframes depot-breathe {
+    0%,
+    100% {
+      box-shadow: 0 0 0 0 rgba(43, 255, 136, 0);
+    }
+    50% {
+      box-shadow: 0 0 14px -2px rgba(43, 255, 136, 0.55);
+    }
+  }
+
+  /* A figure in a band (FigureBand's Figure) in its meaning's tone: a short lit accent
+     along its own tile's top edge (so on a wrapped band each bar sits on its own figure), a faint wash of the tone falling from the top, and the
+     value in the tone with a soft glow. All paint: no box changes size. */
+  .depot-figure {
+    position: relative;
+    background-image: linear-gradient(180deg, rgb(var(--depot-tone) / 0.045), transparent 75%);
+  }
+
+  /* A plain cyan count keeps its accent and value colour but no wash, so a band of counts
+     does not read as a row of boxes and a coloured state figure stands out from them. */
+  .depot-figure.depot-tone-cyan:not(.depot-figure-hero) {
+    background-image: none;
+  }
+
+  .depot-figure::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 16px;
+    width: 32px;
+    height: 2px;
+    border-radius: 1px;
+    background-image: linear-gradient(90deg, rgb(var(--depot-tone)), rgb(var(--depot-tone) / 0.2));
+    box-shadow: 0 0 10px rgb(var(--depot-tone) / 0.7);
+    pointer-events: none;
+  }
+
+  .depot-figure-value {
+    color: rgb(var(--depot-tone));
+    text-shadow: 0 0 12px rgb(var(--depot-tone) / 0.3);
+  }
+
+  /* A depot's balance bar (fleet distribution): each side brightens away from the centre
+     line to its end, deficit crimson to the left, surplus cyan to the right, with a soft
+     glow. */
+  .depot-balance-short {
+    background-image: linear-gradient(270deg, rgba(255, 77, 94, 0.45), rgb(255, 77, 94));
+    box-shadow: 0 0 8px rgba(255, 77, 94, 0.45);
+  }
+
+  .depot-balance-spare {
+    background-image: linear-gradient(90deg, rgba(34, 217, 245, 0.45), rgb(34, 217, 245));
+    box-shadow: 0 0 8px rgba(34, 217, 245, 0.45);
+  }
+
+  /* A segment of a stacked state bar (the cockpit's availability): its state's colour
+     brightening towards its top edge. */
+  .depot-bar-seg {
+    background-image: linear-gradient(180deg, rgb(var(--depot-tone)), rgb(var(--depot-tone) / 0.62));
+  }
+
+  /* A pressed figure filter: a 2px underline in the figure's tone (3:1 and more against
+     the page in every tone), so the state is seen, not only said by aria-pressed. */
+  .depot-figure-pressed {
+    box-shadow: inset 0 -2px 0 0 rgb(var(--depot-tone));
+  }
+
+  /* The page's one hero figure: a stronger wash and glow. */
+  .depot-figure-hero {
+    background-image: linear-gradient(180deg, rgb(var(--depot-tone) / 0.1), transparent 80%);
+    box-shadow: inset 0 1px 0 0 rgb(var(--depot-tone) / 0.25);
+  }
+
+  .depot-figure-hero .depot-figure-value {
+    text-shadow:
+      0 0 18px rgb(var(--depot-tone) / 0.55),
+      0 0 2px rgb(var(--depot-tone) / 0.4);
+  }
+
+  .depot-figure-hero .depot-hero-numeral {
+    color: rgb(var(--depot-tone));
+    text-shadow:
+      0 0 18px rgb(var(--depot-tone) / 0.6),
+      0 0 2px rgb(var(--depot-tone) / 0.4);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .depot-tag-breathe {
+      animation: none;
+    }
+
+    .depot-panel,
+    .depot-nav-link {
+      transition: none;
+    }
   }
 
   /* Provenance and feed tags: 3px radius, always carry a word. The tone (border, 10% wash
@@ -533,9 +730,17 @@
       hover:text-holo-glow;
   }
 
-  /* Rows: a faint cyan wash on hover, a stronger one when selected or expanded. */
+  /* Rows: a faint cyan wash on hover; when selected or expanded, the flat selected surface
+     (no gradient: every text tier, the faintest included, keeps 4.5:1 across the row) and
+     the 2px cyan edge below. */
   .depot-row-selectable {
     @apply cursor-pointer hover:bg-depot-raised;
+  }
+
+  /* A focused row is the frame's full width, so the global ring (offset outward) would be
+     clipped by the scrolling frame and hidden under the sticky header: draw it inside. */
+  .depot-row-selectable:focus-visible {
+    outline-offset: -2px;
   }
 
   .depot-row-selected {
@@ -552,6 +757,7 @@
 
   .depot-row-selected td:first-child {
     @apply border-l-holo-glow;
+    box-shadow: inset 6px 0 10px -6px rgba(63, 240, 255, 0.6);
   }
 
   /* Fixed rows (DataTable `fixedRows`): a constant 36px, never wrapping; a long cell
@@ -658,9 +864,13 @@
     @apply relative h-1.5 w-full min-w-[64px] rounded-[2px] bg-depot-raised;
   }
 
+  /* The fill brightens along its length to its tone at the end, with a soft glow, as the
+     dashboard's health bars; cyan unless a tone class on the fill or a parent says
+     otherwise. */
   .depot-bar-fill {
     @apply absolute inset-y-0 left-0 rounded-[2px] bg-holo-glow;
-    box-shadow: 0 0 8px rgba(63, 240, 255, 0.45);
+    background-image: linear-gradient(90deg, rgb(var(--depot-tone) / 0.45), rgb(var(--depot-tone)));
+    box-shadow: 0 0 8px rgb(var(--depot-tone) / 0.45);
   }
 
   .depot-bar-tick {
@@ -679,7 +889,7 @@
 
   .depot-hero-numeral {
     @apply font-display text-[32px] font-semibold leading-none tabular-nums text-holo-glow;
-    text-shadow: 0 0 14px rgba(63, 240, 255, 0.55);
+    text-shadow: 0 0 16px rgba(63, 240, 255, 0.6);
   }
 
   .depot-section-label {
@@ -697,6 +907,18 @@
   .depot-filter-button[aria-pressed='true'] {
     @apply border-holo-glow/60 bg-holo-glow/15 text-holo-glow;
     box-shadow: 0 0 22px -8px rgba(63, 240, 255, 0.7);
+  }
+
+  /* A page's primary action: the dashboard's primary button (brighter cyan, cyan wash
+     and glow). A destructive action is the crimson form. Colour only. */
+  .depot-button-primary {
+    @apply border-holo-glow/70 bg-holo-glow/15 text-holo-glow hover:bg-holo-glow/25;
+    box-shadow: 0 0 22px -8px rgba(63, 240, 255, 0.7);
+  }
+
+  .depot-button-danger {
+    @apply border-alert-crimson/60 bg-alert-crimson/10 text-alert-crimson hover:bg-alert-crimson/20;
+    box-shadow: 0 0 20px -8px rgba(255, 77, 94, 0.6);
   }
 
   /* The one "Show all N": a quiet text button with the disclosure chevron. */

@@ -63,9 +63,53 @@ amber, DERIVED and FIXTURE cyan, REFERENCE slate; the feed chip's STALE, FEED QU
 CLOCK amber. Bus states: green in service, cyan on the road, amber standing, slate dark,
 crimson off the road. Every one is also a word.
 
-Glow is `box-shadow` or `text-shadow` only, never a filter or a size change, and nothing
-moves. `depot-contrast.test.ts` holds every text colour to 4.5:1 on every depot surface,
-the brightest point of the backdrop included; check it when a token changes.
+### Colour meanings
+
+Cyan on navy is the base; the dashboard's second colours each say one thing, the same on
+every page. The one table is `DEPOT_MEANING_TONE` in `src/lib/depot/palette.ts` (with
+`meaningColour`, `meaningTextClass` and `meaningToneClass`); what each page's figures
+measure is in `src/lib/depot/figureTones.ts`. `depot-palette.test.ts` holds both.
+
+| Meaning | Tone |
+|---|---|
+| In service; a change that is better (only where the page states the direction); a complete data field | green |
+| On the road; a plain count; information; chart history | cyan |
+| Standing; warning; a sparse data field; a stale feed (sample data too); the chart's "now" marker | amber |
+| Dark | slate |
+| Off the road; critical; a change that is worse; a threshold | crimson |
+| Money and energy (fuel, cost, revenue); forecasts; planned transfer arcs | teal |
+
+Teal says what a figure measures; whether it is modelled is the amber MODELLED tag's job. A
+distance (empty running, distance run) is a plain count. Every exception figure, depot or
+bus, takes its severity (too many buses off the road critical, the other depot kinds
+warnings), and a severity word in a group row or heading is printed in its colour. A bus
+state is the same colour in the figure band, the state squares, the yard map and the status
+mix bar.
+
+The index has one ramp everywhere (`DEPOT_INDEX_RAMP`): deep crimson, crimson, amber, soft
+green, green, each step lighter than the last, so "lighter is better" holds on the overview
+map's nodes, its highest and lowest dots, and the league and economics index bars.
+
+Structure, not status: the rail's categories have their own colour (the depot's pages green,
+Network cyan, Intelligence teal, System gold); only the current category's tab is lit, the
+others keep a quieter edge. The brand mark and sign-out are the brand gold. A figure takes a
+tone with `<Figure tone="…">`: a short lit accent on its own tile's top edge and the value in
+the tone, with a faint wash for every tone but a plain cyan count. Each band page has one
+headline figure (`lead`) with the stronger wash and glow at the band's size: Fleet on the
+overview, the emergency flag on exceptions, the deficit met on fleet distribution, the
+saving on routes, the forecast on trends, the duties, the buses in the yard, fuel issued,
+revenue, the buses off the road, the ranked depots. A pressed figure filter has a 2px
+underline in its tone. A selected row is the flat selected surface with the 2px cyan edge
+(no gradient). Bars and balance bars brighten along their length; coverage bars take their
+word's colour; the title runs cyan to teal (plain text under forced colours); the live feed
+chip breathes and only clickable panels brighten on hover (both stop under reduced motion).
+The tones are CSS variables (`depot-tone-*` in `globals.css`), so no depot component writes
+a colour literal.
+
+Glow is `box-shadow`, `text-shadow` or (on the title only) a drop shadow, never a size
+change. `depot-contrast.test.ts` holds every text colour to 4.5:1 on every depot surface,
+the brightest point of the backdrop and each tone's strongest wash included; check it when
+a token changes.
 
 ## Prose and notes
 
@@ -294,7 +338,8 @@ To adopt: delete the per-row button column, pass its handler as `onRowSelect` (o
 read the chevron column first.
 
 **Links in tables** use `depot-table-link`: cyan, no underline at rest, underlined on hover and
-keyboard focus. A link inside `depot-prose` or `depot-note` is underlined (a class on the link
+keyboard focus. The route table ends each row in one such link, "Hours", to the
+route's day hour by hour (its header, DAY, does not sort). A link inside `depot-prose` or `depot-note` is underlined (a class on the link
 still wins). `depot-link` stays for a stand-alone link.
 
 `group: { key: (row) => string, label?: (key, count) => string, aside?: (key, count) => string
@@ -315,6 +360,112 @@ const COLUMNS: Column<Row>[] = [
 
 Rule: no sentence in a cell; an empty cell is a mono dash with the reason
 in `title`.
+
+## The hour chart (HourChart)
+
+`src/components/depot/hourChart/`: one route's day in 24 columns, 00:00 to 23:00, as the
+route day page's hero. `<HourChart body={response} height? controls? footer?>` takes the
+response (or any object with its `hours` and `currentHour`); `controls` are more of the
+section's own controls before the view toggle, `footer` lines under the chart or its table
+in either view (the route day passes the timetable loader in both); the shapes come from
+`buildHourChartModel` and `hourTableRows` in `src/lib/depot/service/hourChartModel.ts`, so
+the chart and its table say the same thing.
+
+- **Deployed** is a bar per hour, a plain count (cyan). An observed hour and the feed clock's
+  hour are solid; a modelled hour after now is hatched; a modelled hour before now is an
+  empty outline (a solid 1px hairline in `depot-faint`) at the modelled height, called "Not
+  observed" in the table. With no feed clock every modelled hour is hatched. Only the needed
+  line is dashed.
+- **Scheduled** is a step line in the neutral ink; an hour with no known trip has no step.
+- **Needed** is a dashed teal line (the forecast meaning) over a faint band, the demand
+  model's spread of a quarter either way turned into buses.
+- Both lines are drawn over a page-coloured casing two pixels wider (`CASING_WIDTH`), so a
+  line keeps a dark edge where it crosses a solid cyan bar of nearly its own colour.
+- **Now** is the amber marker on the feed clock's hour.
+- **The gap row** sits under the hour axis, one signed figure per hour. It is a second axis
+  on the same 24 categories, so it cannot drift out of step with the bars. **Rule:** a gap is
+  coloured only for an hour whose deployment was seen in the feed (observed, or the current
+  hour; `HourColumn.gapSeen`): + short in crimson, − over in amber (the standing meaning:
+  surplus buses could stand), 0 in the label colour. Every other hour's gap compares a model
+  with a model, so it prints in the axis colour; the sign still says the direction.
+- **The legend** says every series in words beside its own mark (`LEGEND_TEXT` in
+  `service/serviceWording.ts`): the solid bar is "Deployed, observed (and now, from the
+  feed)", or "Deployed now, from the feed" when this server has observed nothing today; the
+  Scheduled entry carries the buses whose whole day is loaded ("Scheduled (full day loaded for 11 of
+  21 buses)"); the gap entry says "+ short, − over; gaps in modelled hours are modelled". The
+  table's Basis words are the legend's (`BASIS_WORD`).
+- The section note is the operating day and what this server observed of it ("Operating day
+  6 Oct 2026 · Observed by this server since 05:02 (79 samples)", or "Not yet observed by
+  this server today"); the page's provenance line stays one short MIXED sentence.
+- Ticks every 3 hours; the bus scale steps 1, 2 or 5 with at most five intervals; nothing
+  below 11px.
+- The plot is `role="img"` with an `aria-label` that says what it shows and that "Show as
+  table" lists every figure. The toggle's words say what it will show next ("Show as table",
+  then "Show as chart"), so it carries no `aria-pressed`. The table runs its 24 rows in the
+  page flow (`depot-table-flow`); its Gap cell says the sign in words ("+9 Short by 9"), the
+  needed range is its own column, a modelled hour's gap has a title saying so, and the delay
+  caveat sits under it.
+- Colours are the palette's meanings (`hourChartStyle.ts`); a series is never told apart by
+  colour alone.
+
+### The timetable loader (route day)
+
+`src/components/depot/service/TimetableLoader.tsx` with `hooks/useTimetableLoader.ts` and
+`lib/depot/service/timetableLoader.ts`: "Load this route's full timetable", a
+`depot-filter-button` in the chart section's controls, before "Show as table".
+
+- It never starts by itself. A press looks up the buses seen on the route without a recorded
+  day (and not answered this visit), at most 20, one at a time; its `title` says the cost
+  ("Looks up 20 buses on the schedule service: one bus at a time, up to 4 calls each, at
+  most 20 buses a press."). While a run goes the button is "Cancel".
+- One `role="status"` line under the legend says the run: "7 of 20 loaded · 13 remain";
+  "Paused at the lookup limit; resuming in 41 seconds · 7 of 20 loaded · 13 remain" while a
+  429 is waited out; "Done: 17 of 20 loaded · 2 had no timetable · 1 could not be read. The
+  chart updates on its next refresh."; "Cancelled: …". Below it, once no run goes, what is
+  left ("28 of 40 buses still to load; a press loads up to 20.", or "Every bus seen on this
+  route has its timetable loaded.") and, when an earlier date stands in, "Timetable of 5
+  Oct 2026 used for 6 Oct 2026."
+- On the saved sample there is no press: the schedule-day route refuses every lookup there
+  without an outside call, so the line says "On the saved sample the schedule service is not
+  asked, so no timetable loads." A lookup refused on the live feed counts as
+  "could not be read" and the page stays as it was.
+- `SectionLabel`'s controls wrap within the row (`flex-wrap`, `max-w-full`), so the loader
+  and "Show as table" sit on two lines at 390 rather than pushing the page sideways.
+- A run that looked anything up asks for the route's figures again when it ends; the
+  scheduled line and the legend's coverage change then.
+
+## The heat map (Service by the hour)
+
+`src/components/depot/service/NetworkHeatMap.tsx`: routes by hour as an HTML grid, the
+network page's hero. A row per route (its name links to its day), 24 cells, a page of 25 by
+the band's largest peak gap. The fill diverges from an empty (even) cell: short in the
+"worse" crimson, over in the "standing" amber (the route day's gap-row colours), in three
+strengths by size (`HEAT_STEPS` = 1, 3, 6 buses); a measured hour (observed, or the feed
+clock's) is a solid wash, a modelled hour the same colour in thin diagonal strokes, as the
+route day hatches its modelled bars (`heatStyle.ts`, inline styles: a value per cell). Hours
+outside the chosen band are dimmed. Every cell carries its gap in words in its `title` and
+`aria-label` ("07:00: +4, short by 4 (measured)"); the legend names each side, strength and
+fill in words; "Show as table" (`aria-pressed`) swaps the grid for a `DataTable` with the
+route, depot, band peak and every hour as "+4 measured". The grid scrolls sideways inside
+its own frame below about 680px; the page never does. Pure shapes: `heatCell`,
+`heatTableRows` in `service/networkPageModel.ts`.
+
+## Decisions on proposals and the daily brief
+
+- `ProposalDecisionControls` (in a proposal's opened row): the decision in force, a note,
+  Approve / Defer / Reject with `aria-pressed`, Undo, and "Recorded only; nothing
+  dispatched." It is a labelled group ("Decision on …") and is not printed.
+- `ProposalsTable` and `NetworkProposalsTable` record decisions whenever they have a date
+  (`operatingDate`, or the proposals' own) through `useProposalDecisions(date, route)`;
+  `ProposalsTable trailRoute` narrows the trail to one route. `ProposalDecisionsFooter` is
+  the status line and `ProposalDecisionTrail` under either table.
+- Every decision trail draws `TrailParts` (`ClearControl` with its confirm, `TrailStateNotes`,
+  `TrailLine`), so the transfer and proposal trails read alike.
+- `DailyBriefCard`: a `SectionLabel` ("Daily brief") over an embedded `BriefingCard` given a
+  `request` (the brief question), then the browser's decision counts. `BriefingCard` takes an
+  optional `request` for any card that asks for something other than its scope's briefing.
+- Print: the brief's section carries `data-print-brief`, each proposals table
+  `data-print-keep`; `ServicePrintRule` hides everything else on paper only where the brief is.
 
 ## StatePanel
 

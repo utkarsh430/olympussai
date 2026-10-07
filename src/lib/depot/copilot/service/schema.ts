@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { isValidDepotId } from '@/lib/depot/ids';
+import { isValidDepotId, isValidRouteName } from '@/lib/depot/ids';
+import { isProposalId } from '@/lib/depot/service/bands';
 import { MAX_QUESTION_CHARS } from '@/lib/depot/copilot/limits';
 import { sanitizeQuestion } from '@/lib/depot/copilot/router/sanitize';
 import type { CopilotApiRequest } from '@/lib/depot/copilot/wire';
@@ -24,12 +25,23 @@ const scopeSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('depot'), depotId: z.string().refine(isValidDepotId) }).strict(),
 ]);
 
-const requestSchema = z.discriminatedUnion('task', [
+/** `p-` and eight hex digits, as `proposalId` makes them. */
+const MAX_PROPOSAL_ID_CHARS = 10;
+
+/** A union of strict objects: a rationale names a transfer or a route's proposal, never both. */
+const requestSchema = z.union([
   z.object({ task: z.literal('briefing'), scope: scopeSchema }).strict(),
   z
     .object({
       task: z.literal('rationale'),
       transferId: z.string().max(MAX_TRANSFER_ID_CHARS).refine(isValidTransferId),
+    })
+    .strict(),
+  z
+    .object({
+      task: z.literal('rationale'),
+      proposalId: z.string().max(MAX_PROPOSAL_ID_CHARS).refine(isProposalId),
+      routeName: z.string().refine(isValidRouteName),
     })
     .strict(),
   z

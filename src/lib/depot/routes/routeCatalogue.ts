@@ -6,6 +6,8 @@ import { classifyBusState, gpsAgeMinutes } from '../infer/busState';
 import type { FleetSnapshotView } from '../repositories/types';
 import type { DepotBusRow } from '@/models/depotLive';
 import { operatingDateOf } from '../sim/seed';
+import { busDayFor } from '../service/busDay';
+import type { ScheduledTrip } from '../service/types';
 import { buildRouteProfile } from './routeProfile';
 import type { RouteProfile, RouteProfileResult, RouteStop } from './types';
 
@@ -39,6 +41,9 @@ type Unavailable = Extract<RouteProfileResult, { status: 'unavailable' }>;
  * lookups in flight together can never pass the limit between them.
  */
 export type UpstreamPermit = () => RateDecision;
+
+/** Records one bus's whole day of trips (the scheduled-trip store's `recordBusDay`). */
+export type BusDayRecorder = (trips: readonly ScheduledTrip[]) => Promise<void>;
 
 /** A call the lookup needed was refused: no answer, nothing remembered, try after the wait. */
 export interface LimitedLookup {
@@ -126,14 +131,42 @@ interface Lookup {
   readonly key: string;
 }
 
+/**
+ * Records the sampled bus's whole day for the feed's operating date. A failure to record
+ * is logged and never fails the lookup: the profile is still the answer.
+ */
+async function recordDay(
+  record: BusDayRecorder | undefined,
+  day: readonly ScheduledTrip[] | null,
+  feedDate: string,
+): Promise<void> {
+  if (record === undefined || day === null || day.length === 0) return;
+  try {
+    await record(busDayFor(day, feedDate));
+  } catch (error) {
+    logDepotError('route-catalogue', error);
+  }
+}
+
 async function fetchProfile(
   routeName: string,
   { bus, date, feedDate }: Lookup,
   now: number,
   permit: UpstreamPermit | undefined,
+  record: BusDayRecorder | undefined,
 ): Promise<RouteLookupOutcome> {
   // The service is told only yes or no; the wait of a refusal is kept here for the answer.
   const refusal: { decision: RateDecision | null } = { decision: null };
+  // Every trip of the bus's day, as the server answered it; recorded only on success.
+  const held: { day: readonly ScheduledTrip[] | null } = { day: null };
+  const keeping =
+    record === undefined
+      ? {}
+      : {
+          onDay: (trips: readonly ScheduledTrip[]): void => {
+            held.day = trips;
+          },
+        };
   const asking =
     permit === undefined
       ? {}
@@ -151,7 +184,7 @@ async function fetchProfile(
     const response = await fetchBusSchedule(
       { regNum: bus.registrationNumber, date, tripId: bus.journeyId },
       now,
-      { today: feedDate, requireEveryDateAnswered: true, ...asking },
+      { today: feedDate, requireEveryDateAnswered: true, ...asking, ...keeping },
     );
     // The fixture is a stand-in, not this route: never present it as real data.
     if (response.source === 'fixture') return unavailable('upstream_error');
@@ -174,6 +207,7 @@ async function fetchProfile(
       return unavailable('no_schedule');
     }
     const built = buildRouteProfile(schedule, bus.registrationNumber, date);
+    await recordDay(record, held.day, feedDate);
     return {
       status: 'ok',
       profile: { ...built, routeNameConfirmed, description: bus.routeDescription },
@@ -218,13 +252,16 @@ const freshNegative = (routeName: string, now: number): NegativeEntry | undefine
  * The route's profile, from the cache or through one lookup. `permit`, when given,
  * is asked before each call to the schedule server; a cache hit, a fresh negative
  * answer or joining a lookup already in flight asks nothing. A request that joins a
- * lookup gets that lookup's outcome, `limited` included.
+ * lookup gets that lookup's outcome, `limited` included. `record`, when given, is handed
+ * the sampled bus's whole day once a lookup succeeds, so the trips the server already
+ * answered with become scheduled supply at no further call.
  */
 export async function getRouteProfile(
   routeName: string,
   view: FleetSnapshotView,
   now: number = Date.now(),
   permit?: UpstreamPermit,
+  record?: BusDayRecorder,
 ): Promise<RouteLookupOutcome> {
   const lookup = lookupFor(routeName, view);
   if (!lookup) return unavailable('no_bus_on_route');
@@ -239,7 +276,7 @@ export async function getRouteProfile(
   const pending = inFlight.get(key);
   if (pending) return pending;
 
-  const request = fetchProfile(routeName, lookup, now, permit)
+  const request = fetchProfile(routeName, lookup, now, permit, record)
     .then((result): RouteLookupOutcome => {
       // A stopped lookup has no answer: nothing is remembered.
       if (result.status === 'limited') return result;

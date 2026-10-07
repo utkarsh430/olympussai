@@ -7,6 +7,7 @@ import { cellLayout, DataTableRow, EXPAND_KEY, type FrozenColumns } from './Data
 import { EXPANDER_WIDTH_PX, frozenColumnCount, frozenLefts } from './tableLayout';
 import { TableOverflowCue, useColumnsToTheRight } from './TableOverflowCue';
 import type { Provenance } from '@/lib/depot/types';
+import { meaningTextClass } from '@/lib/depot/palette';
 import { ProvenanceBadge } from './ProvenanceBadge';
 import { groupCounts, groupLabel, groupRows, type TableGrouping } from './tableGroups';
 
@@ -318,7 +319,11 @@ export function DataTable<T>({
             ? groupRows(visibleRows, group.key).map((g) => (
                 <Fragment key={`group-${g.key}`}>
                   <tr data-testid="depot-table-group">
-                    <th scope="colgroup" colSpan={shownColumns.length} className="depot-table-group">
+                    <th
+                      scope="colgroup"
+                      colSpan={shownColumns.length}
+                      className={`depot-table-group ${group.tone ? meaningTextClass(group.tone(g.key)) : ''}`}
+                    >
                       {groupRowText(group, g.key, counts.get(g.key) ?? g.rows.length)}
                     </th>
                   </tr>

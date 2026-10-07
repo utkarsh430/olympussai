@@ -82,6 +82,7 @@ export function BusExceptionTable({
           const busKind = key as BusExceptionKind;
           return busGroupLabel(busKind, kindTotals[busKind] ?? count, severityOf.get(busKind) ?? 'info');
         },
+        tone: (key) => severityOf.get(key as BusExceptionKind) ?? 'info',
       }}
     />
   );

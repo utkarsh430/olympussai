@@ -34,7 +34,7 @@ export function BriefingRow({
         <p className="min-w-0 basis-full font-sans text-xs text-depot-prose sm:flex-1 sm:basis-auto sm:truncate">
           A short written summary of these figures. Advisory: it describes, it does not instruct.
         </p>
-        <button type="button" className="hud-button shrink-0" aria-expanded={open} aria-controls={bodyId} onClick={toggle}>
+        <button type="button" className="hud-button shrink-0 depot-button-primary" aria-expanded={open} aria-controls={bodyId} onClick={toggle}>
           {open ? 'Close briefing' : 'Open briefing'}
         </button>
       </div>

@@ -10,8 +10,10 @@ import { decisionEvent, undoEvent, type TrailItem } from '@/lib/depot/rebalance/
 import { isRepeatDecision, undoableFor } from '@/lib/depot/rebalance/decisionReducers';
 import { trailCapacityNote } from '@/lib/depot/rebalance/decisionStore';
 import {
+  DECISION_REFUSED,
   TRAIL_CLEARED,
   TRAIL_CLEAR_REFUSED,
+  UNDO_REFUSED,
   decisionAnnouncement,
   recordStatus,
   undoAnnouncement,
@@ -36,11 +38,6 @@ import { useDecisionLog } from './useDecisionLog';
 import { useDistributionView } from './useDistributionView';
 
 export const RESET_ANNOUNCEMENT = 'Reset to the server plan';
-const STORAGE_REFUSED =
-  'The decision could not be recorded: this browser refused to store it, and no audit event exists.';
-
-const UNDO_REFUSED =
-  'The undo could not be recorded: this browser refused to store it, and no audit event exists.';
 
 /** The fleet distribution page: live supply, modelled need, and the plan between them. */
 export function RebalancePage() {
@@ -105,7 +102,7 @@ export function Distribution({
       }),
     );
     const said = decisionAnnouncement(kind, row.buses, row.fromName, row.toName);
-    setAnnouncement(recordStatus(recorded, said, STORAGE_REFUSED));
+    setAnnouncement(recordStatus(recorded, said, DECISION_REFUSED));
   }
 
   function undo(item: TrailItem): void {

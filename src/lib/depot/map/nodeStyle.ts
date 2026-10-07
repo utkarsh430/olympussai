@@ -1,5 +1,5 @@
 import { clamp } from '@/lib/depot/stats/robust';
-import { DEPOT_CYAN_RAMP, DEPOT_PALETTE } from '@/lib/depot/palette';
+import { DEPOT_INDEX_RAMP, DEPOT_PALETTE } from '@/lib/depot/palette';
 /**
  * How a depot is drawn on the network map: size from fleet, colour from the
  * Depot Efficiency Index. Pure, so the map, its legend and the tests agree.
@@ -23,23 +23,23 @@ export interface IndexBand {
 }
 
 /**
- * Five ordered bands from the command centre's cyan ramp (`DEPOT_CYAN_RAMP`),
- * darkest for the lowest index: single hue, monotone lightness. The selected
- * depot is ringed in near-white ink, so the ramp can be the accent's hue.
+ * Five ordered bands from the index ramp (`DEPOT_INDEX_RAMP`), deep crimson for the
+ * lowest index to green for the highest, each lighter than the last. The selected depot
+ * is ringed in near-white ink, which no step of the ramp is.
  */
 const TOP_BAND: IndexBand = {
   level: 4,
   min: 80,
   max: 100,
-  fill: DEPOT_CYAN_RAMP[4],
+  fill: DEPOT_INDEX_RAMP[4],
   label: 'Index 80 to 100',
 };
 
 export const INDEX_BANDS: readonly IndexBand[] = [
-  { level: 0, min: 0, max: 20, fill: DEPOT_CYAN_RAMP[0], label: 'Index 0 to under 20' },
-  { level: 1, min: 20, max: 40, fill: DEPOT_CYAN_RAMP[1], label: 'Index 20 to under 40' },
-  { level: 2, min: 40, max: 60, fill: DEPOT_CYAN_RAMP[2], label: 'Index 40 to under 60' },
-  { level: 3, min: 60, max: 80, fill: DEPOT_CYAN_RAMP[3], label: 'Index 60 to under 80' },
+  { level: 0, min: 0, max: 20, fill: DEPOT_INDEX_RAMP[0], label: 'Index 0 to under 20' },
+  { level: 1, min: 20, max: 40, fill: DEPOT_INDEX_RAMP[1], label: 'Index 20 to under 40' },
+  { level: 2, min: 40, max: 60, fill: DEPOT_INDEX_RAMP[2], label: 'Index 40 to under 60' },
+  { level: 3, min: 60, max: 80, fill: DEPOT_INDEX_RAMP[3], label: 'Index 60 to under 80' },
   TOP_BAND,
 ];
 

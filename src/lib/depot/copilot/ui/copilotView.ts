@@ -82,6 +82,8 @@ const NETWORK_EXAMPLES: readonly string[] = [
   'Give me a summary of the network.',
   'Which depots are short of buses?',
   'Which depots have spare buses?',
+  'What is the plan for today?',
+  'Which routes are over-served after 6 pm?',
 ];
 const MAX_EXAMPLE_NAME_CHARS = 80;
 
@@ -97,6 +99,7 @@ export function exampleQuestions(depotName: string | null): readonly string[] {
     `Give me a summary of ${name}.`,
     `What exceptions does ${name} have?`,
     `Which transfers involve ${name}?`,
+    `What should ${name} change this evening?`,
     'Which depots are short of buses?',
   ];
 }

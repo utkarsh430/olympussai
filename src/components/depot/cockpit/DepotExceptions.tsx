@@ -52,7 +52,7 @@ function BusGroup({ depotId, group, feedNow }: {
   const rows = all ? group.rows : group.rows.slice(0, GROUP_PREVIEW_ROWS);
   return (
     <div className="min-w-0" data-testid={`depot-exception-group-${group.kind}`}>
-      <SectionLabel label={group.heading} count={group.rows.length} note={group.severityLabel} level={3} />
+      <SectionLabel label={group.heading} count={group.rows.length} note={group.severityLabel} noteTone={group.severity} level={3} />
       <ul id={listId} className="min-w-0">
         {rows.map((row) => (
           <li key={row.registrationNumber} className="flex h-9 min-w-0 items-center gap-3 border-b border-depot-line font-mono text-[13px]">

@@ -30,6 +30,8 @@ What it does not do:
   aside to `depot-transfer-decisions-v1-unreadable` before the next decision is written. Each
   decision is also copied, with its note emptied, to the command centre's shared audit log
   (`upsrtc-copilot-audit-v1`, `src/lib/audit/auditLog.ts`), which Clear trail does not reach.
+  Decisions on route and network proposals (section 7.17) go to the same trail and the same
+  storage key; Clear trail on any page clears both subjects.
 - **No individual is scored or named.** Crew appear as anonymous slots; scoring is per
   depot, never per driver.
 - **No database.** Live figures come from the current snapshot; history and trends are a
@@ -54,6 +56,7 @@ imported from there; the network pages are listed there and the depot pages in
 | `/project/depots/league` | League table | Operating depots ranked by the Depot Efficiency Index within peer groups | Derived (rolling window) |
 | `/project/depots/rebalance` | Fleet distribution | Buses each depot has against buses it needs; recommended inter-depot transfers; a what-if sandbox; a decision trail | Supply derived, requirement modelled |
 | `/project/depots/routes` | Routes | Every route in the feed, and which depot should run it to cut dead kilometres | Live, derived from cached route profiles, trip frequency modelled |
+| `/project/depots/routes/r/[routeName]` | Routes (reached from a route's row or drawer) | One route's day hour by hour: buses deployed, scheduled and needed, the gap, proposals and punctuality (section 7.15) | Deployed derived (modelled where not observed), scheduled derived and partial, demand, need and proposals modelled |
 | `/project/depots/exceptions` | Exceptions | Depots and buses that stand out, each with the figures that put it there | Derived |
 | `/project/depots/economics` | Economics | Operating depots ranked by a modelled economics index | Modelled |
 | `/project/depots/trends` | Network trends | Each network measure's history, a short forecast, and every unit's trend | Modelled history ending on a live value |
@@ -71,7 +74,10 @@ imported from there; the network pages are listed there and the depot pages in
 
 Gates: `src/app/(protected)/project/depots/layout.tsx` calls `requireProjectSession`; the
 depot layout (`d/[depotId]/layout.tsx`) refuses a malformed id with `notFound()` before the
-session check, and `d/not-found.tsx` renders the miss. The client polls the depot APIs every
+session check, and `d/not-found.tsx` renders the miss. The route day page gates itself the
+same way with `requireRoutePage` (`src/lib/depot/depotGate.ts`): a name that fails
+`isValidRouteName` ends in `routes/r/not-found.tsx` before the session check; its path is
+`routeHourlyPath(routeName)` in `nav.ts`, under the Routes page, so the rail keeps Routes lit. The client polls the depot APIs every
 60 s (`DEFAULT_POLL_INTERVAL_MS` in `src/hooks/usePolledJson.ts`). The polling hook's rules:
 a tick never aborts a request in flight, skips while one is pending or the tab is hidden, and
 showing the tab refreshes at once; a new query on the same path can keep the previous answer
@@ -280,6 +286,8 @@ not in the feed answers the fixed `404 {"error":"Depot not found"}`. Payload typ
 | `routes` | One page of routes in the feed with derived columns | paging, sort `dir`, filters; `limit` default 25, max 100 (`src/lib/depot/routes/routeQuery.ts`); strict |
 | `allocation` | The route-to-depot plan over cached profiles, filtered and paged per request; `plannedAt` is the feed time of the snapshot the held plan was made on (null when that snapshot had no feed clock) | parsed by `parseAllocationQuery` (routeQuery.ts); strict |
 | `route/[routeName]` | One route profile (stops, terminals, length; `unlocatedStops` counts stops with no usable position and `mislocatedStops` those whose position does not fit the timetable, both with `lat`/`lng` null, section 7.9) with the feed envelope of the snapshot it read; `fetchedAt` is that snapshot's fetch time | `isValidRouteName` → `400 {"error":"Invalid route name"}`; calls to the schedule server rate-limited, one slot per call → `429 {"error":"Too many requests","retryAfterSeconds":n}` with `Retry-After`; `503 {"error":"Route data unavailable"}`, also after `ROUTE_LOOKUP_DEADLINE_MS = 25_000` |
+| `schedule-day/[registration]` | One bus's whole day from the schedule server (`ScheduleDayResponse`, `service/scheduleDayApi.ts`), asked for by the route day's timetable loader: `?route=` names the route the bus was seen on. The feed's operating date is asked first, then the fallback dates; a real answer is recorded in the scheduled-trip store for the operating date (`answeredDate` is the date that answered: another is a borrowed day) and answered as `{status:"ok",trips,tripsOnRoute,…}` with the feed envelope; "not assigned" on every date is `{status:"unavailable",reason:"no_schedule"}`, a failure or the sample stand-in `reason:"upstream_error"`, and neither records anything | the same limits as `route/[routeName]`, one slot per call to the schedule server, taken before each call → `429 {"error":"Too many requests","retryAfterSeconds":n}` with `Retry-After`; strict: `isValidRegistrationNumber` (at most 16 characters) and exactly one valid `route`, else `400 {"error":"Invalid request"}`; a bus this server has not seen on the route (in the snapshot or earlier that date) → `404 {"error":"Bus not seen on this route"}` with no call made; `503 {"error":"Schedule data unavailable"}` on failure and after `ROUTE_LOOKUP_DEADLINE_MS`; the only route besides `route/[routeName]` that the API guard lets reach the schedule server (`service/scheduleDayLookup.ts`) |
+| `service/route/[routeName]` | One route's day hour by hour (`RouteHourlyResponse`, `service/types.ts`): 24 hours of deployed, scheduled, modelled demand, needed and gap; the need inputs; what this server observed; scheduled and route-name coverage; proposals; punctuality by hour (`reliability`); the buses seen on the route (`busesOnRoute`), those with a recorded day (`busesWithDay`) and any borrowed timetable date (`timetableBorrowedFrom`) | `isValidRouteName` → `400 {"error":"Invalid route name"}`; strict query: only `date`, which must be the feed's operating date (`YYYY-MM-DD`), else `400 {"error":"Invalid query"}`; a route the snapshot does not carry → `404 {"error":"Route not found"}`; no upstream call (`live/routeHourlyView.ts`) |
 | `economics` | The modelled economics index, network and per depot | none |
 | `history` | A daily series for one metric, with the feed envelope; `available` points carry `ceiling` (the fleet) | `metric` (onRoadShare, offRoadRate, darkRate, index, available), `scope` network or depot, `depotId` when scope is depot, `days` 7–180 default 30 (`live/historyView.ts`); `404` "No value for this metric" / "No index for this depot" |
 | `trends` | History with trend words for many units | strict parser in `live/trendsView.ts`, `days` 7–90 default 30 |
@@ -307,6 +315,24 @@ an adapter.
 | `fuel` | `modelledFuelRepository` | fuel/api.ts |
 | `revenue` | `modelledRevenueRepository` | revenue/api.ts |
 
+The hour-by-hour stores sit beside these, behind their own entry point,
+`getServiceRepositories()` (`ServiceRepositories` in `repositories/types.ts`), so the depot
+repositories did not change:
+
+| Repository | Adapter today | Interface |
+| --- | --- | --- |
+| `hourly` | `memoryHourlyObservationRepository` — reads the per-process hour store (`live/serviceHold.ts`) | `routeHours`, `depotHours`, `observedSummary`, `distinctBusesOnRoute`, `busesOnRoute`, `journeysOnRoute`; all async |
+| `scheduled` | `memoryScheduledTripRepository` — the trips of the bus days looked up, per process | `recordBusDay`, `tripsForRoute`, `knownBusesOnRoute`, `recordedBuses`, `revision` (a count of days recorded, in the route day's memo key so a load shows on the next poll); all async |
+
+A bus's day is recorded two ways, both only from the schedule server's own answer (never
+the sample stand-in): a successful route-details lookup records the whole day of the bus it
+was read through (every trip, other routes included, at no further call; `getRouteProfile`'s
+`record`), and the schedule-day route records the day of each bus the timetable loader asks
+for. The command centre's schedule route records nothing.
+
+A database written by a 5-minute sampler replaces the first, and a timetable store the
+second, behind the same interfaces.
+
 To replace a model with a real feed or a database: write a new adapter implementing the
 same interface (returning the same payload shape, with real values), wire it in
 `repositories/index.ts`, and change the page's provenance declaration and the
@@ -330,6 +356,8 @@ first.
 | Held peak requirements (the floor of each depot's peak) | `live/peakRequirementHold.ts` | one number per depot for one operating date, ≤ 1,000 depots |
 | The modelled day and duty plan | `live/operatingDayView.ts` | one slot per analysis, held per snapshot |
 | Memoised analyses and view bodies | `live/analysis.ts`, `live/queryMemo.ts` | held weakly per snapshot; ≤ 64 query bodies per snapshot |
+| The hour store: one route sample and one depot sample per 5-minute slot of feed time, and the feed's journeys, for one operating date | `live/serviceHold.ts`, `live/serviceHoldReads.ts` | 288 slots, ≤ 1,000 routes and ≤ 1,000 depots a slot, ≤ 20,000 journeys, ≤ 500 buses counted per route; the previous date drops when the feed date changes; the saved sample never writes |
+| The looked-up bus days (scheduled trips) | `repositories/memoryScheduledTripRepository.ts` | ≤ 2,000 buses per date, ≤ 3 dates |
 | Route-profile cache | `routes/routeCatalogue.ts` | ≤ 2,000 routes, keyed on route and the feed's operating date; negative answers 10 min; failures not cached |
 | Schedule cache behind the lookups | `src/lib/upsrtc/scheduleService.ts` | 2 min TTL, ≤ 500 lookups |
 | Allocation plan | `live/allocationView.ts` | held for 5 minutes of feed time |
@@ -343,7 +371,9 @@ cockpit says "This server has decided this depot's yard on N snapshots so far"; 
 peak shares and held peak requirements start again from the next snapshot, so the first
 snapshots after a restart can set them and a server restarted in the evening models a smaller
 day than one that saw the morning peak; the allocation plan is made afresh; the route
-catalogue is empty until users load details again; the copilot's limits and budget reset.
+catalogue is empty until users load details again; the copilot's limits and budget reset;
+the hour store starts empty, so the route day shows every hour before the restart as not
+observed and draws it from the modelled day.
 With several instances, each holds its own copy: two requests can be scored over different
 windows, see different held yards, different held peak shares and peak requirements (so a different modelled day
 and transfer plan until each instance has seen the peak), allocation plans made at
@@ -621,7 +651,9 @@ whose first date answers costs one slot, and a cache hit costs nothing. If no sl
 before a call, the lookup stops there and the route answers its fixed 429 with
 `Retry-After`; nothing is cached. The route waits at most `ROUTE_LOOKUP_DEADLINE_MS =
 25_000` for the snapshot and the lookup, then answers its fixed 503; a lookup still running
-then is cached only if it ends in an answer. Every limit is per instance.
+then is cached only if it ends in an answer. Every limit is per instance. The limits live in
+`routes/upstreamPermit.ts` and are shared with the schedule-day route: one allowance per
+person whichever of the two spends it.
 
 The allocation (`optimise/allocate.ts`) recommends which depot should run each route to cut
 dead kilometres (inferred yard to the route's real first and last stop) within capacity. It
@@ -766,6 +798,294 @@ Backtest over `BACKTEST_DAYS = 28`; the band h days ahead is the `BAND_QUANTILE 
 quantile of that method's h-step errors, pooled when fewer than `MIN_BAND_SAMPLES = 10`. No forecast from fewer than `MIN_HISTORY_DAYS = 28` days; horizon default
 `DEFAULT_HORIZON_DAYS = 14`, max 28. Because the history is modelled, so is every forecast.
 
+### 7.15 One route's day hour by hour — `service/`, `sim/hourlyDemand.ts`, `live/routeHourlyView.ts`
+
+For one route and the feed's operating date, every hour from 00:00 to 23:00 side by side:
+buses deployed, buses scheduled, passengers modelled, buses needed, and the gap.
+Recommendation only: nothing is dispatched or reassigned, and no person is named or scored.
+
+**Data path.** Every new snapshot the analysis builds is offered to the hour store
+(`offerServiceSnapshot` in `live/serviceHold.ts`). The newest snapshot in each 5-minute slot
+of feed time (`SLOT_MINUTES = 5`, 288 slots a day) records, per route, the buses carrying
+its name with their states, delays and operating depots, and per depot its standing buses
+inside its yard and its buses on the road with no route name. The feed's own journeys
+(journey id, route, scheduled start and end, actual start, delay) go into a journey ledger.
+The feed clock is the only clock; the saved sample never writes. The view
+(`buildRouteHourlyResponse` in `live/routeHourlyView.ts`, composed in
+`live/routeHourlyBody.ts`) reads the route's row from the snapshot's route table, the store
+through `getServiceRepositories()`, a modelled day of the route's own buses (below), and
+the shared modelled operating day of each depot running the route (`operatingDayFor`, the
+one the duty, crew, fuel and revenue pages read: the route length and the depot's idle
+buses for a proposal's source), then runs the engine in `src/lib/depot/service/`. The body
+is held per snapshot, route and route-catalogue revision (`queryMemo`); the feed envelope
+is built per request.
+
+**Three layers, each saying what it is.**
+
+1. **Deployed** (DERIVED): the mean, over an hour's samples, of the route's buses in
+   service or on the road, the buses running it (`observeHours.ts`); the same definition
+   holds for the current hour and the modelled hours. Standing buses that carry the route
+   name stay in the state mix only and are said once on the page ("N standing now carry
+   this route's name"). An hour needs at least
+   `MIN_SLOTS_FOR_AN_HOUR = 6` of its 12 samples to count as observed. The feed clock's own
+   hour takes the snapshot's figure. Any other hour comes from a modelled day anchored to
+   the route's own buses (`modelledRouteHours` in `modelledDeployment.ts`, MODELLED): each
+   bus carrying the route name in the snapshot (the route row's `buses`, whatever their
+   state) works one day on it (`drawRouteBusDay`): it starts as the duty roll starts a
+   duty (`drawDutyStart` in `sim/duties.ts`: the morning triangle, or spread over the day)
+   and works a seeded `ROUTE_BUS_DAY_MIN` = 6 to 10 hours, or a round trip (out and back) plus
+   `LAYOVER_MIN` when that is longer (the journey known from the feed's schedule or the
+   profile), at most `ROUTE_BUS_DAY_MAX_MIN` = 16 hours, clipped at 24:00
+   (`sim/hourlyDemandConfig.ts`); seeded by route and date. An hour's figure is the minutes
+   those days overlap it, over 60. A bus works a shift of trips, not one round trip, so a
+   short route peaks near its fleet (about four fifths on average: a third of the starts
+   spread through the day). The depot duty board keeps its own rule (out and back plus a
+   layover, else 4 to 10 hours). So the observed and modelled hours are one route on
+   one scale, and no hour runs more buses than the feed shows on the route. **This page's
+   modelled day is drawn from the buses the feed shows on the route, while the depot pages'
+   modelled day is drawn per depot** (the depot's peak requirement dealt round-robin over
+   its routes), so the two can differ for the same route. The chart draws a modelled hour
+   hatched ahead of now and as an empty outline before it ("not observed").
+2. **Scheduled** (DERIVED, partial): bus-hours, the minutes each known trip overlaps the
+   hour, over 60 (`journeyLedger.ts`, `scheduledSupply.ts`). Trips are the journeys the feed
+   reports on its rows (about one bus in five carries one) and the trips of bus days looked
+   up from the schedule service; a trip known both ways counts once. Coverage is the buses
+   whose whole day is recorded, of the buses seen on the route that date (a journey the
+   feed reports is one trip of a bus, never its day). With no trip known, every hour says
+   no scheduled trip is known, rather than zero. When the server had no timetable for the
+   date and answered with an earlier one, the page says "Timetable of 5 Oct 2026 used for
+   6 Oct 2026."
+
+   **Loading the full timetable** (`service/timetableLoader.ts`, `hooks/useTimetableLoader.ts`):
+   a person presses "Load this route's full timetable" in the chart section; nothing loads
+   by itself and nothing crawls. One lookup per bus seen on the route (`busesOnRoute`),
+   skipping buses already recorded for the date and buses answered this visit, at most
+   `TIMETABLE_LOAD_CAP = 20` buses a press, one at a time, in order, waiting out a 429's
+   `Retry-After` and asking the same bus again (the route-details loader's own sequencing,
+   `runProfileLoader`), cancellable. A press asks for up to 20 buses × up to 4 calls = up to
+   80 calls to the schedule server, which at a person's 20 calls a minute is 1–4 minutes of
+   that person's allowance (a bus whose operating date answers costs one call, so 20 buses
+   take one minute; one that needs every fallback date costs four). Repeat presses continue
+   with the buses left; the scheduled line and the coverage legend update on the next poll.
+3. **Demand** (MODELLED): the day's boardings on the route come from the same buses
+   (`routeDayBoardings` in `service/routeDayBoardings.ts`): the trip model's trips per day
+   on them (`modelTripsPerDay`, the Routes table's "trips/day"), times the class's seats in
+   the modelled fleet master, times the route's modelled load factor
+   (`modelLoadFactor` in `sim/ridership.ts`), by the revenue model's rule (`dayBoardings`
+   in `sim/ridershipFigures.ts`: two legs a trip, each carrying seats times load factor over
+   the average ride share), so the same route, date and trips give the revenue page's
+   figure. The journey time given to the trip model is the one the deployment uses (the
+   feed's schedule, else the profile, else none). The day's boardings are spread over the
+   hours the route runs by a reference hour-of-day shape per service class (`sim/hourlyDemand.ts`):
+   ordinary and city peak at 08:00 and 18:00, express leans to a morning departure, AC and
+   premium are flatter; a route longer than `LONG_ROUTE_JOURNEY_MIN = 240` minutes leans
+   `LONG_ROUTE_LEAN = 0.4` of the way to a departure shape. Each hour carries a seeded
+   spread of `HOURLY_JITTER = 0.08` and a band of `DEMAND_BAND_SHARE = 0.25` either way. With
+   fewer than `MIN_SERVICE_HOURS = 4` running hours the shape falls back to
+   `DEFAULT_ACTIVE_HOURS`, 05:00 to 22:00. Until ticketing is connected the day's boardings
+   follow the modelled trips of the route's buses, so the gap shows **when** in the day
+   buses are short rather than how many are short over the whole day; the page's method
+   says so, and that its modelled day can differ from the depot pages'.
+
+**Need and gap** (`need.ts`, `gap.ts`). Trips needed to start in hour k, `f_k`
+(`tripsNeededByHour`), are the hour's boardings times the busiest stretch's share, divided
+by seats per bus times the target load. A bus is out from a trip's start until its journey
+and layover are done, so the buses needed on the road at hour h (`busesNeededByHour`) are
+the trips started within the last cycle C = (journey + layover) / 60 hours:
+`needed_h = ceil(Σ f_k over k in (h − C, h])`, the oldest hour weighted by the part of it
+inside the window, clipped at the start of the day (nothing wraps from the evening before).
+On a cycle of an hour or less this is the hour's trips times C; on a steady day it reaches
+that round-trip figure once a cycle has passed. A long route's peak is therefore at most
+about a cycle's worth of trips, not its busiest hour charged with the whole cycle. Journey time is
+the median of the feed's scheduled end less start for the route (DERIVED), else the cached
+route profile's scheduled duration (DERIVED), else `TRIP_MODEL_DURATION_MIN = 285`
+(MODELLED). Seats come from the class in the modelled fleet master. The gap is needed less
+deployed: positive is short, negative is over. Constants (`sim/hourlyDemandConfig.ts`,
+REFERENCE, for the owner to set): `TARGET_LOAD = 0.75`, `BUSIEST_STRETCH_SHARE = 0.6`,
+`LAYOVER_MIN = 15`.
+
+**Proposals** (`proposals.ts`, `timetableFindings.ts`, `proposalCap.ts`; constants in
+`service/proposalConfig.ts`). Consecutive qualifying hours form a band of at least
+`MIN_BAND_HOURS = 2`. **A band is split** (`splitOnSteps` in `bands.ts`) wherever the gap
+moves from one hour to the next by more than the larger of `SPLIT_STEP_MIN_BUSES = 2` buses
+and `SPLIT_STEP_SHARE = 0.5` of the larger of the two gaps, so one proposal never covers a
+quiet stretch and a peak with one figure; a piece left shorter than `MIN_BAND_HOURS` joins
+the neighbouring piece whose mean gap is nearest. A gap that climbs a bus or two at a time
+stays one band, and its add shows the range of its hourly gaps instead ("Add 4 to 19", the
+peak hour in the title and the expanded row); a hold stays one figure, the least every hour
+can release. Bands that ended before the current hour stay in the list, under one sentence
+saying they are notes for the next day's plan.
+
+- **Add buses**: each hour short by at least the larger of `ADD_MIN_BUSES = 2` and
+  `ADD_MIN_SHARE = 0.2` of the need; the change is the band's mean gap rounded up. The
+  source is the route's main depot: its standing buses in the yard in the hour before the
+  band when observed, else the buses its modelled day leaves idle. When neither offers a bus
+  (no yard observed and none idle in the day plan) the add names no source, says no source
+  was identified, and is tier C. An add is never larger
+  than an observed standing pool; when the pool is smaller the reason says so, and a yard
+  with no standing bus gives an add of none, with no impact claimed.
+- **Hold buses**: each hour over by at least `HOLD_MIN_SURPLUS = 1`, keeping at least
+  `HOLD_KEEP_MIN = 1` bus and never fewer than the hour's scheduled bus-hours.
+- **From measured data only** (tier A): trips not run (a known scheduled start with no
+  actual start `NOT_RUN_AFTER_MIN = 30` minutes on; or a loaded trip the feed never
+  reported, `service/loadedNotRun.ts`, counted only when its start is at or after the time
+  this server began observing the date and its bus reports its journeys on the feed's rows,
+  since most buses report none and their silence says nothing), a service span gap (an hour holding at
+  least `SPAN_DEMAND_SHARE = 0.02` of the day's demand before the first or after the last
+  known trip), a headway gap (no start for `HEADWAY_GAP_MIN = 60` minutes or more between
+  06:00 and 21:00), both read from the feed's journeys and the loaded trips together, and revise running time (`RUNNING_TIME_MIN_HOURS = 3` hours in a row,
+  each with at least `RUNNING_TIME_MIN_COVERAGE = 3` delays and a median above
+  `LATE_AFTER_MIN = 10`). Span and headway need `MIN_LEDGER_JOURNEYS = 3` known starts.
+- **Tier**: A rests on measured data only; B on measured deployment and modelled demand; C
+  on the modelled day and modelled demand, and also when the main depot's buses on the road
+  with no route name could cover the gap ("may be covered by buses not reporting a route").
+- **Impact** (`impact.ts`, MODELLED, each a range of `IMPACT_RANGE_SHARE = 0.25` either
+  way): for an add, passengers left behind before less after the change, and revenue at the
+  class fare over the average ride; a hold claims no passengers or revenue (it releases only
+  buses beyond the need). Bus-km including dead km once per bus moved, and cost at
+  `COST_PER_BUS_KM = 50` rupees; a hold's are negative, the saving. The proposals table's
+  Impact cell shows passengers for an add and bus-km saved for a hold; the source cell names
+  the depot alone, with its standing or idle buses in the title and the expanded row, which
+  lists all four ranges.
+- Order: more passengers carried first, then the earlier band. Each proposal has a fixed
+  one-sentence reason and an id from its date, kind, route and band. The page's table groups
+  them instead: "Changes" (add, hold) then "Timetable findings", each by start hour; its
+  Deployed, Scheduled and Needed headers say "mean" (band means), Rests on is one word
+  (Derived, Mixed, Modelled), and below 800px it shows the band, the change and Rests on
+  only, the rest in the expanded row, which also gives the net a day (revenue less cost).
+
+**Punctuality by hour** (`reliability.ts`, DERIVED): median delay and the share later than
+`LATE_AFTER_MIN = 10`, per hour of the journeys' scheduled start, with the journeys it rests
+on. The feed does not state its delay unit, so the page prints the feed's delay figure as a
+plain number (never through the duration formatter) and says the unit is unconfirmed; the
+section is closed by default.
+
+**Coverage** (`serviceCoverage.ts`), each fact once where it belongs: the provenance line is
+one short MIXED sentence (buses now LIVE; observed hours and scheduled trips DERIVED; other
+hours, demand, need and proposals MODELLED; with nothing observed it names no observed
+hours); "Observed by this server since HH:MM (N samples)" is the chart section's note; the
+buses whose whole day is loaded, of those seen on the route, are on the Scheduled legend entry
+("Scheduled (full day loaded for 12 of 40 buses)");
+the buses that report a route name, of every bus in the feed (only they are counted), and
+the route's standing buses now (not counted as deployed) are in the closing disclosure.
+
+### 7.16 The network's day hour by hour — `service/networkHours.ts`, `optimise/hourlyReallocate.ts`, `live/networkHourlyView.ts`
+
+The page "Service by the hour" (`/project/depots/service`, under Intelligence; `SERVICE_PATH`
+in `nav.ts`) reads every route's day the way the route page does and puts them side by side,
+one band of the day at a time. Recommendation only: nothing is dispatched or reassigned, and
+no person is named or scored.
+
+**One route day, two views.** The per-route composition is the pure `routeDayOf(inputs)` in
+`service/routeDay.ts`; `live/routeHourlyBody.ts` gathers its inputs (`routeDayInputsFor`) and
+the route page and the network view both call it, so a route's gaps are the same on both
+pages (a test holds this on the recorded sample). The network view gathers what every route
+reads from the rows once per snapshot (`snapshotRouteShared`: the journeys the snapshot
+reports, by route, and the cached profiles), so the whole network (about 1,300 routes on the
+sample) is built in about a tenth of a second.
+
+**Bands** (`SERVICE_BANDS`, REFERENCE): early 04–06, morning peak 06–10, midday 10–16, evening
+peak 16–20, late 20–24 (end exclusive); 00–04 belongs to none. A route is short in a band when
+its mean gap over the band's hours rounds to one bus or more, over when it rounds to minus one
+or less; the buses short or over are those rounded means summed. Each route counts at its
+primary depot (the one running most of its buses). The "next peak" is the morning peak until
+it ends (hour 9), then the evening peak until it ends (hour 19), then the next morning's.
+
+**Hourly reallocation** (`planHourlyReallocation`, MODELLED). Per band, each depot's surplus is
+what its over-served routes could release (the rounded surplus, keeping `HOLD_KEEP_MIN` = 1 bus
+on each) plus its standing pool (the observed yard mean in the band, else in the hour before,
+else the buses its modelled day leaves without a duty). Short routes take buses by
+minimum-cost maximum flow (`optimise/minCostFlow.ts`): a move within the route's own depot
+costs nothing; a move from another depot costs its empty kilometres there and back, in tenths
+of a km (`deadKmFor` from the route's loaded profile, else twice the road distance between the
+two depots' positions, `depotPositions.ts`), and is not offered beyond `MAX_INTRA_DAY_KM` = 60.
+A deficit left over says why, in `rebalance.ts`'s order: `insufficient_surplus` (reachable
+surplus ran out), `no_surplus_in_range`, `no_position` (the route's depot has no position and
+no profile is loaded, so no other depot can be measured to it). Depots and routes are taken in
+id order, so the plan never depends on input order.
+
+**Network proposal kinds** (additive in `ProposalKind`; `service/networkProposals.ts`,
+`networkFindings.ts`; every threshold REFERENCE):
+
+- `reserve_by_hour`: per depot, `DEFAULT_SPARE_RATIO` (8%) of its routes' need in the band,
+  rounded up.
+- `maintenance_window`: per depot, a band outside the peaks with at least
+  `MAINTENANCE_MIN_IDLE` = 3 idle buses (standing pool plus releasable) while its need is at
+  most `MAINTENANCE_LOW_DEMAND_SHARE` = 60% of its busier peak; the row links to the depot's
+  Maintenance page.
+- `shift_departures`: per route, the neighbouring over and short hours touching the band with
+  the most buses movable; the trips are those buses times trips per bus hour (at least one).
+- `corridor_under_served` / `corridor_over_served`: routes whose loaded profiles share the same
+  two terminals (either way) grouped; short together by at least max(2, 20% of their need), or
+  over together by at least `CORRIDOR_MIN_OVER` = 2. Without loaded profiles there are none.
+
+A network proposal moves no bus by itself (change 0, no source, no impact) and carries its
+figure in `count`; ids come from `proposalId` keyed on `depot:<id>`, the route, or
+`corridor:<ends>`. The route's own proposals whose bands meet the chosen band join them as
+`changes` (add, hold) or `findings` (timetable findings); the network kinds are `network`
+("Network moves"), corridors `findings`.
+
+**API.** `GET /api/upsrtc/depot/service?band=&depot=&page=` (session first; strict zod: `band`
+one of the five keys, `depot` a depot id, `page` 0 to 200; no repeats; the fixed 400
+`Invalid query`; the fixed 404 `Depot not found` for a depot the snapshot does not carry;
+`no-store`; no upstream call). The whole network day is held per snapshot and catalogue
+revision (`queryMemo`, two kept); each band, depot and page is a selection held beside it. The
+body (`NetworkHourlyBody`): the five band tallies (a depot's own when one is chosen), one page
+of 25 route strips (24 gaps and measured/modelled per hour, by the band's peak gap), the band's
+proposals with each group cut to its heaviest `NETWORK_PROPOSALS_PER_GROUP` = 100 and
+`proposalTotals` saying how many there were, the reallocation, and the totals (buses short and
+over, moves within and between, uncovered, the band's changes' passengers and bus-km summed
+over every change). On the sample the body is about 330 kB before compression. Once bus days
+are recorded between snapshots, both memo keys must carry the scheduled store's revision.
+
+**Elsewhere.** The overview shows one figure, "Routes short at the next peak" (MODELLED), and
+each depot cockpit an attention line "N of this depot's routes short at the next peak", both
+linking to the page (the cockpit's filtered with `?depot=`).
+
+### 7.17 Decisions on proposals and the daily brief — `rebalance/decisionSubject.ts`, `rebalance/proposalDecision*.ts`, `service/DailyBriefCard.tsx`
+
+**One trail, two subjects.** A decision event names its subject: `{ kind: 'transfer',
+transferId }` or `{ kind: 'proposal', proposalId, routeName, routes, depotName, proposalKind,
+band, change, count }`. A network kind may name no route (`routeName` null: a depot's reserve
+or maintenance window; a corridor carries its `routes`). Transfer events keep their own audit
+types (`depot-transfer-*`) and now write `subject` into the payload; a stored transfer payload
+without one was written before subjects existed and is read as a transfer, and one whose
+subject names another transfer is refused. Proposal events have their own types
+(`depot-proposal-approved|rejected|deferred`, "Route proposal approved" in the audit log) and
+must carry a valid proposal subject; a proposal subject stored without `routes`, `depotName`
+or `count` reads them as none. The slice's reader (`decisionStore.ts`) keeps both; each page
+reads the subject it shows: Fleet distribution transfers only (`parseDecisionEvent` is
+transfer-only), the route day that route's proposals (`ProposalsTable trailRoute`), the
+Service page every proposal (`trailRoute` null).
+
+**Replay.** The stack replay is shared (`decisionReducers.ts`: `replay`, `currentOf`,
+`flagTrail`); proposals key on the proposal id, which already names date, kind, route and
+band. A decision is made for the figures the proposal showed (`change`, and a network kind's
+`count`): a later poll that proposes different figures shows "Approved for Add 3; the proposal
+now says Add 5", unpressed, and a click on the decision in force for the same figures records
+nothing. Undo is a further event; an undo that names anything but the top of its proposal's
+stack is ignored.
+
+**Controls.** A proposal's opened row (route day and Service page) carries the decision in
+force, an optional note (200 characters), Approve, Defer and Reject as `aria-pressed` toggles,
+Undo, and "Recorded only; nothing dispatched." Under the table: a polite status line
+("Approved KANPUR-LUCKNOW 07:00–11:00, Add 3. Recorded only; nothing dispatched.") and the
+trail, with the same note about this browser as the transfer trail, ending "no bus is added,
+held or moved", and the same Clear trail with its confirm step. Trail lines say their subject:
+"Approved proposal: …", "Approved transfer: …".
+
+**The daily brief.** The Service page opens with "Daily brief": the copilot's brief, asked for
+on a press (never on mount) with `task: 'ask'` and the question "The daily brief" (routed to
+`serviceBrief`), in the overview's embedded `BriefingCard`. The decisions are counted in the
+browser, not by the copilot (they never leave it): once any proposal decision is kept for the
+date, a line says "Decisions kept in this browser for 6 Oct 2026: 1 accepted, 0 declined, 2
+still open." over the proposals shown (approved accepted, rejected declined, deferred or none
+open; `proposalDecisionCounts`, a `ProposalDecisionCounts`).
+
+**On paper.** `ServicePrintRule` (a hoisted `<style>` the brief renders) prints, on a page that
+carries the brief, the brief and the proposals table only (the page of rows shown, heaviest
+first), without buttons or fields; a page without the brief prints as it is.
+
 ## 8. The copilot
 
 A server route (`POST /api/upsrtc/depot/copilot`) writes briefings, transfer rationales and
@@ -805,7 +1125,8 @@ answers. In summary (detail, settings and limits in
 
 | Folder | Holds |
 | --- | --- |
-| `live/` | Snapshot analysis, aggregation, the held peak on-road shares and peak requirements, the bounded query memo, the feed-time hold of the allocation plan, and one view builder per API route |
+| `live/` | Snapshot analysis, aggregation, the held peak on-road shares and peak requirements, the hour store (`serviceHold.ts`, `serviceHoldReads.ts`), the bounded query memo, the feed-time hold of the allocation plan, and one view builder per API route (the route day's in `routeHourlyView.ts` and `routeHourlyBody.ts`) |
+| `service/` | One route's day hour by hour (section 7.15): the shared shapes (`types.ts`), sampling and hour roll-ups (`observe.ts`, `observeHours.ts`), the journey ledger and scheduled supply (`journeyLedger.ts`, `scheduledSupply.ts`), modelled deployment and day boardings of the route's own buses (`modelledDeployment.ts`, `routeDayBoardings.ts`), need, gap, proposals and their cap, timetable findings, impact, punctuality, bands, reasons, and the page's wording and models (`serviceWording.ts`, `serviceCoverage.ts`, `servicePageModel.ts`, `proposalChange.ts`, `proposalDetail.ts`, `punctualityModel.ts`, `hourChartModel.ts`) |
 | `infer/` | Bus state, location, yard inference and continuity, outshedding |
 | `score/`, `stats/` | Efficiency index, peer groups, rolling window; robust statistics (`stats/robust.ts`), the rounding helpers and `clamp` (`stats/rounding.ts`), text ordering (`stats/order.ts`) |
 | `exceptions/` | Depot and bus exceptions, paging |
@@ -816,7 +1137,7 @@ answers. In summary (detail, settings and limits in
 | `score/epoch.ts` | The straggler and epoch rule shared by the score window and the yard memory |
 | `forecast/` | Trend, seasonal-naive, Holt-Winters, backtest, band, chart models |
 | `copilot/` | Facts, grammar, vocabulary, providers, CLI runner, service, client |
-| `repositories/` | The data seam and composition root |
+| `repositories/` | The data seam and composition root; `getServiceRepositories()` for the hour store (`memoryHourlyObservationRepository.ts`) and the looked-up bus days (`memoryScheduledTripRepository.ts`) |
 | `sources/` | The Data sources registry |
 | `map/` | The overview map's view model, marker diffs and node styles |
 | `shell/` | Shell geometry (`geometry.ts`), the table-width helper (`tableWidth.ts`), the table tiers (`tableTier.ts`) and the figure-band rows (`figureBandLayout.ts`) |
@@ -828,7 +1149,7 @@ Outside `src/lib/depot/`:
 | --- | --- |
 | `src/lib/upsrtc/` | The module's files there: the live snapshot chain (`liveSnapshot.ts`), the depot projection (`depotNormalizer.ts`), the saved sample (`fleetFixture.ts`, `fleetFixtureShape.ts`), the schedule service (`scheduleService.ts`), the bounded TTL cache (`cache.ts`) and `jsonResponse` (`respond.ts`); `normalizer.ts` is the command centre's map projection |
 | `src/lib/serverLog.ts` | `logDepotError` and `logDepotNotice`: one bounded server log line each |
-| `src/hooks/` | `usePolledJson`, `useFetchedJson`, one `useDepot*` hook per endpoint, `useRouteProfile`, `useRouteProfileLoader`, `useCopilot`, `useProjectSignOut`, `useDebounced` |
+| `src/hooks/` | `usePolledJson`, `useFetchedJson`, one `useDepot*` hook per endpoint, `useRouteHourly`, `useRouteProfile`, `useRouteProfileLoader`, `useCopilot`, `useProjectSignOut`, `useDebounced` |
 | `src/app/api/upsrtc/depot/` | The route handlers |
 | `src/app/(protected)/project/depots/` | The pages and their gates |
 
@@ -837,7 +1158,9 @@ Outside `src/lib/depot/`:
 `routes`, `exceptions`, `trends`, `sources`, `copilot`) plus `shell` (header, navigation,
 provenance line, data states, and the hooks `useWidthTier`, `useTableTier`,
 `useBelowDesktop` and `useBaseMap`), `trendChart` (the trend chart, its plot and the
-sparkline) and `data`.
+sparkline), `hourChart` (the 24-hour chart of a route's day, its plot, legend and table
+form), `service` (the route day page: `RouteHourlyScreen`, `RouteHourlyPage`, the figure
+band, proposals, punctuality and the method) and `data`.
 
 ## 10. Testing
 
@@ -894,6 +1217,9 @@ each real feed must provide.
 | Crew | MODELLED | Crew and duties feed | depotId, date, anonymous slotId, role, availability, hoursThisWeek |
 | Maintenance | LIVE off-road flag; MODELLED services | Maintenance work orders | registrationNumber, workOrderId, category, openedAt, expectedReturn, closedAt |
 | Fuel | MODELLED | Fuel issue records | registrationNumber, date, distanceKm, fuelLitres, serviceClass, routeName |
+| Deployed buses by hour | DERIVED from this server's 5-minute samples; MODELLED from the day plan where not observed | A stored history written by a sampler | routeName, slot, buses by state, depotId |
+| Scheduled trips by hour | DERIVED, partial: the feed's journeys and looked-up bus days | Timetable master | routeId, tripId, departure, arrival, registration or block |
+| Passenger demand by hour, need, proposals | MODELLED | Ticketing with ticket times | routeName, date, hour, boardings |
 | Revenue, ridership, economics | MODELLED | Ticketing and ridership | routeName, date, serviceClass, trips, seatCapacity, boardings, revenue, routeLengthKm |
 | History, trends, forecasts | MODELLED series ending on a live value | History store and ingestion worker | snapshotAt, depotId, fleet, state counts, reporting, efficiencyIndex |
 

@@ -37,7 +37,14 @@ export function BalanceBar({ balance, maxMagnitude }: BalanceBarProps) {
   return (
     <div className="flex min-w-[160px] items-center gap-3">
       <div aria-hidden className="depot-bar-track">
-        {balance !== 0 ? <div className="absolute inset-y-0 rounded-[2px]" style={fill} /> : null}
+        {balance !== 0 ? (
+          <div
+            className={`absolute inset-y-0 rounded-[2px] ${
+              balance < 0 ? 'depot-balance-short' : 'depot-balance-spare'
+            }`}
+            style={fill}
+          />
+        ) : null}
         <div className="depot-bar-tick" style={{ left: `${HALF}%` }} />
       </div>
       <span className="w-[84px] shrink-0 whitespace-nowrap text-right tabular-nums">

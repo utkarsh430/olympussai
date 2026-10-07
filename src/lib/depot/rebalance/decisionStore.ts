@@ -1,8 +1,8 @@
 import type { AuditEvent } from '@/lib/audit/auditLog';
-import { parseDecisionEvent } from './decisionEvents';
+import { parseAnyDecisionEvent } from './proposalDecisionEvents';
 
 /*
- * Transfer decisions keep their own storage slice beside the shared audit
+ * Decisions on transfers and on route proposals keep their own storage slice beside the shared audit
  * log. The audit log is capped for every module together, so command-centre
  * traffic could push a decision out of it unseen; this slice has its own cap
  * and counts what it drops, so the trail can say so.
@@ -68,7 +68,7 @@ export function readDecisionTrail(raw: string | null): StoredTrail {
   // Newest first, so slicing before the checks bounds the work a damaged store can cause.
   const bounded: readonly unknown[] = parsed.events.slice(0, MAX_STORED_DECISIONS);
   const events = bounded.filter(
-    (e: unknown): e is AuditEvent => isRecord(e) && parseDecisionEvent(e) !== null,
+    (e: unknown): e is AuditEvent => isRecord(e) && parseAnyDecisionEvent(e) !== null,
   );
   const dropped = parsed.dropped;
   const count = typeof dropped === 'number' && Number.isInteger(dropped) && dropped > 0;

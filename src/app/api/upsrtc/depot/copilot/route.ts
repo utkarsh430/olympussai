@@ -1,6 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { requireUpsrtcAccess, unauthorizedResponse } from '@/lib/auth/authorize';
-import { getRepositories } from '@/lib/depot/repositories';
+import { getRepositories, getServiceRepositories } from '@/lib/depot/repositories';
+import { copilotNetworkHours } from '@/lib/depot/live/copilotNetworkHours';
 import { handleCopilotPost } from '@/lib/depot/copilot/service/handle';
 import { copilotRuntimeOrNull } from '@/lib/depot/copilot/service/failureLog';
 import { fail } from '@/lib/depot/copilot/service/respond';
@@ -29,5 +30,10 @@ export async function POST(request: NextRequest): Promise<Response> {
     copilot,
     () => getRepositories().fleet.snapshot(),
     session,
+    {
+      services: getServiceRepositories(),
+      // The network's day the Service page answers, held per snapshot; no upstream call.
+      networkHours: (view) => copilotNetworkHours(view, getServiceRepositories()),
+    },
   );
 }

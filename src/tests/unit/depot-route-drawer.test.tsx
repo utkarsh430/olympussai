@@ -132,3 +132,13 @@ describe('RouteDrawer', () => {
     expect(text).toContain('20:09');
   });
 });
+
+describe('the route drawer link to the day hour by hour', () => {
+  it('links the route it was opened for, in the prose, whatever the lookup says', () => {
+    render(() => undefined);
+    const link = document.querySelector<HTMLAnchorElement>('[data-testid="route-drawer-hourly"] a');
+    expect(link?.getAttribute('href')).toBe('/project/depots/routes/r/RKD_1_ORD_OUT');
+    expect(link?.textContent).toBe('Hour by hour');
+    expect(link?.className).toBe('depot-link');
+  });
+});

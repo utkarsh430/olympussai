@@ -5,6 +5,8 @@ import {
   shiftDate,
 } from '@/lib/upsrtc/client';
 import { normalizeSchedulePayload } from '@/lib/upsrtc/normalizer';
+import { normalizeScheduleDay } from '@/lib/upsrtc/scheduleDay';
+import type { ScheduledTrip } from '@/lib/depot/service/types';
 import { TtlCache } from '@/lib/upsrtc/cache';
 import scheduleFixture from '@/fixtures/upsrtc-schedule-sample.json';
 import type { CanonicalSchedule, ScheduleResponse } from '@/models/canonical';
@@ -25,6 +27,8 @@ const CACHE_TTL_MS = 120_000;
 interface ScheduleLookup {
   schedule: CanonicalSchedule | null;
   resolvedDate: string;
+  /** Every trip of the answered day (the schedule above is one of them), stamped with that date. */
+  day: readonly ScheduledTrip[];
   /**
    * False when a "not assigned" came with a date that did not answer at all: the
    * server never said so for that date. Only a strict caller tells the two apart.
@@ -85,6 +89,17 @@ export interface BusScheduleOptions {
    * centre's schedule route has always done.
    */
   readonly beforeUpstreamCall?: () => boolean;
+  /**
+   * Handed every trip of the bus's day when the answer is the server's own (fresh or
+   * cached), each stamped with the date that answered. Never for "not assigned", a
+   * failure or the fixture stand-in. The returned response is the same either way.
+   */
+  readonly onDay?: (trips: readonly ScheduledTrip[]) => void;
+}
+
+/** Hands the day to a caller that asked for it, when there is one to hand. */
+function handDay(lookup: ScheduleLookup, options: BusScheduleOptions): void {
+  if (lookup.schedule !== null && lookup.day.length > 0) options.onDay?.(lookup.day);
 }
 
 /** The caller's `beforeUpstreamCall` refused a call: the lookup stopped and has no answer. */
@@ -126,6 +141,7 @@ export async function fetchBusSchedule(
   const strict = options.requireEveryDateAnswered === true;
   const cached = cache.get(cacheKey, now);
   if (cached && servable(cached, strict)) {
+    handDay(cached, options);
     return {
       schedule: cached.schedule,
       fetchedAt: new Date(now).toISOString(),
@@ -157,6 +173,7 @@ export async function fetchBusSchedule(
 
   if (lookup.found) {
     cache.set(cacheKey, lookup.found, now);
+    handDay(lookup.found, options);
     scheduleDiagnostics.lastSuccessAt = new Date(now).toISOString();
     scheduleDiagnostics.lastError = null;
 
@@ -173,6 +190,7 @@ export async function fetchBusSchedule(
 
   const lastGood = cache.getLastGood(cacheKey);
   if (lastGood?.value.schedule) {
+    handDay(lastGood.value, options);
     return {
       schedule: lastGood.value.schedule,
       fetchedAt: new Date(lastGood.storedAt).toISOString(),
@@ -217,6 +235,7 @@ async function probe(
   return {
     schedule: normalizeSchedulePayload(result.payload, regNum, date, tripId),
     resolvedDate: date,
+    day: normalizeScheduleDay(result.payload, regNum, date),
     everyDateAnswered: true,
   };
 }

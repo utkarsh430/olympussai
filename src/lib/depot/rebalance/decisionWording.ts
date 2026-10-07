@@ -1,5 +1,5 @@
 import { formatCount, formatPlainDate } from '../format';
-import type { TrailItem } from './decisionEvents';
+import type { TrailFlags, TrailItem } from './decisionEvents';
 import { busesWord, type RowDecision, type TransferDecisionKind } from './rebalanceModel';
 
 /*
@@ -14,7 +14,7 @@ export const DECISION_WORD: Readonly<Record<TransferDecisionKind, string>> = {
   deferred: 'Deferred',
 };
 
-const RECORDED_ONLY = 'Recorded only; nothing dispatched.';
+export const RECORDED_ONLY = 'Recorded only; nothing dispatched.';
 
 /** "Approved for 5 buses", or with "; the plan now recommends 9" when the plan moved. */
 export function decisionStatusText(decision: RowDecision | null, planBuses: number): string {
@@ -53,7 +53,7 @@ export function decisionAnnouncement(
   return `${DECISION_WORD[kind]} ${busesWord(buses)} ${fromName} to ${toName}. ${RECORDED_ONLY}`;
 }
 
-const DECISION_NOUN: Readonly<Record<TransferDecisionKind, string>> = {
+export const DECISION_NOUN: Readonly<Record<TransferDecisionKind, string>> = {
   approved: 'approval',
   rejected: 'rejection',
   deferred: 'deferral',
@@ -73,24 +73,34 @@ export function undoAnnouncement(
 export function describeTrailItem(item: TrailItem): string {
   const route = `${busesWord(item.buses)}, ${item.fromDepotName} → ${item.toDepotName}`;
   const word = DECISION_WORD[item.decision];
-  if (item.undoes !== null) return `Undid ${word.toLowerCase()}: ${route}`;
+  if (item.undoes !== null) return `Undid ${word.toLowerCase()} transfer: ${route}`;
+  return withMarks(`${word} transfer: ${route}`, item);
+}
+
+/** A trail line with "(later undone)" or "(replaced by a later decision)" when it applies. */
+export function withMarks(line: string, item: TrailFlags): string {
   const marks = [
     item.undone ? '(later undone)' : null,
     item.superseded ? '(replaced by a later decision)' : null,
   ].filter((m): m is string => m !== null);
-  return [`${word}: ${route}`, ...marks].join(' ');
+  return [line, ...marks].join(' ');
 }
 
 /**
  * Said under the trail's heading in every state: the trail is a local record only, and
  * anyone at this browser can read it (one shared sign-in, no server copy).
  */
-export const TRAIL_NOTE =
+export const BROWSER_TRAIL_NOTE =
   'Decisions are kept in this browser only, are not sent anywhere, and are visible to ' +
   'anyone who uses this browser, notes included. The trail is append-only: Undo records ' +
   'a further entry and deletes nothing; Clear trail removes the whole trail at once. The ' +
-  'audit log in this browser keeps one line for each decision, without its note. A ' +
-  'decision changes nothing but this record; no transfer order is issued.';
+  'audit log in this browser keeps one line for each decision, without its note.';
+export const TRAIL_NOTE = `${BROWSER_TRAIL_NOTE} A decision changes nothing but this record; no transfer order is issued.`;
+
+export const DECISION_REFUSED =
+  'The decision could not be recorded: this browser refused to store it, and no audit event exists.';
+export const UNDO_REFUSED =
+  'The undo could not be recorded: this browser refused to store it, and no audit event exists.';
 
 /** Said with a recorded decision when the shared audit log refused its copy. */
 export const AUDIT_LOG_REFUSED =

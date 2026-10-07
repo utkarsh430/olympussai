@@ -180,8 +180,8 @@ function EconomicsBody({
         />
       ) : (
         <FigureBand label="Ranking">
-          {band.map((f) => (
-            <Figure key={f.label} label={f.label} value={f.value} caption={f.caption} />
+          {band.map((f, i) => (
+            <Figure key={f.label} label={f.label} value={f.value} caption={f.caption} lead={i === 0} />
           ))}
         </FigureBand>
       )}

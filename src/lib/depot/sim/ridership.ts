@@ -15,6 +15,7 @@ import {
 } from './revenueConfig';
 import { priceRoute } from './ridershipFigures';
 import { seedFor } from './seed';
+import type { ServiceClass } from './types';
 
 const THOUSAND = 1000;
 
@@ -34,14 +35,20 @@ function averageSeatsOf(route: DayRoute): number {
 }
 
 /**
- * Class base, moved by a lasting per-route factor (seeded by route name alone,
- * so it holds on every date) and a small seeded daily noise, then capped.
+ * A route's MODELLED load factor for a date: the class base, moved by a lasting
+ * per-route factor (seeded by route name alone, so it holds on every date) and a
+ * small seeded daily noise, then capped, three decimals. Exported so every page
+ * that models a route's boardings uses the same figure.
  */
-function modelLoadFactor(route: DayRoute, operatingDate: string): number {
-  const lasting = new SeededRandom(seedFor(route.routeName, STATIC_SEED_DATE, ROUTE_FACTOR_SALT));
-  const daily = new SeededRandom(seedFor(route.routeName, operatingDate, DAILY_NOISE_SALT));
+export function modelLoadFactor(
+  routeName: string,
+  serviceClass: ServiceClass,
+  operatingDate: string,
+): number {
+  const lasting = new SeededRandom(seedFor(routeName, STATIC_SEED_DATE, ROUTE_FACTOR_SALT));
+  const daily = new SeededRandom(seedFor(routeName, operatingDate, DAILY_NOISE_SALT));
   const raw =
-    LOAD_FACTOR_BASE[route.serviceClass] *
+    LOAD_FACTOR_BASE[serviceClass] *
     (1 + lasting.float(-LOAD_FACTOR_ROUTE_SPREAD, LOAD_FACTOR_ROUTE_SPREAD)) *
     (1 + daily.float(-LOAD_FACTOR_DAILY_NOISE, LOAD_FACTOR_DAILY_NOISE));
   return Math.min(MAX_LOAD_FACTOR, Math.round(clamp(raw, 0, MAX_LOAD_FACTOR) * THOUSAND) / THOUSAND);
@@ -49,7 +56,7 @@ function modelLoadFactor(route: DayRoute, operatingDate: string): number {
 
 function dayFor(route: DayRoute, operatingDate: string): RouteRidershipDay {
   const averageSeats = averageSeatsOf(route);
-  const loadFactor = modelLoadFactor(route, operatingDate);
+  const loadFactor = modelLoadFactor(route.routeName, route.serviceClass, operatingDate);
   const priced = priceRoute({
     serviceClass: route.serviceClass,
     trips: route.trips,

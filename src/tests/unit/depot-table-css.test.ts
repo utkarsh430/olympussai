@@ -37,6 +37,10 @@ describe('the table pieces in globals.css', () => {
     ).toMatch(/opacity-100/);
   });
 
+  it('draws a focused row’s ring inside the row, so the scrolling frame never clips it', () => {
+    expect(rule('.depot-row-selectable:focus-visible')).toMatch(/outline-offset:\s*-2px/);
+  });
+
   it('draws a table link cyan with no underline until hover or keyboard focus', () => {
     const body = rule('.depot-table-link');
     expect(body).toMatch(/text-holo-glow/);

@@ -126,6 +126,10 @@ describe('the data sources page', () => {
     expect(cells).toContain('100%');
     const figure = Array.from(row?.children ?? []).find((c) => c.textContent === '10,007 of 10,007');
     expect(figure?.className).toContain('whitespace-nowrap');
+    // A complete field's bar is green, beside its green COMPLETE word.
+    expect(row?.querySelector('[data-testid="depot-coverage-fill"]')?.className).toContain(
+      'depot-tone-green',
+    );
     expect(container.querySelector('[data-testid="depot-records-sentence"]')?.textContent).toBe(
       '10,012 records received · 5 excluded · 10,007 buses counted.',
     );

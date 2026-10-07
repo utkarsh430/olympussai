@@ -172,7 +172,7 @@ export function AskPanel() {
               <button
                 type="submit"
                 disabled={loading || cooling}
-                className="hud-button disabled:cursor-not-allowed disabled:opacity-40"
+                className="hud-button disabled:cursor-not-allowed disabled:opacity-40 depot-button-primary"
               >
                 Submit
               </button>

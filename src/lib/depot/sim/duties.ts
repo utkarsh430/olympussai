@@ -23,9 +23,10 @@ function roundToFive(minutes: number): number {
  * Start minute: with probability PEAK_SHARE a triangular morning peak (the mean
  * of two uniforms over 04:00-10:00, so it clusters near 07:00), otherwise
  * uniform over 04:00-22:00. Both draws are always taken so the stream stays
- * aligned whichever branch is used.
+ * aligned whichever branch is used. Exported so a route's own buses start
+ * their day by exactly the depot roll's rule.
  */
-function drawStart(rng: SeededRandom): number {
+export function drawDutyStart(rng: SeededRandom): number {
   const branch = rng.float(0, 1);
   const a = rng.float(PEAK_WINDOW_MIN.from, PEAK_WINDOW_MIN.to);
   const b = rng.float(PEAK_WINDOW_MIN.from, PEAK_WINDOW_MIN.to);
@@ -36,6 +37,28 @@ function drawStart(rng: SeededRandom): number {
 
 function isKnown(minutes: number | null): minutes is number {
   return minutes !== null && Number.isFinite(minutes) && minutes > 0;
+}
+
+/** One duty's start and end minute of the operating day. */
+export interface DutySpan {
+  readonly startMin: number;
+  readonly endMin: number;
+}
+
+/**
+ * Draws one duty from the stream: its start (see drawDutyStart), then its length.
+ * A route with a known scheduled duration runs out and back plus a layover;
+ * otherwise a seeded 4-10 hours; never more than 16 hours. The unknown length
+ * is always drawn so the stream stays aligned whichever is used.
+ */
+function drawDutySpan(rng: SeededRandom, scheduledDurationMin: number | null): DutySpan {
+  const startMin = drawDutyStart(rng);
+  const unknown = roundToFive(rng.float(UNKNOWN_DURATION_MIN.from, UNKNOWN_DURATION_MIN.to));
+  const duration = Math.min(
+    MAX_DURATION_MIN,
+    isKnown(scheduledDurationMin) ? roundToFive(scheduledDurationMin * 2 + LAYOVER_MIN) : unknown,
+  );
+  return { startMin, endMin: startMin + duration };
 }
 
 /**
@@ -74,19 +97,13 @@ export function modelDuties(
   const duties: Duty[] = [];
   for (let index = 0; index < peakRequirement; index += 1) {
     const routeName = names[index % names.length] as string;
-    const scheduled = byName.get(routeName) ?? null;
-    const startMin = drawStart(rng);
-    const unknown = roundToFive(rng.float(UNKNOWN_DURATION_MIN.from, UNKNOWN_DURATION_MIN.to));
-    const duration = Math.min(
-      MAX_DURATION_MIN,
-      isKnown(scheduled) ? roundToFive(scheduled * 2 + LAYOVER_MIN) : unknown,
-    );
+    const { startMin, endMin } = drawDutySpan(rng, byName.get(routeName) ?? null);
     duties.push({
       id: `${depot.id}-${operatingDate}-${String(index).padStart(3, '0')}`,
       depotId: depot.id,
       routeName,
       startMin,
-      endMin: startMin + duration,
+      endMin,
       serviceClass: classFromRoute(routeName) ?? 'ordinary',
       provenance: 'modelled',
     });

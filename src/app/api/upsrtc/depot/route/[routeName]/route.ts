@@ -3,22 +3,18 @@ import { requireUpsrtcAccess, unauthorizedResponse } from '@/lib/auth/authorize'
 import { jsonResponse } from '@/lib/upsrtc/respond';
 import { isValidRouteName } from '@/lib/depot/ids';
 import { logDepotError } from '@/lib/serverLog';
+import type { IdentityClaims } from '@/lib/depot/rateLimit';
+import { getRouteProfile, ROUTE_LOOKUP_DEADLINE_MS } from '@/lib/depot/routes/routeCatalogue';
 import {
-  createWindowLimiter,
-  requestAddress, requestIdentity,
-  ROUTE_PROFILE_FETCH_LIMITS,
-  takeAll,
-  type IdentityClaims,
-  type WindowLimiter,
-} from '@/lib/depot/rateLimit';
-import {
-  getRouteProfile,
-  ROUTE_LOOKUP_DEADLINE_MS,
-  type UpstreamPermit,
-} from '@/lib/depot/routes/routeCatalogue';
+  PAST_DEADLINE,
+  tooManyRequests,
+  upstreamPermit,
+  withinDeadline,
+} from '@/lib/depot/routes/upstreamPermit';
 import type { RouteProfileResponse } from '@/lib/depot/routes/types';
-import { getRepositories } from '@/lib/depot/repositories';
+import { getRepositories, getServiceRepositories } from '@/lib/depot/repositories';
 import { feedEnvelope } from '@/lib/depot/live/analysis';
+import type { ScheduledTrip } from '@/lib/depot/service/types';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -28,74 +24,9 @@ interface RouteContext {
   readonly params: Promise<{ routeName: string }>;
 }
 
-interface FetchLimiters {
-  readonly identity: WindowLimiter;
-  readonly process: WindowLimiter;
-  /** Keyed on the trusted address alone, so a new login from it gains nothing. */
-  readonly address: WindowLimiter;
-}
-
-const LIMITERS_KEY = Symbol.for('olympuss.depot.routeProfileFetchLimiters');
-type LimiterHolder = typeof globalThis & { [LIMITERS_KEY]?: FetchLimiters };
-
-/** One pair per process, on `globalThis` so a hot reload does not reset the limits. */
-function fetchLimiters(): FetchLimiters {
-  const holder = globalThis as LimiterHolder;
-  const { perIdentityPerMinute, perAddressPerMinute, perProcessPerMinute, windowMs } =
-    ROUTE_PROFILE_FETCH_LIMITS;
-  const { maxIdentities } = ROUTE_PROFILE_FETCH_LIMITS;
-  const made = (limit: number, maxKeys: number): WindowLimiter =>
-    createWindowLimiter({ now: Date.now, limit, windowMs, maxKeys });
-  holder[LIMITERS_KEY] ??= {
-    identity: made(perIdentityPerMinute, maxIdentities),
-    process: made(perProcessPerMinute, 1),
-    address: made(perAddressPerMinute, maxIdentities),
-  };
-  return holder[LIMITERS_KEY];
-}
-
-/**
- * One slot from every limit, taken immediately before each call to the schedule
- * server and as the condition of making it. `takeAll` decides and takes in one
- * synchronous step, so lookups in flight together cannot pass a limit between them.
- */
-function upstreamPermit(request: NextRequest, claims: Readonly<IdentityClaims>): UpstreamPermit {
-  const limiters = fetchLimiters();
-  const address = requestAddress(request.headers, process.env);
-  const identity = requestIdentity(claims, request.headers, process.env);
-  const checks = [
-    { limiter: limiters.identity, key: identity },
-    ...(address === null ? [] : [{ limiter: limiters.address, key: address }]),
-    { limiter: limiters.process, key: 'all' },
-  ];
-  return () => takeAll(checks);
-}
-
-/** The fixed 429: a call the lookup needed would have passed a limit. */
-function tooManyRequests(retryAfterSeconds: number): Response {
-  return Response.json(
-    { error: 'Too many requests', retryAfterSeconds },
-    {
-      status: 429,
-      headers: { 'Cache-Control': 'no-store', 'Retry-After': String(retryAfterSeconds) },
-    },
-  );
-}
-
-const PAST_DEADLINE = Symbol('past deadline');
-
-/** The work's own outcome, or `PAST_DEADLINE` once `ms` have gone by; no timer is left behind. */
-async function withinDeadline<T>(work: Promise<T>, ms: number): Promise<T | typeof PAST_DEADLINE> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const expiry = new Promise<typeof PAST_DEADLINE>((resolve) => {
-    timer = setTimeout(() => resolve(PAST_DEADLINE), ms);
-  });
-  try {
-    return await Promise.race([work, expiry]);
-  } finally {
-    clearTimeout(timer);
-  }
-}
+/** A successful lookup's whole bus day goes to the scheduled-trip store, at no further call. */
+const recordBusDay = (trips: readonly ScheduledTrip[]): Promise<void> =>
+  getServiceRepositories().scheduled.recordBusDay(trips);
 
 /** The 429 when a call the lookup needed would pass a limit, else the profile body. */
 async function answer(
@@ -108,7 +39,8 @@ async function answer(
   const view = await getRepositories().fleet.snapshot();
   // Only a call to the government's server is limited, each one as it is made: a
   // cache hit costs nothing, a lookup the calls it makes.
-  const result = await getRouteProfile(routeName, view, now, upstreamPermit(request, session));
+  const permit = upstreamPermit(request, session);
+  const result = await getRouteProfile(routeName, view, now, permit, recordBusDay);
   if (result.status === 'limited') return tooManyRequests(result.retryAfterSeconds);
   // The envelope is the snapshot's own, so a stale or sample fleet says so here too.
   const body: RouteProfileResponse = { ...result, ...feedEnvelope(view) };

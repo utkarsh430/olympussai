@@ -12,7 +12,9 @@ import {
   type AvailabilitySegment,
   type YardLine,
 } from '@/lib/depot/cockpit/availability';
+import { BUS_STATE_MEANING } from '@/lib/depot/figureTones';
 import { formatCount } from '@/lib/depot/format';
+import { meaningTextClass, meaningToneClass } from '@/lib/depot/palette';
 import { COCKPIT_TREND_METRIC } from '@/lib/depot/forecast/trendMounts';
 import { METRIC_LABEL } from '@/lib/depot/forecast/wording';
 
@@ -88,7 +90,7 @@ export function AvailabilityBar({ fleet, segments, text, yard, yardHref, howId }
         {segments
           .filter((s) => s.count > 0)
           .map((s) => (
-            <span key={s.state} className={`h-full ${BUS_STATE_SQUARE[s.state]}`} style={{ flexGrow: s.count, flexBasis: 0 }} />
+            <span key={s.state} className={`depot-bar-seg h-full ${BUS_STATE_SQUARE[s.state]} ${meaningToneClass(BUS_STATE_MEANING[s.state])}`} style={{ flexGrow: s.count, flexBasis: 0 }} />
           ))}
       </div>
       {/* A legend word never ends in an ellipsis: where it does not fit beside its count
@@ -97,7 +99,7 @@ export function AvailabilityBar({ fleet, segments, text, yard, yardHref, howId }
         {segments.map((s) => (
           <li key={s.state} data-testid={`depot-state-${s.state}`} className="flex min-w-0 items-baseline gap-2">
             <span aria-hidden className={`inline-block h-1.5 w-1.5 shrink-0 self-center ${BUS_STATE_SQUARE[s.state]}`} />
-            <span className="min-w-0 break-words text-[13px] text-depot-muted" title={s.label}>{legendWord(s.state, s.label)}</span>
+            <span className={`min-w-0 break-words text-[13px] ${meaningTextClass(BUS_STATE_MEANING[s.state])}`} title={s.label}>{legendWord(s.state, s.label)}</span>
             <span className="ml-auto shrink-0 font-mono text-[15px] tabular-nums text-depot-ink">{formatCount(s.count)}</span>
             <span className="w-9 shrink-0 text-right font-mono text-[11px] tabular-nums text-depot-faint">{s.shareText}</span>
           </li>

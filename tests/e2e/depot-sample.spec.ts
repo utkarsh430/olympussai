@@ -9,6 +9,7 @@ import {
   PIN_MISSING,
   SIGNED_OUT,
   collectConsoleErrors,
+  type SampleFacts,
 } from './depot-sample-fixtures';
 
 /**
@@ -70,6 +71,12 @@ const DEPOT_SEGMENT = '[depotId]';
 const ROUTE_SEGMENT = '[routeName]';
 /** A well-formed route name; on the sample the lookup is refused without an outside call. */
 const SAMPLE_ROUTE_NAME = 'ABC';
+/** The route day's API answers only a route the sample carries, so it is given one. */
+const ROUTE_HOURLY_API = '/api/upsrtc/depot/service/route/[routeName]';
+
+/** One bus's day: a bus the sample shows on its route, asked about that route. */
+const SCHEDULE_DAY_API = '/api/upsrtc/depot/schedule-day/[registration]';
+const REGISTRATION_SEGMENT = '[registration]';
 
 /** Query strings the routes that require one need for a valid request. */
 const VALID_QUERY: Readonly<Record<string, string>> = {
@@ -78,9 +85,14 @@ const VALID_QUERY: Readonly<Record<string, string>> = {
   '/api/upsrtc/depot/history': '?metric=onRoadShare&scope=network',
 };
 
-function fill(template: string, depotId: string): string {
+function fill(template: string, sample: SampleFacts): string {
+  if (template === SCHEDULE_DAY_API) {
+    const route = new URLSearchParams({ route: sample.routeName }).toString();
+    return `${template.replace(REGISTRATION_SEGMENT, sample.busOnRoute)}?${route}`;
+  }
+  const routeName = template === ROUTE_HOURLY_API ? sample.routeName : SAMPLE_ROUTE_NAME;
   return (
-    template.replace(DEPOT_SEGMENT, depotId).replace(ROUTE_SEGMENT, SAMPLE_ROUTE_NAME) +
+    template.replace(DEPOT_SEGMENT, sample.depotId).replace(ROUTE_SEGMENT, routeName) +
     (VALID_QUERY[template] ?? '')
   );
 }
@@ -107,7 +119,7 @@ test.describe('1. the depot API contract', () => {
         sample,
         baseURL,
       }) => {
-        const url = fill(route.template, sample.depotId);
+        const url = fill(route.template, sample);
         const res =
           route.method === 'GET'
             ? await request.get(url)
@@ -129,7 +141,7 @@ test.describe('1. the depot API contract', () => {
         request,
         sample,
       }) => {
-        const res = await request.get(fill(route.template, sample.depotId));
+        const res = await request.get(fill(route.template, sample));
 
         expect(res.status()).toBe(200);
         expect(res.headers()['cache-control']).toContain('no-store');
@@ -190,6 +202,42 @@ test.describe('1. the depot API contract', () => {
         expect(await res.json()).toEqual({ error: 'Invalid route name' });
       }
     });
+
+    test('the route day refuses a hostile name, an unknown route and another date', async ({
+      request,
+      sample,
+    }) => {
+      const base = '/api/upsrtc/depot/service/route';
+      for (const [url, status, body] of [
+        [`${base}/..%2Fx`, 400, { error: 'Invalid route name' }],
+        [`${base}/${'A'.repeat(65)}`, 400, { error: 'Invalid route name' }],
+        [`${base}/NO_SUCH_ROUTE_9`, 404, { error: 'Route not found' }],
+        [`${base}/${sample.routeName}?date=2001-01-01`, 400, INVALID_QUERY],
+        [`${base}/${sample.routeName}?days=3`, 400, INVALID_QUERY],
+      ] as const) {
+        const res = await request.get(url);
+        expect(res.status(), url).toBe(status);
+        expect(res.headers()['cache-control']).toContain('no-store');
+        expect(await res.json()).toEqual(body);
+      }
+    });
+
+    test('the network hours refuse an unknown band, a bad page and a depot the sample lacks', async ({
+      request,
+    }) => {
+      const base = '/api/upsrtc/depot/service';
+      for (const [url, status, body] of [
+        [`${base}?band=night`, 400, INVALID_QUERY],
+        [`${base}?page=-1`, 400, INVALID_QUERY],
+        [`${base}?depot=..%2Fx`, 400, INVALID_QUERY],
+        [`${base}?depot=999999`, 404, DEPOT_NOT_FOUND],
+      ] as const) {
+        const res = await request.get(url);
+        expect(res.status(), url).toBe(status);
+        expect(res.headers()['cache-control']).toContain('no-store');
+        expect(await res.json()).toEqual(body);
+      }
+    });
   });
 });
 
@@ -210,6 +258,8 @@ const PAGE_HEADING: Readonly<Record<string, string>> = {
   '/project/depots/league': 'League table',
   '/project/depots/rebalance': 'Fleet distribution',
   '/project/depots/routes': 'Routes',
+  '/project/depots/routes/r/[routeName]': 'Hour by hour',
+  '/project/depots/service': 'Service by the hour',
   '/project/depots/sources': 'Data sources',
   '/project/depots/trends': 'Trends',
   '/project/depots/d/[depotId]': 'Depot cockpit',
@@ -222,6 +272,11 @@ const PAGE_HEADING: Readonly<Record<string, string>> = {
   '/project/depots/d/[depotId]/trends': 'Trends',
   '/project/depots/d/[depotId]/yard': 'Yard',
 };
+
+/** A page template with its segments filled from the sample: its depot and its busy route. */
+function pageUrl(template: string, sample: SampleFacts): string {
+  return template.replace(DEPOT_SEGMENT, sample.depotId).replace(ROUTE_SEGMENT, sample.routeName);
+}
 
 /** The heading a page template shows; every template the file system declares has one. */
 function headingOf(template: string): string {
@@ -272,7 +327,7 @@ test.describe('2. every depot page renders honestly on the sample', () => {
 
   for (const template of PAGE_TEMPLATES) {
     test(`${template} shows its heading and provenance`, async ({ page, sample }) => {
-      await openPage(page, template.replace(DEPOT_SEGMENT, sample.depotId), headingOf(template));
+      await openPage(page, pageUrl(template, sample), headingOf(template));
 
       const provenance = page.getByTestId('depot-provenance-line');
       await expect(provenance).toBeVisible();
@@ -281,14 +336,14 @@ test.describe('2. every depot page renders honestly on the sample', () => {
 
     test(`${template} loads with no console error`, async ({ page, sample }) => {
       const errors = collectConsoleErrors(page);
-      await openPage(page, template.replace(DEPOT_SEGMENT, sample.depotId), headingOf(template));
+      await openPage(page, pageUrl(template, sample), headingOf(template));
       await page.waitForLoadState('networkidle');
 
       expect(errors.filter((error) => !HYDRATION_MISMATCH.test(error))).toEqual([]);
     });
 
     test(`${template} never says "simulated" or prints a raw date`, async ({ page, sample }) => {
-      await openPage(page, template.replace(DEPOT_SEGMENT, sample.depotId), headingOf(template));
+      await openPage(page, pageUrl(template, sample), headingOf(template));
 
       const texts = await allPageText(page);
       expect(texts.filter((text) => /simulated/i.test(text))).toEqual([]);
@@ -335,7 +390,7 @@ test.describe('3. no sideways page scroll on any depot page', () => {
 
   for (const template of PAGE_TEMPLATES) {
     test(`${template} fits 390, 640, 1024, 1280 and 1440 px`, async ({ page, sample }) => {
-      const url = template.replace(DEPOT_SEGMENT, sample.depotId);
+      const url = pageUrl(template, sample);
       for (const width of WIDTHS) {
         await page.setViewportSize({ width, height: 900 });
         await openPage(page, url, headingOf(template));
@@ -716,10 +771,13 @@ test.describe('10. the sample is never presented as live', () => {
 
   for (const template of PAGE_TEMPLATES) {
     test(`${template} says the data is the sample, not the live feed`, async ({ page, sample }) => {
-      await openPage(page, template.replace(DEPOT_SEGMENT, sample.depotId), headingOf(template));
+      await openPage(page, pageUrl(template, sample), headingOf(template));
 
       const chip = page.getByTestId('depot-feed-status');
-      await expect(chip).toHaveAttribute('data-tone', 'fixture');
+      // The chip names its source; its tone is the sample's own, or the stale tone when the
+      // sample's feed time is old, never the live one.
+      await expect(chip).toHaveAttribute('data-source', 'fixture');
+      await expect(chip).toHaveAttribute('data-tone', /^(fixture|stale)$/);
       await expect(chip).toHaveAttribute('title', 'Sample data, not the live feed');
       await expect(chip).toContainText(/fixture/i);
       await expect(page.getByTestId('depot-provenance-line')).toContainText(
@@ -728,7 +786,7 @@ test.describe('10. the sample is never presented as live', () => {
     });
 
     test(`${template} never calls the sample live`, async ({ page, sample }) => {
-      await openPage(page, template.replace(DEPOT_SEGMENT, sample.depotId), headingOf(template));
+      await openPage(page, pageUrl(template, sample), headingOf(template));
 
       expect(await liveClaims(page)).toEqual([]);
     });

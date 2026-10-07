@@ -117,6 +117,50 @@ meaning and window rules enforced on every draft.
 When Claude was expected but the scripted writer answered, the user sees: "Claude was not
 available, so this is a scripted response." Users never see an error because of Claude.
 
+## Service by the hour: the route and network questions
+
+Four query kinds read the hour-by-hour service views. The router matches a route only as the
+feed spells it (`VND_1613_ORD_OUT`: a token holding an underscore, or one holding a digit after
+the word "route"), case-insensitively and exactly, against the routes the current snapshot
+carries; a route-shaped token that matches none is declined with its own fixed sentence ("That
+route is not in the current feed"), never answered about another route. Hours are read as
+"10am", "10 am", "10:00", "6 pm", "18:00", "midnight", "noon", or a bare hour after at, by,
+around, after, before, from, until or till ("short at 10"); a part of the day stands for the
+first hour of its band (morning 06:00, afternoon 10:00, evening 16:00, night 20:00). No hour is
+guessed and no clock is read.
+
+| Kind | Asked as | Answers from |
+|---|---|---|
+| `routeHour` | "Why is route VND_1613_ORD_OUT short at 10?" | the route day: deployed, scheduled, passengers, needed and the gap at that hour, and the proposal whose band holds it |
+| `routeProposals` | "How is route VND_1613_ORD_OUT doing today?" | the route day: hours short and in surplus, the largest gap, what was observed, the leading proposals |
+| `hourProposals` | "Which routes are over-served after 6 pm?", "What should Kanpur change this evening?" | the network's day by band: the band holding the hour, its short and over-served routes (one depot's when a depot is named), its proposals; with a Route / Gap table |
+| `serviceBrief` | "What is the plan for today?" | the network's day by band: what was observed, the band in focus, the reallocation's moves, the leading proposals by modelled passengers, the decisions recorded when a trail exists |
+
+A route named beside a depot is answered about the route. The rationale task also takes a
+route proposal (`{ task: 'rationale', proposalId, routeName }`; the id alone names no route):
+the band and its figures, what they rest on (tier A measured only, B measured buses and
+modelled demand, C modelled only), where the buses would come from or why there is none, the
+modelled impact as ranges, and what would change it. Each route proposal row has a "Why?"
+button that asks for it. A proposal that is not in its route's current day is a 404.
+
+Provenance: deployed is DERIVED for an hour this server observed, LIVE for the feed clock's own
+hour and MODELLED otherwise; scheduled is DERIVED; passengers, need, gap and impact are
+MODELLED; a band's span is REFERENCE; a measured finding (tier A) is DERIVED.
+
+What these answers never say: a figure in prose (every time of day, count and range is a
+fact: the words hour, morning and evening are outside the vocabulary); a dispatch or an
+assignment ("This is a recommendation; nothing is dispatched or assigned."); a cause, a person
+or a crew; that modelled demand is measured ("Needs rest on modelled passenger demand until
+measured passenger counts are connected."); a route the snapshot does not carry.
+
+The network kinds read the network's day by band as the copilot's shape (`CopilotNetworkHours`),
+which `live/copilotNetworkHours.ts` selects from the same held day the Service page's API
+answers (every short and over route per band, each route's own proposals once by modelled
+passengers, the reallocation's moves summed; the network kinds — a depot's reserve or
+maintenance window, shifted departures, a corridor — are not named). The copilot route passes
+it as the loader `ServiceSources.networkHours`; without the loader (the unit tests),
+`hourProposals` and `serviceBrief` answer "That answer is not available".
+
 ## Settings (server environment)
 
 | Variable | Meaning |

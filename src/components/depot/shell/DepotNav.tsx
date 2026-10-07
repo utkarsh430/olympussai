@@ -3,6 +3,7 @@
 import { usePathname } from 'next/navigation';
 import { useDepotNetworkContext } from '@/components/depot/data/DepotNetworkProvider';
 import { isDepotNavItemActive } from '@/lib/depot/depotNav';
+import { navGroupToneClass } from '@/lib/depot/palette';
 import { railGroups, shellNav } from '@/lib/depot/shellModel';
 import { DepotNavStrip } from './DepotNavStrip';
 import { NavLinks } from './NavLinks';
@@ -47,6 +48,10 @@ export function DepotNav() {
             return (
               <div
                 key={`${position}-${group.heading}`}
+                className={navGroupToneClass(
+                  group.heading,
+                  position === 0 && Boolean(nav.depotGroup),
+                )}
                 data-testid={position === 0 && nav.depotGroup ? 'depot-nav-depot-group' : undefined}
               >
                 {/* A label, not a sentence: a div keeps it out of the prose rule. */}

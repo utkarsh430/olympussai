@@ -20,6 +20,7 @@ import { DepotTable } from './DepotTable';
 import { MapSection } from './MapSection';
 import { ExceptionSummary } from './ExceptionSummary';
 import { HowProduced } from '@/components/depot/shell/HowProduced';
+import { ServicePeakFigure } from '@/components/depot/service/ServicePeak';
 import { KpiBand } from './KpiBand';
 import { NetworkBriefingRow } from './NetworkBriefingRow';
 import { RankedStrip } from './RankedStrip';
@@ -64,6 +65,9 @@ function OverviewBody({ data }: { readonly data: DepotNetworkResponse }) {
     <div className="space-y-8">
       <div className={SECTION}>
         <KpiBand kpis={data.kpis} depots={data.depots} />
+      </div>
+      <div className={SECTION}>
+        <ServicePeakFigure />
       </div>
       {rows.length === 0 ? (
         <StatePanel

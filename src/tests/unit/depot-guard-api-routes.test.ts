@@ -6,7 +6,7 @@ import { NextRequest } from 'next/server';
 import { requireUpsrtcAccess } from '@/lib/auth/authorize';
 import type { SessionClaims } from '@/lib/auth/session';
 import { resetAnalysisForTests } from '@/lib/depot/live/analysis';
-import { getRepositories } from '@/lib/depot/repositories';
+import { getRepositories, getServiceRepositories } from '@/lib/depot/repositories';
 import type { DepotRepositories, FleetSnapshotView } from '@/lib/depot/repositories/types';
 import { getLiveSnapshot, type LiveSnapshotResult } from '@/lib/upsrtc/liveSnapshot';
 import { getCopilotRuntime } from '@/lib/depot/copilot/service/runtime';
@@ -18,7 +18,7 @@ import { getRouteProfile } from '@/lib/depot/routes/routeCatalogue';
 import { fetchUpstream } from '@/lib/upsrtc/client';
 import { fetchBusSchedule } from '@/lib/upsrtc/scheduleService';
 import { filesUnder, ROOT } from './depot-guard-source';
-import { guardView } from './depot-guard-fixtures';
+import { GUARD_FEED_NOW, guardServiceRepositories, guardView } from './depot-guard-fixtures';
 
 /*
  * Every depot API route, found by walking the folder, so a route added later
@@ -33,7 +33,10 @@ vi.mock('@/lib/auth/authorize', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/auth/authorize')>()),
   requireUpsrtcAccess: vi.fn(),
 }));
-vi.mock('@/lib/depot/repositories', () => ({ getRepositories: vi.fn() }));
+vi.mock('@/lib/depot/repositories', () => ({
+  getRepositories: vi.fn(),
+  getServiceRepositories: vi.fn(),
+}));
 vi.mock('@/lib/upsrtc/liveSnapshot', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/upsrtc/liveSnapshot')>()),
   getLiveSnapshot: vi.fn(),
@@ -76,14 +79,18 @@ const HOSTILE_RAW = 'REFLECTED';
  */
 const PARAM_NAMES = [
   'depotId', 'bus', 'metric', 'scope', 'days', 'horizon', 'kind', 'q', 'offset', 'limit',
-  'sort', 'dir', 'reason', 'serviceClass',
+  'sort', 'dir', 'reason', 'serviceClass', 'date', 'route', 'band', 'depot', 'page',
 ];
 const HOSTILE_QUERY = [...PARAM_NAMES, HOSTILE]
   .map((name) => `${name}=${encodeURIComponent(`-1${HOSTILE}`)}`)
   .join('&');
 
 /** A valid value for each dynamic segment name the depot API uses; anything else gets '1'. */
-const VALID_SEGMENT: Readonly<Record<string, string>> = { routeName: 'AGRA_EXP_1' };
+const VALID_SEGMENT: Readonly<Record<string, string>> = {
+  routeName: 'AGRA_EXP_1',
+  // A bus of the guard snapshot that carries AGRA_EXP_1.
+  registration: 'UP1G0',
+};
 
 /*
  * A query that each parameterised route accepts, so its success path runs.
@@ -93,6 +100,9 @@ const ACCEPTED_QUERY: Readonly<Record<string, string>> = {
   'trends/route.ts': 'metric=index',
   'history/route.ts': 'metric=index&scope=network',
   'forecast/route.ts': 'metric=index&scope=network',
+  'service/route/[routeName]/route.ts': `date=${GUARD_FEED_NOW.slice(0, 10)}`,
+  'schedule-day/[registration]/route.ts': 'route=AGRA_EXP_1',
+  'service/route.ts': 'band=midday&depot=1&page=0',
 };
 
 /*
@@ -104,8 +114,14 @@ const NOT_PLAIN_GETS: Readonly<Record<string, string>> = {
   'POST copilot/route.ts': 'needs a same-origin question body; covered by the copilot suites',
 };
 
-/** The one route allowed to reach the corporation's route service: a lookup a person starts, rate limited. */
-const ROUTE_LOOKUP = 'route/[routeName]/route.ts';
+/**
+ * The only routes allowed to reach the corporation's schedule server: lookups a person
+ * starts, one bus each, under the same per-call limits (route details, a bus's whole day).
+ */
+const LOOKUP_ROUTES: ReadonlySet<string> = new Set([
+  'route/[routeName]/route.ts',
+  'schedule-day/[registration]/route.ts',
+]);
 
 type Handler = (request: NextRequest, context: { params: Promise<object> }) => Promise<Response>;
 
@@ -179,6 +195,7 @@ function useRepositories(snapshot: () => Promise<FleetSnapshotView>): void {
     revenue: modelledRevenueRepository,
   };
   vi.mocked(getRepositories).mockReturnValue(repositories);
+  vi.mocked(getServiceRepositories).mockReturnValue(guardServiceRepositories());
 }
 
 function useGoodData(): void {
@@ -219,18 +236,19 @@ describe('the depot API routes', () => {
       expect(res.headers.get('cache-control')).toBe('no-store');
       expect(await res.json()).toEqual({ error: 'Unauthorized' });
       expect(getRepositories).not.toHaveBeenCalled();
+      expect(getServiceRepositories).not.toHaveBeenCalled();
       expect(getLiveSnapshot).not.toHaveBeenCalled();
       expect(getCopilotRuntime).not.toHaveBeenCalled();
       expect(fetchStub).not.toHaveBeenCalled();
     },
   );
 
-  it.each(named(CASES))('%s with a session answers with no-store, and only the route lookup goes upstream', async (_n, c) => {
+  it.each(named(CASES))('%s with a session answers with no-store, and only the lookups go upstream', async (_n, c) => {
     useGoodData();
     const res = await call(c);
     expect(res.headers.get('cache-control')).toBe('no-store');
     if (res.status >= 400) await expectFixedErrorBody(res);
-    if (c.file === ROUTE_LOOKUP) return;
+    if (LOOKUP_ROUTES.has(c.file)) return;
     // No upstream call from any other route: not a fetch, not the upstream client,
     // not a route lookup, not a fresh live snapshot outside the fleet repository.
     expect(fetchStub).not.toHaveBeenCalled();
@@ -270,6 +288,7 @@ describe('the depot API routes', () => {
     const again = await call(c, { segment: `${'9'.repeat(70)}${HOSTILE}` });
     expect(await again.text()).toBe(first);
     expect(getRepositories).not.toHaveBeenCalled();
+    expect(getServiceRepositories).not.toHaveBeenCalled();
     expect(getLiveSnapshot).not.toHaveBeenCalled();
   });
 
@@ -283,5 +302,6 @@ describe('the depot API routes', () => {
     const again = await call(c, { query: `days=-1${HOSTILE}` });
     expect(await again.text()).toBe(first);
     expect(getRepositories).not.toHaveBeenCalled();
+    expect(getServiceRepositories).not.toHaveBeenCalled();
   });
 });

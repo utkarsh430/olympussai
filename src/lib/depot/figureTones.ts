@@ -1,0 +1,89 @@
+import { BUS_KIND_SEVERITY } from '@/lib/depot/exceptions/config';
+import type { DepotExceptionKind, ExceptionKind } from '@/lib/depot/exceptions/types';
+import type { DepotMeaning } from '@/lib/depot/palette';
+import type { BusOpState, NetworkKpis } from '@/lib/depot/types';
+
+/**
+ * What each page's figures measure, read against the palette's one table of colour
+ * meanings (`DEPOT_MEANING_TONE`), so a figure is coloured by what it counts and the same
+ * thing has the same colour on every page. A figure not listed is a plain count (cyan).
+ */
+
+/** A bus state's meaning: the same five colours as the yard map and the state squares. */
+export const BUS_STATE_MEANING: Readonly<Record<BusOpState, DepotMeaning>> = {
+  in_service: 'inService',
+  on_road: 'onRoad',
+  standing: 'standing',
+  dark: 'dark',
+  off_road: 'offRoad',
+};
+
+/** The network overview's fleet band: the state each count is of. */
+export const KPI_MEANING: Readonly<Partial<Record<keyof NetworkKpis, DepotMeaning>>> = {
+  onRoad: 'onRoad',
+  stationary: 'standing',
+  noSignal: 'dark',
+  underMaintenance: 'offRoad',
+};
+
+/**
+ * Every exception figure is coloured by severity, so the exceptions page reads one way:
+ * a depot with too many buses off the road is critical (crimson), a high dark rate, a low
+ * on-road share and a power-off cluster are warnings (amber); a bus kind takes its one
+ * fixed severity. A figure never takes the colour of the bus state it counts, which would
+ * make cyan "info" in one row and "on road" in the next.
+ */
+const DEPOT_KIND_MEANING: Readonly<Record<DepotExceptionKind, DepotMeaning>> = {
+  dark_share_high: 'warning',
+  off_road_high: 'critical',
+  on_road_low: 'warning',
+  power_cut_cluster: 'warning',
+};
+
+export function exceptionKindMeaning(kind: ExceptionKind): DepotMeaning {
+  if (kind in DEPOT_KIND_MEANING) return DEPOT_KIND_MEANING[kind as DepotExceptionKind];
+  return BUS_KIND_SEVERITY[kind as keyof typeof BUS_KIND_SEVERITY];
+}
+
+/**
+ * The fleet distribution plan's figures: the empty running is a distance, a plain count
+ * (cyan; teal is kept for money and energy), the deficit met is the plan's outcome, where
+ * more is better (green).
+ */
+export const PLAN_FIGURE_MEANING: Readonly<Record<string, DepotMeaning>> = {
+  empty: 'count',
+  covered: 'better',
+};
+
+/**
+ * A depot page's figures by key: fuel, its cost and economy, and fare revenue are
+ * money and energy (teal); a bus off the road is crimson, an overdue service a warning,
+ * one due soon information. The cockpit's attention counts use the same keys, with the
+ * bus exception severities (an emergency flag critical, power off and tamper information).
+ */
+export const DEPOT_FIGURE_MEANING: Readonly<Record<string, DepotMeaning>> = {
+  fuel: 'moneyEnergy',
+  cost: 'moneyEnergy',
+  kmpl: 'moneyEnergy',
+  revenue: 'moneyEnergy',
+  earningsPerKm: 'moneyEnergy',
+  off_road: 'offRoad',
+  overdue: 'warning',
+  due_soon: 'info',
+  emergency: 'critical',
+  power_off: 'info',
+  dark: 'dark',
+  not_heard: 'warning',
+  tamper: 'info',
+};
+
+/**
+ * Each depot page's headline figure, which leads its band with the hero glow (one per
+ * page): the fuel burnt on the fuel page, the fare revenue on the revenue page, the buses
+ * off the road on the maintenance page, the deficit met on the fleet distribution plan.
+ */
+const LEAD_FIGURE_KEYS: ReadonlySet<string> = new Set(['fuel', 'revenue', 'off_road', 'covered']);
+
+export function isLeadFigure(key: string): boolean {
+  return LEAD_FIGURE_KEYS.has(key);
+}

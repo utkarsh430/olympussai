@@ -1,9 +1,11 @@
 import { liveFleetRepository } from './liveFleetRepository';
+import { memoryHourlyObservationRepository } from './memoryHourlyObservationRepository';
+import { memoryScheduledTripRepository } from './memoryScheduledTripRepository';
 import { modelledCrewRepository } from './modelledCrewRepository';
 import { modelledFuelRepository } from './modelledFuelRepository';
 import { modelledHistoryRepository } from './modelledHistoryRepository';
 import { modelledRevenueRepository } from './modelledRevenueRepository';
-import type { DepotRepositories } from './types';
+import type { DepotRepositories, ServiceRepositories } from './types';
 
 const repositories: DepotRepositories = {
   fleet: liveFleetRepository,
@@ -21,4 +23,18 @@ const repositories: DepotRepositories = {
  */
 export function getRepositories(): DepotRepositories {
   return repositories;
+}
+
+const serviceRepositories: ServiceRepositories = {
+  hourly: memoryHourlyObservationRepository,
+  scheduled: memoryScheduledTripRepository,
+};
+
+/**
+ * The hour-by-hour service stores: what this server observed of the date, and
+ * the scheduled trips of the bus days looked up. In memory today; a database
+ * adapter written by a sampler, or a timetable store, is wired here instead.
+ */
+export function getServiceRepositories(): ServiceRepositories {
+  return serviceRepositories;
 }

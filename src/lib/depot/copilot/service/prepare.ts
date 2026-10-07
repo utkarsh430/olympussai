@@ -3,6 +3,7 @@ import { buildAnswer } from '@/lib/depot/copilot/facts/answers';
 import { buildDepotBriefing } from '@/lib/depot/copilot/facts/depot';
 import { cleanName } from '@/lib/depot/copilot/facts/format';
 import { buildNetworkBriefing } from '@/lib/depot/copilot/facts/network';
+import { buildProposalRationale } from '@/lib/depot/copilot/facts/proposal';
 import { buildTransferRationale } from '@/lib/depot/copilot/facts/transfer';
 import type { CopilotQuery } from '@/lib/depot/copilot/queries';
 import { scriptedRoute } from '@/lib/depot/copilot/router/scriptedRouter';
@@ -15,7 +16,9 @@ import type {
 import { buildDepotDetail } from '@/lib/depot/live/depotView';
 import { buildDistributionResponse } from '@/lib/depot/live/distributionView';
 import { buildNetworkResponse } from '@/lib/depot/live/networkView';
+import { routeTableOf } from '@/lib/depot/live/routeInputs';
 import type { FleetSnapshotView } from '@/lib/depot/repositories/types';
+import type { CopilotNetworkHours, RouteHourlyBody } from '@/lib/depot/service/types';
 import { answerTable, interpretQuery } from '@/lib/depot/copilot/service/interpret';
 import type { ValidCopilotRequest } from '@/lib/depot/copilot/service/schema';
 
@@ -31,6 +34,34 @@ export type Prepared =
 
 const NOT_FOUND = { ok: false, status: 404 } as const;
 
+/**
+ * The service views a request may need, loaded beforehand (they are read asynchronously)
+ * by `loadServiceData`: the named route's day and the network's day by band.
+ */
+export interface ServiceAnswerData {
+  readonly routeDay?: RouteHourlyBody;
+  readonly networkHours?: CopilotNetworkHours;
+}
+
+/**
+ * The catalogue query a question maps to, against the snapshot's depots and routes; null
+ * when the asking depot is not in the snapshot. The question is used here and nowhere after.
+ */
+export function askQuery(
+  question: string,
+  scope: CopilotScope,
+  view: FleetSnapshotView,
+): CopilotQuery | null {
+  const network = buildNetworkResponse(view);
+  const scopeDepotId = scope.kind === 'depot' ? scope.depotId : undefined;
+  if (scopeDepotId !== undefined && !network.depots.some((d) => d.id === scopeDepotId)) {
+    return null;
+  }
+  const depots = network.depots.map((d) => ({ id: d.id, name: d.name }));
+  const routes = routeTableOf(view).map((r) => r.routeName);
+  return scriptedRoute(question, depots, scopeDepotId, routes);
+}
+
 /** The depots a query reads detail for; the answer builders look nothing else up. */
 function depotIdsOf(query: CopilotQuery): string[] {
   switch (query.kind) {
@@ -42,20 +73,23 @@ function depotIdsOf(query: CopilotQuery): string[] {
       return [query.depotId];
     case 'compareDepots':
       return [query.depotA, query.depotB];
+    case 'hourProposals':
+      return query.depotId === undefined ? [] : [query.depotId];
     default:
       return [];
   }
 }
 
-function prepareAsk(question: string, scope: CopilotScope, view: FleetSnapshotView): Prepared {
+function prepareAsk(
+  question: string,
+  scope: CopilotScope,
+  view: FleetSnapshotView,
+  service: ServiceAnswerData,
+): Prepared {
+  const query = askQuery(question, scope, view);
+  if (query === null) return NOT_FOUND;
   const network = buildNetworkResponse(view);
-  const scopeDepotId = scope.kind === 'depot' ? scope.depotId : undefined;
-  if (scopeDepotId !== undefined && !network.depots.some((d) => d.id === scopeDepotId)) {
-    return NOT_FOUND;
-  }
   const depots = network.depots.map((d) => ({ id: d.id, name: d.name }));
-  // The question is used here, to pick a catalogue query, and nowhere after.
-  const query = scriptedRoute(question, depots, scopeDepotId);
   const details: Readonly<Record<string, DepotDetailResponse>> = Object.fromEntries(
     depotIdsOf(query).flatMap((id) => {
       const detail = buildDepotDetail(view, id);
@@ -66,6 +100,7 @@ function prepareAsk(question: string, scope: CopilotScope, view: FleetSnapshotVi
     network,
     details,
     distribution: buildDistributionResponse(view),
+    ...service,
   });
   const nameOf = (id: string): string => depots.find((d) => d.id === id)?.name ?? id;
   const table = answerTable(query, request.facts);
@@ -95,12 +130,13 @@ function answerScopeOf(
 /**
  * Builds the core's request from a validated body and one snapshot, through
  * the live view builders only. The task is chosen here from the body's `task`;
- * nothing else in the body reaches the core. An unknown depot or a transfer
- * that is not in the current plan is a 404.
+ * nothing else in the body reaches the core. An unknown depot, a transfer
+ * that is not in the current plan, or a proposal that is not in its route's day is a 404.
  */
 export function prepareCopilotRequest(
   body: ValidCopilotRequest,
   view: FleetSnapshotView,
+  service: ServiceAnswerData = {},
 ): Prepared {
   switch (body.task) {
     case 'briefing': {
@@ -111,6 +147,16 @@ export function prepareCopilotRequest(
       return detail ? { ok: true, request: buildDepotBriefing(detail) } : NOT_FOUND;
     }
     case 'rationale': {
+      if ('proposalId' in body) {
+        const day = service.routeDay;
+        const proposal =
+          day?.routeName === body.routeName
+            ? day.proposals.find((p) => p.id === body.proposalId)
+            : undefined;
+        return day && proposal
+          ? { ok: true, request: buildProposalRationale(proposal, day) }
+          : NOT_FOUND;
+      }
       const distribution = buildDistributionResponse(view);
       const transfer = distribution.plan.transfers.find((t) => t.id === body.transferId);
       return transfer
@@ -118,6 +164,6 @@ export function prepareCopilotRequest(
         : NOT_FOUND;
     }
     case 'ask':
-      return prepareAsk(body.question, body.scope, view);
+      return prepareAsk(body.question, body.scope, view, service);
   }
 }

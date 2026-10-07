@@ -21,7 +21,7 @@ vi.mock('@/lib/auth/authorize', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/auth/authorize')>();
   return { ...actual, requireUpsrtcAccess: vi.fn() };
 });
-vi.mock('@/lib/depot/repositories', () => ({ getRepositories: vi.fn() }));
+vi.mock('@/lib/depot/repositories', () => ({ getRepositories: vi.fn(), getServiceRepositories: vi.fn() }));
 vi.mock('@/lib/depot/copilot/service/runtime', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/depot/copilot/service/runtime')>();
   return { ...actual, getCopilotRuntime: vi.fn() };

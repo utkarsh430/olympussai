@@ -1,7 +1,9 @@
 import Link from 'next/link';
 import type { Column } from '@/components/depot/shell/DataTable';
 import { depotHref } from '@/lib/depot/depotNav';
+import { indexFillStyle } from '@/components/depot/league/IndexBar';
 import { formatCount } from '@/lib/depot/format';
+import { meaningTextClass } from '@/lib/depot/palette';
 import {
   ECONOMICS_COLUMN_WIDTHS,
   ECONOMICS_COMPONENT_SPECS,
@@ -27,6 +29,21 @@ export const BREAKDOWN_ID = 'economics-breakdown';
 const cellOf = (row: EconomicsRow, key: string): EconomicsCell | undefined =>
   row.cells.find((c) => c.key === key);
 
+/** The columns whose better direction the page states: higher earnings, lower fuel cost. */
+const STATED_DIRECTION: ReadonlySet<string> = new Set(['earningsPerKm', 'costPerKm']);
+
+/**
+ * A change against the peer median in green when better and crimson when worse, only on
+ * the columns whose direction the page states; level, unknown and load stay muted.
+ */
+export function differenceClass(cell: Pick<EconomicsCell, 'key' | 'direction'>): string {
+  if (!STATED_DIRECTION.has(cell.key)) return 'text-depot-muted';
+  if (cell.direction === 'better' || cell.direction === 'worse') {
+    return meaningTextClass(cell.direction);
+  }
+  return 'text-depot-muted';
+}
+
 function MetricCell({ cell }: { readonly cell: EconomicsCell | undefined }) {
   if (!cell) return null;
   if (cell.value === null) return <span className="text-depot-muted">{DASH}</span>;
@@ -34,7 +51,7 @@ function MetricCell({ cell }: { readonly cell: EconomicsCell | undefined }) {
     <span>
       <span aria-hidden>{cell.bareValue}</span>
       {cell.bareDifference === '' ? null : (
-        <span aria-hidden className="ml-2 text-[11px] text-depot-muted">
+        <span aria-hidden className={`ml-2 text-[11px] ${differenceClass(cell)}`}>
           {cell.bareDifference}
         </span>
       )}
@@ -74,7 +91,7 @@ function IndexButton({ row, open, onToggle }: IndexButtonProps) {
           <>
             <span className="w-10 text-right tabular-nums">{index.toFixed(1)}</span>
             <span aria-hidden className="depot-bar-track w-16">
-              <span className="depot-bar-fill" style={{ width: `${width}%` }} />
+              <span className="depot-bar-fill" style={indexFillStyle(index, width)} />
               <span className="depot-bar-tick" style={{ left: `${MEDIAN_TICK}%` }} />
             </span>
           </>

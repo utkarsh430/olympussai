@@ -17,6 +17,8 @@ export type CopilotScope =
 export type CopilotApiRequest =
   | { readonly task: 'briefing'; readonly scope: CopilotScope }
   | { readonly task: 'rationale'; readonly transferId: string }
+  /** A route's proposal, by its id and the route it belongs to (the id alone names no route). */
+  | { readonly task: 'rationale'; readonly proposalId: string; readonly routeName: string }
   | { readonly task: 'ask'; readonly question: string; readonly scope: CopilotScope };
 
 /** Who wrote the text. Shown beside it: "Written by Claude" or "Scripted response". */
