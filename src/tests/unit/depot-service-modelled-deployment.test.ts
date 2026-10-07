@@ -1,84 +1,61 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import type { Duty } from '@/lib/depot/duties/types';
-import { modelledRouteHours } from '@/lib/depot/service/modelledDeployment';
-import type { DayRun, OperatingDay } from '@/lib/depot/sim/operatingDayTypes';
+import { modelledRouteHours, type RouteFleetInput } from '@/lib/depot/service/modelledDeployment';
 
 const DATE = '2026-10-06';
+const FLEET = 21;
 
-function duty(id: string, routeName: string, startMin: number, endMin: number): Duty {
-  return {
-    id,
-    depotId: 'D1',
-    routeName,
-    startMin,
-    endMin,
-    serviceClass: 'ordinary',
-    provenance: 'modelled',
-  };
+function fleet(over: Partial<RouteFleetInput> = {}): RouteFleetInput {
+  return { routeName: 'VND_1613_ORD_OUT', operatingDate: DATE, buses: FLEET, journeyMinutes: null, ...over };
 }
 
-function run(dutyId: string, routeName: string): DayRun {
-  return {
-    dutyId,
-    routeName,
-    registrationNumber: `UP${dutyId}`,
-    dutyClass: 'ordinary',
-    busClass: 'ordinary',
-    classMatched: true,
-    seats: 52,
-    distanceKm: 80,
-  };
-}
+const peakOf = (input: RouteFleetInput): number =>
+  Math.max(...modelledRouteHours(input).map((h) => h.deployed));
 
-function dayOf(duties: readonly Duty[], ranIds: readonly string[]): OperatingDay {
-  return {
-    depotId: 'D1',
-    operatingDate: DATE,
-    duties,
-    routesWithoutDuty: [],
-    routes: [],
-    runs: duties.filter((d) => ranIds.includes(d.id)).map((d) => run(d.id, d.routeName)),
-    notRun: [],
-    fleet: 10,
-    availableBuses: 10,
-    dutiesWithoutBus: 0,
-    provenance: 'modelled',
-  };
-}
-
-describe('modelledRouteHours', () => {
-  const duties = [
-    duty('a', 'R1', 6 * 60, 8 * 60 + 30), // 06:00 to 08:30
-    duty('b', 'R1', 7 * 60 + 30, 9 * 60), // 07:30 to 09:00
-    duty('c', 'R1', 7 * 60, 10 * 60), // no bus: never ran
-    duty('d', 'R2', 7 * 60, 10 * 60), // another route
-    duty('e', 'R1', 23 * 60, 25 * 60), // past midnight: only 23:00 to 24:00 counts
-  ];
-  const hours = modelledRouteHours([dayOf(duties, ['a', 'b', 'd', 'e'])], 'R1', DATE);
+describe('modelledRouteHours: the route own buses, each on a modelled duty', () => {
+  const hours = modelledRouteHours(fleet());
 
   it('answers 24 hours of the route', () => {
     expect(hours.map((h) => h.hour)).toEqual(Array.from({ length: 24 }, (_, i) => i));
-    expect(hours.every((h) => h.routeName === 'R1' && h.operatingDate === DATE)).toBe(true);
+    expect(hours.every((h) => h.routeName === 'VND_1613_ORD_OUT' && h.operatingDate === DATE)).toBe(true);
   });
 
-  it('counts the bus-hours of the duties that ran, per hour', () => {
-    expect(hours.slice(5, 10).map((h) => h.deployed)).toEqual([0, 1, 1.5, 1.5, 0]);
-    expect(hours[23]?.deployed).toBe(1);
-    expect(hours[0]?.deployed).toBe(0);
+  it('never runs more buses than the route has, nor fewer than none', () => {
+    for (const journeyMinutes of [null, 45, 120, 300, 493]) {
+      const day = modelledRouteHours(fleet({ journeyMinutes }));
+      expect(day.every((h) => h.deployed >= 0 && h.deployed <= FLEET)).toBe(true);
+    }
   });
 
-  it('adds the days of every depot running the route', () => {
-    const two = modelledRouteHours(
-      [dayOf(duties, ['a']), dayOf([duty('x', 'R1', 6 * 60, 7 * 60)], ['x'])],
-      'R1',
-      DATE,
-    );
-    expect(two[6]?.deployed).toBe(2);
+  it('reaches near the whole fleet at its peak, for an unknown and for a long journey', () => {
+    expect(peakOf(fleet())).toBeGreaterThanOrEqual(0.6 * FLEET);
+    expect(peakOf(fleet({ journeyMinutes: 493 }))).toBeGreaterThanOrEqual(0.6 * FLEET);
   });
 
-  it('ignores a day of another date', () => {
-    const other = { ...dayOf(duties, ['a']), operatingDate: '2026-10-05' };
-    expect(modelledRouteHours([other], 'R1', DATE).every((h) => h.deployed === 0)).toBe(true);
+  it('runs little at night: no duty starts before 04:00', () => {
+    for (const hour of [0, 1, 2, 3]) {
+      expect(hours[hour]?.deployed).toBe(0);
+    }
+  });
+
+  it('is seeded by route and date: the same inputs give the same day, another date differs', () => {
+    expect(modelledRouteHours(fleet())).toEqual(hours);
+    const other = modelledRouteHours(fleet({ operatingDate: '2026-10-07' }));
+    expect(other.map((h) => h.deployed)).not.toEqual(hours.map((h) => h.deployed));
+    const route = modelledRouteHours(fleet({ routeName: 'AKP_1577_ORD_OUT' }));
+    expect(route.map((h) => h.deployed)).not.toEqual(hours.map((h) => h.deployed));
+  });
+
+  it('counts the bus-hours of each duty in each hour it covers, one decimal', () => {
+    const one = modelledRouteHours(fleet({ buses: 1, journeyMinutes: 60 }));
+    // One bus, out and back plus a layover: 150 minutes in all, spread over the hours it covers.
+    expect(one.reduce((s, h) => s + h.deployed, 0)).toBeCloseTo(2.5, 1);
+    expect(one.every((h) => Math.round(h.deployed * 10) === h.deployed * 10)).toBe(true);
+  });
+
+  it('runs nothing without a whole bus, or for a bus count the trip model refuses', () => {
+    for (const buses of [0, 0.5, -3, Number.NaN, 501]) {
+      expect(modelledRouteHours(fleet({ buses })).every((h) => h.deployed === 0)).toBe(true);
+    }
   });
 });

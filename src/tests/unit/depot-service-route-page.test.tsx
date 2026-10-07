@@ -132,12 +132,21 @@ describe('the route day page in every state', () => {
     expect(liveClaims()).toEqual([]);
   });
 
-  it('says in its method that modelled boardings follow the modelled duties', async () => {
+  it('says in its method that modelled boardings follow the modelled trips', async () => {
     state.polled = polled({ data: routeHourlyFixture() });
     await renderPage();
-    const sentence = SERVICE_HOW_PRODUCED.find((p) => p.includes('follow the modelled duties'));
+    const sentence = SERVICE_HOW_PRODUCED.find((p) => p.includes('follow the modelled trips'));
     expect(sentence).toContain('when in the day buses are short');
-    expect(container.textContent).toContain('the day’s modelled boardings follow the modelled duties');
+    expect(container.textContent).toContain('the day’s modelled boardings follow the modelled trips');
+  });
+
+  it('says its modelled day is drawn from the route’s own buses, unlike the depot pages', async () => {
+    state.polled = polled({ data: routeHourlyFixture() });
+    await renderPage();
+    const sentence = SERVICE_HOW_PRODUCED.find((p) => p.includes('drawn from the buses the feed shows'));
+    expect(sentence).toContain('drawn per depot');
+    expect(sentence).toContain('the two can differ');
+    expect(container.textContent).toContain('This page’s modelled day is drawn from the buses the feed shows on this route');
   });
 
   it('gates the page on its own path before it renders', async () => {

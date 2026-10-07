@@ -97,7 +97,7 @@ describe('RouteHourlyPage body', () => {
   it('shows the current hour in four figures', () => {
     render();
     const band = section('service-figure-band')?.textContent ?? '';
-    for (const words of ['Deployed now', 'Needed now', 'Gap now', '−2', 'Over by 2', 'Observed since 05:02']) {
+    for (const words of ['Deployed now', 'Need now', 'Gap now', '−2', 'Over by 2', 'Observed since 05:02']) {
       expect(band).toContain(words);
     }
   });
@@ -144,6 +144,19 @@ describe('RouteHourlyPage body', () => {
     const punctuality = section('service-punctuality');
     expect(punctuality?.textContent).toContain('The delay unit is unconfirmed');
     expect(punctuality?.querySelectorAll('tbody tr')).toHaveLength(7);
+  });
+
+  it('prints an early hour with the module minus, never a hyphen', () => {
+    const response = routeHourlyFixture();
+    const reliability = response.reliability.map((r) =>
+      r.hour === 9
+        ? { hour: 9, delayMedianMin: -15.5, lateShare: 0, coverage: { n: 1, of: 1 } }
+        : { hour: r.hour, delayMedianMin: null, lateShare: null, coverage: { n: 0, of: 0 } },
+    );
+    render({ ...LOADED, response: { ...response, reliability } });
+    const text = section('service-punctuality')?.querySelector('tbody tr')?.textContent ?? '';
+    expect(text).toContain('−15 min');
+    expect(text).not.toMatch(/-\d/);
   });
 
   it('reads punctuality from the journeys the feed reported, not from the hours', () => {

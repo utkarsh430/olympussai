@@ -16,6 +16,19 @@ export interface PricedRoute {
 }
 
 /**
+ * Boardings one leg carries: seats x load factor over the average ride share,
+ * floored to whole people (see revenueConfig).
+ */
+export function boardingsPerLeg(seats: number, loadFactor: number): number {
+  return Math.floor((seats * loadFactor) / AVG_TRIP_LENGTH_SHARE);
+}
+
+/** A day's boardings: trips out and back, LEGS_PER_TRIP legs each, at boardingsPerLeg. */
+export function dayBoardings(trips: number, seats: number, loadFactor: number): number {
+  return trips * LEGS_PER_TRIP * boardingsPerLeg(seats, loadFactor);
+}
+
+/**
  * Boardings and revenue for a day (see revenueConfig for the definitions).
  * Per leg, occupied seat-kilometres are seats x load factor x length; the
  * boardings behind them are seats x load factor over the average ride share,
@@ -26,7 +39,9 @@ export interface PricedRoute {
 export function priceRoute(input: Readonly<RoutePricingInput>): PricedRoute {
   const legs = input.trips * LEGS_PER_TRIP;
   const occupiedSeats = input.seats * input.loadFactor;
-  const boardingsPerLeg = Math.floor(occupiedSeats / AVG_TRIP_LENGTH_SHARE);
   const perLeg = occupiedSeats * input.lengthKm * FARE_PER_KM[input.serviceClass];
-  return { boardings: legs * boardingsPerLeg, revenue: Math.round(legs * perLeg) };
+  return {
+    boardings: dayBoardings(input.trips, input.seats, input.loadFactor),
+    revenue: Math.round(legs * perLeg),
+  };
 }

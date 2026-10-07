@@ -30,7 +30,7 @@ describe('service figures', () => {
     const figures = serviceFigures(routeHourlyFixture());
     expect(figures.map((f) => [f.label, f.value])).toEqual([
       ['Deployed now', '10'],
-      ['Needed now', '8'],
+      ['Need now', '8'],
       ['Gap now', '−2'],
       ['Samples', '79'],
     ]);
@@ -62,6 +62,14 @@ describe('coverage and provenance', () => {
     expect(coverageSentences(routeHourlyFixture({ observed: null }))[0]).toBe(
       'Not yet observed by this server today.',
     );
+  });
+
+  it('says one bus in the singular', () => {
+    const one = coverageSentences(
+      routeHourlyFixture({ scheduledCoverage: { n: 1, of: 1 }, routeCoverage: { n: 1, of: 1 } }),
+    );
+    expect(one).toContain('Scheduled trips known for 1 of 1 bus seen on this route today.');
+    expect(one).toContain('Only buses that report a route name are counted: 1 of the 1 bus in the feed reports one.');
   });
 
   it('is a MIXED line with live, derived and modelled parts and the coverage as its second', () => {

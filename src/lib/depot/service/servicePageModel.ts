@@ -1,6 +1,6 @@
 import type { ProvenanceDescription } from '../provenanceLine';
 import type { DepotMeaning } from '../palette';
-import { MINUS, formatCount, formatFeedTimeOn, formatPlainDate } from '../format';
+import { MINUS, countPhrase, formatCount, formatFeedTimeOn, formatPlainDate, pluralWord } from '../format';
 import { BREAKPOINT_PX, WIDE_VIEWPORT_PX } from '../shell/geometry';
 import type { Provenance } from '../types';
 import {
@@ -58,7 +58,7 @@ export function serviceFigures(body: Body): readonly ServiceFigure[] {
     const none = { value: DASH, caption: SERVICE_TEXT.noFeedClock };
     return [
       { label: 'Deployed now', ...none },
-      { label: 'Needed now', ...none, tag: 'modelled' },
+      { label: 'Need now', ...none, tag: 'modelled' },
       { label: 'Gap now', ...none },
       samplesFigure(body),
     ];
@@ -66,7 +66,7 @@ export function serviceFigures(body: Body): readonly ServiceFigure[] {
   const range = `Range ${busFigure(neededAt(now, 'low'))} to ${busFigure(neededAt(now, 'high'))}`;
   return [
     { label: 'Deployed now', value: busFigure(now.deployed), caption: SERVICE_TEXT.deployedCaption },
-    { label: 'Needed now', value: busFigure(now.needed), caption: range, tag: 'modelled' },
+    { label: 'Need now', value: busFigure(now.needed), caption: range, tag: 'modelled' },
     { label: 'Gap now', value: gapFigure(now.gap), caption: gapWords(now.gap), tone: gapTone(now.gap) },
     samplesFigure(body),
   ];
@@ -95,9 +95,9 @@ export function coverageSentences(body: Body): readonly string[] {
       : `Observed by this server since ${formatFeedTimeOn(body.observed.since, body.feedNow)} (${formatCount(body.observed.samples)} samples).`;
   return [
     observed,
-    `Only buses that report a route name are counted: ${formatCount(body.routeCoverage.n)} of the ${formatCount(body.routeCoverage.of)} buses in the feed report one.`,
+    `Only buses that report a route name are counted: ${formatCount(body.routeCoverage.n)} of the ${countPhrase(body.routeCoverage.of, 'bus', 'buses')} in the feed ${pluralWord(body.routeCoverage.n, 'reports', 'report')} one.`,
     ...standingSentence(body.standingNow),
-    `Scheduled trips known for ${formatCount(body.scheduledCoverage.n)} of ${formatCount(body.scheduledCoverage.of)} buses seen on this route today.`,
+    `Scheduled trips known for ${formatCount(body.scheduledCoverage.n)} of ${countPhrase(body.scheduledCoverage.of, 'bus', 'buses')} seen on this route today.`,
   ];
 }
 
