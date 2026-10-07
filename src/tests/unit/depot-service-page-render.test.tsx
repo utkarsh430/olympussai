@@ -116,7 +116,15 @@ describe('RouteHourlyPage body', () => {
     expect(source?.className).toContain('truncate');
     expect(proposals?.textContent).toContain('Recommendation only');
     expect(proposals?.textContent).toContain('not ticketing');
-    expect(proposals?.querySelectorAll('tbody tr')).toHaveLength(3);
+    expect(proposals?.querySelectorAll('tbody tr[tabindex]')).toHaveLength(3);
+  });
+
+  it('groups the proposals into changes and timetable findings', () => {
+    render();
+    const groups = Array.from(
+      section('service-proposals')?.querySelectorAll('[data-testid="depot-table-group"]') ?? [],
+    ).map((row) => row.textContent);
+    expect(groups).toEqual(['Changes · 2', 'Timetable findings · 1']);
   });
 
   it('opens a row to its full reason and impact ranges', () => {
@@ -132,7 +140,7 @@ describe('RouteHourlyPage body', () => {
   it('pages a long list of proposals at 25 rows', () => {
     const many: Proposal[] = Array.from({ length: 30 }, (_, i) => ({ ...FIXTURE_PROPOSALS[0]!, id: `p-${i}` }));
     render({ ...LOADED, response: routeHourlyFixture({ proposals: many }) });
-    expect(section('service-proposals')?.querySelectorAll('tbody tr')).toHaveLength(25);
+    expect(section('service-proposals')?.querySelectorAll('tbody tr[tabindex]')).toHaveLength(25);
     expect(section('service-proposals')?.textContent).toMatch(/of 30/);
   });
 

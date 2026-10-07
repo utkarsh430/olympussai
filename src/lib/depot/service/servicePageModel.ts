@@ -171,6 +171,22 @@ export function proposalRow(p: Proposal): ProposalRow {
   };
 }
 
+/** The proposals table's two groups: what to do, then what to know. */
+export const PROPOSAL_GROUP = { changes: 'Changes', findings: 'Timetable findings' } as const;
+
+/** A proposal that moves buses (add or hold) is a change; one that moves none is a timetable finding. */
+export function proposalGroup(p: Pick<Proposal, 'change'>): string {
+  return p.change === 0 ? PROPOSAL_GROUP.findings : PROPOSAL_GROUP.changes;
+}
+
+/** Changes first, then the timetable findings; each by start hour, then end hour. */
+export function orderProposals(proposals: readonly Proposal[]): readonly Proposal[] {
+  const rank = (p: Proposal): number => (p.change === 0 ? 1 : 0);
+  return [...proposals].sort(
+    (a, b) => rank(a) - rank(b) || a.band.fromHour - b.band.fromHour || a.band.toHour - b.band.toHour,
+  );
+}
+
 export type ProposalColumnKey =
   | 'band'
   | 'change'

@@ -6,12 +6,15 @@ import { Pager } from '@/components/depot/shell/LongLists';
 import { Notice } from '@/components/depot/shell/Notice';
 import { SectionLabel } from '@/components/depot/shell/SectionLabel';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
+import type { TableGrouping } from '@/components/depot/shell/tableGroups';
 import { useWidthTier } from '@/components/depot/shell/useWidthTier';
 import { pageRange } from '@/lib/depot/listPaging';
 import {
   PROPOSAL_COLUMN_WIDTHS,
   PROPOSAL_TIERS,
+  orderProposals,
   proposalColumnKeys,
+  proposalGroup,
   proposalRow,
   type ProposalColumnKey,
   type ProposalRow,
@@ -23,7 +26,8 @@ const TITLE_ID = 'service-proposals';
 const W = PROPOSAL_COLUMN_WIDTHS;
 
 const COLUMNS: Readonly<Record<ProposalColumnKey, Column<ProposalRow>>> = {
-  band: { key: 'band', header: 'Hour band', width: W.band, render: (r) => r.band, sortValue: (r) => r.proposal.band.fromHour },
+  // Not sortable: the rows come grouped and in start-hour order, and a sort would split the groups.
+  band: { key: 'band', header: 'Hour band', width: W.band, render: (r) => r.band },
   change: { key: 'change', header: 'Change', width: W.change, render: (r) => r.change, title: (r) => r.changeTitle },
   deployed: { key: 'deployed', header: 'Deployed', align: 'right', width: W.deployed, render: (r) => r.deployed },
   scheduled: {
@@ -55,6 +59,9 @@ const COLUMNS: Readonly<Record<ProposalColumnKey, Column<ProposalRow>>> = {
   },
   restsOn: { key: 'restsOn', header: 'Rests on', width: W.restsOn, render: (r) => r.restsOn, title: (r) => r.restsOnTitle },
 };
+
+/** Changes (add, hold) first, then the timetable findings, each printed once as a group row. */
+const GROUP: TableGrouping<ProposalRow> = { key: (r) => proposalGroup(r.proposal) };
 
 /** The expanded row: the full reason, the figures a narrow width drops, the impact ranges. */
 function ProposalDetail({ row }: { readonly row: ProposalRow }) {
@@ -88,7 +95,7 @@ function ProposalDetail({ row }: { readonly row: ProposalRow }) {
 export function ProposalsTable({ proposals }: { readonly proposals: readonly Proposal[] }) {
   const tier = useWidthTier(PROPOSAL_TIERS);
   const [page, setPage] = useState(0);
-  const rows = useMemo(() => proposals.map(proposalRow), [proposals]);
+  const rows = useMemo(() => orderProposals(proposals).map(proposalRow), [proposals]);
   const columns = useMemo(() => proposalColumnKeys(tier).map((key) => COLUMNS[key]), [tier]);
   const range = pageRange(page, rows.length);
   return (
@@ -111,6 +118,7 @@ export function ProposalsTable({ proposals }: { readonly proposals: readonly Pro
             caption={SERVICE_TEXT.proposalsCaption}
             fixedRows
             renderExpanded={(r) => <ProposalDetail row={r} />}
+            group={GROUP}
             multipleExpanded
           />
           <Pager page={range.page} total={rows.length} onPage={setPage} />

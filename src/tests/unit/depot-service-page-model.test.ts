@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   PROPOSAL_COLUMN_WIDTHS,
+  orderProposals,
   proposalColumnKeys,
+  proposalGroup,
   proposalRow,
   proposalTierFor,
   serviceFigures,
@@ -155,6 +157,22 @@ describe('proposal rows', () => {
       'Revenue a day: ₹9,400 to ₹16,800',
       'Bus-km a day: 420 to 510',
       'Cost a day: ₹15,100 to ₹18,300',
+    ]);
+  });
+});
+
+describe('proposal groups', () => {
+  it('puts the changes first and the timetable findings after, each by start hour', () => {
+    const late = { ...FIXTURE_PROPOSALS[0]!, id: 'p-late', band: { fromHour: 17, toHour: 19 } };
+    const early = { ...FIXTURE_PROPOSALS[2]!, id: 'p-early', band: { fromHour: 4, toHour: 5 } };
+    const ordered = orderProposals([FIXTURE_PROPOSALS[2]!, late, FIXTURE_PROPOSALS[1]!, early, FIXTURE_PROPOSALS[0]!]);
+    expect(ordered.map((p) => p.id)).toEqual(['p-add-07-10', 'p-hold-12-14', 'p-late', 'p-early', 'p-run-07-09']);
+    expect(ordered.map(proposalGroup)).toEqual([
+      'Changes',
+      'Changes',
+      'Changes',
+      'Timetable findings',
+      'Timetable findings',
     ]);
   });
 });
