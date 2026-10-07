@@ -13,6 +13,7 @@ import { prepareCopilotRequest, type Prepared } from '@/lib/depot/copilot/servic
 import { fail, isJsonMediaType, reply, tooMany } from '@/lib/depot/copilot/service/respond';
 import type { CopilotRuntime } from '@/lib/depot/copilot/service/runtime';
 import { parseCopilotBody, type ValidCopilotRequest } from '@/lib/depot/copilot/service/schema';
+import { loadServiceData, type ServiceSources } from '@/lib/depot/copilot/service/serviceData';
 import { dataSourceOf, staleSentence } from '@/lib/depot/copilot/service/stale';
 import type { CopilotDataSource } from '@/lib/depot/copilot/wire';
 
@@ -42,6 +43,7 @@ async function loadAndPrepare(
   load: () => Promise<FleetSnapshotView>,
   runtime: CopilotRuntime,
   deadlineAt: number,
+  sources: ServiceSources | undefined,
 ): Promise<Loaded | null> {
   let view: FleetSnapshotView | typeof SNAPSHOT_DEADLINE;
   const withheld = (): readonly string[] =>
@@ -60,8 +62,9 @@ async function loadAndPrepare(
     return null;
   }
   try {
+    const service = sources === undefined ? {} : await loadServiceData(body, view, sources);
     return {
-      prepared: prepareCopilotRequest(body, view),
+      prepared: prepareCopilotRequest(body, view, service),
       staleSentence: staleSentence(view),
       dataSource: dataSourceOf(view),
     };
@@ -82,6 +85,7 @@ async function handleChecked(
   runtime: CopilotRuntime,
   loadSnapshot: () => Promise<FleetSnapshotView>,
   claims: Readonly<IdentityClaims>,
+  sources: ServiceSources | undefined,
 ): Promise<NextResponse> {
   const deadlineAt = runtime.now() + runtime.deadlineMs;
   if (!isSameOrigin(request)) return fail('origin');
@@ -98,7 +102,7 @@ async function handleChecked(
   const body = parseCopilotBody(raw.text);
   if (!body) return fail('invalid');
 
-  const loaded = await loadAndPrepare(body, loadSnapshot, runtime, deadlineAt);
+  const loaded = await loadAndPrepare(body, loadSnapshot, runtime, deadlineAt, sources);
   if (!loaded) return fail('unavailable');
   if (!loaded.prepared.ok) return fail('notFound');
   return reply(
@@ -118,15 +122,18 @@ async function handleChecked(
  * passes its claims, which identify the caller for the limits. Anything that
  * throws past the guards is a fixed 503 with `no-store` and one log line (reason code,
  * writer, the error's class and bounded message); the error never leaves the server.
+ * `sources` are the service stores the route and network kinds read; without them those
+ * kinds answer that the data is not available.
  */
 export async function handleCopilotPost(
   request: NextRequest,
   runtime: CopilotRuntime,
   loadSnapshot: () => Promise<FleetSnapshotView>,
   claims: Readonly<IdentityClaims>,
+  sources?: ServiceSources,
 ): Promise<NextResponse> {
   try {
-    return await handleChecked(request, runtime, loadSnapshot, claims);
+    return await handleChecked(request, runtime, loadSnapshot, claims, sources);
   } catch (error: unknown) {
     logCopilotFailure(runtime, 'unexpected', error, withheldStrings({ env: runtime.env }));
     return fail('unavailable');
