@@ -167,6 +167,15 @@ function sourceCell(p: Proposal): Pick<ProposalRow, 'source' | 'sourceTitle'> {
   };
 }
 
+/** The bus-km a hold saves, as a positive range: its bus-km figure is the negative saving. */
+function kmSaved(range: ImpactRange): ImpactRange {
+  return { low: Math.max(0, -range.high), high: Math.max(0, -range.low) };
+}
+
+/**
+ * The impact cell: the passengers an add carries, the bus-km a hold saves (a hold carries no
+ * more passengers). The expanded row lists all four ranges either way.
+ */
 function impactCells(p: Proposal): Pick<ProposalRow, 'impact' | 'impactTitle' | 'impactLines'> {
   if (p.impact === null) return { impact: DASH, impactTitle: SERVICE_TEXT.noImpact, impactLines: [] };
   const i = p.impact;
@@ -176,11 +185,11 @@ function impactCells(p: Proposal): Pick<ProposalRow, 'impact' | 'impactTitle' | 
     `Bus-km a day: ${rangeText(i.busKmPerDay, formatCount, ' to ')}`,
     `Cost a day: ${rangeText(i.costPerDay, money, ' to ')}`,
   ];
-  return {
-    impact: rangeText(i.passengersPerDay, formatCount, '–'),
-    impactTitle: lines.join('; '),
-    impactLines: lines,
-  };
+  const impact =
+    p.change < 0
+      ? `${rangeText(kmSaved(i.busKmPerDay), formatCount, '–')} km saved`
+      : `${rangeText(i.passengersPerDay, formatCount, '–')} pax`;
+  return { impact, impactTitle: lines.join('; '), impactLines: lines };
 }
 
 export function proposalRow(p: Proposal): ProposalRow {

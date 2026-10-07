@@ -93,14 +93,25 @@ describe('proposal rows', () => {
       band: '07:00–11:00',
       change: 'Add 3',
       source: 'Alambagh · 6 standing',
-      impact: '180–320',
+      impact: '180–320 pax',
       restsOn: 'B · Mixed',
       reason: FIXTURE_PROPOSALS[0]?.reason,
     });
-    expect(hold).toMatchObject({ change: 'Hold 2', source: 'Alambagh · day plan', impact: '−20–0' });
+    expect(hold).toMatchObject({ change: 'Hold 2', source: 'Alambagh · day plan', impact: '270–330 km saved' });
     expect(run).toMatchObject({ change: 'Running time', source: '—', impact: '—', restsOn: 'A · Measured' });
     expect(run?.impactTitle).toMatch(/No modelled impact/);
     expect(run?.sourceTitle).toBe('No bus moves for this finding.');
+  });
+
+  it('shows the bus-km a hold saves, never its zero passengers, and all four ranges either way', () => {
+    const hold = proposalRow(FIXTURE_PROPOSALS[1]!);
+    expect(hold.impact).not.toMatch(/pax/);
+    expect(hold.impactLines).toEqual([
+      'Passengers a day: 0 to 0',
+      'Revenue a day: ₹0 to ₹0',
+      'Bus-km a day: −330 to −270',
+      'Cost a day: −₹11,800 to −₹9,600',
+    ]);
   });
 
   it('says an add with no source has none identified, not that no bus moves', () => {
@@ -136,7 +147,8 @@ describe('proposals table width per tier', () => {
   });
 
   it('gives the MODELLED headers the room a browser draws them in', () => {
-    // Measured in a browser at 1440: "Needed MODELLED" 159px, "Impact pax MODELLED" 191px.
+    // Measured in a browser at 1440: "Needed MODELLED" 159px; the impact cell's longest
+    // words ("1,200–2,000 km saved") need its 192px.
     expect(PROPOSAL_COLUMN_WIDTHS.needed).toBeGreaterThanOrEqual(160);
     expect(PROPOSAL_COLUMN_WIDTHS.impact).toBeGreaterThanOrEqual(192);
     expect(PROPOSAL_COLUMN_WIDTHS.band).toBeGreaterThanOrEqual(112);

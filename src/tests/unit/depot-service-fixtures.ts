@@ -117,8 +117,8 @@ const PROPOSALS: readonly Proposal[] = [
     maybeCoveredByUnrouted: false,
     reason: 'From 12:00 to 15:00 the modelled day runs 8 buses against 6.3 needed.',
     impact: {
-      passengersPerDay: { low: -20, high: 0 },
-      revenuePerDay: { low: -1100, high: 0 },
+      passengersPerDay: { low: 0, high: 0 },
+      revenuePerDay: { low: 0, high: 0 },
       busKmPerDay: { low: -330, high: -270 },
       costPerDay: { low: -11800, high: -9600 },
       provenance: 'modelled',

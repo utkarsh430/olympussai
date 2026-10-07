@@ -47,7 +47,6 @@ const COLUMNS: Readonly<Record<ProposalColumnKey, Column<ProposalRow>>> = {
   impact: {
     key: 'impact',
     header: 'Impact',
-    unit: 'pax',
     tag: 'modelled',
     align: 'right',
     width: W.impact,
