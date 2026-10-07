@@ -20,7 +20,7 @@ import { capAddsAtStanding } from '../service/proposalCap';
 import { buildProposals } from '../service/proposals';
 import { reliabilityByHour } from '../service/reliability';
 import { scheduledSupply } from '../service/scheduledSupply';
-import type { LedgerJourney, RouteHourlyBody } from '../service/types';
+import type { LedgerJourney, NeedInputs, RouteHourlyBody } from '../service/types';
 import { MINUTES_PER_HOUR } from '../units';
 import { analyseSnapshot, type SnapshotAnalysis } from './analysis';
 import { operatingDayFor } from './operatingDayView';
@@ -64,6 +64,11 @@ function currentHourOf(row: RouteRow, feedMinute: number | null): CurrentRouteHo
     lateShare: row.delay.lateShare,
     delayCoverage: row.delay.coverage,
   };
+}
+
+/** The journey minutes the feed's schedule or the profile gives; null when only the trip model's assumption is left. */
+function knownJourneyMinutes(need: NeedInputs): number | null {
+  return need.journeyMinutesProvenance === 'derived' ? need.journeyMinutes : null;
 }
 
 /** Each operating depot's shared modelled day, the one the duty and revenue pages read. */
@@ -120,9 +125,10 @@ export async function routeHourlyBody(
   ]);
   const ledger = routeLedger(view, held, routeName, operatingDate);
   const days = operatorDays(view, row);
-  const modelled = modelledRouteHours(days, routeName, operatingDate);
   const profile = cachedRouteProfiles(view, operatingDate).get(routeName);
   const need = needInputsFor({ routeName, ledger, profileDurationMin: profile?.scheduledDurationMin ?? null });
+  const journeyMinutes = knownJourneyMinutes(need);
+  const modelled = modelledRouteHours({ routeName, operatingDate, buses: row.buses, journeyMinutes });
   const current = currentHourOf(row, feedMinute);
   const demand = modelHourlyDemand({
     routeName,
