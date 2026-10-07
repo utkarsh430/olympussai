@@ -3,7 +3,13 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { HourChart } from '@/components/depot/hourChart/HourChart';
 import { GapTick } from '@/components/depot/hourChart/HourPlotParts';
-import { GAP_COLOUR, HOUR_COLOUR } from '@/components/depot/hourChart/hourChartStyle';
+import {
+  CASING_WIDTH,
+  GAP_COLOUR,
+  HOUR_COLOUR,
+  LINE_WIDTH,
+} from '@/components/depot/hourChart/hourChartStyle';
+import { DEPOT_PALETTE } from '@/lib/depot/palette';
 import { buildHourChartModel } from '@/lib/depot/service/hourChartModel';
 import { bannedOnScreen } from './depot-guard-rendered';
 import { routeHourlyFixture } from './depot-service-fixtures';
@@ -22,6 +28,22 @@ vi.mock('recharts', async (importOriginal) => {
         : null,
   };
 });
+
+/** WCAG relative luminance of a #rrggbb colour, and the contrast of two. */
+function luminance(hex: string): number {
+  const channels = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+  const [r, g, b] = channels.map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)) as [
+    number,
+    number,
+    number,
+  ];
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function contrast(a: string, b: string): number {
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x) as [number, number];
+  return (hi + 0.05) / (lo + 0.05);
+}
 
 const actGlobal = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
 let container: HTMLDivElement;
@@ -104,6 +126,26 @@ describe('HourChart', () => {
     expect(plot?.getAttribute('aria-label')).toContain('6 Oct 2026');
     expect(container.textContent).toContain('Now');
     expect(container.querySelector('pattern')).not.toBeNull();
+  });
+
+  it('draws the scheduled and needed lines over a page-coloured casing that reads on a solid bar', () => {
+    render();
+    const strokes = Array.from(container.querySelectorAll('path.recharts-line-curve')).map((p) => [
+      p.getAttribute('stroke'),
+      p.getAttribute('stroke-width'),
+    ]);
+    expect(strokes).toEqual([
+      [HOUR_COLOUR.casing, String(CASING_WIDTH)],
+      [HOUR_COLOUR.scheduled, String(LINE_WIDTH)],
+      [HOUR_COLOUR.casing, String(CASING_WIDTH)],
+      [HOUR_COLOUR.needed, String(LINE_WIDTH)],
+    ]);
+    expect(HOUR_COLOUR.casing).toBe(DEPOT_PALETTE.page);
+    for (const line of [HOUR_COLOUR.scheduled, HOUR_COLOUR.needed]) {
+      expect(contrast(line, HOUR_COLOUR.casing)).toBeGreaterThanOrEqual(3);
+    }
+    // The casing itself stands out from the bar it crosses.
+    expect(contrast(HOUR_COLOUR.deployed, HOUR_COLOUR.casing)).toBeGreaterThanOrEqual(3);
   });
 
   it('has a legend in words for every mark', () => {

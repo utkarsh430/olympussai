@@ -16,6 +16,8 @@ export const HOUR_COLOUR = {
   grid: DEPOT_PALETTE.line,
   axisText: DEPOT_PALETTE.label,
   outline: DEPOT_PALETTE.faint,
+  /** Drawn under each line, so a line crossing a solid cyan bar keeps a dark edge. */
+  casing: DEPOT_PALETTE.page,
 } as const;
 
 export const GAP_COLOUR: Readonly<Record<GapTone, string>> = {
@@ -34,3 +36,5 @@ export const HATCH_OPACITY = 0.7;
 /** The not-observed column: an outline only, dashed so it never reads as a measured bar. */
 export const OUTLINE_DASH = '3 2';
 export const LINE_WIDTH = 2;
+/** The casing is a pixel wider each side than the line it sits under. */
+export const CASING_WIDTH = LINE_WIDTH + 2;
