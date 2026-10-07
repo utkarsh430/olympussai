@@ -96,7 +96,7 @@ export const SERVICE_TEXT = {
   showTable: 'Show as table',
   showChart: 'Show as chart',
   tableCaption: 'Buses deployed, scheduled and needed for each hour of the day',
-  bandLabel: 'This hour',
+  bandLabel: 'Now and the day',
   deployedCaption: 'In service or on the road',
   proposalsTitle: 'Proposals',
   proposalsCaption: 'Proposals for this route',
@@ -119,7 +119,7 @@ export const SERVICE_TEXT = {
   errorTitle: 'Route day unavailable',
   empty: 'This route has no figures for today yet: the feed has not reported it.',
   noFeedClock: 'No feed clock',
-  notObservedYet: 'Not observed yet',
+  noHourShort: 'No hour short',
   even: 'Even',
 } as const;
 

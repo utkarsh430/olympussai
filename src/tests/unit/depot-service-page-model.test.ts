@@ -34,25 +34,27 @@ describe('service wording', () => {
 });
 
 describe('service figures', () => {
-  it('reads the current hour: deployed, needed, gap and samples', () => {
+  it('reads the current hour and the day: deployed, needed, the gap now as the lead, hours short', () => {
     const figures = serviceFigures(routeHourlyFixture());
     expect(figures.map((f) => [f.label, f.value])).toEqual([
       ['Deployed now', '10'],
-      ['Need now', '8'],
+      ['Needed now', '8'],
       ['Gap now', '−2'],
-      ['Samples', '79'],
+      ['Hours short', '8'],
     ]);
     expect(figures[1]?.tag).toBe('modelled');
-    expect(figures[2]?.tone).toBe('better');
-    expect(figures[3]?.caption).toBe('Observed since 05:02');
+    expect(figures[2]).toMatchObject({ tone: 'better', lead: true, caption: 'Over by 2' });
+    expect(figures[3]).toMatchObject({ caption: 'Peak +5 at 17:00', tag: 'modelled' });
     expect(figures[0]?.caption).toBe('In service or on the road');
   });
 
-  it('says what is missing without a feed clock or any observation', () => {
+  it('says what is missing without a feed clock, and when no hour is short', () => {
     const figures = serviceFigures(routeHourlyFixture({ currentHour: null, observed: null }));
     expect(figures[0]?.value).toBe('—');
     expect(figures[0]?.caption).toBe('No feed clock');
-    expect(figures[3]).toMatchObject({ value: '0', caption: 'Not observed yet' });
+    const even = routeHourlyFixture();
+    const none = serviceFigures({ ...even, hours: even.hours.map((h) => ({ ...h, gap: 0 })) });
+    expect(none[3]).toMatchObject({ value: '0', caption: 'No hour short' });
   });
 });
 

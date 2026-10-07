@@ -102,7 +102,7 @@ describe('RouteHourlyPage body', () => {
   it('shows the current hour in four figures', () => {
     render();
     const band = section('service-figure-band')?.textContent ?? '';
-    for (const words of ['Deployed now', 'Need now', 'Gap now', '−2', 'Over by 2', 'Observed since 05:02']) {
+    for (const words of ['Deployed now', 'Needed now', 'Gap now', '−2', 'Over by 2', 'Hours short', 'Peak +5 at 17:00']) {
       expect(band).toContain(words);
     }
   });

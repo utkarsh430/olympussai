@@ -1,5 +1,5 @@
 import type { DepotMeaning } from '../palette';
-import { MINUS, formatCount, formatFeedTimeOn } from '../format';
+import { MINUS, formatCount } from '../format';
 import { BREAKPOINT_PX, WIDE_VIEWPORT_PX } from '../shell/geometry';
 import type { Provenance } from '../types';
 import {
@@ -11,6 +11,7 @@ import {
   busFigure,
   gapFigure,
   gapWords,
+  hourLabel,
 } from './serviceWording';
 import { changeWords } from './proposalChange';
 import type { ImpactRange, Proposal, RouteHourFigures, RouteHourlyResponse } from './types';
@@ -27,6 +28,8 @@ export interface ServiceFigure {
   readonly caption: string;
   readonly tag?: Provenance;
   readonly tone?: DepotMeaning;
+  /** The band's main number: the gap now. */
+  readonly lead?: boolean;
 }
 
 type Body = RouteHourlyResponse;
@@ -42,32 +45,42 @@ function gapTone(gap: number): DepotMeaning | undefined {
   return whole > 0 ? 'worse' : 'better';
 }
 
-function samplesFigure(body: Body): ServiceFigure {
-  if (body.observed === null) {
-    return { label: 'Samples', value: '0', caption: SERVICE_TEXT.notObservedYet };
-  }
-  const since = formatFeedTimeOn(body.observed.since, body.feedNow);
-  return { label: 'Samples', value: formatCount(body.observed.samples), caption: `Observed since ${since}` };
+/** The day's question beside the hour's: how many hours are short, and when the most. */
+function hoursShortFigure(body: Body): ServiceFigure {
+  const short = body.hours.filter((h) => Math.round(h.gap) > 0);
+  const peak = short.reduce<Body['hours'][number] | null>(
+    (best, h) => (best === null || h.gap > best.gap ? h : best),
+    null,
+  );
+  const caption =
+    peak === null ? SERVICE_TEXT.noHourShort : `Peak ${gapFigure(peak.gap)} at ${hourLabel(peak.hour)}`;
+  return { label: 'Hours short', value: formatCount(short.length), caption, tag: 'modelled' };
 }
 
-/** Deployed now, needed now (modelled), the gap now and the samples behind the day. */
+/** Deployed now, needed now (modelled), the gap now as the band's lead, and the day's hours short. */
 export function serviceFigures(body: Body): readonly ServiceFigure[] {
   const now = currentFigures(body);
   if (now === null) {
     const none = { value: DASH, caption: SERVICE_TEXT.noFeedClock };
     return [
       { label: 'Deployed now', ...none },
-      { label: 'Need now', ...none, tag: 'modelled' },
-      { label: 'Gap now', ...none },
-      samplesFigure(body),
+      { label: 'Needed now', ...none, tag: 'modelled' },
+      { label: 'Gap now', ...none, lead: true },
+      hoursShortFigure(body),
     ];
   }
   const range = `Range ${busFigure(neededAt(now, 'low'))} to ${busFigure(neededAt(now, 'high'))}`;
   return [
     { label: 'Deployed now', value: busFigure(now.deployed), caption: SERVICE_TEXT.deployedCaption },
-    { label: 'Need now', value: busFigure(now.needed), caption: range, tag: 'modelled' },
-    { label: 'Gap now', value: gapFigure(now.gap), caption: gapWords(now.gap), tone: gapTone(now.gap) },
-    samplesFigure(body),
+    { label: 'Needed now', value: busFigure(now.needed), caption: range, tag: 'modelled' },
+    {
+      label: 'Gap now',
+      value: gapFigure(now.gap),
+      caption: gapWords(now.gap),
+      tone: gapTone(now.gap),
+      lead: true,
+    },
+    hoursShortFigure(body),
   ];
 }
 

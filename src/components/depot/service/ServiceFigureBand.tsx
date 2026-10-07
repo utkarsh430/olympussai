@@ -6,9 +6,10 @@ import { SERVICE_TEXT } from '@/lib/depot/service/serviceWording';
 import type { RouteHourlyResponse } from '@/lib/depot/service/types';
 
 /**
- * The current hour in four figures: deployed (from the feed), needed (MODELLED, tagged
- * on its own figure since the page is mixed), the gap in its meaning's tone with the
- * gap in words as its caption, and the samples the day's observation rests on.
+ * The current hour and the day in four figures: deployed (from the feed), needed
+ * (MODELLED, tagged on its own figure since the page is mixed), the gap now as the band's
+ * lead in its meaning's tone with the gap in words as its caption, and the day's hours
+ * short with the peak hour.
  */
 export function ServiceFigureBand({ response }: { readonly response: RouteHourlyResponse }) {
   const figures = serviceFigures(response);
@@ -23,6 +24,7 @@ export function ServiceFigureBand({ response }: { readonly response: RouteHourly
             caption={f.caption}
             tag={f.tag}
             tone={f.tone}
+            lead={f.lead}
           />
         ))}
       </FigureBand>
