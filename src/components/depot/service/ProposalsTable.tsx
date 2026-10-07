@@ -22,7 +22,7 @@ import {
 } from '@/lib/depot/service/servicePageModel';
 import { SERVICE_TEXT } from '@/lib/depot/service/serviceWording';
 import type { Proposal, RouteHourFigures } from '@/lib/depot/service/types';
-import { ProposalDecisionTrail } from './ProposalDecisionTrail';
+import { ProposalDecisionsFooter } from './ProposalDecisionsFooter';
 import { ProposalDetail } from './ProposalDetail';
 import { PRINT_KEEP_ATTR } from './ServicePrintRule';
 import { useProposalDecisions, type ProposalDecisions } from './useProposalDecisions';
@@ -171,24 +171,7 @@ function ProposalsView({
         </>
       )}
       {decisions && operatingDate !== null ? (
-        <>
-          <p
-            role="status"
-            data-testid="proposal-status"
-            className="depot-prose mt-2 min-h-5 text-[13px] print:hidden"
-          >
-            {decisions.announcement}
-          </p>
-          <ProposalDecisionTrail
-            items={decisions.trail}
-            operatingDate={operatingDate}
-            onUndo={decisions.undo}
-            capacityNote={decisions.capacityNote}
-            stateNote={decisions.stateNote}
-            canClear={decisions.canClear}
-            onClear={decisions.clear}
-          />
-        </>
+        <ProposalDecisionsFooter decisions={decisions} operatingDate={operatingDate} />
       ) : null}
     </section>
   );

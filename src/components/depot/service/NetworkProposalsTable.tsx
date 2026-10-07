@@ -26,8 +26,14 @@ import {
 } from '@/lib/depot/service/networkPageModel';
 import { SERVICE_TEXT } from '@/lib/depot/service/serviceWording';
 import type { NetworkProposal, NetworkProposalGroup } from '@/lib/depot/service/types';
+import { ProposalDecisionControls } from './ProposalDecisionControls';
+import { ProposalDecisionsFooter } from './ProposalDecisionsFooter';
+import { PRINT_KEEP_ATTR } from './ServicePrintRule';
+import { useProposalDecisions, type ProposalDecisions } from './useProposalDecisions';
 
 const TITLE_ID = 'service-network-proposals';
+/** Printed beside the daily brief (`ServicePrintRule`). */
+const PRINT_MARK = { [PRINT_KEEP_ATTR]: '' };
 
 const COLUMNS: Readonly<Record<NetworkProposalColumnKey, Column<NetworkProposalRow>>> = {
   // Not sortable: the rows come grouped, and a sort would split the groups.
@@ -62,8 +68,17 @@ const COLUMNS: Readonly<Record<NetworkProposalColumnKey, Column<NetworkProposalR
 
 const GROUP: TableGrouping<NetworkProposalRow> = { key: (r) => NETWORK_GROUP_LABEL[r.group] };
 
-/** The expanded row: the reason, the route and depot, what it rests on, its impact, and a window's link. */
-function NetworkProposalDetail({ row }: { readonly row: NetworkProposalRow }) {
+/**
+ * The expanded row: the reason, the route and depot, what it rests on, its impact, a
+ * window's link, and the decision on it.
+ */
+function NetworkProposalDetail({
+  row,
+  decisions,
+}: {
+  readonly row: NetworkProposalRow;
+  readonly decisions: ProposalDecisions | null;
+}) {
   const p = row.proposal;
   const lines = [
     `Route: ${row.route}. Depot: ${row.depot}.`,
@@ -83,6 +98,17 @@ function NetworkProposalDetail({ row }: { readonly row: NetworkProposalRow }) {
           {`${row.depot} maintenance`}
         </Link>
       ) : null}
+      {decisions ? (
+        <div className="pt-3">
+          <ProposalDecisionControls
+            proposal={p}
+            label={`${row.route} ${row.band} ${row.change}`}
+            decision={decisions.book.get(p.id) ?? null}
+            onDecide={decisions.decide}
+            onUndo={decisions.undoFor(p.id)}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -92,16 +118,43 @@ export interface NetworkProposalsTableProps {
   readonly proposals: readonly NetworkProposal[];
   /** How many each group held before the body's cut. */
   readonly totals: Readonly<Record<NetworkProposalGroup, number>>;
+  /** The date decisions are recorded under; without one the table records none. */
+  readonly operatingDate?: string | null;
 }
 
-export function NetworkProposalsTable({ proposals, totals }: NetworkProposalsTableProps) {
+/**
+ * Decisions on these proposals go to the trail the route pages share; the trail here lists
+ * every route's and network proposal's decisions, never a transfer's.
+ */
+export function NetworkProposalsTable(props: NetworkProposalsTableProps) {
+  const date = props.operatingDate ?? null;
+  if (date === null) return <NetworkProposalsView {...props} decisions={null} />;
+  return <DecidedNetworkProposals {...props} operatingDate={date} />;
+}
+
+function DecidedNetworkProposals(props: NetworkProposalsTableProps & { readonly operatingDate: string }) {
+  const decisions = useProposalDecisions(props.operatingDate, null);
+  return <NetworkProposalsView {...props} decisions={decisions} />;
+}
+
+function NetworkProposalsView({
+  proposals,
+  totals,
+  operatingDate = null,
+  decisions,
+}: NetworkProposalsTableProps & { readonly decisions: ProposalDecisions | null }) {
   const tier = useWidthTier(NETWORK_PROPOSAL_TIERS);
   const [page, setPage] = useState(0);
   const rows = useMemo(() => orderNetworkProposals(proposals).map(networkProposalRow), [proposals]);
   const columns = useMemo(() => networkProposalColumnKeys(tier).map((key) => COLUMNS[key]), [tier]);
   const range = pageRange(page, rows.length);
   return (
-    <section aria-labelledby={TITLE_ID} className="min-w-0" data-testid="service-network-proposals">
+    <section
+      aria-labelledby={TITLE_ID}
+      className="min-w-0"
+      data-testid="service-network-proposals"
+      {...PRINT_MARK}
+    >
       <SectionLabel id={TITLE_ID} label={SERVICE_TEXT.proposalsTitle} />
       <div className="mb-3">
         <Notice status="info" word="Recommendation only">
@@ -120,13 +173,18 @@ export function NetworkProposalsTable({ proposals, totals }: NetworkProposalsTab
             rowLabel={(r) => `${r.band} ${r.change} ${r.route}`}
             caption="Proposals across the network for this band"
             fixedRows
-            renderExpanded={(r) => <NetworkProposalDetail row={r} />}
+            renderExpanded={(r) => <NetworkProposalDetail row={r} decisions={decisions} />}
             group={GROUP}
             multipleExpanded
           />
-          <Pager page={range.page} total={rows.length} onPage={setPage} />
+          <div className="print:hidden">
+            <Pager page={range.page} total={rows.length} onPage={setPage} />
+          </div>
         </>
       )}
+      {decisions && operatingDate !== null ? (
+        <ProposalDecisionsFooter decisions={decisions} operatingDate={operatingDate} />
+      ) : null}
     </section>
   );
 }
