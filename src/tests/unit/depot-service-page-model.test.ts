@@ -30,7 +30,7 @@ describe('service figures', () => {
     const figures = serviceFigures(routeHourlyFixture());
     expect(figures.map((f) => [f.label, f.value])).toEqual([
       ['Deployed now', '10'],
-      ['Needed now', '8'],
+      ['Need now', '8'],
       ['Gap now', '−2'],
       ['Samples', '79'],
     ]);

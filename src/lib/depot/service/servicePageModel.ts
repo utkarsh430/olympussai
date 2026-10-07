@@ -58,7 +58,7 @@ export function serviceFigures(body: Body): readonly ServiceFigure[] {
     const none = { value: DASH, caption: SERVICE_TEXT.noFeedClock };
     return [
       { label: 'Deployed now', ...none },
-      { label: 'Needed now', ...none, tag: 'modelled' },
+      { label: 'Need now', ...none, tag: 'modelled' },
       { label: 'Gap now', ...none },
       samplesFigure(body),
     ];
@@ -66,7 +66,7 @@ export function serviceFigures(body: Body): readonly ServiceFigure[] {
   const range = `Range ${busFigure(neededAt(now, 'low'))} to ${busFigure(neededAt(now, 'high'))}`;
   return [
     { label: 'Deployed now', value: busFigure(now.deployed), caption: SERVICE_TEXT.deployedCaption },
-    { label: 'Needed now', value: busFigure(now.needed), caption: range, tag: 'modelled' },
+    { label: 'Need now', value: busFigure(now.needed), caption: range, tag: 'modelled' },
     { label: 'Gap now', value: gapFigure(now.gap), caption: gapWords(now.gap), tone: gapTone(now.gap) },
     samplesFigure(body),
   ];
