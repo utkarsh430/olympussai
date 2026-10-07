@@ -1,4 +1,4 @@
-import { formatCount, formatFeedTime, formatOneDecimal } from '@/lib/depot/format';
+import { formatCount, formatFeedTime } from '@/lib/depot/format';
 import { bandLabel } from '@/lib/depot/service/bands';
 import { money } from '@/lib/depot/service/proposalDetail';
 import type {
@@ -18,13 +18,10 @@ import type { Provenance } from '@/lib/depot/types';
  * so a time of day is always a fact ("10:00–11:00"), never prose.
  */
 
-const TENTHS = 10;
-
-/** A bus count: whole numbers as counts, a mean to one decimal, always with its noun. */
+/** A count of buses is always a whole number: a mean over hours is rounded before it is said. */
 export function busesText(n: number): string {
-  const size = Math.round(Math.abs(n) * TENTHS) / TENTHS;
-  const figure = Number.isInteger(size) ? formatCount(size) : formatOneDecimal(size);
-  return `${figure} ${size === 1 ? 'bus' : 'buses'}`;
+  const size = Math.round(Math.abs(n));
+  return `${formatCount(size)} ${size === 1 ? 'bus' : 'buses'}`;
 }
 
 /** A count with its own noun, singular for one. */

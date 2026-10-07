@@ -42,9 +42,9 @@ describe('buildProposalRationale', () => {
     const by = (id: string) => buildProposalRationale(ADD, body).facts.find((f) => f.id === id);
     expect(by('p.band')).toMatchObject({ text: '07:00–11:00', provenance: 'derived' });
     expect(by('p.change')).toMatchObject({ text: 'add 3 buses', provenance: 'modelled' });
-    expect(by('p.deployed')).toMatchObject({ text: '8.8 buses', provenance: 'derived' });
-    expect(by('p.scheduled')).toMatchObject({ text: '5.6 buses', provenance: 'derived' });
-    expect(by('p.needed')).toMatchObject({ text: '11.8 buses', provenance: 'modelled' });
+    expect(by('p.deployed')).toMatchObject({ text: '9 buses', provenance: 'derived' });
+    expect(by('p.scheduled')).toMatchObject({ text: '6 buses', provenance: 'derived' });
+    expect(by('p.needed')).toMatchObject({ text: '12 buses', provenance: 'modelled' });
     expect(by('p.gap')).toMatchObject({ text: '3 buses', provenance: 'modelled' });
     expect(by('p.source')).toMatchObject({ text: 'Alambagh', kind: 'name' });
     expect(by('p.standing')).toMatchObject({ text: '6 buses', provenance: 'derived' });
