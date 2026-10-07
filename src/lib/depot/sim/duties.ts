@@ -38,6 +38,29 @@ function isKnown(minutes: number | null): minutes is number {
   return minutes !== null && Number.isFinite(minutes) && minutes > 0;
 }
 
+/** One duty's start and end minute of the operating day. */
+export interface DutySpan {
+  readonly startMin: number;
+  readonly endMin: number;
+}
+
+/**
+ * Draws one duty from the stream: its start (see drawStart), then its length.
+ * A route with a known scheduled duration runs out and back plus a layover;
+ * otherwise a seeded 4-10 hours; never more than 16 hours. The unknown length
+ * is always drawn so the stream stays aligned whichever is used. Exported so a
+ * route's own buses can be given duties by exactly the depot roll's rules.
+ */
+export function drawDutySpan(rng: SeededRandom, scheduledDurationMin: number | null): DutySpan {
+  const startMin = drawStart(rng);
+  const unknown = roundToFive(rng.float(UNKNOWN_DURATION_MIN.from, UNKNOWN_DURATION_MIN.to));
+  const duration = Math.min(
+    MAX_DURATION_MIN,
+    isKnown(scheduledDurationMin) ? roundToFive(scheduledDurationMin * 2 + LAYOVER_MIN) : unknown,
+  );
+  return { startMin, endMin: startMin + duration };
+}
+
 /**
  * The depot's modelled duties for one operating date: exactly
  * `peakRequirement` of them, one per bus the depot needs at peak. Zero when the
@@ -74,19 +97,13 @@ export function modelDuties(
   const duties: Duty[] = [];
   for (let index = 0; index < peakRequirement; index += 1) {
     const routeName = names[index % names.length] as string;
-    const scheduled = byName.get(routeName) ?? null;
-    const startMin = drawStart(rng);
-    const unknown = roundToFive(rng.float(UNKNOWN_DURATION_MIN.from, UNKNOWN_DURATION_MIN.to));
-    const duration = Math.min(
-      MAX_DURATION_MIN,
-      isKnown(scheduled) ? roundToFive(scheduled * 2 + LAYOVER_MIN) : unknown,
-    );
+    const { startMin, endMin } = drawDutySpan(rng, byName.get(routeName) ?? null);
     duties.push({
       id: `${depot.id}-${operatingDate}-${String(index).padStart(3, '0')}`,
       depotId: depot.id,
       routeName,
       startMin,
-      endMin: startMin + duration,
+      endMin,
       serviceClass: classFromRoute(routeName) ?? 'ordinary',
       provenance: 'modelled',
     });
