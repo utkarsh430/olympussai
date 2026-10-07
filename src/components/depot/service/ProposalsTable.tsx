@@ -1,7 +1,6 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { ProposalRationaleButton } from '@/components/depot/copilot/RationaleButton';
 import { DataTable, type Column } from '@/components/depot/shell/DataTable';
 import { Pager } from '@/components/depot/shell/LongLists';
 import { Notice } from '@/components/depot/shell/Notice';
@@ -14,7 +13,6 @@ import {
   PROPOSAL_COLUMN_WIDTHS,
   PROPOSAL_TIERS,
   hasPastBand,
-  hiddenFigures,
   orderProposals,
   proposalColumnKeys,
   proposalGroup,
@@ -23,8 +21,10 @@ import {
   type ProposalRow,
 } from '@/lib/depot/service/servicePageModel';
 import { SERVICE_TEXT } from '@/lib/depot/service/serviceWording';
-import { meaningTextClass } from '@/lib/depot/palette';
 import type { Proposal, RouteHourFigures } from '@/lib/depot/service/types';
+import { ProposalDecisionTrail } from './ProposalDecisionTrail';
+import { ProposalDetail } from './ProposalDetail';
+import { useProposalDecisions, type ProposalDecisions } from './useProposalDecisions';
 
 const TITLE_ID = 'service-proposals';
 const W = PROPOSAL_COLUMN_WIDTHS;
@@ -85,70 +85,41 @@ const COLUMNS: Readonly<Record<ProposalColumnKey, Column<ProposalRow>>> = {
 /** Changes (add, hold) first, then the timetable findings, each printed once as a group row. */
 const GROUP: TableGrouping<ProposalRow> = { key: (r) => proposalGroup(r.proposal) };
 
-/**
- * The expanded row: the full reason, the peak, the band means the table at this width
- * hides, where the buses come from and what the proposal rests on, then the impact as a
- * 2×2 grid and the net a day (a loss in the worse tone, said in words), and the copilot's
- * explanation of the proposal on request.
- */
-function ProposalDetail({ row, shown }: { readonly row: ProposalRow; readonly shown: readonly string[] }) {
-  const figures = hiddenFigures(row, shown);
-  const lines = [
-    ...(row.peak ? [row.peak] : []),
-    ...(figures ? [figures] : []),
-    row.sourceTitle,
-    row.restsOnTitle,
-    ...(row.maybeCovered ? [SERVICE_TEXT.maybeCovered] : []),
-  ];
-  return (
-    <div className="space-y-1 py-2" data-testid="proposal-detail">
-      <p className="depot-prose">{row.reason}</p>
-      {lines.map((line) => (
-        <p key={line} className="depot-note">{line}</p>
-      ))}
-      {row.impactPairs.length > 0 ? (
-        <>
-          <dl
-            className="depot-note grid w-fit grid-cols-[max-content_auto] gap-x-4 gap-y-0.5 pt-1 sm:grid-cols-[max-content_auto_max-content_auto]"
-            aria-label="Modelled impact ranges"
-          >
-            {row.impactPairs.map(([label, value]) => (
-              <div key={label} className="contents">
-                <dt>{label}</dt>
-                <dd className="tabular-nums text-depot-ink">{value}</dd>
-              </div>
-            ))}
-          </dl>
-          {row.net ? (
-            <p className={`depot-note ${row.net.loss ? meaningTextClass('worse') : 'text-depot-ink'}`}>
-              {row.net.text}
-            </p>
-          ) : null}
-        </>
-      ) : (
-        <p className="depot-note">{SERVICE_TEXT.noImpact}</p>
-      )}
-      <div className="pt-2">
-        <ProposalRationaleButton
-          proposalId={row.proposal.id}
-          routeName={row.proposal.routeName}
-          label={`${row.band} ${row.change}`}
-        />
-      </div>
-    </div>
-  );
-}
-
 export interface ProposalsTableProps {
   readonly proposals: readonly Proposal[];
   /** The route's day, for an add's hourly range. */
   readonly hours?: readonly RouteHourFigures[];
   /** The feed clock's hour, to say when a band is already past; null without a feed clock. */
   readonly currentHour?: number | null;
+  /** The date decisions are recorded under; without it the proposals' own date is used. */
+  readonly operatingDate?: string | null;
+  /** The route whose decisions the trail lists; null (the default) lists every route's. */
+  readonly trailRoute?: string | null;
 }
 
-/** The route's proposals: the recommendation notice, the table at this width, the pager. */
-export function ProposalsTable({ proposals, hours = [], currentHour = null }: ProposalsTableProps) {
+/**
+ * The proposals: the recommendation notice, the table at this width, the pager, the status
+ * line of the last decision and the trail of decisions kept in this browser. Without a
+ * date (no proposals and none given) there is nothing to decide and no trail.
+ */
+export function ProposalsTable(props: ProposalsTableProps) {
+  const date = props.operatingDate ?? props.proposals[0]?.operatingDate ?? null;
+  if (date === null) return <ProposalsView {...props} decisions={null} />;
+  return <DecidedProposals {...props} operatingDate={date} />;
+}
+
+function DecidedProposals(props: ProposalsTableProps & { readonly operatingDate: string }) {
+  const decisions = useProposalDecisions(props.operatingDate, props.trailRoute ?? null);
+  return <ProposalsView {...props} decisions={decisions} />;
+}
+
+function ProposalsView({
+  proposals,
+  hours = [],
+  currentHour = null,
+  operatingDate = null,
+  decisions,
+}: ProposalsTableProps & { readonly decisions: ProposalDecisions | null }) {
   const tier = useWidthTier(PROPOSAL_TIERS);
   const [page, setPage] = useState(0);
   const rows = useMemo(
@@ -180,13 +151,37 @@ export function ProposalsTable({ proposals, hours = [], currentHour = null }: Pr
             rowLabel={(r) => `${r.band} ${r.change}`}
             caption={SERVICE_TEXT.proposalsCaption}
             fixedRows
-            renderExpanded={(r) => <ProposalDetail row={r} shown={shownKeys} />}
+            renderExpanded={(r) => (
+              <ProposalDetail row={r} shown={shownKeys} decisions={decisions} />
+            )}
             group={GROUP}
             multipleExpanded
           />
-          <Pager page={range.page} total={rows.length} onPage={setPage} />
+          <div className="print:hidden">
+            <Pager page={range.page} total={rows.length} onPage={setPage} />
+          </div>
         </>
       )}
+      {decisions && operatingDate !== null ? (
+        <>
+          <p
+            role="status"
+            data-testid="proposal-status"
+            className="depot-prose mt-2 min-h-5 text-[13px] print:hidden"
+          >
+            {decisions.announcement}
+          </p>
+          <ProposalDecisionTrail
+            items={decisions.trail}
+            operatingDate={operatingDate}
+            onUndo={decisions.undo}
+            capacityNote={decisions.capacityNote}
+            stateNote={decisions.stateNote}
+            canClear={decisions.canClear}
+            onClear={decisions.clear}
+          />
+        </>
+      ) : null}
     </section>
   );
 }
