@@ -9,11 +9,11 @@ import {
   TIER_SENTENCE,
   bandLabel,
   busFigure,
-  changeCell,
   gapFigure,
   gapWords,
 } from './serviceWording';
-import type { ImpactRange, Proposal, RouteHourlyResponse } from './types';
+import { changeWords } from './proposalChange';
+import type { ImpactRange, Proposal, RouteHourFigures, RouteHourlyResponse } from './types';
 
 /*
  * The route's hour-by-hour page as data: the figure band for the current hour and the
@@ -83,6 +83,8 @@ export interface ProposalRow {
   readonly band: string;
   readonly change: string;
   readonly changeTitle: string;
+  /** The hourly range and the peak hour, for the expanded row; null when the change is one figure. */
+  readonly peak: string | null;
   readonly deployed: string;
   readonly scheduled: string;
   readonly scheduledTitle: string | undefined;
@@ -151,12 +153,12 @@ function impactCells(p: Proposal): Pick<ProposalRow, 'impact' | 'impactTitle' | 
   return { impact, impactTitle: lines.join('; '), impactLines: lines };
 }
 
-export function proposalRow(p: Proposal): ProposalRow {
+/** One row of the proposals table; `hours` (the route's day) gives an add its hourly range. */
+export function proposalRow(p: Proposal, hours: readonly RouteHourFigures[] = []): ProposalRow {
   return {
     id: p.id,
     band: bandLabel(p.band),
-    change: changeCell(p.kind, p.change),
-    changeTitle: p.change === 0 ? SERVICE_TEXT.noSource : `${changeCell(p.kind, p.change)} buses`,
+    ...changeWords(p, hours, SERVICE_TEXT.noSource),
     deployed: busFigure(p.deployed),
     scheduled: busFigure(p.scheduled),
     scheduledTitle: p.scheduled === null ? SERVICE_TEXT.noScheduled : undefined,
@@ -177,6 +179,14 @@ export const PROPOSAL_GROUP = { changes: 'Changes', findings: 'Timetable finding
 /** A proposal that moves buses (add or hold) is a change; one that moves none is a timetable finding. */
 export function proposalGroup(p: Pick<Proposal, 'change'>): string {
   return p.change === 0 ? PROPOSAL_GROUP.findings : PROPOSAL_GROUP.changes;
+}
+
+/** True when a band ends before the current hour: today it can only inform the next day's plan. */
+export function hasPastBand(
+  proposals: readonly Pick<Proposal, 'band'>[],
+  currentHour: number | null,
+): boolean {
+  return currentHour !== null && proposals.some((p) => p.band.toHour < currentHour);
 }
 
 /** Changes first, then the timetable findings; each by start hour, then end hour. */

@@ -119,6 +119,17 @@ describe('RouteHourlyPage body', () => {
     expect(proposals?.querySelectorAll('tbody tr[tabindex]')).toHaveLength(3);
   });
 
+  it('says the band figures are means and that a band already past is a note for the next day', () => {
+    render();
+    const proposals = section('service-proposals');
+    const headers = Array.from(proposals?.querySelectorAll('th') ?? []).map((th) => th.textContent ?? '');
+    for (const name of ['Deployed', 'Scheduled', 'Needed']) {
+      expect(headers.find((h) => h.startsWith(name))).toMatch(/mean/);
+    }
+    // The fixture's add band (07:00–11:00) ends before the current hour, 11:00.
+    expect(proposals?.textContent).toContain('Bands already past are notes for the next day’s plan.');
+  });
+
   it('groups the proposals into changes and timetable findings', () => {
     render();
     const groups = Array.from(

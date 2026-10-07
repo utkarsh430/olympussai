@@ -12,6 +12,7 @@ import { pageRange } from '@/lib/depot/listPaging';
 import {
   PROPOSAL_COLUMN_WIDTHS,
   PROPOSAL_TIERS,
+  hasPastBand,
   orderProposals,
   proposalColumnKeys,
   proposalGroup,
@@ -20,25 +21,43 @@ import {
   type ProposalRow,
 } from '@/lib/depot/service/servicePageModel';
 import { PROPOSAL_KIND_LABEL, SERVICE_TEXT } from '@/lib/depot/service/serviceWording';
-import type { Proposal } from '@/lib/depot/service/types';
+import type { Proposal, RouteHourFigures } from '@/lib/depot/service/types';
 
 const TITLE_ID = 'service-proposals';
 const W = PROPOSAL_COLUMN_WIDTHS;
+/** The band's figures are its hours' means, said once in each header. */
+const MEAN = SERVICE_TEXT.bandMean;
 
 const COLUMNS: Readonly<Record<ProposalColumnKey, Column<ProposalRow>>> = {
   // Not sortable: the rows come grouped and in start-hour order, and a sort would split the groups.
   band: { key: 'band', header: 'Hour band', width: W.band, render: (r) => r.band },
   change: { key: 'change', header: 'Change', width: W.change, render: (r) => r.change, title: (r) => r.changeTitle },
-  deployed: { key: 'deployed', header: 'Deployed', align: 'right', width: W.deployed, render: (r) => r.deployed },
+  deployed: {
+    key: 'deployed',
+    header: 'Deployed',
+    unit: MEAN,
+    align: 'right',
+    width: W.deployed,
+    render: (r) => r.deployed,
+  },
   scheduled: {
     key: 'scheduled',
     header: 'Scheduled',
+    unit: MEAN,
     align: 'right',
     width: W.scheduled,
     render: (r) => r.scheduled,
     title: (r) => r.scheduledTitle,
   },
-  needed: { key: 'needed', header: 'Needed', tag: 'modelled', align: 'right', width: W.needed, render: (r) => r.needed },
+  needed: {
+    key: 'needed',
+    header: 'Needed',
+    unit: MEAN,
+    tag: 'modelled',
+    align: 'right',
+    width: W.needed,
+    render: (r) => r.needed,
+  },
   source: {
     key: 'source',
     header: 'Source',
@@ -75,6 +94,7 @@ function ProposalDetail({ row }: { readonly row: ProposalRow }) {
   return (
     <div className="space-y-1 py-2" data-testid="proposal-detail">
       <p className="depot-prose">{row.reason}</p>
+      {row.peak ? <p className="depot-note">{row.peak}</p> : null}
       {lines.map((line) => (
         <p key={line} className="depot-note">{line}</p>
       ))}
@@ -91,11 +111,22 @@ function ProposalDetail({ row }: { readonly row: ProposalRow }) {
   );
 }
 
+export interface ProposalsTableProps {
+  readonly proposals: readonly Proposal[];
+  /** The route's day, for an add's hourly range. */
+  readonly hours?: readonly RouteHourFigures[];
+  /** The feed clock's hour, to say when a band is already past; null without a feed clock. */
+  readonly currentHour?: number | null;
+}
+
 /** The route's proposals: the recommendation notice, the table at this width, the pager. */
-export function ProposalsTable({ proposals }: { readonly proposals: readonly Proposal[] }) {
+export function ProposalsTable({ proposals, hours = [], currentHour = null }: ProposalsTableProps) {
   const tier = useWidthTier(PROPOSAL_TIERS);
   const [page, setPage] = useState(0);
-  const rows = useMemo(() => orderProposals(proposals).map(proposalRow), [proposals]);
+  const rows = useMemo(
+    () => orderProposals(proposals).map((p) => proposalRow(p, hours)),
+    [proposals, hours],
+  );
   const columns = useMemo(() => proposalColumnKeys(tier).map((key) => COLUMNS[key]), [tier]);
   const range = pageRange(page, rows.length);
   return (
@@ -110,6 +141,9 @@ export function ProposalsTable({ proposals }: { readonly proposals: readonly Pro
         <StatePanel kind="empty" compact tone="ok" sentence={SERVICE_TEXT.noProposals} />
       ) : (
         <>
+          {hasPastBand(proposals, currentHour) ? (
+            <p className="depot-note mb-2">{SERVICE_TEXT.pastBands}</p>
+          ) : null}
           <DataTable
             columns={columns}
             rows={rows.slice(range.start, range.end)}

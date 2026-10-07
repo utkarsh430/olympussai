@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   PROPOSAL_COLUMN_WIDTHS,
+  hasPastBand,
   orderProposals,
   proposalColumnKeys,
   proposalGroup,
@@ -14,7 +15,7 @@ import {
   routeHourlyProvenance,
   scheduledLegendText,
 } from '@/lib/depot/service/serviceCoverage';
-import { bandLabel, hourLabel, PROPOSAL_KIND_LABEL } from '@/lib/depot/service/serviceWording';
+import { bandLabel, hourLabel, PROPOSAL_KIND_LABEL, SERVICE_TEXT } from '@/lib/depot/service/serviceWording';
 import { TABLE_FRAME_BORDER_PX, contentWidthAt } from '@/lib/depot/shell/geometry';
 import { tableWidth } from '@/lib/depot/shell/tableWidth';
 import { FIXTURE_PROPOSALS, routeHourlyFixture } from './depot-service-fixtures';
@@ -108,7 +109,7 @@ describe('coverage and provenance', () => {
 
 describe('proposal rows', () => {
   it('prints the change, source, impact and rests-on as short cell words', () => {
-    const [add, hold, run] = FIXTURE_PROPOSALS.map(proposalRow);
+    const [add, hold, run] = FIXTURE_PROPOSALS.map((p) => proposalRow(p));
     expect(add).toMatchObject({
       band: '07:00–11:00',
       change: 'Add 3',
@@ -124,7 +125,7 @@ describe('proposal rows', () => {
   });
 
   it('names only the depot in the source cell, so a long name fits; what it offers is in the title', () => {
-    const [add, hold] = FIXTURE_PROPOSALS.map(proposalRow);
+    const [add, hold] = FIXTURE_PROPOSALS.map((p) => proposalRow(p));
     expect(add?.sourceTitle).toBe(
       'Alambagh: 6 buses standing in its yard in the hour before the band, as observed.',
     );
@@ -158,6 +159,37 @@ describe('proposal rows', () => {
       'Bus-km a day: 420 to 510',
       'Cost a day: ₹15,100 to ₹18,300',
     ]);
+  });
+});
+
+describe('the change as a range', () => {
+  const hours = routeHourlyFixture().hours.map((h) =>
+    h.hour >= 7 && h.hour <= 10 ? { ...h, gap: [4, 19, 12, 9][h.hour - 7]! } : h,
+  );
+
+  it('shows an add as the range of its hourly gaps, the peak hour in the title and the row', () => {
+    const add = proposalRow(FIXTURE_PROPOSALS[0]!, hours);
+    expect(add.change).toBe('Add 4 to 19');
+    expect(add.changeTitle).toBe('Add 4 to 19 buses; peak +19 at 08:00');
+    expect(add.peak).toBe('Short by 4 to 19 across the band, most at 08:00 (+19).');
+  });
+
+  it('shows one figure when every hour of the band has the same gap, or no hours are given', () => {
+    const even = routeHourlyFixture().hours.map((h) => (h.hour >= 7 && h.hour <= 10 ? { ...h, gap: 3 } : h));
+    expect(proposalRow(FIXTURE_PROPOSALS[0]!, even)).toMatchObject({ change: 'Add 3', peak: null });
+    expect(proposalRow(FIXTURE_PROPOSALS[0]!)).toMatchObject({ change: 'Add 3', peak: null });
+  });
+
+  it('keeps a hold and a finding as one figure', () => {
+    expect(proposalRow(FIXTURE_PROPOSALS[1]!, hours).change).toBe('Hold 2');
+    expect(proposalRow(FIXTURE_PROPOSALS[2]!, hours).change).toBe('Running time');
+  });
+
+  it('says a band already past is a note for the next day’s plan', () => {
+    expect(hasPastBand(FIXTURE_PROPOSALS, 11)).toBe(true);
+    expect(hasPastBand(FIXTURE_PROPOSALS, 7)).toBe(false);
+    expect(hasPastBand(FIXTURE_PROPOSALS, null)).toBe(false);
+    expect(SERVICE_TEXT.pastBands).toBe('Bands already past are notes for the next day’s plan.');
   });
 });
 

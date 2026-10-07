@@ -65,7 +65,11 @@ export function RouteHourlyPage({ response, error, loading, onRetry }: RouteHour
         <div>
           <ServiceFigureBand response={response} />
         </div>
-        <ProposalsTable proposals={response.proposals} />
+        <ProposalsTable
+          proposals={response.proposals}
+          hours={response.hours}
+          currentHour={response.currentHour}
+        />
         <PunctualitySection reliability={response.reliability} />
         <ServiceMethod
           need={response.need}

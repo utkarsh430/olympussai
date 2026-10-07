@@ -101,6 +101,8 @@ export const SERVICE_TEXT = {
   demand:
     'Passenger demand is modelled from service class and route length, not ticketing; proposals are estimates until ticket data is connected.',
   recommendation: 'Recommendation only: nothing is dispatched or reassigned.',
+  pastBands: 'Bands already past are notes for the next day’s plan.',
+  bandMean: 'mean',
   maybeCovered: 'May be covered by buses on the road that report no route name.',
   noSource: 'No bus moves for this finding.',
   noSourceFound: 'No source was identified for these buses.',
