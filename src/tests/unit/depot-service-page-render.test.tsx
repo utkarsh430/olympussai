@@ -143,6 +143,21 @@ describe('RouteHourlyPage body', () => {
     expect(punctuality?.querySelectorAll('tbody tr')).toHaveLength(7);
   });
 
+  it('reads punctuality from the journeys the feed reported, not from the hours', () => {
+    const response = routeHourlyFixture();
+    const reliability = response.reliability.map((r) =>
+      r.hour === 14
+        ? { hour: 14, delayMedianMin: 12, lateShare: 0.5, coverage: { n: 2, of: 3 } }
+        : { hour: r.hour, delayMedianMin: null, lateShare: null, coverage: { n: 0, of: 0 } },
+    );
+    render({ ...LOADED, response: { ...response, reliability } });
+    const rows = section('service-punctuality')?.querySelectorAll('tbody tr') ?? [];
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.textContent).toContain('14:00');
+    expect(rows[0]?.textContent).toContain('2 of 3');
+    expect(section('service-punctuality')?.textContent).toContain('Journeys with a delay');
+  });
+
   it('says what the need rests on in the closing disclosure, durations formatted', () => {
     render();
     expect(text()).toContain('a journey of 1 h 50 min');

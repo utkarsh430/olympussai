@@ -96,7 +96,7 @@ export const SERVICE_TEXT = {
   noProposals: 'No proposal for this route today: no band is short or over by enough to act.',
   punctualityTitle: 'Punctuality by hour',
   punctualityCaption: 'Median delay and late share by hour',
-  noPunctuality: 'No hour this server observed carried a delay figure for this route.',
+  noPunctuality: 'No journey the feed reported on this route today carried a delay figure.',
   delayUnit: 'The delay unit is unconfirmed.',
   demand:
     'Passenger demand is modelled from service class and route length, not ticketing; proposals are estimates until ticket data is connected.',
