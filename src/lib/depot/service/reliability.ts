@@ -1,19 +1,10 @@
 import { LATE_AFTER_MIN } from '../routes/delayConfig';
 import { HOURS_PER_DAY } from '../sim/hourlyDemandConfig';
 import { median } from '../stats/robust';
-import type { Coverage } from '../types';
 import { hourOf } from './feedMinutes';
-import type { LedgerJourney } from './types';
+import type { HourReliability, LedgerJourney } from './types';
 
-/** Punctuality of one hour of one route's day, from the journeys the feed reported (DERIVED). */
-export interface HourReliability {
-  readonly hour: number;
-  readonly delayMedianMin: number | null;
-  /** Share of the journeys carrying a delay that ran more than LATE_AFTER_MIN behind. */
-  readonly lateShare: number | null;
-  /** Journeys carrying a delay, of the journeys placed in the hour. */
-  readonly coverage: Coverage;
-}
+export type { HourReliability } from './types';
 
 /** Printed beside every delay figure: the feed never states what its delay field counts. */
 export const DELAY_UNIT_NOTE =

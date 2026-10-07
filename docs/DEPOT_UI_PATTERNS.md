@@ -338,7 +338,8 @@ To adopt: delete the per-row button column, pass its handler as `onRowSelect` (o
 read the chevron column first.
 
 **Links in tables** use `depot-table-link`: cyan, no underline at rest, underlined on hover and
-keyboard focus. A link inside `depot-prose` or `depot-note` is underlined (a class on the link
+keyboard focus. The route table ends each row in one such link, "Hours", to the
+route's day hour by hour (its header, DAY, does not sort). A link inside `depot-prose` or `depot-note` is underlined (a class on the link
 still wins). `depot-link` stays for a stand-alone link.
 
 `group: { key: (row) => string, label?: (key, count) => string, aside?: (key, count) => string
@@ -359,6 +360,33 @@ const COLUMNS: Column<Row>[] = [
 
 Rule: no sentence in a cell; an empty cell is a mono dash with the reason
 in `title`.
+
+## The hour chart (HourChart)
+
+`src/components/depot/hourChart/`: one route's day in 24 columns, 00:00 to 23:00, as the
+route day page's hero. `<HourChart body={response} height?>` takes the response (or any
+object with its `hours` and `currentHour`); the shapes come from
+`buildHourChartModel` and `hourTableRows` in `src/lib/depot/service/hourChartModel.ts`, so
+the chart and its table say the same thing.
+
+- **Deployed** is a bar per hour, a plain count (cyan). An observed hour and the feed clock's
+  hour are solid; a modelled hour after now is hatched; a modelled hour before now is an
+  empty dashed outline at the modelled height, called "Not observed" in the table. With no
+  feed clock every modelled hour is hatched.
+- **Scheduled** is a step line in the neutral ink; an hour with no known trip has no step.
+- **Needed** is a dashed teal line (the forecast meaning) over a faint band, the demand
+  model's spread of a quarter either way turned into buses.
+- **Now** is the amber marker on the feed clock's hour.
+- **The gap row** sits under the hour axis, one signed figure per hour (+ short in crimson,
+  − over in green, 0 in the label colour). It is a second axis on the same 24 categories, so
+  it cannot drift out of step with the bars.
+- Ticks every 3 hours; the bus scale steps 1, 2 or 5 with at most five intervals; nothing
+  below 11px.
+- The plot is `role="img"` with an `aria-label` that says what it shows; the legend says
+  every series in words beside its own mark (`LEGEND_TEXT` in `service/serviceWording.ts`).
+  "Show as table" (`aria-pressed`) swaps the plot for a 24-row table of the same figures.
+- Colours are the palette's meanings (`hourChartStyle.ts`); a series is never told apart by
+  colour alone.
 
 ## StatePanel
 

@@ -50,6 +50,24 @@ describe('the route table as drawn', () => {
     expect(markup({ ...DEFAULT_ROUTES_QUERY, q: 'BSI' }, one)).toMatch(/Rows 1 to 1 of 1/);
   });
 
+  it('ends each row in a plain table link to the route\'s day hour by hour, under a header with no sort', () => {
+    const html = markup();
+    const rows = ROUTES_FIXTURE.routes;
+    for (const route of rows) {
+      const href = `/project/depots/routes/r/${encodeURIComponent(route.routeName)}`;
+      const at = html.indexOf(`href="${href}"`);
+      expect(at, route.routeName).toBeGreaterThan(-1);
+      const link = html.slice(html.lastIndexOf('<a', at), html.indexOf('</a>', at));
+      expect(link).toContain('depot-table-link');
+      expect(link).toContain(`Hours<span class="sr-only"> of ${route.routeName}, hour by hour</span>`);
+    }
+    const head = html.slice(html.indexOf('<thead'), html.indexOf('</thead>'));
+    const dayCell = head.slice(head.lastIndexOf('<th', head.indexOf('>Day<')), head.indexOf('>Day<'));
+    expect(dayCell).not.toContain('aria-sort');
+    expect(dayCell).not.toContain('<button');
+    expect(html).not.toMatch(/<button[^>]*>Hours/);
+  });
+
   it('never puts an ISO date in its text or attributes', () => {
     expect(markup()).not.toMatch(/\d{4}-\d{2}-\d{2}/);
   });

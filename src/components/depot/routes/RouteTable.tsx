@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRef } from 'react';
 import { Pager } from '@/components/depot/shell/LongLists';
 import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
@@ -11,24 +12,38 @@ import type { RouteSort, RouteSortKey, RoutesQuery } from '@/lib/depot/routes/ro
 import {
   columnsAtWidth,
   frozenLeft,
+  isSortColumn,
   routeTableWidth,
   visibleRouteColumns,
+  type RouteColumnKey,
   type RouteColumnSpec,
   type RouteWidthTier,
 } from '@/lib/depot/routes/routeTableColumns';
+import { routeHourlyPath } from '@/lib/depot/nav';
 import { offsetOf, serverPage } from '@/lib/depot/routes/routesPageModel';
 import { formatCount } from '@/lib/depot/format';
 import { FigureWithNote, OperatorsCell } from './RouteCells';
 import { RouteTableControls, type RouteFilters } from './RouteTableControls';
 
-const HEADER_TITLE: Partial<Record<RouteSortKey, string>> = {
+const HEADER_TITLE: Partial<Record<RouteColumnKey, string>> = {
   median: 'Median delay of the buses with a usable delay, in minutes',
   late: `Share of buses with a usable delay running more than ${LATE_AFTER_MIN} minutes late`,
+  hourly: 'The route’s day hour by hour: buses deployed, scheduled and needed',
 };
 
 /** One cell's content; the route name is drawn by the table as its drawer button. */
-function cell(key: RouteSortKey, r: RouteListItem): React.ReactNode {
+function cell(key: RouteColumnKey, r: RouteListItem): React.ReactNode {
   switch (key) {
+    case 'hourly':
+      return (
+        <Link
+          href={routeHourlyPath(r.routeName)}
+          className={TABLE_LINK}
+          title={`Hour by hour: ${r.routeName}`}
+        >
+          Hours<span className="sr-only"> of {r.routeName}, hour by hour</span>
+        </Link>
+      );
     case 'depot':
       return <OperatorsCell view={operatorsView(r)} />;
     case 'buses':
@@ -140,19 +155,23 @@ export function RouteTable({ data, busy = false, query, onQueryChange, onOpenRou
                     key={c.key}
                     scope="col"
                     title={HEADER_TITLE[c.key]}
-                    aria-sort={ariaSort(sort, c.key)}
+                    aria-sort={isSortColumn(c) ? ariaSort(sort, c.key) : undefined}
                     style={{ width: c.widthPx, ...frozenStyle(columns, c) }}
                     className={`${TIER_CELL[c.from]} ${c.frozen ? '!z-20' : ''} ${c.key === 'depot' ? 'border-r border-r-depot-line' : ''} ${c.align === 'right' ? 'depot-align-right' : ''}`}
                   >
                     {/* The tag sits right after its label, in the same right-aligned cell. */}
                     <span className="inline-flex items-center gap-1.5">
-                      <button type="button" className="depot-sort-button" onClick={() => toggleSort(c.key)}>
-                        {c.header}
-                        {c.unit ? <span className="text-depot-faint"> {c.unit}</span> : null}
-                        <span aria-hidden className="inline-block w-3 text-holo-glow">
-                          {sort?.key === c.key ? (sort.direction === 'asc' ? '↑' : '↓') : ''}
-                        </span>
-                      </button>
+                      {isSortColumn(c) ? (
+                        <button type="button" className="depot-sort-button" onClick={() => toggleSort(c.key)}>
+                          {c.header}
+                          {c.unit ? <span className="text-depot-faint"> {c.unit}</span> : null}
+                          <span aria-hidden className="inline-block w-3 text-holo-glow">
+                            {sort?.key === c.key ? (sort.direction === 'asc' ? '↑' : '↓') : ''}
+                          </span>
+                        </button>
+                      ) : (
+                        c.header
+                      )}
                       {c.tag ? <ProvenanceBadge provenance={c.tag} pill /> : null}
                     </span>
                     {HEADER_TITLE[c.key] ? <span className="sr-only">{HEADER_TITLE[c.key]}</span> : null}

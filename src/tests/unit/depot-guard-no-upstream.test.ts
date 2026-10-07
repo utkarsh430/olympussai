@@ -15,7 +15,7 @@ import { fetchUpstream } from '@/lib/upsrtc/client';
 import { getLiveSnapshot } from '@/lib/upsrtc/liveSnapshot';
 import { fetchBusSchedule } from '@/lib/upsrtc/scheduleService';
 import { filesUnder, parseFile, ROOT } from './depot-guard-source';
-import { guardView } from './depot-guard-fixtures';
+import { guardRouteHourlyQuery, guardServiceRepositories, guardView } from './depot-guard-fixtures';
 import ts from 'typescript';
 
 /*
@@ -76,6 +76,8 @@ const ARGUMENTS: Readonly<Record<string, () => unknown>> = {
   TrendsQuery: () => parsed(parseTrendsQuery(search('metric=index'))),
   HistoryQuery: () => parsed(parseHistoryQuery(search('metric=index&scope=network'))),
   ForecastQuery: () => parsed(parseForecastQuery(search('metric=index&scope=network'))),
+  RouteHourlyQuery: guardRouteHourlyQuery,
+  ServiceRepositories: guardServiceRepositories,
 };
 
 interface Builder {

@@ -99,6 +99,17 @@ differs between instances or after a restart:
   instances give a different modelled day and plan until each has seen the peak, the
   first snapshots after a restart can set the day's high values, and an instance started
   in the evening models a smaller day than one that saw the morning.
+- **The hour store** (`src/lib/depot/live/serviceHold.ts`) and **the looked-up bus days**
+  (`src/lib/depot/repositories/memoryScheduledTripRepository.ts`). The route day page
+  (`/project/depots/routes/r/<route>`) shows a route's buses hour by hour from the
+  5-minute samples this process took of the feed, for the feed's operating date only. A
+  process samples only while it is running and receiving requests (any open depot page
+  polls every minute): there is no sampler on a timer. An hour counts as observed only when
+  at least 6 of its twelve 5-minute slots were sampled; any other hour, and every hour
+  before the process started, is drawn from the modelled day instead. Each instance holds its own
+  samples, so two instances show different observed hours for the same route, and a cold
+  instance shows none ("Not yet observed by this server today"). The scheduled trips known
+  for a route are per instance too. A restart loses all of it.
 - **The view memos.** Response bodies are memoised on the snapshot and, for pages that
   take query parameters, on those parameters, in maps bounded in size (oldest out). They
   change cost, not figures: each cold instance pays again for the analysis, the modelled
@@ -128,7 +139,8 @@ differs between instances or after a restart:
 After a restart, all of the above is empty: the score window starts at one sample, no
 yard is held, the held peak shares and peak requirements start again from the next snapshot, there is no last good copy (an outage at that moment shows the saved
 sample), every route reads "not profiled" until it is loaded again, the plan is made
-afresh, and every limiter's allowance is full again.
+afresh, every hour of the route day before the restart reads as not observed, and every
+limiter's allowance is full again.
 
 For stable depot figures and for the upstream limits as stated, serve the app from one
 long-lived Node process (`next start`) until this state is shared (for example in

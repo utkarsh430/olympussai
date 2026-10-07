@@ -38,6 +38,8 @@ export interface SampleFacts {
   /** A depot (kind `depot`, fleet of at least `MIN_FLEET`) every depot-scope test uses. */
   readonly depotId: string;
   readonly depotName: string;
+  /** A route the sample carries with at least one bus, for the route day's page and API. */
+  readonly routeName: string;
 }
 
 const MIN_FLEET = 50;
@@ -47,6 +49,19 @@ interface NetworkUnit {
   readonly name: string;
   readonly kind: string;
   readonly fleet: number;
+}
+
+interface RouteListBody {
+  readonly routes?: readonly { readonly routeName: string; readonly buses: number }[];
+}
+
+/** The first route in the sample's route table that has a bus on it. */
+async function sampleRoute(context: Awaited<ReturnType<typeof request.newContext>>): Promise<string> {
+  const res = await context.get('/api/upsrtc/depot/routes');
+  if (!res.ok()) throw new Error(`route list failed (${res.status()})`);
+  const route = ((await res.json()) as RouteListBody).routes?.find((r) => r.buses >= 1);
+  if (!route) throw new Error('the sample has no route with a bus on it');
+  return route.routeName;
 }
 
 /**
@@ -68,7 +83,7 @@ async function readSample(baseURL: string, storageState: string): Promise<Sample
     }
     const depot = (body.depots ?? []).find((u) => u.kind === 'depot' && u.fleet >= MIN_FLEET);
     if (!depot) throw new Error(`the sample has no depot with a fleet of ${MIN_FLEET} or more`);
-    return { depotId: depot.id, depotName: depot.name };
+    return { depotId: depot.id, depotName: depot.name, routeName: await sampleRoute(context) };
   } finally {
     await context.dispose();
   }

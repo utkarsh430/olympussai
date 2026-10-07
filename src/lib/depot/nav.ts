@@ -17,6 +17,15 @@ export const NETWORK_TRENDS_PATH = `${DEPOTS_ROOT}/trends`;
 export const ASK_PATH = `${DEPOTS_ROOT}/ask`;
 export const SOURCES_PATH = `${DEPOTS_ROOT}/sources`;
 
+/**
+ * One route's day hour by hour, under the Routes page (so its rail item stays lit). The
+ * name is encoded: a feed route name is letters, digits, `_` and `-`, but the path never
+ * trusts that.
+ */
+export function routeHourlyPath(routeName: string): string {
+  return `${ROUTES_PATH}/r/${encodeURIComponent(routeName)}`;
+}
+
 export interface DepotNavItem {
   readonly href: string;
   readonly label: string;
