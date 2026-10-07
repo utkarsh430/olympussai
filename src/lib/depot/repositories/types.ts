@@ -67,6 +67,8 @@ export interface HourlyObservationRepository {
   observedSummary(operatingDate: string): Promise<ObservedSummary | null>;
   /** Distinct buses seen carrying the route name in the date. */
   distinctBusesOnRoute(routeName: string, operatingDate: string): Promise<number>;
+  /** The registrations of those buses, sorted. */
+  busesOnRoute(routeName: string, operatingDate: string): Promise<readonly string[]>;
   /** The journeys the feed's own rows reported on the route in the date, by journey id. */
   journeysOnRoute(routeName: string, operatingDate: string): Promise<readonly LedgerJourney[]>;
 }
@@ -82,6 +84,13 @@ export interface ScheduledTripRepository {
   tripsForRoute(routeName: string, forDate: string): Promise<readonly ScheduledTrip[]>;
   /** Registrations whose recorded day has a trip on the route, sorted. */
   knownBusesOnRoute(routeName: string, forDate: string): Promise<readonly string[]>;
+  /** Registrations with a recorded day for the date, whatever routes it runs, sorted. */
+  recordedBuses(forDate: string): Promise<readonly string[]>;
+  /**
+   * A count that moves on with every day recorded, so a view held per snapshot knows a
+   * timetable loaded between two snapshots and builds again.
+   */
+  revision(): Promise<number>;
 }
 
 /** The hour-by-hour service stores, wired beside the depot repositories. */

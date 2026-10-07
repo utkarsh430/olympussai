@@ -6,6 +6,7 @@ import type { SnapshotAnalysis } from './analysis';
 
 export {
   heldBusesOnRoute,
+  heldBusRegistrationsOnRoute,
   heldDepotHours,
   heldJourneysOnRoute,
   heldRouteHours,

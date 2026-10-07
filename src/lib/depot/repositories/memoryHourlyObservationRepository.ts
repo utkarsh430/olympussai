@@ -1,6 +1,7 @@
 import {
   defaultServiceHoldStore,
   heldBusesOnRoute,
+  heldBusRegistrationsOnRoute,
   heldDepotHours,
   heldJourneysOnRoute,
   heldRouteHours,
@@ -38,6 +39,9 @@ export function createMemoryHourlyObservationRepository(
     },
     async distinctBusesOnRoute(routeName, operatingDate): Promise<number> {
       return heldBusesOnRoute(store(), routeName, operatingDate);
+    },
+    async busesOnRoute(routeName, operatingDate): Promise<readonly string[]> {
+      return heldBusRegistrationsOnRoute(store(), routeName, operatingDate);
     },
     async journeysOnRoute(routeName, operatingDate): Promise<readonly LedgerJourney[]> {
       return heldJourneysOnRoute(store(), routeName, operatingDate);

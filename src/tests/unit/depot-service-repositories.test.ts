@@ -55,6 +55,10 @@ describe('the in-memory hourly observation repository', () => {
     expect(await repo.observedSummary(DATE)).toEqual({ since: '08:00', hours: 1, samples: 7 });
     expect(await repo.observedSummary('2026-10-05')).toBeNull();
     expect(await repo.distinctBusesOnRoute(ROUTE, DATE)).toBe(21);
+    const buses = await repo.busesOnRoute(ROUTE, DATE);
+    expect(buses).toHaveLength(21);
+    expect([...buses].sort()).toEqual(buses);
+    expect(await repo.busesOnRoute(ROUTE, '2026-10-05')).toEqual([]);
     const journeys = await repo.journeysOnRoute(ROUTE, DATE);
     expect(journeys.length).toBeGreaterThan(0);
     expect(journeys.every((j) => j.routeName === ROUTE && j.lastSeen === at('08:30'))).toBe(true);
@@ -119,6 +123,18 @@ describe('the in-memory scheduled trip repository', () => {
     const repo = createMemoryScheduledTripRepository();
     await repo.recordBusDay([]);
     expect(await repo.tripsForRoute('R1', DATE)).toEqual([]);
+    expect(await repo.revision()).toBe(0);
+  });
+
+  it('lists the buses with a recorded day, whatever their routes, and counts each record', async () => {
+    const repo = createMemoryScheduledTripRepository();
+    expect(await repo.revision()).toBe(0);
+    await repo.recordBusDay([trip({ registrationNumber: 'UP01AA0002', routeName: 'OTHER' })]);
+    await repo.recordBusDay([trip({})]);
+    await repo.recordBusDay([trip({})]);
+    expect(await repo.recordedBuses(DATE)).toEqual(['UP01AA0001', 'UP01AA0002']);
+    expect(await repo.recordedBuses('2026-10-07')).toEqual([]);
+    expect(await repo.revision()).toBe(3);
   });
 });
 
