@@ -2,6 +2,8 @@
 
 import { useId, useMemo, useState } from 'react';
 import { SectionLabel } from '@/components/depot/shell/SectionLabel';
+import { useWidthTier } from '@/components/depot/shell/useWidthTier';
+import { GAP_ROW_TIERS } from '@/lib/depot/service/gapRowLayout';
 import { buildHourChartModel, hourTableRows } from '@/lib/depot/service/hourChartModel';
 import { chartNote } from '@/lib/depot/service/servicePageModel';
 import { SERVICE_TEXT } from '@/lib/depot/service/serviceWording';
@@ -26,6 +28,7 @@ const PLOT_HEIGHT_PX = 300;
  */
 export function HourChart({ body, height = PLOT_HEIGHT_PX }: HourChartProps) {
   const [asTable, setAsTable] = useState(false);
+  const gapRow = useWidthTier(GAP_ROW_TIERS);
   const model = useMemo(
     () => buildHourChartModel({ hours: body.hours, currentHour: body.currentHour }),
     [body.hours, body.currentHour],
@@ -55,7 +58,7 @@ export function HourChart({ body, height = PLOT_HEIGHT_PX }: HourChartProps) {
         ) : (
           <>
             <div role="img" aria-label={label} className="min-w-0" data-testid="hour-chart-plot">
-              <HourPlot model={model} height={height} />
+              <HourPlot model={model} height={height} staggered={gapRow === 'staggered'} />
             </div>
             <HourLegend hasNow={model.nowLabel !== null} />
           </>

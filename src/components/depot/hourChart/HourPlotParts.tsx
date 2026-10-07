@@ -6,6 +6,8 @@ import { GAP_COLOUR, HOUR_AXIS_FONT_SIZE, HOUR_COLOUR } from './hourChartStyle';
 
 const HOURS = 24;
 const GAP_BASELINE_PX = 14;
+/** How far a staggered row's second line sits under its first. */
+export const GAP_LINE_PX = 14;
 const LABEL_INSET_PX = 4;
 
 export interface GapTickProps {
@@ -14,16 +16,20 @@ export interface GapTickProps {
   /** The axis width Recharts passes to a tick: 24 columns share it. */
   readonly width?: number;
   readonly column: HourColumn | undefined;
+  /** Every odd hour a line lower, so a narrow column's gap never touches its neighbour's. */
+  readonly staggered?: boolean;
 }
 
 /**
  * One cell of the gap row under the hour axis: the signed whole gap, crimson when short,
  * green when over, the label colour at zero. The sign says it without the colour. The
- * first cell also writes the row's name, "Gap", in the y-axis band to its left.
+ * first cell also writes the row's name, "Gap", in the y-axis band to its left. Staggered,
+ * the odd hours drop a line.
  */
-export function GapTick({ x = 0, y = 0, width = 0, column }: GapTickProps) {
+export function GapTick({ x = 0, y = 0, width = 0, column, staggered = false }: GapTickProps) {
   if (!column) return null;
   const baseline = y + GAP_BASELINE_PX;
+  const own = staggered && column.hour % 2 === 1 ? baseline + GAP_LINE_PX : baseline;
   const half = width / HOURS / 2;
   return (
     <g data-testid="hour-gap-cell" data-gap={column.gapTone}>
@@ -40,7 +46,7 @@ export function GapTick({ x = 0, y = 0, width = 0, column }: GapTickProps) {
       ) : null}
       <text
         x={x}
-        y={baseline}
+        y={own}
         textAnchor="middle"
         fontSize={HOUR_AXIS_FONT_SIZE}
         fill={GAP_COLOUR[column.gapTone]}
