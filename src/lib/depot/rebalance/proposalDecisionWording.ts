@@ -1,4 +1,6 @@
+import { formatCount, formatPlainDate } from '../format';
 import { changeCell } from '../service/serviceWording';
+import type { ProposalDecisionCounts } from '../service/types';
 import type { ProposalSubject } from './decisionSubject';
 import {
   BROWSER_TRAIL_NOTE,
@@ -70,3 +72,9 @@ export const PROPOSAL_TRAIL_NOTE = `${BROWSER_TRAIL_NOTE} A decision changes not
 
 /** Said once beside the decision buttons. */
 export const PROPOSAL_DECISION_NOTE = RECORDED_ONLY;
+
+/** The brief's count line: "… for 6 Oct 2026: 1 accepted, 0 declined, 2 still open. …". */
+export function decisionCountsSentence(counts: ProposalDecisionCounts, operatingDate: string): string {
+  const figures = `${formatCount(counts.accepted)} accepted, ${formatCount(counts.declined)} declined, ${formatCount(counts.open)} still open`;
+  return `Decisions kept in this browser for ${formatPlainDate(operatingDate)}: ${figures}. ${RECORDED_ONLY}`;
+}
