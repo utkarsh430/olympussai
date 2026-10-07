@@ -79,14 +79,18 @@ const HOSTILE_RAW = 'REFLECTED';
  */
 const PARAM_NAMES = [
   'depotId', 'bus', 'metric', 'scope', 'days', 'horizon', 'kind', 'q', 'offset', 'limit',
-  'sort', 'dir', 'reason', 'serviceClass', 'date',
+  'sort', 'dir', 'reason', 'serviceClass', 'date', 'route',
 ];
 const HOSTILE_QUERY = [...PARAM_NAMES, HOSTILE]
   .map((name) => `${name}=${encodeURIComponent(`-1${HOSTILE}`)}`)
   .join('&');
 
 /** A valid value for each dynamic segment name the depot API uses; anything else gets '1'. */
-const VALID_SEGMENT: Readonly<Record<string, string>> = { routeName: 'AGRA_EXP_1' };
+const VALID_SEGMENT: Readonly<Record<string, string>> = {
+  routeName: 'AGRA_EXP_1',
+  // A bus of the guard snapshot that carries AGRA_EXP_1.
+  registration: 'UP1G0',
+};
 
 /*
  * A query that each parameterised route accepts, so its success path runs.
@@ -97,6 +101,7 @@ const ACCEPTED_QUERY: Readonly<Record<string, string>> = {
   'history/route.ts': 'metric=index&scope=network',
   'forecast/route.ts': 'metric=index&scope=network',
   'service/route/[routeName]/route.ts': `date=${GUARD_FEED_NOW.slice(0, 10)}`,
+  'schedule-day/[registration]/route.ts': 'route=AGRA_EXP_1',
 };
 
 /*
@@ -108,8 +113,14 @@ const NOT_PLAIN_GETS: Readonly<Record<string, string>> = {
   'POST copilot/route.ts': 'needs a same-origin question body; covered by the copilot suites',
 };
 
-/** The one route allowed to reach the corporation's route service: a lookup a person starts, rate limited. */
-const ROUTE_LOOKUP = 'route/[routeName]/route.ts';
+/**
+ * The only routes allowed to reach the corporation's schedule server: lookups a person
+ * starts, one bus each, under the same per-call limits (route details, a bus's whole day).
+ */
+const LOOKUP_ROUTES: ReadonlySet<string> = new Set([
+  'route/[routeName]/route.ts',
+  'schedule-day/[registration]/route.ts',
+]);
 
 type Handler = (request: NextRequest, context: { params: Promise<object> }) => Promise<Response>;
 
@@ -231,12 +242,12 @@ describe('the depot API routes', () => {
     },
   );
 
-  it.each(named(CASES))('%s with a session answers with no-store, and only the route lookup goes upstream', async (_n, c) => {
+  it.each(named(CASES))('%s with a session answers with no-store, and only the lookups go upstream', async (_n, c) => {
     useGoodData();
     const res = await call(c);
     expect(res.headers.get('cache-control')).toBe('no-store');
     if (res.status >= 400) await expectFixedErrorBody(res);
-    if (c.file === ROUTE_LOOKUP) return;
+    if (LOOKUP_ROUTES.has(c.file)) return;
     // No upstream call from any other route: not a fetch, not the upstream client,
     // not a route lookup, not a fresh live snapshot outside the fleet repository.
     expect(fetchStub).not.toHaveBeenCalled();
