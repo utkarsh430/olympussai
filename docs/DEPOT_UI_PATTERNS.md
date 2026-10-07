@@ -450,6 +450,23 @@ route, depot, band peak and every hour as "+4 measured". The grid scrolls sidewa
 its own frame below about 680px; the page never does. Pure shapes: `heatCell`,
 `heatTableRows` in `service/networkPageModel.ts`.
 
+## Decisions on proposals and the daily brief
+
+- `ProposalDecisionControls` (in a proposal's opened row): the decision in force, a note,
+  Approve / Defer / Reject with `aria-pressed`, Undo, and "Recorded only; nothing
+  dispatched." It is a labelled group ("Decision on …") and is not printed.
+- `ProposalsTable` and `NetworkProposalsTable` record decisions whenever they have a date
+  (`operatingDate`, or the proposals' own) through `useProposalDecisions(date, route)`;
+  `ProposalsTable trailRoute` narrows the trail to one route. `ProposalDecisionsFooter` is
+  the status line and `ProposalDecisionTrail` under either table.
+- Every decision trail draws `TrailParts` (`ClearControl` with its confirm, `TrailStateNotes`,
+  `TrailLine`), so the transfer and proposal trails read alike.
+- `DailyBriefCard`: a `SectionLabel` ("Daily brief") over an embedded `BriefingCard` given a
+  `request` (the brief question), then the browser's decision counts. `BriefingCard` takes an
+  optional `request` for any card that asks for something other than its scope's briefing.
+- Print: the brief's section carries `data-print-brief`, each proposals table
+  `data-print-keep`; `ServicePrintRule` hides everything else on paper only where the brief is.
+
 ## StatePanel
 
 `kind`, `sentence` (ONE sentence: what is absent and why), `remedy?` (one muted line: what would
