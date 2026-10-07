@@ -30,6 +30,8 @@ What it does not do:
   aside to `depot-transfer-decisions-v1-unreadable` before the next decision is written. Each
   decision is also copied, with its note emptied, to the command centre's shared audit log
   (`upsrtc-copilot-audit-v1`, `src/lib/audit/auditLog.ts`), which Clear trail does not reach.
+  Decisions on route and network proposals (section 7.17) go to the same trail and the same
+  storage key; Clear trail on any page clears both subjects.
 - **No individual is scored or named.** Crew appear as anonymous slots; scoring is per
   depot, never per driver.
 - **No database.** Live figures come from the current snapshot; history and trends are a
@@ -1039,6 +1041,50 @@ are recorded between snapshots, both memo keys must carry the scheduled store's 
 **Elsewhere.** The overview shows one figure, "Routes short at the next peak" (MODELLED), and
 each depot cockpit an attention line "N of this depot's routes short at the next peak", both
 linking to the page (the cockpit's filtered with `?depot=`).
+
+### 7.17 Decisions on proposals and the daily brief — `rebalance/decisionSubject.ts`, `rebalance/proposalDecision*.ts`, `service/DailyBriefCard.tsx`
+
+**One trail, two subjects.** A decision event names its subject: `{ kind: 'transfer',
+transferId }` or `{ kind: 'proposal', proposalId, routeName, routes, depotName, proposalKind,
+band, change, count }`. A network kind may name no route (`routeName` null: a depot's reserve
+or maintenance window; a corridor carries its `routes`). Transfer events keep their own audit
+types (`depot-transfer-*`) and now write `subject` into the payload; a stored transfer payload
+without one was written before subjects existed and is read as a transfer, and one whose
+subject names another transfer is refused. Proposal events have their own types
+(`depot-proposal-approved|rejected|deferred`, "Route proposal approved" in the audit log) and
+must carry a valid proposal subject; a proposal subject stored without `routes`, `depotName`
+or `count` reads them as none. The slice's reader (`decisionStore.ts`) keeps both; each page
+reads the subject it shows: Fleet distribution transfers only (`parseDecisionEvent` is
+transfer-only), the route day that route's proposals (`ProposalsTable trailRoute`), the
+Service page every proposal (`trailRoute` null).
+
+**Replay.** The stack replay is shared (`decisionReducers.ts`: `replay`, `currentOf`,
+`flagTrail`); proposals key on the proposal id, which already names date, kind, route and
+band. A decision is made for the figures the proposal showed (`change`, and a network kind's
+`count`): a later poll that proposes different figures shows "Approved for Add 3; the proposal
+now says Add 5", unpressed, and a click on the decision in force for the same figures records
+nothing. Undo is a further event; an undo that names anything but the top of its proposal's
+stack is ignored.
+
+**Controls.** A proposal's opened row (route day and Service page) carries the decision in
+force, an optional note (200 characters), Approve, Defer and Reject as `aria-pressed` toggles,
+Undo, and "Recorded only; nothing dispatched." Under the table: a polite status line
+("Approved KANPUR-LUCKNOW 07:00–11:00, Add 3. Recorded only; nothing dispatched.") and the
+trail, with the same note about this browser as the transfer trail, ending "no bus is added,
+held or moved", and the same Clear trail with its confirm step. Trail lines say their subject:
+"Approved proposal: …", "Approved transfer: …".
+
+**The daily brief.** The Service page opens with "Daily brief": the copilot's brief, asked for
+on a press (never on mount) with `task: 'ask'` and the question "The daily brief" (routed to
+`serviceBrief`), in the overview's embedded `BriefingCard`. The decisions are counted in the
+browser, not by the copilot (they never leave it): once any proposal decision is kept for the
+date, a line says "Decisions kept in this browser for 6 Oct 2026: 1 accepted, 0 declined, 2
+still open." over the proposals shown (approved accepted, rejected declined, deferred or none
+open; `proposalDecisionCounts`, a `ProposalDecisionCounts`).
+
+**On paper.** `ServicePrintRule` (a hoisted `<style>` the brief renders) prints, on a page that
+carries the brief, the brief and the proposals table only (the page of rows shown, heaviest
+first), without buttons or fields; a page without the brief prints as it is.
 
 ## 8. The copilot
 

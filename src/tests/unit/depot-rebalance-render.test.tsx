@@ -174,6 +174,7 @@ describe('write order', () => {
 describe('decision trail keys', () => {
   it('renders entries that share an id without a duplicate-key warning', async () => {
     const item: TrailItem = {
+      subject: { kind: 'transfer', transferId: ROW.id },
       eventId: 'same',
       at: '2026-10-06T08:00:00Z',
       transferId: ROW.id,

@@ -11,6 +11,7 @@ import { SERVICE_BANDS } from '@/lib/depot/service/networkHours';
 import { networkFigures } from '@/lib/depot/service/networkPageModel';
 import { NETWORK_HOW_PRODUCED, NETWORK_SERVICE_TEXT as TEXT } from '@/lib/depot/service/networkWording';
 import type { NetworkHourlyResponse, ServiceBandKey } from '@/lib/depot/service/types';
+import { DailyBriefCard } from './DailyBriefCard';
 import { NetworkHeatMap } from './NetworkHeatMap';
 import { NetworkProposalsTable } from './NetworkProposalsTable';
 import { NetworkReallocation } from './NetworkReallocation';
@@ -66,8 +67,9 @@ function Filters({ response, onBand, onDepot }: Pick<NetworkServicePageProps, 'o
 }
 
 /**
- * The network's day hour by hour, under the page's header: the filters, the heat map as the
- * hero, the band's figures, the proposals, the reallocation and the closing disclosure.
+ * The network's day hour by hour, under the page's header: the daily brief, the filters, the
+ * heat map as the hero, the band's figures, the proposals with the decisions on them, the
+ * reallocation and the closing disclosure.
  */
 export function NetworkServicePage(props: NetworkServicePageProps) {
   const { response, error, loading, onRetry } = props;
@@ -92,6 +94,11 @@ export function NetworkServicePage(props: NetworkServicePageProps) {
     <>
       {response.stale ? <StaleNotice since={response.feedNow} fetchedAt={response.fetchedAt} /> : null}
       <div className="depot-stack" data-testid="network-service-page">
+        <DailyBriefCard
+          operatingDate={response.operatingDate}
+          proposals={response.proposals}
+          currentFeedTime={response.feedNow}
+        />
         <Filters response={response} onBand={props.onBand} onDepot={props.onDepot} />
         <NetworkHeatMap response={response} onPage={props.onPage ?? NO_OP} />
         <div data-testid="network-figure-band">
@@ -101,7 +108,11 @@ export function NetworkServicePage(props: NetworkServicePageProps) {
             ))}
           </FigureBand>
         </div>
-        <NetworkProposalsTable proposals={response.proposals} totals={response.proposalTotals} />
+        <NetworkProposalsTable
+          proposals={response.proposals}
+          totals={response.proposalTotals}
+          operatingDate={response.operatingDate}
+        />
         <NetworkReallocation reallocation={response.reallocation} />
         <HowProduced id="how-produced" paragraphs={NETWORK_HOW_PRODUCED}>
           <p className="depot-prose">{`The modelled demand: ${response.demandBasis}`}</p>

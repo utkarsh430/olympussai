@@ -1,9 +1,12 @@
 import type { AuditEvent, AuditEventType } from '@/lib/audit/auditLog';
+import { readTransferSubject, type TransferSubject } from './decisionSubject';
 import type { TransferDecisionKind } from './rebalanceModel';
 
 /*
  * A planner's decisions on recommended transfers, kept as events in the local
- * audit log. The log is append-only: an undo is a further event naming the
+ * audit log. The trail also holds decisions on route proposals
+ * (`proposalDecisionEvents.ts`); a transfer's payload names its subject, and one
+ * written before subjects existed is read as a transfer. The log is append-only: an undo is a further event naming the
  * event it withdraws, never a deletion. These reducers only read events; they
  * never dispatch anything and never change the plan.
  */
@@ -12,7 +15,7 @@ export type { TransferDecisionKind };
 
 export const NOTE_MAX_CHARS = 200;
 /** Files a scenario decision under `scenarioKey`, with the sentence kept as a label. */
-const PAYLOAD_VERSION = 2;
+export const PAYLOAD_VERSION = 2;
 
 export interface DecisionInput {
   readonly transferId: string;
@@ -31,20 +34,24 @@ export interface DecisionInput {
 }
 
 export interface DecisionEntry extends DecisionInput {
+  readonly subject: TransferSubject;
   readonly eventId: string;
   readonly at: string;
   /** Id of the decision event this one withdraws; null for a decision. */
   readonly undoes: string | null;
 }
 
-export interface TrailItem extends DecisionEntry {
-  /** The transfer's current decision, so it can still be undone. */
+/** Where a recorded decision stands in its subject's history. */
+export interface TrailFlags {
+  /** The subject's current decision, so it can still be undone. */
   readonly undoable: boolean;
   /** A later event withdrew this decision. */
   readonly undone: boolean;
-  /** A later decision on the same transfer replaced this one and is still in force. */
+  /** A later decision on the same subject replaced this one and is still in force. */
   readonly superseded: boolean;
 }
+
+export interface TrailItem extends DecisionEntry, TrailFlags {}
 
 export interface DecisionTrail {
   readonly baseline: readonly TrailItem[];
@@ -62,14 +69,18 @@ const EVENT_TYPE: Readonly<Record<TransferDecisionKind, AuditEventType>> = {
   deferred: 'depot-transfer-deferred',
 };
 
-const VERB: Readonly<Record<TransferDecisionKind, string>> = {
+export const VERB: Readonly<Record<TransferDecisionKind, string>> = {
   approved: 'Approved',
   rejected: 'Rejected',
   deferred: 'Deferred',
 };
 
-function kindOfType(type: unknown): TransferDecisionKind | null {
-  for (const [kind, eventType] of Object.entries(EVENT_TYPE)) {
+/** The decision an event type records, among the given family's types. */
+export function kindOfType(
+  type: unknown,
+  family: Readonly<Record<TransferDecisionKind, AuditEventType>> = EVENT_TYPE,
+): TransferDecisionKind | null {
+  for (const [kind, eventType] of Object.entries(family)) {
     if (eventType === type) return kind as TransferDecisionKind;
   }
   return null;
@@ -80,7 +91,12 @@ function eventFor(record: DecisionInput, undoes: string | null, summary: string)
     type: EVENT_TYPE[record.decision],
     summary,
     simulated: true,
-    detail: JSON.stringify({ v: PAYLOAD_VERSION, ...record, undoes }),
+    detail: JSON.stringify({
+      v: PAYLOAD_VERSION,
+      subject: { kind: 'transfer', transferId: record.transferId },
+      ...record,
+      undoes,
+    }),
   };
 }
 
@@ -117,7 +133,8 @@ export function isString(value: unknown): value is string {
   return typeof value === 'string';
 }
 
-function readPayload(detail: unknown): Record<string, unknown> | null {
+/** An event's detail as a plain object, or null when it is not one. */
+export function readPayload(detail: unknown): Record<string, unknown> | null {
   if (!isString(detail)) return null;
   try {
     const parsed: unknown = JSON.parse(detail);
@@ -154,7 +171,10 @@ export function parseDecisionEvent(event: unknown): DecisionEntry | null {
   if (p.undoes !== null && !isString(p.undoes)) return null;
   const label = p.scenarioLabel;
   if (label !== null && !isString(label)) return null;
+  const subject = readTransferSubject(p.subject, p.transferId as string);
+  if (subject === null) return null;
   return {
+    subject,
     eventId: e.id,
     at: e.at,
     transferId: p.transferId as string,

@@ -24,6 +24,11 @@ export interface BriefingCardProps {
    * accessible name.
    */
   readonly embedded?: boolean;
+  /**
+   * What the card asks for, when it is not the scope's briefing (the daily brief asks the
+   * brief question). Module-level, so the body keeps one identity across renders.
+   */
+  readonly request?: CopilotApiRequest;
 }
 
 /** Failures worth a retry; the others (session, unknown depot, refused) will not change. */
@@ -56,10 +61,14 @@ function BriefingBody({
   title,
   currentFeedTime = null,
   embedded = false,
+  request: asked,
 }: BriefingCardProps) {
   const { state, request } = useCopilot();
   const [writtenFrom, setWrittenFrom] = useState<string | null>(null);
-  const body = useMemo<CopilotApiRequest>(() => ({ task: 'briefing', scope }), [scope]);
+  const body = useMemo<CopilotApiRequest>(
+    () => asked ?? { task: 'briefing', scope },
+    [asked, scope],
+  );
   const write = (): void => {
     setWrittenFrom(currentFeedTime);
     request(body);
@@ -154,14 +163,21 @@ function BriefingBody({
  * operator's quota. Keyed by scope, so a changed scope starts from idle and
  * the previous text (and any request still running) is discarded.
  */
-export function BriefingCard({ scope, title, currentFeedTime, embedded }: BriefingCardProps) {
+export function BriefingCard({
+  scope,
+  title,
+  currentFeedTime,
+  embedded,
+  request,
+}: BriefingCardProps) {
   return (
     <BriefingBody
-      key={scopeKey(scope)}
+      key={request ? `ask:${request.task}` : scopeKey(scope)}
       scope={scope}
       title={title}
       currentFeedTime={currentFeedTime}
       embedded={embedded}
+      request={request}
     />
   );
 }

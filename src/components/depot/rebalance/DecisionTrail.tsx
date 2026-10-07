@@ -1,14 +1,8 @@
 'use client';
 
-import { useState } from 'react';
-import { formatInstantIst } from '@/lib/depot/format';
 import type { DecisionTrail as Trail, TrailItem } from '@/lib/depot/rebalance/decisionEvents';
-import {
-  TRAIL_CLEAR_CONFIRM,
-  TRAIL_NOTE,
-  describeTrailItem,
-  trailHeading,
-} from '@/lib/depot/rebalance/decisionWording';
+import { TRAIL_NOTE, describeTrailItem, trailHeading } from '@/lib/depot/rebalance/decisionWording';
+import { ClearControl, TRAIL_LIST_CLASS, TrailLine, TrailStateNotes } from './TrailParts';
 
 export interface DecisionTrailProps {
   readonly trail: Trail;
@@ -21,36 +15,6 @@ export interface DecisionTrailProps {
   /** Something is stored in this browser that clearing would remove. */
   readonly canClear: boolean;
   readonly onClear: () => void;
-}
-
-/** "Clear trail", then a confirm step: clearing removes every entry and cannot be undone. */
-function ClearControl({ onClear }: { readonly onClear: () => void }) {
-  const [confirming, setConfirming] = useState(false);
-  if (!confirming) {
-    return (
-      <button type="button" className="depot-link mt-2 text-[11px]" onClick={() => setConfirming(true)}>
-        Clear trail
-      </button>
-    );
-  }
-  return (
-    <div role="group" aria-label="Clear the decision trail" className="mt-2 flex flex-wrap items-center gap-3">
-      <span className="depot-prose text-[13px]">{TRAIL_CLEAR_CONFIRM}</span>
-      <button
-        type="button"
-        className="depot-filter-button"
-        onClick={() => {
-          setConfirming(false);
-          onClear();
-        }}
-      >
-        Clear the trail
-      </button>
-      <button type="button" className="depot-filter-button" onClick={() => setConfirming(false)}>
-        Keep it
-      </button>
-    </div>
-  );
 }
 
 function List({
@@ -66,31 +30,17 @@ function List({
   return (
     <>
       <h3 className="depot-label mb-1.5 mt-4">{label}</h3>
-      <ol className="flex flex-col divide-y divide-depot-line rounded-md border border-depot-line">
+      <ol className={TRAIL_LIST_CLASS}>
         {items.map((item, index) => (
           // A damaged store can repeat ids, so the position is part of the key.
-          <li
+          <TrailLine
             key={`${index}-${item.eventId}`}
-            className="flex min-w-0 flex-wrap items-baseline gap-x-3 px-3 py-2"
-          >
-            <span className="text-[11px] text-depot-faint">{formatInstantIst(item.at)}</span>
-            <span className="min-w-0 flex-1 text-[13px] text-depot-ink">
-              {describeTrailItem(item)}
-              {item.scenario ? (
-                <span className="block text-[11px] text-depot-muted">
-                  What-if: {item.scenarioLabel ?? 'a what-if scenario'}
-                </span>
-              ) : null}
-              {item.note ? (
-                <span className="block font-sans text-xs text-depot-prose">Note: {item.note}</span>
-              ) : null}
-            </span>
-            {item.undoable ? (
-              <button type="button" className="depot-link text-[11px]" onClick={() => onUndo(item)}>
-                Undo
-              </button>
-            ) : null}
-          </li>
+            at={item.at}
+            line={describeTrailItem(item)}
+            context={item.scenario ? `What-if: ${item.scenarioLabel ?? 'a what-if scenario'}` : null}
+            note={item.note}
+            onUndo={item.undoable ? () => onUndo(item) : null}
+          />
         ))}
       </ol>
     </>
@@ -114,12 +64,11 @@ export function DecisionTrail(props: DecisionTrailProps) {
       <p className="depot-note" data-testid="rebalance-trail-note">
         {TRAIL_NOTE}
       </p>
-      {capacityNote ? <p className="depot-note mt-2 text-alert-amber">{capacityNote}</p> : null}
-      {stateNote ? (
-        <p className="depot-note mt-2 text-alert-amber" data-testid="rebalance-trail-state">
-          {stateNote}
-        </p>
-      ) : null}
+      <TrailStateNotes
+        capacityNote={capacityNote}
+        stateNote={stateNote}
+        stateTestId="rebalance-trail-state"
+      />
       {canClear ? <ClearControl onClear={onClear} /> : null}
       <List label="On the modelled plan" items={trail.baseline} onUndo={onUndo} />
       <List label="On what-if scenarios" items={trail.scenario} onUndo={onUndo} />

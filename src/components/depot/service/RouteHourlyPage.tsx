@@ -89,6 +89,8 @@ export function RouteHourlyPage({
           proposals={response.proposals}
           hours={response.hours}
           currentHour={response.currentHour}
+          operatingDate={response.operatingDate}
+          trailRoute={response.routeName}
         />
         <PunctualitySection reliability={response.reliability} />
         <ServiceMethod
