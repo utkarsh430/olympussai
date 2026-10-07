@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import { DataTable, type Column } from '@/components/depot/shell/DataTable';
-import { SectionLabel } from '@/components/depot/shell/SectionLabel';
+import { CollapsedSection } from '@/components/depot/shell/CollapsedSection';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
 import {
   PUNCTUALITY_COLUMN_WIDTHS as W,
@@ -31,12 +31,18 @@ const COLUMNS: readonly Column<PunctualityRow>[] = [
 /**
  * Median delay and late share by hour from the journeys the feed reported on the route,
  * placed by scheduled start (the response's `reliability`), with the journeys each rests on.
+ * Closed by default: an hour rests on a few journeys and the delay's unit is unconfirmed, so
+ * it is a figure to open, not one to read beside the chart.
  */
 export function PunctualitySection({ reliability }: { readonly reliability: readonly HourReliability[] }) {
   const rows = useMemo(() => punctualityRows(reliability), [reliability]);
   return (
-    <section aria-labelledby={TITLE_ID} className="min-w-0" data-testid="service-punctuality">
-      <SectionLabel id={TITLE_ID} label={SERVICE_TEXT.punctualityTitle} note={SERVICE_TEXT.delayUnit} />
+    <CollapsedSection
+      label={SERVICE_TEXT.punctualityTitle}
+      note={SERVICE_TEXT.delayUnit}
+      headingId={TITLE_ID}
+      testId="service-punctuality"
+    >
       {rows.length === 0 ? (
         <StatePanel kind="empty" compact sentence={SERVICE_TEXT.noPunctuality} />
       ) : (
@@ -48,6 +54,6 @@ export function PunctualitySection({ reliability }: { readonly reliability: read
           fixedRows
         />
       )}
-    </section>
+    </CollapsedSection>
   );
 }

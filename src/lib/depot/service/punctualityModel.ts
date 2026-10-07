@@ -1,5 +1,5 @@
 import { formatCount, formatPercent } from '../format';
-import { DASH, delayFigure, hourLabel } from './serviceWording';
+import { DASH, feedDelayFigure, hourLabel } from './serviceWording';
 import type { HourReliability } from './types';
 
 /*
@@ -34,7 +34,7 @@ export function punctualityRows(hours: readonly HourReliability[]): readonly Pun
     .map((h) => ({
       key: String(h.hour),
       hour: hourLabel(h.hour),
-      delay: delayFigure(h.delayMedianMin),
+      delay: feedDelayFigure(h.delayMedianMin),
       late: h.lateShare === null ? DASH : formatPercent(h.lateShare),
       coverage: `${formatCount(h.coverage.n)} of ${formatCount(h.coverage.of)}`,
     }));

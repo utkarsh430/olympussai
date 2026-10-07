@@ -50,6 +50,11 @@ function render(props: RouteHourlyPageProps = LOADED): void {
 const text = (): string => container.textContent ?? '';
 const section = (id: string): Element | null => container.querySelector(`[data-testid="${id}"]`);
 
+function openPunctuality(): void {
+  const toggle = section('service-punctuality')?.querySelector<HTMLButtonElement>('button[aria-expanded]');
+  act(() => toggle?.click());
+}
+
 function expandAll(): void {
   for (const row of Array.from(container.querySelectorAll<HTMLElement>('tr[aria-expanded="false"]'))) {
     act(() => row.click());
@@ -160,24 +165,35 @@ describe('RouteHourlyPage body', () => {
     expect(section('service-proposals')?.textContent).toContain('No proposal for this route today');
   });
 
-  it('lists punctuality for the observed hours and says the delay unit is unconfirmed', () => {
+  it('keeps punctuality closed by default, the unit note beside its heading', () => {
     render();
     const punctuality = section('service-punctuality');
-    expect(punctuality?.textContent).toContain('The delay unit is unconfirmed');
+    expect(punctuality?.querySelector('table')).toBeNull();
+    expect(punctuality?.textContent).toContain('Delay is the feed’s own figure; its unit is unconfirmed.');
+    const toggle = punctuality?.querySelector<HTMLButtonElement>('button[aria-expanded]');
+    expect(toggle?.getAttribute('aria-expanded')).toBe('false');
+    openPunctuality();
     expect(punctuality?.querySelectorAll('tbody tr')).toHaveLength(7);
   });
 
-  it('prints an early hour with the module minus, never a hyphen', () => {
+  it('prints a delay as the feed’s plain number, early with the module minus, never as a duration', () => {
     const response = routeHourlyFixture();
     const reliability = response.reliability.map((r) =>
       r.hour === 9
         ? { hour: 9, delayMedianMin: -15.5, lateShare: 0, coverage: { n: 1, of: 1 } }
-        : { hour: r.hour, delayMedianMin: null, lateShare: null, coverage: { n: 0, of: 0 } },
+        : r.hour === 10
+          ? { hour: 10, delayMedianMin: 454, lateShare: 1, coverage: { n: 1, of: 1 } }
+          : { hour: r.hour, delayMedianMin: null, lateShare: null, coverage: { n: 0, of: 0 } },
     );
     render({ ...LOADED, response: { ...response, reliability } });
-    const text = section('service-punctuality')?.querySelector('tbody tr')?.textContent ?? '';
-    expect(text).toContain('−15 min');
-    expect(text).not.toMatch(/-\d/);
+    openPunctuality();
+    const rows = Array.from(section('service-punctuality')?.querySelectorAll('tbody tr') ?? []).map(
+      (row) => row.textContent ?? '',
+    );
+    expect(rows[0]).toContain('−15.5');
+    expect(rows[0]).not.toMatch(/-\d|min/);
+    expect(rows[1]).toContain('454');
+    expect(rows[1]).not.toMatch(/ h /);
   });
 
   it('reads punctuality from the journeys the feed reported, not from the hours', () => {
@@ -188,6 +204,7 @@ describe('RouteHourlyPage body', () => {
         : { hour: r.hour, delayMedianMin: null, lateShare: null, coverage: { n: 0, of: 0 } },
     );
     render({ ...LOADED, response: { ...response, reliability } });
+    openPunctuality();
     const rows = section('service-punctuality')?.querySelectorAll('tbody tr') ?? [];
     expect(rows).toHaveLength(1);
     expect(rows[0]?.textContent).toContain('14:00');

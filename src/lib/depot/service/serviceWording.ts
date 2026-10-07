@@ -41,11 +41,16 @@ export function gapFigure(gap: number): string {
   return whole > 0 ? `+${formatCount(whole)}` : `${MINUS}${formatCount(-whole)}`;
 }
 
-/** A delay through the duration formatter, keeping the sign of an early running. */
-export function delayFigure(minutes: number | null): string {
-  if (minutes === null || !Number.isFinite(minutes)) return DASH;
-  const text = formatDurationMinutes(Math.abs(minutes));
-  return minutes < 0 && Math.floor(Math.abs(minutes)) > 0 ? `${MINUS}${text}` : text;
+/**
+ * The feed's delay figure as a plain number in the feed's own unit, early with the module
+ * minus. Never through the duration formatter: the unit is unconfirmed, and "7 h 34 min"
+ * would assert one.
+ */
+export function feedDelayFigure(value: number | null): string {
+  if (value === null || !Number.isFinite(value)) return DASH;
+  const size = Math.abs(value);
+  const text = Number.isInteger(size) ? formatCount(size) : formatOneDecimal(size);
+  return value < 0 && text !== '0' ? `${MINUS}${text}` : text;
 }
 
 export const PROPOSAL_KIND_LABEL: Readonly<Record<ProposalKind, string>> = {
@@ -98,7 +103,7 @@ export const SERVICE_TEXT = {
   punctualityTitle: 'Punctuality by hour',
   punctualityCaption: 'Median delay and late share by hour',
   noPunctuality: 'No journey the feed reported on this route today carried a delay figure.',
-  delayUnit: 'The delay unit is unconfirmed.',
+  delayUnit: 'Delay is the feed’s own figure; its unit is unconfirmed.',
   demand:
     'Passenger demand is modelled from service class and route length, not ticketing; proposals are estimates until ticket data is connected.',
   recommendation: 'Recommendation only: nothing is dispatched or reassigned.',

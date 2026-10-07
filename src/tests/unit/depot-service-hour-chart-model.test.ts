@@ -85,7 +85,7 @@ describe('hour chart model', () => {
       scheduled: '6',
       needed: '13',
       gap: '+4',
-      delay: '8 min',
+      delay: '8',
       lateShare: '50%',
     });
     expect(rows[0]).toMatchObject({ basis: 'Not observed', scheduled: '—', delay: '—' });

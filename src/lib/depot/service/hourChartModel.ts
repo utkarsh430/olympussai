@@ -2,7 +2,7 @@ import { formatPercent } from '../format';
 import {
   DASH,
   busFigure,
-  delayFigure,
+  feedDelayFigure,
   gapFigure,
   hourLabel,
 } from './serviceWording';
@@ -175,7 +175,7 @@ export function hourTableRows(model: HourChartModel): readonly HourTableRow[] {
     neededRange: `${busFigure(c.neededBand[0])} to ${busFigure(c.neededBand[1])}`,
     gap: c.gapText,
     gapTitle: c.gapSeen ? undefined : MODELLED_GAP_TITLE,
-    delay: delayFigure(c.figures.delayMedianMin),
+    delay: feedDelayFigure(c.figures.delayMedianMin),
     lateShare: c.figures.lateShare === null ? DASH : formatPercent(c.figures.lateShare),
   }));
 }
