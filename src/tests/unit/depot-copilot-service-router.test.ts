@@ -3,6 +3,7 @@ import { copilotQuerySchema, type CopilotQuery } from '@/lib/depot/copilot/queri
 import { hourOf } from '@/lib/depot/copilot/router/hours';
 import { findRoute } from '@/lib/depot/copilot/router/resolveRoute';
 import { scriptedRoute } from '@/lib/depot/copilot/router/scriptedRouter';
+import { exampleQuestions } from '@/lib/depot/copilot/ui/copilotView';
 
 const DEPOTS = [
   { id: '101', name: 'KANPUR' },
@@ -153,6 +154,24 @@ describe('service question shapes', () => {
     expect(scriptedRoute('why is route VND_1613_ORD_OUT short at 10', DEPOTS)).toEqual({
       kind: 'unsupported',
       reason: 'unknown_route',
+    });
+  });
+});
+
+describe('the example questions with the service shapes', () => {
+  it('route the network examples to the brief and the band', () => {
+    const kinds = exampleQuestions(null).map((q) => route(q).kind);
+    expect(kinds).toContain('serviceBrief');
+    expect(kinds).toContain('hourProposals');
+  });
+
+  it("route the depot examples to that depot's band", () => {
+    const examples = exampleQuestions('KANPUR');
+    expect(examples).toContain('What should KANPUR change this evening?');
+    expect(route('What should KANPUR change this evening?')).toEqual({
+      kind: 'hourProposals',
+      hour: 16,
+      depotId: '101',
     });
   });
 });
