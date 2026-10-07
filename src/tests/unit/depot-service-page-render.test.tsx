@@ -190,6 +190,6 @@ describe('RouteHourlyPage words', () => {
     expect(line.sentence).toContain('DERIVED');
     expect(line.sentence).toContain('MODELLED');
     expect(line.sentence).toContain('Scheduled trips known for 12 of 40 buses seen on this route today.');
-    expect(line.sentence).toContain('Only buses that report a route name are counted: 10 of 14.');
+    expect(line.sentence).toContain('Only buses that report a route name are counted: 10 of the 14 buses in the feed report one.');
   });
 });

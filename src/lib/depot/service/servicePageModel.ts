@@ -95,7 +95,7 @@ export function coverageSentences(body: Body): readonly string[] {
       : `Observed by this server since ${formatFeedTimeOn(body.observed.since, body.feedNow)} (${formatCount(body.observed.samples)} samples).`;
   return [
     observed,
-    `Only buses that report a route name are counted: ${formatCount(body.routeCoverage.n)} of ${formatCount(body.routeCoverage.of)}.`,
+    `Only buses that report a route name are counted: ${formatCount(body.routeCoverage.n)} of the ${formatCount(body.routeCoverage.of)} buses in the feed report one.`,
     ...standingSentence(body.standingNow),
     `Scheduled trips known for ${formatCount(body.scheduledCoverage.n)} of ${formatCount(body.scheduledCoverage.of)} buses seen on this route today.`,
   ];

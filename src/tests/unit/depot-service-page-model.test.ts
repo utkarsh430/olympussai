@@ -52,7 +52,7 @@ describe('coverage and provenance', () => {
   it('words the coverage sentences from the response', () => {
     expect(coverageSentences(routeHourlyFixture())).toEqual([
       'Observed by this server since 05:02 (79 samples).',
-      'Only buses that report a route name are counted: 10 of 14.',
+      'Only buses that report a route name are counted: 10 of the 14 buses in the feed report one.',
       '4 standing now carry this route’s name; they are not counted as deployed.',
       'Scheduled trips known for 12 of 40 buses seen on this route today.',
     ]);
