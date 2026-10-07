@@ -77,67 +77,80 @@ export function validateQuestion(raw: string): QuestionCheck {
   return { ok: true, question, remaining };
 }
 
-/** A group of preset questions on the Ask page, under one eyebrow. */
+/** A group of suggested questions on the Ask page, under one eyebrow. */
 export interface PresetGroup {
   readonly label: string;
   readonly questions: readonly string[];
 }
 
-const NETWORK_PRESETS: PresetGroup = {
-  label: 'Network',
+/*
+ * Every suggested question asks for something to act on — where buses are short or spare,
+ * which routes need more or fewer in an hour, where to start — and every one is a shape the
+ * scripted router answers (the router's own tests hold each shape).
+ */
+
+const SERVICE_SUGGESTIONS: PresetGroup = {
+  label: 'Service by the hour',
   questions: [
-    'Give me a summary of the network.',
-    'How is the whole fleet doing today?',
-    'Which five depots rank highest on the efficiency index?',
-    'Which depots are short of buses?',
-    'Which depots have spare buses?',
-    'Which depot has the most buses off road?',
-    'Who has the most dark buses?',
-    'Which depots perform best?',
+    'What is the plan for today?',
+    'Which routes need more buses at 10 am?',
+    'Which routes are short at 8 am?',
+    'Which routes are over-served in the morning peak?',
+    'Which routes are over-served after 6 pm?',
   ],
 };
 
-const SERVICE_PRESETS: PresetGroup = {
-  label: 'Service by the hour',
-  questions: ['What is the plan for today?', 'Which routes are over-served after 6 pm?'],
+const BALANCE_SUGGESTIONS: PresetGroup = {
+  label: 'Fleet balance',
+  questions: [
+    'Which depots are short of buses?',
+    'Which depots have spare buses?',
+    'Which depot has the most buses off road?',
+  ],
 };
 
-/** The network presets kept beside a depot's own, so a depot scope still offers ten. */
-const NETWORK_PRESETS_BESIDE_DEPOT: PresetGroup = {
-  label: NETWORK_PRESETS.label,
-  questions: NETWORK_PRESETS.questions.slice(2, 5),
+const START_SUGGESTIONS: PresetGroup = {
+  label: 'Where to start',
+  questions: [
+    'Which five depots rank lowest on the efficiency index?',
+    'Which depots have the most dark buses?',
+  ],
 };
+
+/** The network's suggestions kept beside a depot's own, so a depot scope still offers ten. */
+const BESIDE_DEPOT: readonly PresetGroup[] = [
+  { label: BALANCE_SUGGESTIONS.label, questions: BALANCE_SUGGESTIONS.questions.slice(0, 2) },
+  { label: SERVICE_SUGGESTIONS.label, questions: [SERVICE_SUGGESTIONS.questions[0] ?? '', 'Which routes need more buses at 10 am?', 'Which routes are over-served after 6 pm?'] },
+];
 
 const MAX_EXAMPLE_NAME_CHARS = 80;
 
 /**
- * Preset questions for the chosen scope, in groups: ten for the whole network, and ten
- * when a depot is chosen, five of them naming that depot, so a preset never refers to
- * "this depot" while the whole network is selected. Every one is a shape the scripted
- * router answers.
+ * Suggested questions for the chosen scope, in groups: ten for the whole network, and ten
+ * when a depot is chosen, five of them naming that depot, so a suggestion never refers to
+ * "this depot" while the whole network is selected.
  */
-export function presetQuestionGroups(depotName: string | null): readonly PresetGroup[] {
-  if (depotName === null) return [NETWORK_PRESETS, SERVICE_PRESETS];
+export function suggestedQuestionGroups(depotName: string | null): readonly PresetGroup[] {
+  if (depotName === null) return [SERVICE_SUGGESTIONS, BALANCE_SUGGESTIONS, START_SUGGESTIONS];
   const name = depotName.slice(0, MAX_EXAMPLE_NAME_CHARS);
   return [
     {
       label: 'This depot',
       questions: [
-        `Give me a summary of ${name}.`,
-        `What exceptions does ${name} have?`,
-        `Which transfers involve ${name}?`,
-        `How is outshedding at ${name}?`,
+        `What should ${name} change this morning?`,
         `What should ${name} change this evening?`,
+        `Should ${name} send buses elsewhere?`,
+        `What exceptions does ${name} have?`,
+        `How is outshedding at ${name}?`,
       ],
     },
-    NETWORK_PRESETS_BESIDE_DEPOT,
-    SERVICE_PRESETS,
+    ...BESIDE_DEPOT,
   ];
 }
 
-/** The presets for the chosen scope as one flat list, in the order shown. */
+/** The suggestions for the chosen scope as one flat list, in the order shown. */
 export function exampleQuestions(depotName: string | null): readonly string[] {
-  return presetQuestionGroups(depotName).flatMap((group) => group.questions);
+  return suggestedQuestionGroups(depotName).flatMap((group) => group.questions);
 }
 
 export interface FactGroup {

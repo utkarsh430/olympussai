@@ -1,4 +1,4 @@
-import { presetQuestionGroups } from '@/lib/depot/copilot/ui/copilotView';
+import { suggestedQuestionGroups } from '@/lib/depot/copilot/ui/copilotView';
 
 export interface ExampleQuestionsProps {
   /** The chosen depot's name, or null for the whole network. */
@@ -9,11 +9,11 @@ export interface ExampleQuestionsProps {
 const INDEX_DIGITS = 2;
 
 /**
- * The preset questions in their groups, numbered through as instrument rows: a press
+ * The suggested questions in their groups, numbered through as instrument rows: a press
  * fills the question box and never submits, so a person reads what will be asked first.
  */
 export function ExampleQuestions({ depotName, onPick }: ExampleQuestionsProps) {
-  const groups = presetQuestionGroups(depotName);
+  const groups = suggestedQuestionGroups(depotName);
   const firstIndexOf = groups.map((_, i) =>
     groups.slice(0, i).reduce((count, group) => count + group.questions.length, 0),
   );

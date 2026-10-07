@@ -89,7 +89,7 @@ describe('exampleQuestions', () => {
 
   it('names the chosen depot in depot questions', () => {
     const examples = exampleQuestions('Kurla');
-    expect(examples).toContain('Give me a summary of Kurla.');
+    expect(examples).toContain('What should Kurla change this evening?');
     expect(examples).toContain('What exceptions does Kurla have?');
     for (const example of examples) expect(example.toLowerCase()).not.toContain('this depot');
   });

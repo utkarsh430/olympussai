@@ -220,8 +220,8 @@ export function AskPanel() {
               Ready
             </span>
             <p className="depot-prose max-w-[56ch]">
-              Ask about the network, one depot, a route or an hour of the day. Pick a preset or type your own;
-              every answer says what it rests on, and nothing is stored.
+              Ask where buses are short or spare, which routes need more or fewer in an hour, or where to start.
+              Pick a suggested question or type your own; every answer says what it rests on, and nothing is stored.
             </p>
             <ul className="grid w-full max-w-3xl min-w-0 gap-3 text-left sm:grid-cols-3" aria-label="What can be asked">
               {CAPABILITIES.map((item) => (
@@ -250,7 +250,7 @@ export function AskPanel() {
         )}
       </section>
 
-      {/* The preset questions beside the console from 1280px; below it on narrower screens. */}
+      {/* The suggested questions beside the console from 1280px; below it on narrower screens. */}
       <aside
         aria-labelledby={`${ids.text}-t`}
         className="hud-panel hud-corners flex min-w-0 flex-col gap-3 py-3"
@@ -258,7 +258,7 @@ export function AskPanel() {
       >
         <div className="flex min-w-0 items-baseline justify-between gap-3 border-b border-depot-line px-4 pb-3">
           <h2 id={`${ids.text}-t`} className="depot-eyebrow mb-0">
-            Preset questions
+            Suggested questions
           </h2>
           <span className="shrink-0 font-mono text-[11px] text-depot-muted">A press fills the box</span>
         </div>
