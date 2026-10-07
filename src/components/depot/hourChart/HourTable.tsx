@@ -23,7 +23,9 @@ const COLUMNS: readonly Column<HourTableRow>[] = [
  */
 export function HourTable({ rows, id }: { readonly rows: readonly HourTableRow[]; readonly id?: string }) {
   return (
-    <>
+    // In the page flow: the 24 rows are the chart's equivalent, so they never sit in a
+    // second vertical scroll; the frame still scrolls sideways.
+    <div className="depot-table-flow">
       <DataTable
         id={id}
         columns={COLUMNS}
@@ -33,6 +35,6 @@ export function HourTable({ rows, id }: { readonly rows: readonly HourTableRow[]
         fixedRows
       />
       <p className="depot-note mt-2">{SERVICE_TEXT.delayUnit}</p>
-    </>
+    </div>
   );
 }

@@ -211,6 +211,13 @@ describe('HourChart', () => {
     expect(container.textContent).toContain('Delay is the feed’s own figure; its unit is unconfirmed.');
   });
 
+  it('lets the hour table run its 24 rows in the page, not in a second vertical scroll', () => {
+    render();
+    act(() => toggleButton()?.click());
+    const frame = container.querySelector('[role="region"]');
+    expect(frame?.closest('.depot-table-flow')).not.toBeNull();
+  });
+
   it('shows no banned word or raw date, as chart or table', () => {
     render();
     expect(bannedOnScreen(container)).toEqual([]);
