@@ -17,9 +17,14 @@ const HOURS_PER_DAY = 24;
 /** The empty cell's mark, as the format module writes it. */
 export const DASH = '—';
 
+/** An hour of the operating day as its two digits, "07", for an axis or a column head. */
+export function hourDigits(hour: number): string {
+  return String(hour).padStart(2, '0');
+}
+
 /** An hour of the operating day as "HH:00". */
 export function hourLabel(hour: number): string {
-  return `${String(hour).padStart(2, '0')}:00`;
+  return `${hourDigits(hour)}:00`;
 }
 
 /** A band of hours from the start of its first to the end of its last: "07:00–11:00". */

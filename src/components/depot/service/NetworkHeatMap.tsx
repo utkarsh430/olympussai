@@ -9,7 +9,7 @@ import { StatePanel } from '@/components/depot/shell/StatePanel';
 import { routeHourlyPath } from '@/lib/depot/nav';
 import { serviceBand } from '@/lib/depot/service/networkHours';
 import { heatCell, heatTableRows, type HeatTableRow } from '@/lib/depot/service/networkPageModel';
-import { hourLabel } from '@/lib/depot/service/serviceWording';
+import { hourDigits, hourLabel } from '@/lib/depot/service/serviceWording';
 import type { NetworkHourlyResponse, NetworkRouteStrip } from '@/lib/depot/service/types';
 import { heatFill } from './heatStyle';
 import { NetworkHeatLegend } from './NetworkHeatLegend';
@@ -26,7 +26,7 @@ const TABLE_COLUMNS: readonly Column<HeatTableRow>[] = [
   { key: 'peak', header: 'Band peak', render: (r) => r.peak },
   ...HOURS.map((h) => ({
     key: `h${h}`,
-    header: String(h).padStart(2, '0'),
+    header: hourDigits(h),
     render: (r: HeatTableRow) => r.hours[h] ?? '',
   })),
 ];
@@ -74,7 +74,7 @@ function HourAxis({ band }: { band: { fromHour: number; toHour: number } }) {
           key={h}
           className={`text-center font-mono text-[11px] ${h >= band.fromHour && h <= band.toHour ? 'text-depot-ink' : 'depot-faint'}`}
         >
-          {h % 3 === 0 ? String(h).padStart(2, '0') : ''}
+          {h % 3 === 0 ? hourDigits(h) : ''}
         </span>
       ))}
     </div>
