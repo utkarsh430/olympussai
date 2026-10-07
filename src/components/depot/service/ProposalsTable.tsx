@@ -107,7 +107,7 @@ function ProposalDetail({ row, shown }: { readonly row: ProposalRow; readonly sh
       {row.impactPairs.length > 0 ? (
         <>
           <dl
-            className="depot-note grid grid-cols-[max-content_auto] gap-x-4 gap-y-0.5 pt-1 sm:grid-cols-[max-content_auto_max-content_auto]"
+            className="depot-note grid w-fit grid-cols-[max-content_auto] gap-x-4 gap-y-0.5 pt-1 sm:grid-cols-[max-content_auto_max-content_auto]"
             aria-label="Modelled impact ranges"
           >
             {row.impactPairs.map(([label, value]) => (

@@ -154,6 +154,8 @@ describe('RouteHourlyPage body', () => {
     expect(details[0]?.textContent).toContain(FIXTURE_PROPOSALS[0]?.reason);
     expect(details[0]?.querySelector('dl')?.textContent).toContain('Revenue a day₹9,400 to ₹16,800');
     expect(details[0]?.textContent).toContain('Net a day: −₹8,900 to ₹1,700');
+    // The impact grid is as wide as its figures, so a value never drifts across a wide row.
+    expect(details[0]?.querySelector('dl')?.className).toMatch(/\bw-fit\b/);
     expect(details[2]?.textContent).toContain('No modelled impact');
   });
 
