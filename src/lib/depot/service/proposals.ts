@@ -176,6 +176,11 @@ const KIND_ORDER: readonly ProposalKind[] = [
   'service_span_gap',
   'headway_gap',
   'revise_running_time',
+  'shift_departures',
+  'reserve_by_hour',
+  'maintenance_window',
+  'corridor_under_served',
+  'corridor_over_served',
 ];
 
 /** Passengers a proposal lets the route carry; none for a finding or a hold (which carries no more). */

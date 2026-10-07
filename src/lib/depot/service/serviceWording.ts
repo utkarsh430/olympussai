@@ -61,6 +61,11 @@ export const PROPOSAL_KIND_LABEL: Readonly<Record<ProposalKind, string>> = {
   service_span_gap: 'Service span gap',
   headway_gap: 'Headway gap',
   revise_running_time: 'Revise running time',
+  reserve_by_hour: 'Reserve by hour',
+  maintenance_window: 'Maintenance window',
+  shift_departures: 'Shift departures',
+  corridor_over_served: 'Corridor over-served',
+  corridor_under_served: 'Corridor under-served',
 };
 
 /** The short cell word for a finding that moves no bus. */
@@ -71,6 +76,11 @@ const KIND_CELL: Readonly<Record<ProposalKind, string>> = {
   service_span_gap: 'Span gap',
   headway_gap: 'Headway gap',
   revise_running_time: 'Running time',
+  reserve_by_hour: 'Reserve',
+  maintenance_window: 'Window',
+  shift_departures: 'Shift',
+  corridor_over_served: 'Corridor over',
+  corridor_under_served: 'Corridor short',
 };
 
 /** "Add 3", "Hold 2", or the finding's short name when no bus moves. */
