@@ -187,6 +187,8 @@ describe('RouteHourlyPage body', () => {
         ? { hour: 9, delayMedianMin: -15.5, lateShare: 0, coverage: { n: 1, of: 1 } }
         : r.hour === 10
           ? { hour: 10, delayMedianMin: 454, lateShare: 1, coverage: { n: 1, of: 1 } }
+          : r.hour === 11
+            ? { hour: 11, delayMedianMin: -57.98, lateShare: 0, coverage: { n: 2, of: 2 } }
           : { hour: r.hour, delayMedianMin: null, lateShare: null, coverage: { n: 0, of: 0 } },
     );
     render({ ...LOADED, response: { ...response, reliability } });
@@ -198,6 +200,9 @@ describe('RouteHourlyPage body', () => {
     expect(rows[0]).not.toMatch(/-\d|min/);
     expect(rows[1]).toContain('454');
     expect(rows[1]).not.toMatch(/ h /);
+    // A figure that rounds to a whole number prints without a trailing ".0".
+    expect(rows[2]).toContain('−58');
+    expect(rows[2]).not.toContain('58.0');
   });
 
   it('reads punctuality from the journeys the feed reported, not from the hours', () => {

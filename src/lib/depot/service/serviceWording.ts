@@ -48,7 +48,8 @@ export function gapFigure(gap: number): string {
  */
 export function feedDelayFigure(value: number | null): string {
   if (value === null || !Number.isFinite(value)) return DASH;
-  const size = Math.abs(value);
+  // Rounded to tenths first, so a figure that rounds to a whole number has no ".0".
+  const size = Math.round(Math.abs(value) * 10) / 10;
   const text = Number.isInteger(size) ? formatCount(size) : formatOneDecimal(size);
   return value < 0 && text !== '0' ? `${MINUS}${text}` : text;
 }
