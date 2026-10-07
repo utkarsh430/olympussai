@@ -127,8 +127,17 @@ describe('proposals table width per tier', () => {
     expect(width).toBeLessThanOrEqual(contentWidthAt(viewport));
   });
 
-  it('keeps every column from 1440 and always the band, change and rests-on', () => {
-    expect(proposalColumnKeys('full')).toHaveLength(9);
+  it('gives the MODELLED headers the room a browser draws them in', () => {
+    // Measured in a browser at 1440: "Needed MODELLED" 159px, "Impact pax MODELLED" 191px.
+    expect(PROPOSAL_COLUMN_WIDTHS.needed).toBeGreaterThanOrEqual(160);
+    expect(PROPOSAL_COLUMN_WIDTHS.impact).toBeGreaterThanOrEqual(192);
+    expect(PROPOSAL_COLUMN_WIDTHS.band).toBeGreaterThanOrEqual(112);
+    expect(PROPOSAL_COLUMN_WIDTHS.change).toBeGreaterThanOrEqual(128);
+  });
+
+  it('keeps every figure column from 1440 and always the band, change and rests-on', () => {
+    expect(proposalColumnKeys('full')).toHaveLength(8);
+    expect(proposalColumnKeys('full')).not.toContain('reason');
     for (const tier of ['full', 'wide', 'narrow'] as const) {
       expect(proposalColumnKeys(tier)).toEqual(
         expect.arrayContaining(['band', 'change', 'needed', 'impact', 'restsOn']),

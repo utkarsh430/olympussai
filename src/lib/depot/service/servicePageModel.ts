@@ -211,31 +211,33 @@ export type ProposalColumnKey =
   | 'needed'
   | 'source'
   | 'impact'
-  | 'restsOn'
-  | 'reason';
+  | 'restsOn';
 
-/** Every column from 1440; below it the reason and the scheduled figure live in the expanded row. */
+/**
+ * Every figure column from 1440; below it the scheduled figure lives in the expanded row.
+ * The reason is a sentence, so at every width it is the expanded row's first line.
+ */
 export type ProposalTableTier = 'full' | 'wide' | 'narrow';
 
 /**
- * Widths in px: each fits its header (a MODELLED pill included) and its longest cell
- * word; a depot name longer than the source column truncates, with the full text in
- * its title. The reason is a sentence, so its column only previews it.
+ * Widths in px, as a browser draws them: each fits its header (a MODELLED pill included)
+ * and its longest cell word. The source cell is capped inside this width (a long depot
+ * name truncates, with the full text in its title), since an automatic table layout
+ * would otherwise widen the column to the whole name.
  */
 export const PROPOSAL_COLUMN_WIDTHS: Readonly<Record<ProposalColumnKey, number>> = {
-  band: 104,
-  change: 120,
+  band: 112,
+  change: 128,
   deployed: 88,
   scheduled: 96,
-  needed: 136,
-  source: 160,
-  impact: 168,
+  needed: 160,
+  source: 144,
+  impact: 192,
   restsOn: 120,
-  reason: 136,
 };
 
 const COLUMN_SETS: Readonly<Record<ProposalTableTier, readonly ProposalColumnKey[]>> = {
-  full: ['band', 'change', 'deployed', 'scheduled', 'needed', 'source', 'impact', 'restsOn', 'reason'],
+  full: ['band', 'change', 'deployed', 'scheduled', 'needed', 'source', 'impact', 'restsOn'],
   wide: ['band', 'change', 'deployed', 'needed', 'source', 'impact', 'restsOn'],
   narrow: ['band', 'change', 'needed', 'impact', 'restsOn'],
 };

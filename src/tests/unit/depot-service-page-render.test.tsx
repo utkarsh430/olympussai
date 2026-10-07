@@ -108,7 +108,10 @@ describe('RouteHourlyPage body', () => {
     const headers = Array.from(proposals?.querySelectorAll('th') ?? []).map((th) => th.textContent ?? '');
     expect(headers.find((h) => h.startsWith('Needed'))).toMatch(/MODELLED/i);
     expect(headers.find((h) => h.startsWith('Impact'))).toMatch(/MODELLED/i);
-    expect(headers.some((h) => h.startsWith('Reason'))).toBe(true);
+    // The reason is a sentence: it lives in the expanded row, never as a clipped column.
+    expect(headers.some((h) => h.startsWith('Reason'))).toBe(false);
+    const source = proposals?.querySelector('tbody td[title^="Alambagh"] span');
+    expect(source?.className).toContain('truncate');
     expect(proposals?.textContent).toContain('Recommendation only');
     expect(proposals?.textContent).toContain('not ticketing');
     expect(proposals?.querySelectorAll('tbody tr')).toHaveLength(3);
