@@ -10,7 +10,6 @@ import { DEMAND_BASIS } from '../sim/hourlyDemandConfig';
 import { modelHourlyDemand } from '../sim/hourlyDemand';
 import { modelRouteLength } from '../sim/operatingDay';
 import type { OperatingDay } from '../sim/operatingDayTypes';
-import { modelRidershipDay } from '../sim/ridership';
 import { operatingDateOf } from '../sim/seed';
 import { activeHoursOf, routeHourFigures, type CurrentRouteHour } from '../service/gap';
 import { ledgerJourneysOf, mergeJourneys } from '../service/journeyLedger';
@@ -19,6 +18,7 @@ import { needInputsFor } from '../service/need';
 import { capAddsAtStanding } from '../service/proposalCap';
 import { buildProposals } from '../service/proposals';
 import { reliabilityByHour } from '../service/reliability';
+import { routeDayBoardings } from '../service/routeDayBoardings';
 import { scheduledSupply } from '../service/scheduledSupply';
 import type { LedgerJourney, NeedInputs, RouteHourlyBody } from '../service/types';
 import { MINUTES_PER_HOUR } from '../units';
@@ -29,9 +29,11 @@ import { routeTableOf } from './routeInputs';
 /*
  * One route's day hour by hour, composed from what is held for it: the snapshot's route
  * row (the feed clock's hour), what this server observed of the date, the journeys the
- * feed reported and the looked-up bus days (scheduled), the shared modelled operating day
- * of each depot running the route (modelled deployment and the day's boardings), and the
- * engine in `service/` (demand, need, gap, proposals, punctuality). No upstream call.
+ * feed reported and the looked-up bus days (scheduled), a modelled day drawn from the
+ * buses the snapshot shows on the route (modelled deployment and the day's boardings, so
+ * the observed and modelled hours are one route on one scale), the shared modelled
+ * operating day of each depot running it (route length and the depot's idle buses), and
+ * the engine in `service/` (demand, need, gap, proposals, punctuality). No upstream call.
  */
 
 /** The depot the route's proposals draw on: the one running most of its buses now. */
@@ -77,14 +79,6 @@ function operatorDays(view: FleetSnapshotView, row: RouteRow): OperatingDay[] {
   return ids.map((id) => operatingDayFor(view, id)).filter((d): d is OperatingDay => d !== null);
 }
 
-/** The day's modelled boardings on the route, summed over its depots' days (the revenue page's figure). */
-function dayBoardingsOf(days: readonly OperatingDay[], routeName: string): number {
-  return days.reduce(
-    (sum, day) => sum + (modelRidershipDay(day).find((r) => r.routeName === routeName)?.boardings ?? 0),
-    0,
-  );
-}
-
 function deadKmPerTripOf(
   analysis: SnapshotAnalysis,
   depotId: string | null,
@@ -128,14 +122,15 @@ export async function routeHourlyBody(
   const profile = cachedRouteProfiles(view, operatingDate).get(routeName);
   const need = needInputsFor({ routeName, ledger, profileDurationMin: profile?.scheduledDurationMin ?? null });
   const journeyMinutes = knownJourneyMinutes(need);
-  const modelled = modelledRouteHours({ routeName, operatingDate, buses: row.buses, journeyMinutes });
+  const fleet = { routeName, operatingDate, buses: row.buses, journeyMinutes };
+  const modelled = modelledRouteHours(fleet);
   const current = currentHourOf(row, feedMinute);
   const demand = modelHourlyDemand({
     routeName,
     operatingDate,
     serviceClass: need.serviceClass,
     journeyMinutes: need.journeyMinutes,
-    dayBoardings: dayBoardingsOf(days, routeName),
+    dayBoardings: routeDayBoardings(fleet).boardings,
     activeHours: activeHoursOf(observed, modelled, current),
   });
   const supply = scheduledSupply({
