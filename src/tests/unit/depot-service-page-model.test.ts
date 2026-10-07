@@ -64,6 +64,14 @@ describe('coverage and provenance', () => {
     );
   });
 
+  it('says one bus in the singular', () => {
+    const one = coverageSentences(
+      routeHourlyFixture({ scheduledCoverage: { n: 1, of: 1 }, routeCoverage: { n: 1, of: 1 } }),
+    );
+    expect(one).toContain('Scheduled trips known for 1 of 1 bus seen on this route today.');
+    expect(one).toContain('Only buses that report a route name are counted: 1 of the 1 bus in the feed reports one.');
+  });
+
   it('is a MIXED line with live, derived and modelled parts and the coverage as its second', () => {
     const line = routeHourlyProvenance(routeHourlyFixture());
     expect(line.default).toBe('mixed');

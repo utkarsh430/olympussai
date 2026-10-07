@@ -1,6 +1,6 @@
 import type { ProvenanceDescription } from '../provenanceLine';
 import type { DepotMeaning } from '../palette';
-import { MINUS, formatCount, formatFeedTimeOn, formatPlainDate } from '../format';
+import { MINUS, countPhrase, formatCount, formatFeedTimeOn, formatPlainDate, pluralWord } from '../format';
 import { BREAKPOINT_PX, WIDE_VIEWPORT_PX } from '../shell/geometry';
 import type { Provenance } from '../types';
 import {
@@ -95,9 +95,9 @@ export function coverageSentences(body: Body): readonly string[] {
       : `Observed by this server since ${formatFeedTimeOn(body.observed.since, body.feedNow)} (${formatCount(body.observed.samples)} samples).`;
   return [
     observed,
-    `Only buses that report a route name are counted: ${formatCount(body.routeCoverage.n)} of the ${formatCount(body.routeCoverage.of)} buses in the feed report one.`,
+    `Only buses that report a route name are counted: ${formatCount(body.routeCoverage.n)} of the ${countPhrase(body.routeCoverage.of, 'bus', 'buses')} in the feed ${pluralWord(body.routeCoverage.n, 'reports', 'report')} one.`,
     ...standingSentence(body.standingNow),
-    `Scheduled trips known for ${formatCount(body.scheduledCoverage.n)} of ${formatCount(body.scheduledCoverage.of)} buses seen on this route today.`,
+    `Scheduled trips known for ${formatCount(body.scheduledCoverage.n)} of ${countPhrase(body.scheduledCoverage.of, 'bus', 'buses')} seen on this route today.`,
   ];
 }
 
