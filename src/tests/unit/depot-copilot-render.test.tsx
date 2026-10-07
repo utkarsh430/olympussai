@@ -240,7 +240,7 @@ describe('AskPanel', () => {
         <AskPanel />
     );
     expect(container.textContent).not.toContain('this depot');
-    expect(container.querySelectorAll('[aria-label="Example questions"] button')).toHaveLength(4);
+    expect(container.querySelectorAll('[aria-label="Example questions"] button')).toHaveLength(6);
   });
 
   it('an empty submit keeps the button enabled and says what to do in the status line', async () => {

@@ -3,8 +3,11 @@ import {
   AMBIGUOUS_DEPOT_QUERY,
   OUT_OF_SCOPE_QUERY,
   PEOPLE_QUERY,
+  UNKNOWN_ROUTE_QUERY,
   metricHigherIsBetter,
 } from '@/lib/depot/copilot/queries';
+import { hourOf } from '@/lib/depot/copilot/router/hours';
+import { findRoute } from '@/lib/depot/copilot/router/resolveRoute';
 import { resolveDepot, type DepotRef } from '@/lib/depot/copilot/router/resolveDepot';
 import { measureOf, withoutMeasureWords } from '@/lib/depot/copilot/router/measures';
 import { sanitizeQuestion } from '@/lib/depot/copilot/router/sanitize';
@@ -245,6 +248,22 @@ function measureWithoutDepot(
   return { kind: 'networkSummary' };
 }
 
+/** The day's service brief: the plan for today, by name. */
+const BRIEF =
+  /\b(plan for (?:the day|today)|today'?s plan|day'?s plan|daily brief\w*|service brief\w*|brief for today)\b/;
+/** Words that ask about routes' service at an hour: short, over-served, what to change. */
+const ROUTE_SERVICE =
+  /\b(over[\s-]?served|under[\s-]?served|short|change\w*|proposals?|proposed|routes?)\b/;
+
+/**
+ * A question about one route: at an hour it is that hour's figures, otherwise the route's
+ * day and its proposals. A depot named beside the route is not used: the route is the subject.
+ */
+function routeQuery(routeName: string, rest: string): CopilotQuery {
+  const hour = hourOf(rest);
+  return hour === null ? { kind: 'routeProposals', routeName } : { kind: 'routeHour', routeName, hour };
+}
+
 /** Words that point at the depot the question was asked from. */
 const THIS_DEPOT = /\b(this|my|our|current) depot\b|\bhere\b/;
 
@@ -252,12 +271,14 @@ const THIS_DEPOT = /\b(this|my|our|current) depot\b|\bhere\b/;
  * `scopeDepotId` is the depot the question was asked from, if any. It counts as
  * named when the text says "this depot" (or "here"), and fills in for a query
  * that needs a depot when none is named; it never displaces a named depot and
- * never turns a network, ranking or list question into a depot one.
+ * never turns a network, ranking or list question into a depot one. `routes` are the route
+ * names the snapshot carries; a route is matched only against them.
  */
 export function scriptedRoute(
   question: string,
   depots: readonly DepotRef[],
   scopeDepotId?: string,
+  routes: readonly string[] = [],
 ): CopilotQuery {
   const clean = sanitizeQuestion(question);
   const text = clean.toLowerCase();
@@ -266,6 +287,10 @@ export function scriptedRoute(
   if (LEADING_WHO.test(text) && !(RANKING.test(text) && FLEET_NOUN.test(text))) {
     return PEOPLE_QUERY;
   }
+  const route = findRoute(text, routes);
+  if (route.found === 'unknown') return UNKNOWN_ROUTE_QUERY;
+  if (route.found === 'known') return routeQuery(route.routeName, route.rest);
+  if (BRIEF.test(text)) return { kind: 'serviceBrief' };
 
   const scope = depots.some((d) => d.id === scopeDepotId) ? scopeDepotId : undefined;
   const named = findDepots(text, depots);
@@ -278,6 +303,12 @@ export function scriptedRoute(
     return id === undefined ? declined(text, depots) : build(id);
   };
 
+  const hour = hourOf(text);
+  if (hour !== null && second === undefined && ROUTE_SERVICE.test(text)) {
+    return first === undefined
+      ? { kind: 'hourProposals', hour }
+      : { kind: 'hourProposals', hour, depotId: first };
+  }
   if (COMPARE.test(text) || (first !== undefined && second !== undefined)) {
     if (first === undefined || second === undefined) return declined(text, depots);
     return { kind: 'compareDepots', depotA: first, depotB: second };

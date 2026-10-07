@@ -23,7 +23,7 @@ import { POST } from '@/app/api/upsrtc/depot/copilot/route';
 
 let current: NextRequest | null = null;
 vi.mock('next/headers', () => ({ cookies: async () => current?.cookies }));
-vi.mock('@/lib/depot/repositories', () => ({ getRepositories: vi.fn() }));
+vi.mock('@/lib/depot/repositories', () => ({ getRepositories: vi.fn(), getServiceRepositories: vi.fn() }));
 vi.mock('@/lib/depot/copilot/service/runtime', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/depot/copilot/service/runtime')>();
   return { ...actual, getCopilotRuntime: vi.fn() };

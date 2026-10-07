@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useId, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import { useCopilot, type CopilotState } from '@/hooks/useCopilot';
+import type { CopilotApiRequest } from '@/lib/depot/copilot/wire';
 import { failureSentence } from '@/lib/depot/copilot/ui/copilotView';
 import { CopilotText } from './CopilotText';
 import { CopilotFooter } from './CopilotFooter';
@@ -37,14 +38,15 @@ function statusFor(expanded: boolean, state: CopilotState): string {
   }
 }
 
+type RationaleRequest = Extract<CopilotApiRequest, { task: 'rationale' }>;
+
 /**
- * State for one transfer's explanation, shared by the toggle and the panel so
- * a host table can place them in different cells and rows. One request per
- * expansion: collapsing keeps the text, so re-opening does not request again.
- * Switching to another transfer, or the same transfer with a different
- * recommended bus count, starts closed and empty: the text describes a plan.
+ * State for one explanation, shared by the toggle and the panel so a host table can place
+ * them in different cells and rows. One request per expansion: collapsing keeps the text,
+ * so re-opening does not request again. A new `body` (the caller memoises it on what the
+ * text describes) starts closed and empty.
  */
-export function useRationale(transferId: string, planBuses?: number): RationaleControl {
+function useRationaleFor(body: RationaleRequest): RationaleControl {
   const { state, request, reset } = useCopilot();
   const [expanded, setExpanded] = useState(false);
   const panelId = useId();
@@ -52,9 +54,9 @@ export function useRationale(transferId: string, planBuses?: number): RationaleC
   useEffect(() => {
     reset();
     setExpanded(false);
-  }, [transferId, planBuses, reset]);
+  }, [body, reset]);
 
-  const ask = useCallback((): void => request({ task: 'rationale', transferId }), [request, transferId]);
+  const ask = useCallback((): void => request(body), [request, body]);
   const toggle = useCallback((): void => {
     const next = !expanded;
     setExpanded(next);
@@ -62,6 +64,29 @@ export function useRationale(transferId: string, planBuses?: number): RationaleC
   }, [expanded, state.status, ask]);
 
   return { expanded, toggle, retry: ask, state, panelId, status: statusFor(expanded, state) };
+}
+
+/**
+ * One transfer's explanation. Switching to another transfer, or the same transfer with a
+ * different recommended bus count, starts closed and empty: the text describes a plan.
+ */
+export function useRationale(transferId: string, planBuses?: number): RationaleControl {
+  // The count is not sent; it is in the memo so a new count is a new explanation.
+  const body = useMemo(
+    (): RationaleRequest => ({ task: 'rationale', transferId }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [transferId, planBuses],
+  );
+  return useRationaleFor(body);
+}
+
+/** One route proposal's explanation, by its id and its route; another proposal starts fresh. */
+export function useProposalRationale(proposalId: string, routeName: string): RationaleControl {
+  const body = useMemo(
+    (): RationaleRequest => ({ task: 'rationale', proposalId, routeName }),
+    [proposalId, routeName],
+  );
+  return useRationaleFor(body);
 }
 
 export interface RationaleToggleProps {
@@ -178,14 +203,15 @@ export interface RationaleButtonProps {
   readonly headingLevel?: 2 | 3 | 4;
 }
 
-/** Toggle and panel stacked, for hosts that are not tables. */
-export function RationaleButton({
-  transferId,
-  planBuses,
+function StackedRationale({
+  rationale,
   label,
   headingLevel,
-}: RationaleButtonProps) {
-  const rationale = useRationale(transferId, planBuses);
+}: {
+  readonly rationale: RationaleControl;
+  readonly label: string;
+  readonly headingLevel?: 2 | 3 | 4;
+}) {
   return (
     <div className="min-w-0">
       <RationaleToggle
@@ -206,4 +232,34 @@ export function RationaleButton({
       </div>
     </div>
   );
+}
+
+/** Toggle and panel stacked, for hosts that are not tables. */
+export function RationaleButton({
+  transferId,
+  planBuses,
+  label,
+  headingLevel,
+}: RationaleButtonProps) {
+  const rationale = useRationale(transferId, planBuses);
+  return <StackedRationale rationale={rationale} label={label} headingLevel={headingLevel} />;
+}
+
+export interface ProposalRationaleButtonProps {
+  readonly proposalId: string;
+  readonly routeName: string;
+  /** What the proposal is, for the accessible name: "Why? 07:00–10:00 Add 3". */
+  readonly label: string;
+  readonly headingLevel?: 2 | 3 | 4;
+}
+
+/** The "Why?" toggle and its explanation for one route proposal, stacked. */
+export function ProposalRationaleButton({
+  proposalId,
+  routeName,
+  label,
+  headingLevel,
+}: ProposalRationaleButtonProps) {
+  const rationale = useProposalRationale(proposalId, routeName);
+  return <StackedRationale rationale={rationale} label={label} headingLevel={headingLevel} />;
 }
