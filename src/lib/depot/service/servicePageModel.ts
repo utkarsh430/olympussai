@@ -208,43 +208,52 @@ export type ProposalColumnKey =
   | 'restsOn';
 
 /**
- * Every figure column from 1440; below it the scheduled figure lives in the expanded row.
- * The reason is a sentence, so at every width it is the expanded row's first line.
+ * Every figure column from 1440; a narrower width drops the columns the expanded row also
+ * holds (scheduled and source, then deployed and impact), and a phone keeps the band, the
+ * change and what it rests on, so the table and its open row fit the frame without
+ * scrolling sideways. The reason is a sentence, so at every width it is the expanded row's
+ * first line.
  */
-export type ProposalTableTier = 'full' | 'wide' | 'narrow';
+export type ProposalTableTier = 'full' | 'wide' | 'narrow' | 'phone';
 
 /**
- * Widths in px, as a browser draws them: each fits its header (a MODELLED pill included)
- * and its longest cell word. The source cell is the depot's name alone, capped inside this
- * width (a very long name truncates, with the full text in its title), since an automatic
- * table layout would otherwise widen the column to the whole name.
+ * Widths in px, as a browser draws them: each fits its header (its "mean" unit and a
+ * MODELLED pill included) and its longest cell word. The source cell is the depot's name
+ * alone, capped inside this width (a very long name truncates, with the full text in its
+ * title), since an automatic table layout would otherwise widen the column to the whole
+ * name. Rests-on is one word, so the phone set fits a 390px frame.
  */
 export const PROPOSAL_COLUMN_WIDTHS: Readonly<Record<ProposalColumnKey, number>> = {
   band: 112,
   change: 128,
-  deployed: 88,
-  scheduled: 96,
-  needed: 160,
-  source: 144,
+  deployed: 128,
+  scheduled: 136,
+  needed: 200,
+  source: 120,
   impact: 192,
-  restsOn: 120,
+  restsOn: 92,
 };
 
 const COLUMN_SETS: Readonly<Record<ProposalTableTier, readonly ProposalColumnKey[]>> = {
   full: ['band', 'change', 'deployed', 'scheduled', 'needed', 'source', 'impact', 'restsOn'],
-  wide: ['band', 'change', 'deployed', 'needed', 'source', 'impact', 'restsOn'],
+  wide: ['band', 'change', 'deployed', 'needed', 'impact', 'restsOn'],
   narrow: ['band', 'change', 'needed', 'impact', 'restsOn'],
+  phone: ['band', 'change', 'restsOn'],
 };
+
+/** The viewport from which the narrow set fits its frame (its width plus both gutters). */
+const NARROW_FROM_PX = 800;
 
 /** The tiers from the widest, for `useWidthTier`. */
 export const PROPOSAL_TIERS: readonly (readonly [ProposalTableTier, number])[] = [
   ['full', WIDE_VIEWPORT_PX],
   ['wide', BREAKPOINT_PX.lg],
-  ['narrow', 0],
+  ['narrow', NARROW_FROM_PX],
+  ['phone', 0],
 ];
 
 export function proposalTierFor(viewportPx: number): ProposalTableTier {
-  return PROPOSAL_TIERS.find(([, from]) => viewportPx >= from)?.[0] ?? 'narrow';
+  return PROPOSAL_TIERS.find(([, from]) => viewportPx >= from)?.[0] ?? 'phone';
 }
 
 /** The columns shown at a tier; what a tier drops is in the expanded row. */

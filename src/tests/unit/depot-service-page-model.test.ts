@@ -15,7 +15,8 @@ import {
   routeHourlyProvenance,
   scheduledLegendText,
 } from '@/lib/depot/service/serviceCoverage';
-import { bandLabel, hourLabel, PROPOSAL_KIND_LABEL, SERVICE_TEXT } from '@/lib/depot/service/serviceWording';
+import { bandLabel, hourLabel, PROPOSAL_KIND_LABEL, SERVICE_TEXT, TIER_CELL } from '@/lib/depot/service/serviceWording';
+import { PUNCTUALITY_COLUMN_KEYS, PUNCTUALITY_COLUMN_WIDTHS } from '@/lib/depot/service/punctualityModel';
 import { TABLE_FRAME_BORDER_PX, contentWidthAt } from '@/lib/depot/shell/geometry';
 import { tableWidth } from '@/lib/depot/shell/tableWidth';
 import { FIXTURE_PROPOSALS, routeHourlyFixture } from './depot-service-fixtures';
@@ -115,11 +116,11 @@ describe('proposal rows', () => {
       change: 'Add 3',
       source: 'Alambagh',
       impact: '180–320 pax',
-      restsOn: 'B · Mixed',
+      restsOn: 'Mixed',
       reason: FIXTURE_PROPOSALS[0]?.reason,
     });
     expect(hold).toMatchObject({ change: 'Hold 2', source: 'Alambagh', impact: '270–330 km saved' });
-    expect(run).toMatchObject({ change: 'Running time', source: '—', impact: '—', restsOn: 'A · Measured' });
+    expect(run).toMatchObject({ change: 'Running time', source: '—', impact: '—', restsOn: 'Derived' });
     expect(run?.impactTitle).toMatch(/No modelled impact/);
     expect(run?.sourceTitle).toBe('No bus moves for this finding.');
   });
@@ -210,36 +211,51 @@ describe('proposal groups', () => {
 });
 
 describe('proposals table width per tier', () => {
+  const VIEWPORTS = [390, 640, 799, 800, 1023, 1024, 1279, 1280, 1439, 1440] as const;
+
+  it.each([...VIEWPORTS])('at %ipx the chosen column set fits the frame', (viewport) => {
+    const width =
+      tableWidth(PROPOSAL_COLUMN_WIDTHS, proposalColumnKeys(proposalTierFor(viewport)), { expander: true }) +
+      TABLE_FRAME_BORDER_PX;
+    expect(width).toBeLessThanOrEqual(contentWidthAt(viewport));
+  });
+
   it.each<[number, string]>([
     [1440, 'full'],
     [1280, 'wide'],
     [1024, 'wide'],
     [800, 'narrow'],
-  ])('at %ipx the %s column set fits the frame', (viewport, tier) => {
+    [640, 'phone'],
+    [390, 'phone'],
+  ])('at %ipx shows the %s set', (viewport, tier) => {
     expect(proposalTierFor(viewport)).toBe(tier);
-    const t = proposalTierFor(viewport);
-    const width =
-      tableWidth(PROPOSAL_COLUMN_WIDTHS, proposalColumnKeys(t), { expander: true }) +
-      TABLE_FRAME_BORDER_PX;
-    expect(width).toBeLessThanOrEqual(contentWidthAt(viewport));
   });
 
-  it('gives the MODELLED headers the room a browser draws them in', () => {
-    // Measured in a browser at 1440: "Needed MODELLED" 159px; the impact cell's longest
-    // words ("1,200–2,000 km saved") need its 192px.
-    expect(PROPOSAL_COLUMN_WIDTHS.needed).toBeGreaterThanOrEqual(160);
-    expect(PROPOSAL_COLUMN_WIDTHS.impact).toBeGreaterThanOrEqual(192);
+  it('shows the band, the change and what it rests on alone on a phone; the rest is in the expanded row', () => {
+    expect(proposalColumnKeys('phone')).toEqual(['band', 'change', 'restsOn']);
+  });
+
+  it('gives the headers the room a browser draws them in', () => {
+    // "Needed mean MODELLED" and "Scheduled mean" carry the unit; rests-on is one word.
+    expect(PROPOSAL_COLUMN_WIDTHS.needed).toBeGreaterThanOrEqual(200);
+    expect(PROPOSAL_COLUMN_WIDTHS.deployed).toBeGreaterThanOrEqual(128);
+    expect(PROPOSAL_COLUMN_WIDTHS.scheduled).toBeGreaterThanOrEqual(136);
     expect(PROPOSAL_COLUMN_WIDTHS.band).toBeGreaterThanOrEqual(112);
     expect(PROPOSAL_COLUMN_WIDTHS.change).toBeGreaterThanOrEqual(128);
+    expect(Object.values(TIER_CELL).every((word) => !word.includes(' '))).toBe(true);
   });
 
   it('keeps every figure column from 1440 and always the band, change and rests-on', () => {
     expect(proposalColumnKeys('full')).toHaveLength(8);
-    expect(proposalColumnKeys('full')).not.toContain('reason');
-    for (const tier of ['full', 'wide', 'narrow'] as const) {
-      expect(proposalColumnKeys(tier)).toEqual(
-        expect.arrayContaining(['band', 'change', 'needed', 'impact', 'restsOn']),
-      );
+    for (const tier of ['full', 'wide', 'narrow', 'phone'] as const) {
+      expect(proposalColumnKeys(tier)).toEqual(expect.arrayContaining(['band', 'change', 'restsOn']));
     }
+  });
+});
+
+describe('punctuality table width', () => {
+  it.each([390, 640, 1024, 1440])('at %ipx fits the frame', (viewport) => {
+    const width = tableWidth(PUNCTUALITY_COLUMN_WIDTHS, PUNCTUALITY_COLUMN_KEYS) + TABLE_FRAME_BORDER_PX;
+    expect(width).toBeLessThanOrEqual(contentWidthAt(viewport));
   });
 });

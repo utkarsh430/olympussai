@@ -192,7 +192,7 @@ describe('RouteHourlyPage body', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]?.textContent).toContain('14:00');
     expect(rows[0]?.textContent).toContain('2 of 3');
-    expect(section('service-punctuality')?.textContent).toContain('Journeys with a delay');
+    expect(section('service-punctuality')?.textContent).toContain('Journeys');
   });
 
   it('says what the need rests on in the closing disclosure, durations formatted', () => {

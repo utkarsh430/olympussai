@@ -73,10 +73,11 @@ export function changeCell(kind: ProposalKind, change: number): string {
   return `${KIND_CELL[kind]} ${formatCount(Math.abs(change))}`;
 }
 
+/** What a proposal rests on, in the page's provenance words; the sentence is in the cell's title. */
 export const TIER_CELL: Readonly<Record<ProposalTier, string>> = {
-  A: 'A · Measured',
-  B: 'B · Mixed',
-  C: 'C · Modelled',
+  A: 'Derived',
+  B: 'Mixed',
+  C: 'Modelled',
 };
 
 export const TIER_SENTENCE: Readonly<Record<ProposalTier, string>> = {
