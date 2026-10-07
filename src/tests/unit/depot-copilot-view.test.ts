@@ -82,7 +82,7 @@ describe('validateQuestion', () => {
 describe('exampleQuestions', () => {
   it('offers network questions only, none about "this depot", for the whole network', () => {
     const examples = exampleQuestions(null);
-    expect(examples).toHaveLength(6);
+    expect(examples).toHaveLength(10);
     for (const example of examples) expect(example.toLowerCase()).not.toContain('this depot');
     expect(examples.join(' ')).toContain('short of buses');
   });

@@ -10,7 +10,7 @@ import { bannedOnScreen } from './depot-guard-rendered';
  * The ask page's real top-level component declares MIXED
  * (computed answers DERIVED, shortfalls, spares and transfers MODELLED) in every state;
  * "advisory" and the staff limit stay visible; a generated evidence column carries
- * MODELLED in its header cell; the scope chip names the scope the ANSWER used; TRY ASKING
+ * MODELLED in its header cell; the scope chip names the scope the ANSWER used; PRESET QUESTIONS
  * keeps its label after an answer; nothing is requested on mount.
  */
 const actGlobal = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
@@ -173,7 +173,7 @@ describe('the ask page', () => {
     );
   });
 
-  it('tags a generated evidence column, shows the answer scope, and keeps TRY ASKING labelled', async () => {
+  it('tags a generated evidence column, shows the answer scope, and keeps PRESET QUESTIONS labelled', async () => {
     await renderPage();
     const box = container.querySelector('textarea') as HTMLTextAreaElement;
     const setValue = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
@@ -199,6 +199,6 @@ describe('the ask page', () => {
     expect(container.querySelector('[data-testid="ask-answer-scope"]')?.textContent).toContain(
       'KAUSHAMBI',
     );
-    expect(container.querySelector('[data-testid="ask-try"]')?.textContent).toContain('Try asking');
+    expect(container.querySelector('[data-testid="ask-try"]')?.textContent).toContain('Preset questions');
   });
 });

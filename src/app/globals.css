@@ -548,6 +548,28 @@
     animation: depot-breathe 2.6s ease-in-out infinite;
   }
 
+  /* The Ask console's lamp: a cyan point that breathes while the console stands by. */
+  .depot-lamp {
+    @apply inline-block h-2 w-2 shrink-0 rounded-full bg-holo-glow;
+    box-shadow: 0 0 10px 2px rgba(63, 240, 255, 0.55);
+    animation: depot-lamp 2.4s ease-in-out infinite;
+  }
+
+  @keyframes depot-lamp {
+    0%,
+    100% {
+      box-shadow: 0 0 6px 1px rgba(63, 240, 255, 0.35);
+    }
+    50% {
+      box-shadow: 0 0 14px 3px rgba(63, 240, 255, 0.75);
+    }
+  }
+
+  /* The console's standing-by screen: a faint cyan wash from the top, like the HUD's panels. */
+  .depot-console-glow {
+    background-image: radial-gradient(ellipse at top, rgba(63, 240, 255, 0.09), transparent 62%);
+  }
+
   @keyframes depot-breathe {
     0%,
     100% {
@@ -635,6 +657,7 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
+    .depot-lamp,
     .depot-tag-breathe {
       animation: none;
     }

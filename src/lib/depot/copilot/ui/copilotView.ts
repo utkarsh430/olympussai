@@ -77,31 +77,67 @@ export function validateQuestion(raw: string): QuestionCheck {
   return { ok: true, question, remaining };
 }
 
-const NETWORK_EXAMPLES: readonly string[] = [
-  'Which five depots rank highest on the efficiency index?',
-  'Give me a summary of the network.',
-  'Which depots are short of buses?',
-  'Which depots have spare buses?',
-  'What is the plan for today?',
-  'Which routes are over-served after 6 pm?',
-];
+/** A group of preset questions on the Ask page, under one eyebrow. */
+export interface PresetGroup {
+  readonly label: string;
+  readonly questions: readonly string[];
+}
+
+const NETWORK_PRESETS: PresetGroup = {
+  label: 'Network',
+  questions: [
+    'Give me a summary of the network.',
+    'How is the whole fleet doing today?',
+    'Which five depots rank highest on the efficiency index?',
+    'Which depots are short of buses?',
+    'Which depots have spare buses?',
+    'Which depot has the most buses off road?',
+    'Who has the most dark buses?',
+    'Which depots perform best?',
+  ],
+};
+
+const SERVICE_PRESETS: PresetGroup = {
+  label: 'Service by the hour',
+  questions: ['What is the plan for today?', 'Which routes are over-served after 6 pm?'],
+};
+
+/** The network presets kept beside a depot's own, so a depot scope still offers ten. */
+const NETWORK_PRESETS_BESIDE_DEPOT: PresetGroup = {
+  label: NETWORK_PRESETS.label,
+  questions: NETWORK_PRESETS.questions.slice(2, 5),
+};
+
 const MAX_EXAMPLE_NAME_CHARS = 80;
 
 /**
- * Example questions for the chosen scope. A depot question is offered only
- * when a depot is chosen, and it names that depot, so an example never refers
- * to "this depot" while the whole network is selected.
+ * Preset questions for the chosen scope, in groups: ten for the whole network, and ten
+ * when a depot is chosen, five of them naming that depot, so a preset never refers to
+ * "this depot" while the whole network is selected. Every one is a shape the scripted
+ * router answers.
  */
-export function exampleQuestions(depotName: string | null): readonly string[] {
-  if (depotName === null) return NETWORK_EXAMPLES;
+export function presetQuestionGroups(depotName: string | null): readonly PresetGroup[] {
+  if (depotName === null) return [NETWORK_PRESETS, SERVICE_PRESETS];
   const name = depotName.slice(0, MAX_EXAMPLE_NAME_CHARS);
   return [
-    `Give me a summary of ${name}.`,
-    `What exceptions does ${name} have?`,
-    `Which transfers involve ${name}?`,
-    `What should ${name} change this evening?`,
-    'Which depots are short of buses?',
+    {
+      label: 'This depot',
+      questions: [
+        `Give me a summary of ${name}.`,
+        `What exceptions does ${name} have?`,
+        `Which transfers involve ${name}?`,
+        `How is outshedding at ${name}?`,
+        `What should ${name} change this evening?`,
+      ],
+    },
+    NETWORK_PRESETS_BESIDE_DEPOT,
+    SERVICE_PRESETS,
   ];
+}
+
+/** The presets for the chosen scope as one flat list, in the order shown. */
+export function exampleQuestions(depotName: string | null): readonly string[] {
+  return presetQuestionGroups(depotName).flatMap((group) => group.questions);
 }
 
 export interface FactGroup {

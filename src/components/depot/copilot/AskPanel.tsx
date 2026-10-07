@@ -27,6 +27,13 @@ interface PendingQuestion {
   readonly scopeLabel: string;
 }
 
+/** What the console answers about, shown while nothing has been asked. */
+const CAPABILITIES: readonly { readonly label: string; readonly text: string }[] = [
+  { label: 'Network', text: 'Rankings, a summary, depots short of buses or with spare ones.' },
+  { label: 'One depot', text: 'Its summary, exceptions, transfers, outshedding; choose it under About.' },
+  { label: 'Service by the hour', text: "Today's plan, routes over-served by band, why a route is short at an hour." },
+];
+
 /** Ask a plain-language question about the network or one depot. Nothing is stored. */
 export function AskPanel() {
   const network = useDepotNetworkContext();
@@ -75,6 +82,7 @@ export function AskPanel() {
   const cooling = state.status === 'failed' && state.kind === 'rate_limited';
   const loading = state.status === 'loading';
   const remaining = MAX_QUESTION_CHARS - normaliseQuestion(text).length;
+  const empty = history.length === 0 && !(loading && pending);
 
   const submit = (): void => {
     if (loading || cooling) return;
@@ -105,77 +113,91 @@ export function AskPanel() {
     cooling && state.status === 'failed'
       ? `Try again in ${state.secondsRemaining} ${state.secondsRemaining === 1 ? 'second' : 'seconds'}.`
       : '';
+  const lampState = loading ? 'Writing' : cooling ? 'Cooling down' : 'Standing by';
 
   return (
-    <div className="grid min-w-0 gap-8 xl:grid-cols-[minmax(0,62ch)_320px] xl:items-start">
-      <div className="flex min-w-0 flex-col gap-6">
-        <section aria-labelledby={`${ids.text}-h`} className="flex min-w-0 flex-col gap-3">
-          <h2 id={`${ids.text}-h`} className="sr-only">
-            Ask a question
-          </h2>
-          <form
-            className="flex min-w-0 flex-col gap-3"
-            onSubmit={(event) => {
-              event.preventDefault();
-              submit();
-            }}
+    <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_340px] xl:items-start">
+      {/* The console: a HUD frame holding the composer, then the answers newest first. */}
+      <section
+        aria-labelledby={`${ids.text}-h`}
+        className="hud-panel-strong hud-corners flex min-w-0 flex-col"
+        data-testid="ask-console"
+      >
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-depot-line px-4 py-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <span aria-hidden className="depot-lamp" />
+            <h2 id={`${ids.text}-h`} className="depot-eyebrow mb-0">
+              Copilot console
+            </h2>
+            <span className="truncate font-mono text-[11px] uppercase tracking-[0.12em] text-depot-muted" data-testid="ask-lamp">
+              {lampState}
+            </span>
+          </div>
+          <Select
+            label="About"
+            value={chosen ? chosen.id : NETWORK_VALUE}
+            onChange={(event) => setScopeValue(event.target.value)}
           >
-            <Select
-              label="About"
-              value={chosen ? chosen.id : NETWORK_VALUE}
-              onChange={(event) => setScopeValue(event.target.value)}
+            <option value={NETWORK_VALUE}>Whole network</option>
+            {depots.map((depot) => (
+              <option key={depot.id} value={depot.id}>
+                {depot.name}
+              </option>
+            ))}
+          </Select>
+        </div>
+
+        <form
+          className="flex min-w-0 flex-col gap-2 border-b border-depot-line px-4 py-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            submit();
+          }}
+        >
+          {mismatch ? (
+            <p className="depot-note min-w-0" data-testid="ask-scope-mismatch">
+              {mismatch}
+            </p>
+          ) : null}
+          <label htmlFor={ids.text} className="depot-label">
+            Your question
+          </label>
+          <div className="relative min-w-0">
+            <textarea
+              ref={textRef}
+              id={ids.text}
+              rows={3}
+              value={text}
+              aria-describedby={ids.help}
+              placeholder={`Ask about ${scopeLabel === 'Whole network' ? 'the network' : scopeLabel}, a route or an hour of the day…`}
+              onChange={(event) => {
+                setText(event.target.value);
+                setMessage('');
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+                  event.preventDefault();
+                  submit();
+                }
+              }}
+              className="depot-field min-h-[96px] w-full resize-y font-sans text-sm placeholder:text-depot-faint sm:pr-32"
+            />
+            <button
+              type="submit"
+              disabled={loading || cooling}
+              className="hud-button-primary mt-2 w-full sm:absolute sm:bottom-2 sm:right-2 sm:mt-0 sm:w-auto"
             >
-              <option value={NETWORK_VALUE}>Whole network</option>
-              {depots.map((depot) => (
-                <option key={depot.id} value={depot.id}>
-                  {depot.name}
-                </option>
-              ))}
-            </Select>
-            {mismatch ? (
-              <p className="depot-note min-w-0" data-testid="ask-scope-mismatch">
-                {mismatch}
-              </p>
-            ) : null}
-
-            <div className="flex min-w-0 flex-col gap-1">
-              <label htmlFor={ids.text} className="depot-label">
-                Your question
-              </label>
-              <textarea
-                ref={textRef}
-                id={ids.text}
-                rows={3}
-                value={text}
-                aria-describedby={ids.help}
-                onChange={(event) => {
-                  setText(event.target.value);
-                  setMessage('');
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
-                    event.preventDefault();
-                    submit();
-                  }
-                }}
-                className="depot-field min-h-[88px] w-full resize-y font-sans text-sm"
-              />
-              <p id={ids.help} className="depot-note">
-                <span className={remaining < 0 ? 'text-alert-crimson' : undefined}>
-                  {limitSentence(remaining)}
-                </span>
-                {' · Enter to send, Shift+Enter for a new line.'}
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                type="submit"
-                disabled={loading || cooling}
-                className="hud-button disabled:cursor-not-allowed disabled:opacity-40 depot-button-primary"
-              >
-                Submit
-              </button>
+              Submit
+            </button>
+          </div>
+          <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+            <p id={ids.help} className="depot-note min-w-0">
+              <span className={remaining < 0 ? 'text-alert-crimson' : undefined}>
+                {limitSentence(remaining)}
+              </span>
+              {' · Enter to send, Shift+Enter for a new line.'}
+            </p>
+            <div className="flex min-w-0 flex-wrap items-baseline gap-x-3">
               <p role="status" className="depot-note min-w-0">
                 {status}
               </p>
@@ -185,15 +207,33 @@ export function AskPanel() {
                 </p>
               ) : null}
             </div>
-          </form>
-        </section>
+          </div>
+        </form>
 
-        {history.length === 0 && !(loading && pending) ? (
-          <p className="sr-only" data-testid="ask-empty">
-            No questions asked yet.
-          </p>
+        {empty ? (
+          <div
+            className="depot-console-glow flex min-h-[320px] min-w-0 flex-1 flex-col items-center justify-center gap-5 px-4 py-10 text-center xl:min-h-[420px]"
+            data-testid="ask-empty"
+          >
+            <p className="sr-only">No questions asked yet.</p>
+            <span aria-hidden className="depot-eyebrow mb-0 text-holo-glow">
+              Ready
+            </span>
+            <p className="depot-prose max-w-[56ch]">
+              Ask about the network, one depot, a route or an hour of the day. Pick a preset or type your own;
+              every answer says what it rests on, and nothing is stored.
+            </p>
+            <ul className="grid w-full max-w-3xl min-w-0 gap-3 text-left sm:grid-cols-3" aria-label="What can be asked">
+              {CAPABILITIES.map((item) => (
+                <li key={item.label} className="depot-panel min-w-0 px-3 py-2.5">
+                  <span className="depot-eyebrow">{item.label}</span>
+                  <p className="depot-note">{item.text}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
         ) : (
-          <section aria-labelledby={`${ids.text}-a`} className="flex min-w-0 flex-col gap-3">
+          <section aria-labelledby={`${ids.text}-a`} className="flex min-w-0 flex-col gap-3 px-4 py-4">
             <SectionLabel
               id={`${ids.text}-a`}
               label="Answers"
@@ -208,18 +248,23 @@ export function AskPanel() {
             <p className="depot-note">{sessionNote(MAX_HISTORY)}</p>
           </section>
         )}
-      </div>
-      {/* At 1280px and wider a 320px right column beside the form; it keeps its label after an answer. */}
+      </section>
+
+      {/* The preset questions beside the console from 1280px; below it on narrower screens. */}
       <aside
         aria-labelledby={`${ids.text}-t`}
-        className="flex min-w-0 flex-col gap-3"
+        className="hud-panel hud-corners flex min-w-0 flex-col gap-3 py-3"
         data-testid="ask-try"
       >
-        {/* No rule above: the label sits on the ABOUT row's line, like the form beside it. */}
-        <h2 id={`${ids.text}-t`} className="depot-label flex min-h-8 items-center">
-          Try asking
-        </h2>
-        <ExampleQuestions depotName={chosen ? chosen.name : null} onPick={fillExample} />
+        <div className="flex min-w-0 items-baseline justify-between gap-3 border-b border-depot-line px-4 pb-3">
+          <h2 id={`${ids.text}-t`} className="depot-eyebrow mb-0">
+            Preset questions
+          </h2>
+          <span className="shrink-0 font-mono text-[11px] text-depot-muted">A press fills the box</span>
+        </div>
+        <div className="min-w-0 px-1">
+          <ExampleQuestions depotName={chosen ? chosen.name : null} onPick={fillExample} />
+        </div>
       </aside>
     </div>
   );
