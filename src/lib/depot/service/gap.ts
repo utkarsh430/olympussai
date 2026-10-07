@@ -1,6 +1,6 @@
 import { HOURS_PER_DAY } from '../sim/hourlyDemandConfig';
 import type { Coverage } from '../types';
-import { busesNeeded } from './need';
+import { busesNeededByHour } from './need';
 import {
   MIN_SLOTS_FOR_AN_HOUR,
   type HourBasis,
@@ -84,8 +84,9 @@ function deploymentAt(
  * One route's day, every layer side by side for each of the 24 hours: deployed
  * (live in the current hour, observed where this server saw enough slots,
  * modelled otherwise), scheduled bus-hours where any trip is known (null where
- * none is), modelled demand, the buses that demand needs, and the gap (needed
- * minus deployed; positive is short).
+ * none is), modelled demand, the buses that demand needs on the road (the trips
+ * started within the last cycle, `busesNeededByHour`), and the gap (needed minus
+ * deployed; positive is short).
  */
 export function routeHourFigures(input: Readonly<RouteHourFiguresInput>): RouteHourFigures[] {
   const routeName = input.need.routeName;
@@ -93,13 +94,14 @@ export function routeHourFigures(input: Readonly<RouteHourFiguresInput>): RouteH
   const modelled = byHour(input.modelled.filter((m) => m.routeName === routeName));
   const scheduled = byHour(input.scheduled.filter((s) => s.routeName === routeName));
   const demand = byHour(input.demand);
+  const boardings = Array.from({ length: HOURS_PER_DAY }, (_, h) => demand.get(h)?.boardings ?? 0);
+  const neededByHour = busesNeededByHour(boardings, input.need);
   return Array.from({ length: HOURS_PER_DAY }, (_, hour) => {
     const seen = observed.get(hour);
     const d = deploymentAt(hour, input.current, seen, modelled.get(hour));
     const s = scheduled.get(hour);
     const dem = demand.get(hour);
-    const boardings = dem?.boardings ?? 0;
-    const needed = busesNeeded(boardings, input.need);
+    const needed = neededByHour[hour] ?? 0;
     return {
       hour,
       deployed: d.deployed,
@@ -107,7 +109,7 @@ export function routeHourFigures(input: Readonly<RouteHourFiguresInput>): RouteH
       slotsObserved: seen?.slotsObserved ?? 0,
       scheduled: s === undefined ? null : oneDecimal(s.busHours),
       scheduledTripsStarting: s?.tripsStarting ?? null,
-      demand: boardings,
+      demand: boardings[hour] ?? 0,
       demandBand: dem?.band ?? { low: 0, high: 0 },
       needed,
       gap: oneDecimal(needed - d.deployed),
