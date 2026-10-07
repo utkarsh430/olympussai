@@ -2,6 +2,8 @@ import { act, cloneElement, isValidElement, type ReactElement, type ReactNode } 
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { HourChart } from '@/components/depot/hourChart/HourChart';
+import { GapTick } from '@/components/depot/hourChart/HourPlotParts';
+import { buildHourChartModel } from '@/lib/depot/service/hourChartModel';
 import { bannedOnScreen } from './depot-guard-rendered';
 import { routeHourlyFixture } from './depot-service-fixtures';
 
@@ -50,6 +52,23 @@ describe('HourChart', () => {
     expect(cells[12]?.textContent).toBe('−2');
     expect(cells[12]?.getAttribute('data-gap')).toBe('over');
     expect(cells[0]?.textContent).toBe('Gap0');
+  });
+
+  it('puts every other gap a line lower when the row is staggered, the first line unchanged', () => {
+    const { columns } = buildHourChartModel({ hours: routeHourlyFixture().hours, currentHour: 11 });
+    const baseline = (hour: number, staggered: boolean): string | null | undefined => {
+      act(() =>
+        root.render(
+          <svg>
+            <GapTick x={100} y={10} width={240} column={columns[hour]} staggered={staggered} />
+          </svg>,
+        ),
+      );
+      return Array.from(container.querySelectorAll('text')).pop()?.getAttribute('y');
+    };
+    expect(baseline(6, true)).toBe(baseline(6, false));
+    expect(Number(baseline(7, true))).toBeGreaterThan(Number(baseline(7, false)));
+    expect(baseline(7, false)).toBe(baseline(6, false));
   });
 
   it('names the chart for a screen reader and marks the current hour', () => {

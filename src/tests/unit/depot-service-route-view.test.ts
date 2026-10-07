@@ -14,6 +14,7 @@ import { createMemoryHourlyObservationRepository } from '@/lib/depot/repositorie
 import { createMemoryScheduledTripRepository } from '@/lib/depot/repositories/memoryScheduledTripRepository';
 import { defaultServiceHoldStore } from '@/lib/depot/live/serviceHold';
 import type { RouteHourlyResponse } from '@/lib/depot/service/types';
+import { routeTableOf } from '@/lib/depot/live/routeInputs';
 
 const rows = normalizeDepotRows(loadFleetFixture()).rows;
 /** The recorded sample's own clock reads about 15:38 on 6 October (feed digits). */
@@ -78,9 +79,11 @@ describe('one route, hour by hour, on the recorded sample', () => {
     expect(answer.hours.map((h) => h.hour)).toEqual(Array.from({ length: 24 }, (_, i) => i));
     expect(answer.hours[15]?.deployedBasis).toBe('current');
     expect(answer.hours.filter((h) => h.hour !== 15).every((h) => h.deployedBasis === 'modelled')).toBe(true);
-    // The current hour counts the route's buses in service, on the road or standing.
-    expect(answer.hours[15]?.deployed).toBeGreaterThan(0);
-    expect(answer.hours[15]?.deployed).toBeLessThanOrEqual(21);
+    // The current hour counts the route's buses in service or on the road; standing is apart.
+    const row = routeTableOf(sampleView()).find((r) => r.routeName === ROUTE)!;
+    expect(row.states.standing).toBeGreaterThan(0);
+    expect(answer.hours[15]?.deployed).toBe(row.states.inService + row.states.onRoad);
+    expect(answer.standingNow).toBe(row.states.standing);
     // The modelled day runs the route in some hours, and demand needs buses in some.
     expect(answer.hours.some((h) => h.deployedBasis === 'modelled' && h.deployed > 0)).toBe(true);
     expect(answer.hours.some((h) => h.needed > 0)).toBe(true);

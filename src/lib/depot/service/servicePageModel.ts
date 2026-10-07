@@ -65,7 +65,7 @@ export function serviceFigures(body: Body): readonly ServiceFigure[] {
   }
   const range = `Range ${busFigure(neededAt(now, 'low'))} to ${busFigure(neededAt(now, 'high'))}`;
   return [
-    { label: 'Deployed now', value: busFigure(now.deployed), caption: 'Carrying the route name' },
+    { label: 'Deployed now', value: busFigure(now.deployed), caption: SERVICE_TEXT.deployedCaption },
     { label: 'Needed now', value: busFigure(now.needed), caption: range, tag: 'modelled' },
     { label: 'Gap now', value: gapFigure(now.gap), caption: gapWords(now.gap), tone: gapTone(now.gap) },
     samplesFigure(body),
@@ -79,6 +79,14 @@ function neededAt(hour: Body['hours'][number], end: 'low' | 'high'): number {
   return Math.round((hour.demandBand[end] * hour.needed * TENTHS) / hour.demand) / TENTHS;
 }
 
+/** The route's standing buses, said once: they carry its name but are not deployed. */
+function standingSentence(standing: number): readonly string[] {
+  if (standing <= 0) return [];
+  return standing === 1
+    ? ['1 standing now carries this route’s name; it is not counted as deployed.']
+    : [`${formatCount(standing)} standing now carry this route’s name; they are not counted as deployed.`];
+}
+
 /** The coverage sentences: what the day's figures rest on. */
 export function coverageSentences(body: Body): readonly string[] {
   const observed =
@@ -87,7 +95,8 @@ export function coverageSentences(body: Body): readonly string[] {
       : `Observed by this server since ${formatFeedTimeOn(body.observed.since, body.feedNow)} (${formatCount(body.observed.samples)} samples).`;
   return [
     observed,
-    `Only buses that report a route name are counted: ${formatCount(body.routeCoverage.n)} of ${formatCount(body.routeCoverage.of)}.`,
+    `Only buses that report a route name are counted: ${formatCount(body.routeCoverage.n)} of the ${formatCount(body.routeCoverage.of)} buses in the feed report one.`,
+    ...standingSentence(body.standingNow),
     `Scheduled trips known for ${formatCount(body.scheduledCoverage.n)} of ${formatCount(body.scheduledCoverage.of)} buses seen on this route today.`,
   ];
 }
@@ -100,8 +109,8 @@ export function routeHourlyProvenance(body: Body | null): ProvenanceDescription 
   const classes: ProvenanceDescription = {
     default: 'mixed',
     live: 'Buses on the route now',
-    derived: 'deployed and scheduled buses by hour',
-    modelled: 'passenger demand, buses needed and the proposals',
+    derived: 'observed and scheduled buses by hour',
+    modelled: 'deployment in hours not observed, passenger demand, buses needed and the proposals',
   };
   return body === null ? classes : { ...classes, second: coverageSentences(body).join(' ') };
 }
@@ -141,7 +150,10 @@ function rangeText(range: ImpactRange, figure: (n: number) => string, joiner: st
 }
 
 function sourceCell(p: Proposal): Pick<ProposalRow, 'source' | 'sourceTitle'> {
-  if (p.source === null) return { source: DASH, sourceTitle: SERVICE_TEXT.noSource };
+  if (p.source === null) {
+    const title = p.change === 0 ? SERVICE_TEXT.noSource : SERVICE_TEXT.noSourceFound;
+    return { source: DASH, sourceTitle: title };
+  }
   const { depotName, standingInYard, basis } = p.source;
   if (basis === 'observed' && standingInYard !== null) {
     return {
@@ -199,31 +211,33 @@ export type ProposalColumnKey =
   | 'needed'
   | 'source'
   | 'impact'
-  | 'restsOn'
-  | 'reason';
+  | 'restsOn';
 
-/** Every column from 1440; below it the reason and the scheduled figure live in the expanded row. */
+/**
+ * Every figure column from 1440; below it the scheduled figure lives in the expanded row.
+ * The reason is a sentence, so at every width it is the expanded row's first line.
+ */
 export type ProposalTableTier = 'full' | 'wide' | 'narrow';
 
 /**
- * Widths in px: each fits its header (a MODELLED pill included) and its longest cell
- * word; a depot name longer than the source column truncates, with the full text in
- * its title. The reason is a sentence, so its column only previews it.
+ * Widths in px, as a browser draws them: each fits its header (a MODELLED pill included)
+ * and its longest cell word. The source cell is capped inside this width (a long depot
+ * name truncates, with the full text in its title), since an automatic table layout
+ * would otherwise widen the column to the whole name.
  */
 export const PROPOSAL_COLUMN_WIDTHS: Readonly<Record<ProposalColumnKey, number>> = {
-  band: 104,
-  change: 120,
+  band: 112,
+  change: 128,
   deployed: 88,
   scheduled: 96,
-  needed: 136,
-  source: 160,
-  impact: 168,
+  needed: 160,
+  source: 144,
+  impact: 192,
   restsOn: 120,
-  reason: 136,
 };
 
 const COLUMN_SETS: Readonly<Record<ProposalTableTier, readonly ProposalColumnKey[]>> = {
-  full: ['band', 'change', 'deployed', 'scheduled', 'needed', 'source', 'impact', 'restsOn', 'reason'],
+  full: ['band', 'change', 'deployed', 'scheduled', 'needed', 'source', 'impact', 'restsOn'],
   wide: ['band', 'change', 'deployed', 'needed', 'source', 'impact', 'restsOn'],
   narrow: ['band', 'change', 'needed', 'impact', 'restsOn'],
 };

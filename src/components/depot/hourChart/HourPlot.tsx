@@ -14,7 +14,8 @@ import {
   YAxis,
 } from 'recharts';
 import type { HourChartModel, HourColumn } from '@/lib/depot/service/hourChartModel';
-import { GapTick, HourTooltip } from './HourPlotParts';
+import { HOUR_PLOT_RIGHT_PX, HOUR_PLOT_Y_AXIS_PX } from '@/lib/depot/service/gapRowLayout';
+import { GAP_LINE_PX, GapTick, HourTooltip } from './HourPlotParts';
 import {
   HATCH_OPACITY,
   HATCH_SPACING,
@@ -30,11 +31,13 @@ export interface HourPlotProps {
   readonly model: HourChartModel;
   /** Plot height in pixels, the gap row under the axis included. */
   readonly height: number;
+  /** The gap row on two lines, for a column too narrow for a two-digit gap. */
+  readonly staggered?: boolean;
 }
 
 const TICK = { fill: HOUR_COLOUR.axisText, fontSize: HOUR_AXIS_FONT_SIZE, fontFamily: 'inherit' };
-const MARGIN = { top: 20, right: 12, bottom: 4, left: 0 };
-const Y_AXIS_WIDTH = 40;
+const MARGIN = { top: 20, right: HOUR_PLOT_RIGHT_PX, bottom: 4, left: 0 };
+const Y_AXIS_WIDTH = HOUR_PLOT_Y_AXIS_PX;
 /** The gap row's own band under the hour axis. */
 const GAP_ROW_HEIGHT = 22;
 const BAR_GAP = 2;
@@ -46,7 +49,7 @@ const BAR_RADIUS: [number, number, number, number] = [2, 2, 0, 0];
  * No animation, so nothing draws in under reduced motion either. Recharts measures
  * its container, so the drawing is only seen in a browser.
  */
-export function HourPlot({ model, height }: HourPlotProps) {
+export function HourPlot({ model, height, staggered = false }: HourPlotProps) {
   const rows = model.columns as HourColumn[];
   const byLabel = useMemo(
     () => new Map(model.columns.map((c) => [c.label, c] as const)),
@@ -90,9 +93,13 @@ export function HourPlot({ model, height }: HourPlotProps) {
           interval={0}
           axisLine={false}
           tickLine={false}
-          height={GAP_ROW_HEIGHT}
+          height={staggered ? GAP_ROW_HEIGHT + GAP_LINE_PX : GAP_ROW_HEIGHT}
           tick={(props: { x?: number; y?: number; payload?: { value?: string } }) => (
-            <GapTick {...props} column={byLabel.get(String(props.payload?.value ?? ''))} />
+            <GapTick
+              {...props}
+              column={byLabel.get(String(props.payload?.value ?? ''))}
+              staggered={staggered}
+            />
           )}
         />
         <YAxis

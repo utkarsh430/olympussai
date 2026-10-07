@@ -810,7 +810,10 @@ route-catalogue revision (`queryMemo`); the feed envelope is built per request.
 **Three layers, each saying what it is.**
 
 1. **Deployed** (DERIVED): the mean, over an hour's samples, of the route's buses in
-   service, on the road or standing (`observeHours.ts`). An hour needs at least
+   service or on the road, the buses running it (`observeHours.ts`); the same definition
+   holds for the current hour and the modelled hours. Standing buses that carry the route
+   name stay in the state mix only and are said once on the page ("N standing now carry
+   this route's name"). An hour needs at least
    `MIN_SLOTS_FOR_AN_HOUR = 6` of its 12 samples to count as observed. The feed clock's own
    hour takes the snapshot's figure. Any other hour comes from the modelled day: the
    minutes each modelled duty of the route that had a bus overlaps the hour, over 60, summed
@@ -851,7 +854,9 @@ REFERENCE, for the owner to set): `TARGET_LOAD = 0.75`, `BUSIEST_STRETCH_SHARE =
 - **Add buses**: each hour short by at least the larger of `ADD_MIN_BUSES = 2` and
   `ADD_MIN_SHARE = 0.2` of the need; the change is the band's mean gap rounded up. The
   source is the route's main depot: its standing buses in the yard in the hour before the
-  band when observed, else the buses its modelled day leaves idle. An add is never larger
+  band when observed, else the buses its modelled day leaves idle. When neither offers a bus
+  (no yard observed and none idle in the day plan) the add names no source, says no source
+  was identified, and is tier C. An add is never larger
   than an observed standing pool; when the pool is smaller the reason says so, and a yard
   with no standing bus gives an add of none, with no impact claimed.
 - **Hold buses**: each hour over by at least `HOLD_MIN_SURPLUS = 1`, keeping at least
@@ -879,7 +884,8 @@ on. The feed does not state its delay unit, so the page says it is unconfirmed.
 
 **Coverage sentences**, in the provenance line: "Observed by this server since HH:MM
 (N samples)"; the buses that report a route name, of every bus in the feed (only they are
-counted); and the buses whose trips are known, of those seen on the route.
+counted); the route's standing buses now, not counted as deployed; and the buses whose
+trips are known, of those seen on the route.
 
 ## 8. The copilot
 

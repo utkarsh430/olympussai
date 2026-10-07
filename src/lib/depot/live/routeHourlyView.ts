@@ -65,6 +65,7 @@ export function parseRouteHourlyQuery(
  * that key and goes with the snapshot. The route is the caller's to choose, so the memo is
  * bounded; a route the snapshot lacks is not held. The envelope is never part of it.
  */
+// Once bus days are recorded between snapshots, the key must also carry the scheduled store's revision.
 const bodies = queryMemo<RouteHourlyBody | null>({ keep: (body) => body !== null });
 
 /** How many route bodies are held for this snapshot; read by the tests of the bound. */

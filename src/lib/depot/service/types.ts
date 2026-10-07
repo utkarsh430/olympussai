@@ -66,7 +66,10 @@ export interface ObservedRouteHour {
   readonly operatingDate: string;
   readonly hour: number;
   readonly slotsObserved: number;
-  /** Deployed = in service + on road + standing, carrying the route name. */
+  /**
+   * Deployed = in service + on road, carrying the route name: the buses running it. Standing
+   * buses that carry the name are in `states` only, never in the deployed figure.
+   */
   readonly deployedMean: number;
   readonly deployedMax: number;
   readonly inServiceMean: number;
@@ -154,6 +157,7 @@ export interface ModelledRouteHour {
   readonly routeName: string;
   readonly operatingDate: string;
   readonly hour: number;
+  /** Bus-hours of the route's modelled duties that had a bus: buses running it, as observed counts deployed. */
   readonly deployed: number;
 }
 
@@ -176,6 +180,7 @@ export type HourBasis = 'observed' | 'modelled' | 'current';
 /** One hour of one route's day, every layer side by side. */
 export interface RouteHourFigures {
   readonly hour: number;
+  /** Buses running the route (in service or on the road) in every basis; standing buses never count. */
   readonly deployed: number;
   readonly deployedBasis: HourBasis;
   readonly slotsObserved: number;
@@ -277,8 +282,13 @@ export interface RouteHourlyBody {
   /** Hours this server observed today, and since when; null when it has observed none. */
   readonly observed: { readonly since: string; readonly hours: number; readonly samples: number } | null;
   readonly scheduledCoverage: Coverage;
-  /** Buses now carrying the route name, of the buses the feed holds on it. */
+  /**
+   * Feed-wide, not this route's: the buses now reporting any route name, of every bus in the
+   * feed. Only buses that report a route name can be counted on a route.
+   */
   readonly routeCoverage: Coverage;
+  /** Standing buses now carrying the route name: not deployed, said once on the page. */
+  readonly standingNow: number;
   readonly proposals: readonly Proposal[];
   readonly demandBasis: string;
   /** Punctuality by hour from the journeys the feed reported, placed by scheduled start; 24 hours. */

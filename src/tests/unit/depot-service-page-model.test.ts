@@ -37,6 +37,7 @@ describe('service figures', () => {
     expect(figures[1]?.tag).toBe('modelled');
     expect(figures[2]?.tone).toBe('better');
     expect(figures[3]?.caption).toBe('Observed since 05:02');
+    expect(figures[0]?.caption).toBe('In service or on the road');
   });
 
   it('says what is missing without a feed clock or any observation', () => {
@@ -51,9 +52,13 @@ describe('coverage and provenance', () => {
   it('words the coverage sentences from the response', () => {
     expect(coverageSentences(routeHourlyFixture())).toEqual([
       'Observed by this server since 05:02 (79 samples).',
-      'Only buses that report a route name are counted: 10 of 14.',
+      'Only buses that report a route name are counted: 10 of the 14 buses in the feed report one.',
+      '4 standing now carry this route’s name; they are not counted as deployed.',
       'Scheduled trips known for 12 of 40 buses seen on this route today.',
     ]);
+    const one = coverageSentences(routeHourlyFixture({ standingNow: 1 }));
+    expect(one).toContain('1 standing now carries this route’s name; it is not counted as deployed.');
+    expect(coverageSentences(routeHourlyFixture({ standingNow: 0 }))).toHaveLength(3);
     expect(coverageSentences(routeHourlyFixture({ observed: null }))[0]).toBe(
       'Not yet observed by this server today.',
     );
@@ -66,6 +71,9 @@ describe('coverage and provenance', () => {
     expect(line.live).toBeTruthy();
     expect(line.derived).toBeTruthy();
     expect(line.modelled).toMatch(/demand/);
+    // Most hours of a day not yet observed come from the modelled day: the line says so.
+    expect(line.derived).toBe('observed and scheduled buses by hour');
+    expect(line.modelled).toMatch(/^deployment in hours not observed, /);
     expect(line.second).toContain('Observed by this server since 05:02 (79 samples).');
   });
 });
@@ -84,6 +92,13 @@ describe('proposal rows', () => {
     expect(hold).toMatchObject({ change: 'Hold 2', source: 'Alambagh · day plan', impact: '−20–0' });
     expect(run).toMatchObject({ change: 'Running time', source: '—', impact: '—', restsOn: 'A · Measured' });
     expect(run?.impactTitle).toMatch(/No modelled impact/);
+    expect(run?.sourceTitle).toBe('No bus moves for this finding.');
+  });
+
+  it('says an add with no source has none identified, not that no bus moves', () => {
+    const sourceless = proposalRow({ ...FIXTURE_PROPOSALS[0]!, source: null, tier: 'C' });
+    expect(sourceless.source).toBe('—');
+    expect(sourceless.sourceTitle).toBe('No source was identified for these buses.');
   });
 
   it('holds the impact ranges for the expanded row', () => {
@@ -112,8 +127,17 @@ describe('proposals table width per tier', () => {
     expect(width).toBeLessThanOrEqual(contentWidthAt(viewport));
   });
 
-  it('keeps every column from 1440 and always the band, change and rests-on', () => {
-    expect(proposalColumnKeys('full')).toHaveLength(9);
+  it('gives the MODELLED headers the room a browser draws them in', () => {
+    // Measured in a browser at 1440: "Needed MODELLED" 159px, "Impact pax MODELLED" 191px.
+    expect(PROPOSAL_COLUMN_WIDTHS.needed).toBeGreaterThanOrEqual(160);
+    expect(PROPOSAL_COLUMN_WIDTHS.impact).toBeGreaterThanOrEqual(192);
+    expect(PROPOSAL_COLUMN_WIDTHS.band).toBeGreaterThanOrEqual(112);
+    expect(PROPOSAL_COLUMN_WIDTHS.change).toBeGreaterThanOrEqual(128);
+  });
+
+  it('keeps every figure column from 1440 and always the band, change and rests-on', () => {
+    expect(proposalColumnKeys('full')).toHaveLength(8);
+    expect(proposalColumnKeys('full')).not.toContain('reason');
     for (const tier of ['full', 'wide', 'narrow'] as const) {
       expect(proposalColumnKeys(tier)).toEqual(
         expect.arrayContaining(['band', 'change', 'needed', 'impact', 'restsOn']),

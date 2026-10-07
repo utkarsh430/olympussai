@@ -108,7 +108,10 @@ describe('RouteHourlyPage body', () => {
     const headers = Array.from(proposals?.querySelectorAll('th') ?? []).map((th) => th.textContent ?? '');
     expect(headers.find((h) => h.startsWith('Needed'))).toMatch(/MODELLED/i);
     expect(headers.find((h) => h.startsWith('Impact'))).toMatch(/MODELLED/i);
-    expect(headers.some((h) => h.startsWith('Reason'))).toBe(true);
+    // The reason is a sentence: it lives in the expanded row, never as a clipped column.
+    expect(headers.some((h) => h.startsWith('Reason'))).toBe(false);
+    const source = proposals?.querySelector('tbody td[title^="Alambagh"] span');
+    expect(source?.className).toContain('truncate');
     expect(proposals?.textContent).toContain('Recommendation only');
     expect(proposals?.textContent).toContain('not ticketing');
     expect(proposals?.querySelectorAll('tbody tr')).toHaveLength(3);
@@ -143,6 +146,21 @@ describe('RouteHourlyPage body', () => {
     expect(punctuality?.querySelectorAll('tbody tr')).toHaveLength(7);
   });
 
+  it('reads punctuality from the journeys the feed reported, not from the hours', () => {
+    const response = routeHourlyFixture();
+    const reliability = response.reliability.map((r) =>
+      r.hour === 14
+        ? { hour: 14, delayMedianMin: 12, lateShare: 0.5, coverage: { n: 2, of: 3 } }
+        : { hour: r.hour, delayMedianMin: null, lateShare: null, coverage: { n: 0, of: 0 } },
+    );
+    render({ ...LOADED, response: { ...response, reliability } });
+    const rows = section('service-punctuality')?.querySelectorAll('tbody tr') ?? [];
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.textContent).toContain('14:00');
+    expect(rows[0]?.textContent).toContain('2 of 3');
+    expect(section('service-punctuality')?.textContent).toContain('Journeys with a delay');
+  });
+
   it('says what the need rests on in the closing disclosure, durations formatted', () => {
     render();
     expect(text()).toContain('a journey of 1 h 50 min');
@@ -175,6 +193,6 @@ describe('RouteHourlyPage words', () => {
     expect(line.sentence).toContain('DERIVED');
     expect(line.sentence).toContain('MODELLED');
     expect(line.sentence).toContain('Scheduled trips known for 12 of 40 buses seen on this route today.');
-    expect(line.sentence).toContain('Only buses that report a route name are counted: 10 of 14.');
+    expect(line.sentence).toContain('Only buses that report a route name are counted: 10 of the 14 buses in the feed report one.');
   });
 });

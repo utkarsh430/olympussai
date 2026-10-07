@@ -84,7 +84,7 @@ const VALID_QUERY: Readonly<Record<string, string>> = {
 function fill(template: string, sample: SampleFacts): string {
   const routeName = template === ROUTE_HOURLY_API ? sample.routeName : SAMPLE_ROUTE_NAME;
   return (
-    pageUrl(template, sample).replace(ROUTE_SEGMENT, routeName) +
+    template.replace(DEPOT_SEGMENT, sample.depotId).replace(ROUTE_SEGMENT, routeName) +
     (VALID_QUERY[template] ?? '')
   );
 }
@@ -249,7 +249,7 @@ const PAGE_HEADING: Readonly<Record<string, string>> = {
 
 /** A page template with its segments filled from the sample: its depot and its busy route. */
 function pageUrl(template: string, sample: SampleFacts): string {
-  return pageUrl(template, sample).replace(ROUTE_SEGMENT, sample.routeName);
+  return template.replace(DEPOT_SEGMENT, sample.depotId).replace(ROUTE_SEGMENT, sample.routeName);
 }
 
 /** The heading a page template shows; every template the file system declares has one. */

@@ -35,8 +35,9 @@ export function slotsOfHour(
   return slots.filter((s) => s.operatingDate === operatingDate && hourOfSlot(s.slot) === hour);
 }
 
+/** Buses running the route: in service or on the road. Standing buses carry the name but run nothing. */
 const deployedOf = (r: RouteSlotSample | undefined): number =>
-  r === undefined ? 0 : r.states.inService + r.states.onRoad + r.states.standing;
+  r === undefined ? 0 : r.states.inService + r.states.onRoad;
 
 function meanStates(samples: readonly (RouteSlotSample | undefined)[], count: number): StateMix {
   const mean = (key: keyof StateMix): number =>
@@ -68,8 +69,9 @@ function meanOperators(
 }
 
 /**
- * One route's observed hour. Deployed is in service + on the road + standing
- * with the route name; its mean and max are over the slots. The delay median
+ * One route's observed hour. Deployed is in service + on the road with the
+ * route name (standing buses stay in the state mix only); its mean and max
+ * are over the slots. The delay median
  * is the mean of the slots' medians; the late share and the delay coverage
  * are over bus-slots (late of covered, covered of buses).
  */

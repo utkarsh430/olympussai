@@ -6,7 +6,7 @@ import { SectionLabel } from '@/components/depot/shell/SectionLabel';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
 import { formatCount, formatPercent } from '@/lib/depot/format';
 import { DASH, SERVICE_TEXT, delayFigure, hourLabel } from '@/lib/depot/service/serviceWording';
-import type { RouteHourFigures } from '@/lib/depot/service/types';
+import type { HourReliability } from '@/lib/depot/service/types';
 
 const TITLE_ID = 'service-punctuality';
 
@@ -24,29 +24,32 @@ const COLUMNS: readonly Column<PunctualityRow>[] = [
   { key: 'late', header: 'Late share', align: 'right', render: (r) => r.late },
   {
     key: 'coverage',
-    header: 'Buses with a delay',
+    header: 'Journeys with a delay',
     align: 'right',
     render: (r) => r.coverage,
-    title: () => 'Buses that carried a delay figure, of the buses deployed in the hour',
+    title: () => 'Journeys that carried a delay figure, of the journeys placed in the hour',
   },
 ];
 
 /** Hours with any delay figure, in hour order; the rest have nothing to show. */
-function punctualityRows(hours: readonly RouteHourFigures[]): readonly PunctualityRow[] {
+function punctualityRows(hours: readonly HourReliability[]): readonly PunctualityRow[] {
   return hours
-    .filter((h) => h.delayCoverage.n > 0)
+    .filter((h) => h.coverage.n > 0)
     .map((h) => ({
       key: String(h.hour),
       hour: hourLabel(h.hour),
       delay: delayFigure(h.delayMedianMin),
       late: h.lateShare === null ? DASH : formatPercent(h.lateShare),
-      coverage: `${formatCount(h.delayCoverage.n)} of ${formatCount(Math.round(h.delayCoverage.of))}`,
+      coverage: `${formatCount(h.coverage.n)} of ${formatCount(h.coverage.of)}`,
     }));
 }
 
-/** Median delay and late share per observed hour, with how many buses each rests on. */
-export function PunctualitySection({ hours }: { readonly hours: readonly RouteHourFigures[] }) {
-  const rows = useMemo(() => punctualityRows(hours), [hours]);
+/**
+ * Median delay and late share by hour from the journeys the feed reported on the route,
+ * placed by scheduled start (the response's `reliability`), with the journeys each rests on.
+ */
+export function PunctualitySection({ reliability }: { readonly reliability: readonly HourReliability[] }) {
+  const rows = useMemo(() => punctualityRows(reliability), [reliability]);
   return (
     <section aria-labelledby={TITLE_ID} className="min-w-0" data-testid="service-punctuality">
       <SectionLabel id={TITLE_ID} label={SERVICE_TEXT.punctualityTitle} note={SERVICE_TEXT.delayUnit} />

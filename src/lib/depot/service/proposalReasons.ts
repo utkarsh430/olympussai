@@ -17,6 +17,8 @@ export type ReasonInput =
       readonly needed: number;
       readonly change: number;
       readonly source: ProposalSource | null;
+      /** True when the depot is known but neither its yard nor its modelled day plan offers a bus. */
+      readonly noSourceFound?: boolean;
     }
   | {
       readonly kind: 'hold_buses';
@@ -54,7 +56,11 @@ export type ReasonInput =
 const figure = (x: number): string => (Number.isInteger(x) ? String(x) : x.toFixed(1));
 const buses = (n: number): string => `${figure(n)} ${n === 1 ? 'bus' : 'buses'}`;
 
-function sourceClause(source: ProposalSource | null): string {
+const NO_SOURCE_FOUND =
+  ', though no source was identified: no standing bus was observed in a yard the hour before and the modelled day plan leaves none idle';
+
+function sourceClause(source: ProposalSource | null, noSourceFound = false): string {
+  if (noSourceFound) return NO_SOURCE_FOUND;
   if (source === null) return ' (no source depot is known)';
   if (source.basis === 'observed' && source.standingInYard !== null) {
     return ` from ${source.depotName}, which had ${source.standingInYard} standing in its yard the hour before`;
@@ -77,7 +83,7 @@ export function proposalReason(input: ReasonInput): string {
     case 'add_buses':
       return (
         `${band}: modelled demand needs about ${buses(input.needed)} against ${figure(input.deployed)} ` +
-        `deployed; add ${buses(input.change)}${sourceClause(input.source)}.`
+        `deployed; add ${buses(input.change)}${sourceClause(input.source, input.noSourceFound)}.`
       );
     case 'hold_buses':
       return (

@@ -87,10 +87,17 @@ function sourceFor(ctx: ProposalContext, band: HourBand): ProposalSource | null 
   };
 }
 
-/** B: measured deployment against modelled demand; C when the deployment is modelled too (demand always is today). */
-function tierOf(rows: readonly RouteHourFigures[], covered: boolean): ProposalTier {
+/** An add's source is none when only the modelled day plan was left and it leaves no bus idle. */
+const noSourceFound = (source: ProposalSource | null): boolean =>
+  source !== null && source.basis === 'modelled' && source.idleInDayPlan === 0;
+
+/**
+ * B: measured deployment against modelled demand. C when the deployment is modelled too
+ * (demand always is today), when unrouted buses may cover the gap, or when an add has no source.
+ */
+function tierOf(rows: readonly RouteHourFigures[], covered: boolean, sourceless: boolean): ProposalTier {
   const allModelled = rows.every((h) => h.deployedBasis === 'modelled');
-  return allModelled || covered ? 'C' : 'B';
+  return allModelled || covered || sourceless ? 'C' : 'B';
 }
 
 const addThreshold = (h: RouteHourFigures): number =>
@@ -112,11 +119,13 @@ function supplyProposal(
   if (change === 0) return null;
   const covered =
     kind === 'add_buses' && rows.some((h) => unroutedCoverGuard(h.gap, depotHourAt(ctx, h.hour)));
-  const source = sourceFor(ctx, band);
+  const found = sourceFor(ctx, band);
+  const sourceless = kind === 'add_buses' && noSourceFound(found);
+  const source = sourceless ? null : found;
   const figures = bandFigures(band, ctx.hours);
   const reason =
     kind === 'add_buses'
-      ? proposalReason({ kind, band, ...figures, change, source })
+      ? proposalReason({ kind, band, ...figures, change, source, noSourceFound: sourceless })
       : proposalReason({
           kind,
           band,
@@ -134,7 +143,7 @@ function supplyProposal(
     ...figures,
     change,
     source,
-    tier: tierOf(rows, covered),
+    tier: tierOf(rows, covered, sourceless),
     maybeCoveredByUnrouted: covered,
     reason,
     impact: proposalImpact({

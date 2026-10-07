@@ -35,7 +35,15 @@ const COLUMNS: Readonly<Record<ProposalColumnKey, Column<ProposalRow>>> = {
     title: (r) => r.scheduledTitle,
   },
   needed: { key: 'needed', header: 'Needed', tag: 'modelled', align: 'right', width: W.needed, render: (r) => r.needed },
-  source: { key: 'source', header: 'Source', width: W.source, render: (r) => r.source, title: (r) => r.sourceTitle },
+  source: {
+    key: 'source',
+    header: 'Source',
+    width: W.source,
+    // Capped inside the column (its width less the cell's 24px of padding) so a long depot
+    // name truncates rather than widening the table past its frame.
+    render: (r) => <span className="block max-w-[120px] truncate">{r.source}</span>,
+    title: (r) => r.sourceTitle,
+  },
   impact: {
     key: 'impact',
     header: 'Impact',
@@ -47,7 +55,6 @@ const COLUMNS: Readonly<Record<ProposalColumnKey, Column<ProposalRow>>> = {
     title: (r) => r.impactTitle,
   },
   restsOn: { key: 'restsOn', header: 'Rests on', width: W.restsOn, render: (r) => r.restsOn, title: (r) => r.restsOnTitle },
-  reason: { key: 'reason', header: 'Reason', width: W.reason, render: (r) => r.reason, title: (r) => r.reason },
 };
 
 /** The expanded row: the full reason, the figures a narrow width drops, the impact ranges. */
