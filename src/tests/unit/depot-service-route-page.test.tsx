@@ -149,6 +149,15 @@ describe('the route day page in every state', () => {
     expect(container.textContent).toContain('This page’s modelled day is drawn from the buses the feed shows on this route');
   });
 
+  it('says the need counts the trips still out over a cycle, and a bus works a day', () => {
+    const needed = SERVICE_HOW_PRODUCED.find((p) => p.startsWith('Needed is'));
+    expect(needed).toContain('started within the last journey time plus layover');
+    expect(needed).toContain('an hour or less');
+    expect(needed).not.toContain('times the round trip');
+    const deployed = SERVICE_HOW_PRODUCED.find((p) => p.startsWith('Deployed is'));
+    expect(deployed).toContain('6 to 10 hours');
+  });
+
   it('gates the page on its own path before it renders', async () => {
     state.polled = polled({ loading: true });
     await renderPage();
