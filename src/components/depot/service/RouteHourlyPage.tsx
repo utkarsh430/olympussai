@@ -3,12 +3,14 @@
 import { HourChart } from '@/components/depot/hourChart/HourChart';
 import { StaleNotice } from '@/components/depot/shell/StaleNotice';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
+import { useTimetableLoader } from '@/hooks/useTimetableLoader';
 import { SERVICE_TEXT } from '@/lib/depot/service/serviceWording';
 import type { RouteHourlyResponse } from '@/lib/depot/service/types';
 import { ProposalsTable } from './ProposalsTable';
 import { PunctualitySection } from './PunctualitySection';
 import { ServiceFigureBand } from './ServiceFigureBand';
 import { ServiceMethod } from './ServiceMethod';
+import { TimetableLoadButton, TimetableLoadStatus } from './TimetableLoader';
 
 import { coverageSentences } from '@/lib/depot/service/serviceCoverage';
 
@@ -20,7 +22,13 @@ export interface RouteHourlyPageProps {
   readonly error: string | null;
   readonly loading: boolean;
   readonly onRetry?: () => void;
+  /** Runs when a timetable run ends having looked something up: ask for the figures again. */
+  readonly onTimetableLoaded?: () => void;
+  /** The loader's timer, injected for tests. */
+  readonly wait?: (ms: number, signal: AbortSignal) => Promise<void>;
 }
+
+const NOTHING = (): void => undefined;
 
 /** The chart's footprint while the day loads: the label row, the plot, the legend. */
 const LOADING_ROWS = 3;
@@ -31,7 +39,15 @@ const LOADING_ROW_PX = 120;
  * `routeHourlyProvenance`): the hour chart as the hero, the current hour's figures, the
  * proposals, punctuality by hour, and the closing disclosure. Each state is one panel.
  */
-export function RouteHourlyPage({ response, error, loading, onRetry }: RouteHourlyPageProps) {
+export function RouteHourlyPage({
+  response,
+  error,
+  loading,
+  onRetry,
+  onTimetableLoaded = NOTHING,
+  wait,
+}: RouteHourlyPageProps) {
+  const loader = useTimetableLoader(response?.routeName ?? '', onTimetableLoaded, wait);
   if (response === null) {
     if (loading) {
       return (
@@ -61,7 +77,11 @@ export function RouteHourlyPage({ response, error, loading, onRetry }: RouteHour
     <>
       {response.stale ? <StaleNotice since={response.feedNow} fetchedAt={response.fetchedAt} /> : null}
       <div className="depot-stack" data-testid="route-hourly-page">
-        <HourChart body={response} />
+        <HourChart
+          body={response}
+          controls={<TimetableLoadButton body={response} loader={loader} />}
+          footer={<TimetableLoadStatus body={response} loader={loader} />}
+        />
         <div>
           <ServiceFigureBand response={response} />
         </div>

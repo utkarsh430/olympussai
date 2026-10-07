@@ -36,7 +36,13 @@ export function RouteHourlyScreen({ routeName }: { readonly routeName: string })
   return (
     <>
       <RouteHourlyHeader routeName={routeName} response={data} />
-      <RouteHourlyPage response={data} error={error} loading={loading} onRetry={refresh} />
+      <RouteHourlyPage
+        response={data}
+        error={error}
+        loading={loading}
+        onRetry={refresh}
+        onTimetableLoaded={refresh}
+      />
     </>
   );
 }
