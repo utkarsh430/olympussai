@@ -30,7 +30,7 @@ export interface ScheduledSupply {
 }
 
 /** A looked-up trip in the ledger's shape; it has no actual start or delay. */
-function asJourney(trip: ScheduledTrip, operatingDate: string): LedgerJourney {
+export function asJourney(trip: ScheduledTrip, operatingDate: string): LedgerJourney {
   return {
     operatingDate,
     journeyId: trip.journeyId,
@@ -45,6 +45,25 @@ function asJourney(trip: ScheduledTrip, operatingDate: string): LedgerJourney {
 }
 
 /**
+ * Every journey known on the route for the date: the feed's own, then the looked-up trips
+ * the feed did not report (the same journey id counts once, from the feed).
+ */
+export function routeJourneys(
+  routeName: string,
+  operatingDate: string,
+  ledger: readonly LedgerJourney[],
+  trips: readonly ScheduledTrip[],
+): { readonly fromFeed: LedgerJourney[]; readonly looked: LedgerJourney[] } {
+  const fromFeed = ledger.filter((j) => j.routeName === routeName && j.operatingDate === operatingDate);
+  const feedIds = new Set(fromFeed.map((j) => j.journeyId));
+  const looked = trips
+    .filter((t) => t.routeName === routeName && t.forDate === operatingDate)
+    .filter((t) => !feedIds.has(t.journeyId))
+    .map((t) => asJourney(t, operatingDate));
+  return { fromFeed, looked };
+}
+
+/**
  * The scheduled bus-hours per hour and the coverage they rest on. A trip the feed already
  * reported (the same journey id) is counted once, from the feed. The coverage counts the
  * buses whose whole day is recorded: a journey the feed reported shows one trip of a bus,
@@ -52,14 +71,7 @@ function asJourney(trip: ScheduledTrip, operatingDate: string): LedgerJourney {
  */
 export function scheduledSupply(input: Readonly<ScheduledSupplyInput>): ScheduledSupply {
   const { routeName, operatingDate } = input;
-  const fromFeed = input.ledger.filter(
-    (j) => j.routeName === routeName && j.operatingDate === operatingDate,
-  );
-  const feedIds = new Set(fromFeed.map((j) => j.journeyId));
-  const looked = input.trips
-    .filter((t) => t.routeName === routeName && t.forDate === operatingDate)
-    .filter((t) => !feedIds.has(t.journeyId))
-    .map((t) => asJourney(t, operatingDate));
+  const { fromFeed, looked } = routeJourneys(routeName, operatingDate, input.ledger, input.trips);
   const journeys = [...fromFeed, ...looked];
   const coverage = {
     n: input.busesWithDay,

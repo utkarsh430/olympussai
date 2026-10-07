@@ -174,6 +174,8 @@ export async function routeHourlyBody(
     hours,
     need,
     ledger,
+    trips,
+    observedSince: summary?.since ?? null,
     depot: primary === null ? null : { depotId: primary, depotName: depotName ?? primary },
     depotHours,
     modelledIdleBuses: primaryDay ? primaryDay.notRun.filter((b) => b.reason === 'no_duty').length : null,

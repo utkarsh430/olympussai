@@ -25,6 +25,7 @@ import {
   type ProposalSource,
   type ProposalTier,
   type RouteHourFigures,
+  type ScheduledTrip,
 } from './types';
 
 /** Everything the proposals of one route's day are built from. */
@@ -37,6 +38,10 @@ export interface ProposalContext {
   readonly hours: readonly RouteHourFigures[];
   readonly need: NeedInputs;
   readonly ledger: readonly LedgerJourney[];
+  /** The route's trips from the bus days looked up for the date; none when no timetable is loaded. */
+  readonly trips?: readonly ScheduledTrip[];
+  /** Since when (`HH:MM` feed digits) this server observed the date; null when it observed none. */
+  readonly observedSince?: string | null;
   /** The route's primary operating depot; null when none is known. */
   readonly depot: { readonly depotId: string; readonly depotName: string } | null;
   /** That depot's observed hours (others are ignored). */
