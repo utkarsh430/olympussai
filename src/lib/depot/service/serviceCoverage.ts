@@ -44,9 +44,20 @@ export function chartNote(body: Observed): string {
   return `Operating day ${formatPlainDate(body.operatingDate)} · ${observationWords(body)}`;
 }
 
-/** The Scheduled legend entry, carrying the buses whose trips are known. */
+/** The Scheduled legend entry, carrying the buses whose whole day is loaded. */
 export function scheduledLegendText(coverage: Coverage): string {
-  return `Scheduled (trips known for ${formatCount(coverage.n)} of ${countPhrase(coverage.of, 'bus', 'buses')})`;
+  return `Scheduled (full day loaded for ${formatCount(coverage.n)} of ${countPhrase(coverage.of, 'bus', 'buses')})`;
+}
+
+/** Said when the schedule server had no timetable for the date and an earlier one stands in. */
+export function borrowedTimetableSentence(
+  body: Pick<RouteHourlyBody, 'timetableBorrowedFrom' | 'operatingDate'>,
+): string | null {
+  const from = body.timetableBorrowedFrom;
+  if (from.length === 0) return null;
+  const dates = from.map(formatPlainDate).join(' and ');
+  const word = from.length === 1 ? 'Timetable' : 'Timetables';
+  return `${word} of ${dates} used for ${formatPlainDate(body.operatingDate)}.`;
 }
 
 /** The route's standing buses, said once: they carry its name but are not deployed. */

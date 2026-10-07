@@ -40,6 +40,8 @@ export interface SampleFacts {
   readonly depotName: string;
   /** A route the sample carries with at least one bus, for the route day's page and API. */
   readonly routeName: string;
+  /** A bus seen on that route, for the bus-day lookup (refused on the sample, no outside call). */
+  readonly busOnRoute: string;
 }
 
 const MIN_FLEET = 50;
@@ -64,6 +66,18 @@ async function sampleRoute(context: Awaited<ReturnType<typeof request.newContext
   return route.routeName;
 }
 
+/** The first bus the route day lists on the route. */
+async function sampleBus(
+  context: Awaited<ReturnType<typeof request.newContext>>,
+  routeName: string,
+): Promise<string> {
+  const res = await context.get(`/api/upsrtc/depot/service/route/${encodeURIComponent(routeName)}`);
+  if (!res.ok()) throw new Error(`route day failed (${res.status()})`);
+  const bus = ((await res.json()) as { busesOnRoute?: readonly string[] }).busesOnRoute?.[0];
+  if (!bus) throw new Error(`the sample shows no bus on ${routeName}`);
+  return bus;
+}
+
 /**
  * Reads the network from the server and fails unless it is serving the saved sample: this
  * suite's fixed counts hold only there, and the route lookups it makes are refused without
@@ -83,7 +97,9 @@ async function readSample(baseURL: string, storageState: string): Promise<Sample
     }
     const depot = (body.depots ?? []).find((u) => u.kind === 'depot' && u.fleet >= MIN_FLEET);
     if (!depot) throw new Error(`the sample has no depot with a fleet of ${MIN_FLEET} or more`);
-    return { depotId: depot.id, depotName: depot.name, routeName: await sampleRoute(context) };
+    const routeName = await sampleRoute(context);
+    const busOnRoute = await sampleBus(context, routeName);
+    return { depotId: depot.id, depotName: depot.name, routeName, busOnRoute };
   } finally {
     await context.dispose();
   }

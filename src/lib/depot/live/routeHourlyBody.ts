@@ -19,8 +19,9 @@ import { capAddsAtStanding } from '../service/proposalCap';
 import { buildProposals } from '../service/proposals';
 import { reliabilityByHour } from '../service/reliability';
 import { routeDayBoardings } from '../service/routeDayBoardings';
+import { routeTimetable, type RouteTimetable } from '../service/routeTimetable';
 import { scheduledSupply } from '../service/scheduledSupply';
-import type { LedgerJourney, NeedInputs, RouteHourlyBody } from '../service/types';
+import type { LedgerJourney, NeedInputs, RouteHourlyBody, ScheduledTrip } from '../service/types';
 import { MINUTES_PER_HOUR } from '../units';
 import { analyseSnapshot, type SnapshotAnalysis } from './analysis';
 import { operatingDayFor } from './operatingDayView';
@@ -96,6 +97,23 @@ function routedShare(view: FleetSnapshotView): RouteHourlyBody['routeCoverage'] 
   return { n: routed, of: view.rows.length };
 }
 
+/** The route's timetable by bus: who was seen on it, whose whole day is recorded, what was borrowed. */
+async function timetableOf(
+  view: FleetSnapshotView,
+  routeName: string,
+  operatingDate: string,
+  services: ServiceRepositories,
+  trips: readonly ScheduledTrip[],
+): Promise<RouteTimetable> {
+  const [heldBuses, recordedBuses, knownOnRoute] = await Promise.all([
+    services.hourly.busesOnRoute(routeName, operatingDate),
+    services.scheduled.recordedBuses(operatingDate),
+    services.scheduled.knownBusesOnRoute(routeName, operatingDate),
+  ]);
+  const snapshotBuses = view.rows.filter((r) => r.routeName === routeName).map((r) => r.registrationNumber);
+  return routeTimetable({ heldBuses, snapshotBuses, recordedBuses, knownOnRoute, trips });
+}
+
 /** The route's day as the API answers it, less the envelope; null when the snapshot has no such route. */
 export async function routeHourlyBody(
   view: FleetSnapshotView,
@@ -118,6 +136,7 @@ export async function routeHourlyBody(
     scheduled.tripsForRoute(routeName, operatingDate),
   ]);
   const ledger = routeLedger(view, held, routeName, operatingDate);
+  const timetable = await timetableOf(view, routeName, operatingDate, services, trips);
   const days = operatorDays(view, row);
   const profile = cachedRouteProfiles(view, operatingDate).get(routeName);
   const need = needInputsFor({ routeName, ledger, profileDurationMin: profile?.scheduledDurationMin ?? null });
@@ -138,7 +157,8 @@ export async function routeHourlyBody(
     operatingDate,
     ledger,
     trips,
-    distinctBusesSeen: Math.max(distinct, row.buses),
+    distinctBusesSeen: Math.max(distinct, row.buses, timetable.busesOnRoute.length),
+    busesWithDay: timetable.busesWithDay.length,
   });
   const hours = routeHourFigures({ observed, modelled, current, scheduled: supply.hours, demand, need });
   const lengthKm =
@@ -154,6 +174,8 @@ export async function routeHourlyBody(
     hours,
     need,
     ledger,
+    trips,
+    observedSince: summary?.since ?? null,
     depot: primary === null ? null : { depotId: primary, depotName: depotName ?? primary },
     depotHours,
     modelledIdleBuses: primaryDay ? primaryDay.notRun.filter((b) => b.reason === 'no_duty').length : null,
@@ -175,5 +197,8 @@ export async function routeHourlyBody(
     proposals: capAddsAtStanding({ proposals, hours, need, lengthKm, deadKmPerTrip }),
     demandBasis: DEMAND_BASIS,
     reliability: reliabilityByHour(routeName, ledger),
+    busesOnRoute: timetable.busesOnRoute,
+    busesWithDay: timetable.busesWithDay,
+    timetableBorrowedFrom: timetable.borrowedFrom,
   };
 }

@@ -364,8 +364,10 @@ in `title`.
 ## The hour chart (HourChart)
 
 `src/components/depot/hourChart/`: one route's day in 24 columns, 00:00 to 23:00, as the
-route day page's hero. `<HourChart body={response} height?>` takes the response (or any
-object with its `hours` and `currentHour`); the shapes come from
+route day page's hero. `<HourChart body={response} height? controls? footer?>` takes the
+response (or any object with its `hours` and `currentHour`); `controls` are more of the
+section's own controls before the view toggle, `footer` lines under the chart or its table
+in either view (the route day passes the timetable loader in both); the shapes come from
 `buildHourChartModel` and `hourTableRows` in `src/lib/depot/service/hourChartModel.ts`, so
 the chart and its table say the same thing.
 
@@ -389,7 +391,7 @@ the chart and its table say the same thing.
 - **The legend** says every series in words beside its own mark (`LEGEND_TEXT` in
   `service/serviceWording.ts`): the solid bar is "Deployed, observed (and now, from the
   feed)", or "Deployed now, from the feed" when this server has observed nothing today; the
-  Scheduled entry carries the buses whose trips are known ("Scheduled (trips known for 11 of
+  Scheduled entry carries the buses whose whole day is loaded ("Scheduled (full day loaded for 11 of
   21 buses)"); the gap entry says "+ short, − over; gaps in modelled hours are modelled". The
   table's Basis words are the legend's (`BASIS_WORD`).
 - The section note is the operating day and what this server observed of it ("Operating day
@@ -405,6 +407,32 @@ the chart and its table say the same thing.
   caveat sits under it.
 - Colours are the palette's meanings (`hourChartStyle.ts`); a series is never told apart by
   colour alone.
+
+### The timetable loader (route day)
+
+`src/components/depot/service/TimetableLoader.tsx` with `hooks/useTimetableLoader.ts` and
+`lib/depot/service/timetableLoader.ts`: "Load this route's full timetable", a
+`depot-filter-button` in the chart section's controls, before "Show as table".
+
+- It never starts by itself. A press looks up the buses seen on the route without a recorded
+  day (and not answered this visit), at most 20, one at a time; its `title` says the cost
+  ("Looks up 20 buses on the schedule service: one bus at a time, up to 4 calls each, at
+  most 20 buses a press."). While a run goes the button is "Cancel".
+- One `role="status"` line under the legend says the run: "7 of 20 loaded · 13 remain";
+  "Paused at the lookup limit; resuming in 41 seconds · 7 of 20 loaded · 13 remain" while a
+  429 is waited out; "Done: 17 of 20 loaded · 2 had no timetable · 1 could not be read. The
+  chart updates on its next refresh."; "Cancelled: …". Below it, once no run goes, what is
+  left ("28 of 40 buses still to load; a press loads up to 20.", or "Every bus seen on this
+  route has its timetable loaded.") and, when an earlier date stands in, "Timetable of 5
+  Oct 2026 used for 6 Oct 2026."
+- On the saved sample there is no press: the schedule-day route refuses every lookup there
+  without an outside call, so the line says "On the saved sample the schedule service is not
+  asked, so no timetable loads." A lookup refused on the live feed counts as
+  "could not be read" and the page stays as it was.
+- `SectionLabel`'s controls wrap within the row (`flex-wrap`, `max-w-full`), so the loader
+  and "Show as table" sit on two lines at 390 rather than pushing the page sideways.
+- A run that looked anything up asks for the route's figures again when it ends; the
+  scheduled line and the legend's coverage change then.
 
 ## StatePanel
 

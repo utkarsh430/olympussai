@@ -11,16 +11,19 @@ import {
   RUNNING_TIME_MIN_HOURS,
   SPAN_DEMAND_SHARE,
 } from './proposalConfig';
+import { loadedTripsNotRun } from './loadedNotRun';
 import { proposalReason, type ReasonInput } from './proposalReasons';
 import type { ProposalContext } from './proposals';
 import { reliabilityByHour } from './reliability';
+import { routeJourneys } from './scheduledSupply';
 import type { HourBand, LedgerJourney, Proposal, RouteHourFigures } from './types';
 
 /*
- * Tier-A findings: what the feed's own journeys measure about the timetable.
- * They change no bus count (change 0) and carry no modelled impact; the span
- * and headway findings compare the known journeys with the hours that have
- * modelled demand, so a route with few known journeys says nothing.
+ * Tier-A findings: what the feed's own journeys and the loaded timetables measure
+ * about the timetable. They change no bus count (change 0) and carry no modelled
+ * impact; the span and headway findings compare the known journeys (the feed's and
+ * the loaded trips together) with the hours that have modelled demand, so a route
+ * with few known journeys says nothing.
  */
 
 function finding(ctx: ProposalContext, reason: ReasonInput): Proposal {
@@ -44,21 +47,31 @@ function finding(ctx: ProposalContext, reason: ReasonInput): Proposal {
 const ofRoute = (ctx: ProposalContext): LedgerJourney[] =>
   ctx.ledger.filter((j) => j.routeName === ctx.routeName);
 
+/** The feed's journeys on the route and the loaded trips it did not report: the merged timetable. */
+function scheduledOf(ctx: ProposalContext): LedgerJourney[] {
+  const { looked } = routeJourneys(ctx.routeName, ctx.operatingDate, ctx.ledger, ctx.trips ?? []);
+  return [...ofRoute(ctx), ...looked];
+}
+
 const demandIn = (band: HourBand, hours: readonly RouteHourFigures[]): number =>
   hours.filter((h) => inBand(band, h.hour)).reduce((s, h) => s + h.demand, 0);
 
 /**
  * A journey not run: its scheduled start is more than NOT_RUN_AFTER_MIN behind
- * the feed clock and the feed never gave it an actual start. Banded by the
- * hour of the scheduled start. Nothing without a feed clock.
+ * the feed clock and the feed never gave it an actual start; or a loaded trip the
+ * feed never reported, under the rules of `loadedTripsNotRun`. Banded by the hour
+ * of the scheduled start. Nothing without a feed clock.
  */
 function tripsNotRun(ctx: ProposalContext): Proposal[] {
   const now = ctx.feedMinute;
   if (now === null) return [];
-  const missed = ofRoute(ctx).filter((j) => {
-    const start = minuteOfDay(j.scheduledStart);
-    return start !== null && j.actualStart === null && now - start > NOT_RUN_AFTER_MIN;
-  });
+  const missed = [
+    ...ofRoute(ctx).filter((j) => {
+      const start = minuteOfDay(j.scheduledStart);
+      return start !== null && j.actualStart === null && now - start > NOT_RUN_AFTER_MIN;
+    }),
+    ...loadedTripsNotRun(ctx),
+  ];
   const hourOfStart = (j: LedgerJourney): number | null => hourOf(j.scheduledStart);
   return bandsOf(
     missed.map(hourOfStart).filter((h): h is number => h !== null),
@@ -73,7 +86,7 @@ function tripsNotRun(ctx: ProposalContext): Proposal[] {
 }
 
 function knownStarts(ctx: ProposalContext): number[] {
-  return ofRoute(ctx)
+  return scheduledOf(ctx)
     .map((j) => minuteOfDay(j.scheduledStart))
     .filter((m): m is number => m !== null)
     .sort((a, b) => a - b);
@@ -89,7 +102,7 @@ function serviceSpanGap(ctx: ProposalContext): Proposal[] {
     .map((h) => h.hour);
   if (busy.length === 0) return [];
   // An end is the start plus the scheduled span, so a journey past midnight ends after 24:00.
-  const ends = ofRoute(ctx).map((j) => {
+  const ends = scheduledOf(ctx).map((j) => {
     const start = minuteOfDay(j.scheduledStart);
     return start === null ? null : start + (spanMinutes(j.scheduledStart, j.scheduledEnd) ?? 0);
   });

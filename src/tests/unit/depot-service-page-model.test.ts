@@ -15,6 +15,7 @@ import {
   coverageSentences,
   routeHourlyProvenance,
   scheduledLegendText,
+  borrowedTimetableSentence,
 } from '@/lib/depot/service/serviceCoverage';
 import { bandLabel, hourLabel, PROPOSAL_KIND_LABEL, SERVICE_TEXT, TIER_CELL } from '@/lib/depot/service/serviceWording';
 import { PUNCTUALITY_COLUMN_KEYS, PUNCTUALITY_COLUMN_WIDTHS } from '@/lib/depot/service/punctualityModel';
@@ -82,9 +83,13 @@ describe('coverage and provenance', () => {
 
   it('names the scheduled coverage on the Scheduled legend entry, one bus in the singular', () => {
     expect(scheduledLegendText(routeHourlyFixture().scheduledCoverage)).toBe(
-      'Scheduled (trips known for 12 of 40 buses)',
+      'Scheduled (full day loaded for 12 of 40 buses)',
     );
-    expect(scheduledLegendText({ n: 1, of: 1 })).toBe('Scheduled (trips known for 1 of 1 bus)');
+    expect(scheduledLegendText({ n: 1, of: 1 })).toBe('Scheduled (full day loaded for 1 of 1 bus)');
+    expect(borrowedTimetableSentence({ timetableBorrowedFrom: [], operatingDate: '2026-10-06' })).toBeNull();
+    expect(
+      borrowedTimetableSentence({ timetableBorrowedFrom: ['2026-10-05'], operatingDate: '2026-10-06' }),
+    ).toBe('Timetable of 5 Oct 2026 used for 6 Oct 2026.');
     expect(coverageSentences(routeHourlyFixture({ routeCoverage: { n: 1, of: 1 } }))).toContain(
       'Only buses that report a route name are counted: 1 of the 1 bus in the feed reports one.',
     );

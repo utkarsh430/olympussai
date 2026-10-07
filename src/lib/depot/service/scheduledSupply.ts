@@ -18,17 +18,19 @@ export interface ScheduledSupplyInput {
   readonly trips: readonly ScheduledTrip[];
   /** Distinct buses seen carrying the route name on the date. */
   readonly distinctBusesSeen: number;
+  /** Buses whose whole day is recorded for the date: the coverage's count. */
+  readonly busesWithDay: number;
 }
 
 export interface ScheduledSupply {
   /** 24 hours when any trip with a start is known; none otherwise, so no hour claims a zero. */
   readonly hours: readonly ScheduledRouteHour[];
-  /** Buses whose trips are known, of the buses seen on the route (never fewer than are known). */
+  /** Buses whose whole day is recorded, of the buses seen on the route (never fewer than are known). */
   readonly coverage: Coverage;
 }
 
 /** A looked-up trip in the ledger's shape; it has no actual start or delay. */
-function asJourney(trip: ScheduledTrip, operatingDate: string): LedgerJourney {
+export function asJourney(trip: ScheduledTrip, operatingDate: string): LedgerJourney {
   return {
     operatingDate,
     journeyId: trip.journeyId,
@@ -43,23 +45,38 @@ function asJourney(trip: ScheduledTrip, operatingDate: string): LedgerJourney {
 }
 
 /**
- * The scheduled bus-hours per hour and the coverage they rest on. A trip the feed already
- * reported (the same journey id) is counted once, from the feed; a bus is counted once
- * however many of its trips are known.
+ * Every journey known on the route for the date: the feed's own, then the looked-up trips
+ * the feed did not report (the same journey id counts once, from the feed).
  */
-export function scheduledSupply(input: Readonly<ScheduledSupplyInput>): ScheduledSupply {
-  const { routeName, operatingDate } = input;
-  const fromFeed = input.ledger.filter(
-    (j) => j.routeName === routeName && j.operatingDate === operatingDate,
-  );
+export function routeJourneys(
+  routeName: string,
+  operatingDate: string,
+  ledger: readonly LedgerJourney[],
+  trips: readonly ScheduledTrip[],
+): { readonly fromFeed: LedgerJourney[]; readonly looked: LedgerJourney[] } {
+  const fromFeed = ledger.filter((j) => j.routeName === routeName && j.operatingDate === operatingDate);
   const feedIds = new Set(fromFeed.map((j) => j.journeyId));
-  const looked = input.trips
+  const looked = trips
     .filter((t) => t.routeName === routeName && t.forDate === operatingDate)
     .filter((t) => !feedIds.has(t.journeyId))
     .map((t) => asJourney(t, operatingDate));
+  return { fromFeed, looked };
+}
+
+/**
+ * The scheduled bus-hours per hour and the coverage they rest on. A trip the feed already
+ * reported (the same journey id) is counted once, from the feed. The coverage counts the
+ * buses whose whole day is recorded: a journey the feed reported shows one trip of a bus,
+ * never its day.
+ */
+export function scheduledSupply(input: Readonly<ScheduledSupplyInput>): ScheduledSupply {
+  const { routeName, operatingDate } = input;
+  const { fromFeed, looked } = routeJourneys(routeName, operatingDate, input.ledger, input.trips);
   const journeys = [...fromFeed, ...looked];
-  const buses = new Set(journeys.map((j) => j.registrationNumber));
-  const coverage = { n: buses.size, of: Math.max(buses.size, input.distinctBusesSeen) };
+  const coverage = {
+    n: input.busesWithDay,
+    of: Math.max(input.busesWithDay, input.distinctBusesSeen),
+  };
   if (!journeys.some((j) => j.scheduledStart !== null)) return { hours: [], coverage };
   const hours = scheduledHoursFromLedger(routeName, operatingDate, journeys, coverage).map(
     (hour) => ({ ...hour, fromFeedRowsOnly: looked.length === 0 }),

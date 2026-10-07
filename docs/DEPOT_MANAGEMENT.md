@@ -284,7 +284,8 @@ not in the feed answers the fixed `404 {"error":"Depot not found"}`. Payload typ
 | `routes` | One page of routes in the feed with derived columns | paging, sort `dir`, filters; `limit` default 25, max 100 (`src/lib/depot/routes/routeQuery.ts`); strict |
 | `allocation` | The route-to-depot plan over cached profiles, filtered and paged per request; `plannedAt` is the feed time of the snapshot the held plan was made on (null when that snapshot had no feed clock) | parsed by `parseAllocationQuery` (routeQuery.ts); strict |
 | `route/[routeName]` | One route profile (stops, terminals, length; `unlocatedStops` counts stops with no usable position and `mislocatedStops` those whose position does not fit the timetable, both with `lat`/`lng` null, section 7.9) with the feed envelope of the snapshot it read; `fetchedAt` is that snapshot's fetch time | `isValidRouteName` → `400 {"error":"Invalid route name"}`; calls to the schedule server rate-limited, one slot per call → `429 {"error":"Too many requests","retryAfterSeconds":n}` with `Retry-After`; `503 {"error":"Route data unavailable"}`, also after `ROUTE_LOOKUP_DEADLINE_MS = 25_000` |
-| `service/route/[routeName]` | One route's day hour by hour (`RouteHourlyResponse`, `service/types.ts`): 24 hours of deployed, scheduled, modelled demand, needed and gap; the need inputs; what this server observed; scheduled and route-name coverage; proposals; punctuality by hour (`reliability`) | `isValidRouteName` → `400 {"error":"Invalid route name"}`; strict query: only `date`, which must be the feed's operating date (`YYYY-MM-DD`), else `400 {"error":"Invalid query"}`; a route the snapshot does not carry → `404 {"error":"Route not found"}`; no upstream call (`live/routeHourlyView.ts`) |
+| `schedule-day/[registration]` | One bus's whole day from the schedule server (`ScheduleDayResponse`, `service/scheduleDayApi.ts`), asked for by the route day's timetable loader: `?route=` names the route the bus was seen on. The feed's operating date is asked first, then the fallback dates; a real answer is recorded in the scheduled-trip store for the operating date (`answeredDate` is the date that answered: another is a borrowed day) and answered as `{status:"ok",trips,tripsOnRoute,…}` with the feed envelope; "not assigned" on every date is `{status:"unavailable",reason:"no_schedule"}`, a failure or the sample stand-in `reason:"upstream_error"`, and neither records anything | the same limits as `route/[routeName]`, one slot per call to the schedule server, taken before each call → `429 {"error":"Too many requests","retryAfterSeconds":n}` with `Retry-After`; strict: `isValidRegistrationNumber` (at most 16 characters) and exactly one valid `route`, else `400 {"error":"Invalid request"}`; a bus this server has not seen on the route (in the snapshot or earlier that date) → `404 {"error":"Bus not seen on this route"}` with no call made; `503 {"error":"Schedule data unavailable"}` on failure and after `ROUTE_LOOKUP_DEADLINE_MS`; the only route besides `route/[routeName]` that the API guard lets reach the schedule server (`service/scheduleDayLookup.ts`) |
+| `service/route/[routeName]` | One route's day hour by hour (`RouteHourlyResponse`, `service/types.ts`): 24 hours of deployed, scheduled, modelled demand, needed and gap; the need inputs; what this server observed; scheduled and route-name coverage; proposals; punctuality by hour (`reliability`); the buses seen on the route (`busesOnRoute`), those with a recorded day (`busesWithDay`) and any borrowed timetable date (`timetableBorrowedFrom`) | `isValidRouteName` → `400 {"error":"Invalid route name"}`; strict query: only `date`, which must be the feed's operating date (`YYYY-MM-DD`), else `400 {"error":"Invalid query"}`; a route the snapshot does not carry → `404 {"error":"Route not found"}`; no upstream call (`live/routeHourlyView.ts`) |
 | `economics` | The modelled economics index, network and per depot | none |
 | `history` | A daily series for one metric, with the feed envelope; `available` points carry `ceiling` (the fleet) | `metric` (onRoadShare, offRoadRate, darkRate, index, available), `scope` network or depot, `depotId` when scope is depot, `days` 7–180 default 30 (`live/historyView.ts`); `404` "No value for this metric" / "No index for this depot" |
 | `trends` | History with trend words for many units | strict parser in `live/trendsView.ts`, `days` 7–90 default 30 |
@@ -318,8 +319,14 @@ repositories did not change:
 
 | Repository | Adapter today | Interface |
 | --- | --- | --- |
-| `hourly` | `memoryHourlyObservationRepository` — reads the per-process hour store (`live/serviceHold.ts`) | `routeHours`, `depotHours`, `observedSummary`, `distinctBusesOnRoute`, `journeysOnRoute`; all async |
-| `scheduled` | `memoryScheduledTripRepository` — the trips of the bus days looked up, per process | `recordBusDay`, `tripsForRoute`, `knownBusesOnRoute`; all async |
+| `hourly` | `memoryHourlyObservationRepository` — reads the per-process hour store (`live/serviceHold.ts`) | `routeHours`, `depotHours`, `observedSummary`, `distinctBusesOnRoute`, `busesOnRoute`, `journeysOnRoute`; all async |
+| `scheduled` | `memoryScheduledTripRepository` — the trips of the bus days looked up, per process | `recordBusDay`, `tripsForRoute`, `knownBusesOnRoute`, `recordedBuses`, `revision` (a count of days recorded, in the route day's memo key so a load shows on the next poll); all async |
+
+A bus's day is recorded two ways, both only from the schedule server's own answer (never
+the sample stand-in): a successful route-details lookup records the whole day of the bus it
+was read through (every trip, other routes included, at no further call; `getRouteProfile`'s
+`record`), and the schedule-day route records the day of each bus the timetable loader asks
+for. The command centre's schedule route records nothing.
 
 A database written by a 5-minute sampler replaces the first, and a timetable store the
 second, behind the same interfaces.
@@ -642,7 +649,9 @@ whose first date answers costs one slot, and a cache hit costs nothing. If no sl
 before a call, the lookup stops there and the route answers its fixed 429 with
 `Retry-After`; nothing is cached. The route waits at most `ROUTE_LOOKUP_DEADLINE_MS =
 25_000` for the snapshot and the lookup, then answers its fixed 503; a lookup still running
-then is cached only if it ends in an answer. Every limit is per instance.
+then is cached only if it ends in an answer. Every limit is per instance. The limits live in
+`routes/upstreamPermit.ts` and are shared with the schedule-day route: one allowance per
+person whichever of the two spends it.
 
 The allocation (`optimise/allocate.ts`) recommends which depot should run each route to cut
 dead kilometres (inferred yard to the route's real first and last stop) within capacity. It
@@ -839,8 +848,23 @@ is built per request.
    hour, over 60 (`journeyLedger.ts`, `scheduledSupply.ts`). Trips are the journeys the feed
    reports on its rows (about one bus in five carries one) and the trips of bus days looked
    up from the schedule service; a trip known both ways counts once. Coverage is the buses
-   whose trips are known, of the buses seen on the route that date. With no trip known,
-   every hour says no scheduled trip is known, rather than zero.
+   whose whole day is recorded, of the buses seen on the route that date (a journey the
+   feed reports is one trip of a bus, never its day). With no trip known, every hour says
+   no scheduled trip is known, rather than zero. When the server had no timetable for the
+   date and answered with an earlier one, the page says "Timetable of 5 Oct 2026 used for
+   6 Oct 2026."
+
+   **Loading the full timetable** (`service/timetableLoader.ts`, `hooks/useTimetableLoader.ts`):
+   a person presses "Load this route's full timetable" in the chart section; nothing loads
+   by itself and nothing crawls. One lookup per bus seen on the route (`busesOnRoute`),
+   skipping buses already recorded for the date and buses answered this visit, at most
+   `TIMETABLE_LOAD_CAP = 20` buses a press, one at a time, in order, waiting out a 429's
+   `Retry-After` and asking the same bus again (the route-details loader's own sequencing,
+   `runProfileLoader`), cancellable. A press asks for up to 20 buses × up to 4 calls = up to
+   80 calls to the schedule server, which at a person's 20 calls a minute is 1–4 minutes of
+   that person's allowance (a bus whose operating date answers costs one call, so 20 buses
+   take one minute; one that needs every fallback date costs four). Repeat presses continue
+   with the buses left; the scheduled line and the coverage legend update on the next poll.
 3. **Demand** (MODELLED): the day's boardings on the route come from the same buses
    (`routeDayBoardings` in `service/routeDayBoardings.ts`): the trip model's trips per day
    on them (`modelTripsPerDay`, the Routes table's "trips/day"), times the class's seats in
@@ -901,10 +925,13 @@ saying they are notes for the next day's plan.
 - **Hold buses**: each hour over by at least `HOLD_MIN_SURPLUS = 1`, keeping at least
   `HOLD_KEEP_MIN = 1` bus and never fewer than the hour's scheduled bus-hours.
 - **From measured data only** (tier A): trips not run (a known scheduled start with no
-  actual start `NOT_RUN_AFTER_MIN = 30` minutes on), a service span gap (an hour holding at
+  actual start `NOT_RUN_AFTER_MIN = 30` minutes on; or a loaded trip the feed never
+  reported, `service/loadedNotRun.ts`, counted only when its start is at or after the time
+  this server began observing the date and its bus reports its journeys on the feed's rows,
+  since most buses report none and their silence says nothing), a service span gap (an hour holding at
   least `SPAN_DEMAND_SHARE = 0.02` of the day's demand before the first or after the last
   known trip), a headway gap (no start for `HEADWAY_GAP_MIN = 60` minutes or more between
-  06:00 and 21:00) and revise running time (`RUNNING_TIME_MIN_HOURS = 3` hours in a row,
+  06:00 and 21:00), both read from the feed's journeys and the loaded trips together, and revise running time (`RUNNING_TIME_MIN_HOURS = 3` hours in a row,
   each with at least `RUNNING_TIME_MIN_COVERAGE = 3` delays and a median above
   `LATE_AFTER_MIN = 10`). Span and headway need `MIN_LEDGER_JOURNEYS = 3` known starts.
 - **Tier**: A rests on measured data only; B on measured deployment and modelled demand; C
@@ -935,7 +962,8 @@ section is closed by default.
 one short MIXED sentence (buses now LIVE; observed hours and scheduled trips DERIVED; other
 hours, demand, need and proposals MODELLED; with nothing observed it names no observed
 hours); "Observed by this server since HH:MM (N samples)" is the chart section's note; the
-buses whose trips are known, of those seen on the route, are on the Scheduled legend entry;
+buses whose whole day is loaded, of those seen on the route, are on the Scheduled legend entry
+("Scheduled (full day loaded for 12 of 40 buses)");
 the buses that report a route name, of every bus in the feed (only they are counted), and
 the route's standing buses now (not counted as deployed) are in the closing disclosure.
 

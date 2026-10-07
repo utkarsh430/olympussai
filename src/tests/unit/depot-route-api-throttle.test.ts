@@ -14,8 +14,12 @@ vi.mock('@/lib/upsrtc/client', async (importOriginal) => ({
   fetchUpstream: vi.fn(),
 }));
 const snapshotHolder: { view: FleetSnapshotView | null } = { view: null };
+const scheduledHolder = vi.hoisted(() => ({
+  recordBusDay: vi.fn<(trips: readonly unknown[]) => Promise<void>>(async () => undefined),
+}));
 vi.mock('@/lib/depot/repositories', () => ({
   getRepositories: () => ({ fleet: { snapshot: async () => snapshotHolder.view } }),
+  getServiceRepositories: () => ({ scheduled: scheduledHolder }),
 }));
 
 import { requireUpsrtcAccess } from '@/lib/auth/authorize';
@@ -126,6 +130,19 @@ afterEach(() => {
 });
 
 describe('route lookups charged per call to the schedule server', () => {
+  it('records the sampled bus day of a successful lookup at no further call', async () => {
+    const view = fleetOf(1);
+    const rows = view.rows.map((r) => ({ ...r, routeName: 'RKD_4560_ORD_OUT' }));
+    snapshotHolder.view = { ...view, rows };
+    scheduledHolder.recordBusDay.mockClear();
+    mockFetch.mockResolvedValue(ok(scheduleFixture));
+    expect((await call('RKD_4560_ORD_OUT')).status).toBe(200);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const recorded = scheduledHolder.recordBusDay.mock.calls[0]?.[0] as readonly { forDate: string }[];
+    expect(recorded).toHaveLength(4);
+    expect(recorded.every((t) => t.forDate === '2026-10-06')).toBe(true);
+  });
+
   it('charges a lookup whose first date answers one call', async () => {
     mockFetch.mockResolvedValue(ok(scheduleFixture));
     expect((await call('R_0')).status).toBe(200);

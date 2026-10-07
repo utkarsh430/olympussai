@@ -44,7 +44,7 @@ const HEADING_ALIASES = ['heading', 'Heading', 'bearing', 'course', 'direction_d
 const DEPOT_ALIASES = ['depot_name', 'depotName', 'depot', 'home_depot_name'] as const;
 export const ROUTE_ID_ALIASES = ['route', 'route_id', 'routeId', 'line_id'] as const;
 export const ROUTE_NAME_ALIASES = ['routename', 'route_name', 'routeName', 'RouteName'] as const;
-const SERVICE_ALIASES = ['vehicle_journey_code', 'service_number', 'serviceNumber', 'line_name'] as const;
+export const SERVICE_ALIASES = ['vehicle_journey_code', 'service_number', 'serviceNumber', 'line_name'] as const;
 export const TRIP_ALIASES = ['vehicle_journey_id', 'trip_id', 'tripId', 'vj_id'] as const;
 const TIMESTAMP_ALIASES = ['timestamp', 'receivedTime', 'gps_timestamp', 'gpsTimestamp', 'time'] as const;
 const STATUS_ALIASES = ['status', 'vehicle_status', 'vehicleStatus', 'packetStatus'] as const;
@@ -262,9 +262,12 @@ export function normalizeLivePayload(payload: unknown, now: number = Date.now())
 }
 
 const STOP_NAME_ALIASES = ['stop_name', 'stopName', 'platform_name', 'name'] as const;
-const STOP_SEQ_ALIASES = ['stop_sequence', 'sequence', 'seq', 'stopSequence'] as const;
+export const STOP_SEQ_ALIASES = ['stop_sequence', 'sequence', 'seq', 'stopSequence'] as const;
 const STOP_ID_ALIASES = ['atco_code', 'stop_id', 'stopId', 'code'] as const;
-const STOP_TIME_ALIASES = ['scheduled_time', 'scheduledTime', 'arrival_time', 'eta'] as const;
+export const STOP_TIME_ALIASES = ['scheduled_time', 'scheduledTime', 'arrival_time', 'eta'] as const;
+
+/** The key of the rows that carry no journey id. */
+export const UNKNOWN_TRIP = 'unknown';
 
 /**
  * Group rows by vehicle journey.
@@ -273,10 +276,10 @@ const STOP_TIME_ALIASES = ['scheduled_time', 'scheduledTime', 'arrival_time', 'e
  * is currently on — nine trips in a single response is normal — and each trip
  * restarts stop_sequence at 1.
  */
-function groupByTrip(rows: Rec[]): Map<string, Rec[]> {
+export function groupByTrip(rows: readonly Rec[]): Map<string, Rec[]> {
   const trips = new Map<string, Rec[]>();
   for (const row of rows) {
-    const key = toStringOrNull(pick(row, TRIP_ALIASES)) ?? 'unknown';
+    const key = toStringOrNull(pick(row, TRIP_ALIASES)) ?? UNKNOWN_TRIP;
     const bucket = trips.get(key);
     if (bucket) bucket.push(row);
     else trips.set(key, [row]);

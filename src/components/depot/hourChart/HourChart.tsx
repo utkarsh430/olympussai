@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useMemo, useState } from 'react';
+import { useId, useMemo, useState, type ReactNode } from 'react';
 import { SectionLabel } from '@/components/depot/shell/SectionLabel';
 import { useWidthTier } from '@/components/depot/shell/useWidthTier';
 import { GAP_ROW_TIERS } from '@/lib/depot/service/gapRowLayout';
@@ -20,6 +20,10 @@ export interface HourChartProps {
   >;
   /** Plot height in pixels; the chart takes its container's width. */
   readonly height?: number;
+  /** More of the section's own controls, before the view toggle (the timetable loader). */
+  readonly controls?: ReactNode;
+  /** Lines under the chart or its table, in either view (the loader's progress). */
+  readonly footer?: ReactNode;
 }
 
 const PLOT_HEIGHT_PX = 300;
@@ -29,7 +33,7 @@ const PLOT_HEIGHT_PX = 300;
  * needed dashed line over its range, with the now marker and the signed gap row; "Show as
  * table" swaps the drawing for its 24-row text table and "Show as chart" swaps it back.
  */
-export function HourChart({ body, height = PLOT_HEIGHT_PX }: HourChartProps) {
+export function HourChart({ body, height = PLOT_HEIGHT_PX, controls, footer }: HourChartProps) {
   const [asTable, setAsTable] = useState(false);
   const gapRow = useWidthTier(GAP_ROW_TIERS);
   const model = useMemo(
@@ -55,7 +59,17 @@ export function HourChart({ body, height = PLOT_HEIGHT_PX }: HourChartProps) {
   );
   return (
     <section aria-labelledby={titleId} className="min-w-0" data-testid="hour-chart">
-      <SectionLabel id={titleId} label={SERVICE_TEXT.chartTitle} note={chartNote(body)} controls={toggle} />
+      <SectionLabel
+        id={titleId}
+        label={SERVICE_TEXT.chartTitle}
+        note={chartNote(body)}
+        controls={
+          <>
+            {controls}
+            {toggle}
+          </>
+        }
+      />
       <div id={viewId} className="min-w-0">
         {asTable ? (
           <HourTable rows={rows} />
@@ -71,6 +85,7 @@ export function HourChart({ body, height = PLOT_HEIGHT_PX }: HourChartProps) {
             />
           </>
         )}
+        {footer}
       </div>
     </section>
   );

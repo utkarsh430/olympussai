@@ -61,7 +61,7 @@ export function SectionLabel({
         </p>
       ) : null}
       {controls ? (
-        <div data-testid="depot-section-controls" className="flex shrink-0 items-center gap-1">
+        <div data-testid="depot-section-controls" className="flex max-w-full shrink-0 flex-wrap items-center gap-1">
           {controls}
         </div>
       ) : null}

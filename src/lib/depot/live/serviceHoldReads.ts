@@ -71,6 +71,16 @@ export function heldJourneysOnRoute(
 }
 
 /** Distinct buses seen carrying the route name in the date. */
+/** The registrations seen carrying the route name in the date, sorted. */
+export function heldBusRegistrationsOnRoute(
+  store: ServiceHoldStore,
+  routeName: string,
+  operatingDate: string,
+): string[] {
+  if (store.operatingDate !== operatingDate) return [];
+  return [...(store.routeBuses.get(routeName) ?? [])].sort(compareText);
+}
+
 export function heldBusesOnRoute(
   store: ServiceHoldStore,
   routeName: string,

@@ -45,12 +45,15 @@ function dropEarliestDates(dates: Map<string, BusDays>): void {
 /** A fresh, empty store: the state of a process that has just started. */
 export function createMemoryScheduledTripRepository(): ScheduledTripRepository {
   const dates = new Map<string, BusDays>();
+  let recorded = 0;
   const tripsOn = (routeName: string, forDate: string): ScheduledTrip[] =>
     [...(dates.get(forDate)?.values() ?? [])].flatMap((day) =>
       day.filter((t) => t.routeName === routeName),
     );
   return {
     async recordBusDay(trips): Promise<void> {
+      if (trips.length === 0) return;
+      recorded += 1;
       for (const [forDate, buses] of groupDays(trips)) {
         const held: BusDays = dates.get(forDate) ?? new Map();
         for (const [registration, day] of buses) {
@@ -67,6 +70,12 @@ export function createMemoryScheduledTripRepository(): ScheduledTripRepository {
     async knownBusesOnRoute(routeName, forDate): Promise<readonly string[]> {
       const buses = new Set(tripsOn(routeName, forDate).map((t) => t.registrationNumber));
       return [...buses].sort(compareText);
+    },
+    async recordedBuses(forDate): Promise<readonly string[]> {
+      return [...(dates.get(forDate)?.keys() ?? [])].sort(compareText);
+    },
+    async revision(): Promise<number> {
+      return recorded;
     },
   };
 }
