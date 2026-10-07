@@ -92,15 +92,25 @@ describe('proposal rows', () => {
     expect(add).toMatchObject({
       band: '07:00–11:00',
       change: 'Add 3',
-      source: 'Alambagh · 6 standing',
+      source: 'Alambagh',
       impact: '180–320 pax',
       restsOn: 'B · Mixed',
       reason: FIXTURE_PROPOSALS[0]?.reason,
     });
-    expect(hold).toMatchObject({ change: 'Hold 2', source: 'Alambagh · day plan', impact: '270–330 km saved' });
+    expect(hold).toMatchObject({ change: 'Hold 2', source: 'Alambagh', impact: '270–330 km saved' });
     expect(run).toMatchObject({ change: 'Running time', source: '—', impact: '—', restsOn: 'A · Measured' });
     expect(run?.impactTitle).toMatch(/No modelled impact/);
     expect(run?.sourceTitle).toBe('No bus moves for this finding.');
+  });
+
+  it('names only the depot in the source cell, so a long name fits; what it offers is in the title', () => {
+    const [add, hold] = FIXTURE_PROPOSALS.map(proposalRow);
+    expect(add?.sourceTitle).toBe(
+      'Alambagh: 6 buses standing in its yard in the hour before the band, as observed.',
+    );
+    expect(hold?.sourceTitle).toBe('Alambagh: idle buses in the modelled day plan.');
+    const long = { ...FIXTURE_PROPOSALS[0]!.source!, depotName: 'VINDHYANAGAR' };
+    expect(proposalRow({ ...FIXTURE_PROPOSALS[0]!, source: long }).source).toBe('VINDHYANAGAR');
   });
 
   it('shows the bus-km a hold saves, never its zero passengers, and all four ranges either way', () => {
