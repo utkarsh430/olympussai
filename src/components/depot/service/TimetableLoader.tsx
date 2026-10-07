@@ -10,11 +10,19 @@ import {
   timetableRemainingLine,
 } from '@/lib/depot/service/timetableLoader';
 import type { RouteHourlyBody } from '@/lib/depot/service/types';
+import type { DepotFeedEnvelope } from '@/lib/depot/api';
+
+/** On the saved sample the schedule server is never asked, so no timetable can load. */
+export const SAMPLE_TIMETABLE_REFUSAL =
+  'Timetables load from the schedule service on the live feed only; this is the saved sample.';
+
+const onSample = (body: TimetableBody): boolean => body.source === 'fixture';
 
 type TimetableBody = Pick<
   RouteHourlyBody,
   'busesOnRoute' | 'busesWithDay' | 'timetableBorrowedFrom' | 'operatingDate'
->;
+> &
+  Pick<DepotFeedEnvelope, 'source'>;
 
 export interface TimetableLoaderProps {
   readonly body: TimetableBody;
@@ -28,7 +36,8 @@ function pending(body: TimetableBody, loader: TimetableLoader): readonly string[
 
 /**
  * The chart section's control: "Load this route's full timetable" (its cost in the
- * `title`), or Cancel while a run goes. Nothing when no bus is left to load.
+ * `title`), or Cancel while a run goes. Nothing when no bus is left to load, or on the
+ * saved sample, where every lookup would be refused.
  */
 export function TimetableLoadButton({ body, loader }: TimetableLoaderProps) {
   if (loader.running) {
@@ -39,7 +48,7 @@ export function TimetableLoadButton({ body, loader }: TimetableLoaderProps) {
     );
   }
   const buses = pending(body, loader);
-  if (buses.length === 0) return null;
+  if (buses.length === 0 || onSample(body)) return null;
   return (
     <button
       type="button"
@@ -62,7 +71,11 @@ export function TimetableLoadStatus({ body, loader }: TimetableLoaderProps) {
     (bus) => !body.busesWithDay.includes(bus) && !loader.answered.has(bus),
   ).length;
   const progress = timetableProgressSentence(loader.progress);
-  const remaining = loader.running ? null : timetableRemainingLine(unanswered, body.busesOnRoute.length);
+  const remaining = onSample(body)
+    ? SAMPLE_TIMETABLE_REFUSAL
+    : loader.running
+      ? null
+      : timetableRemainingLine(unanswered, body.busesOnRoute.length);
   const borrowed = borrowedTimetableSentence(body);
   return (
     <div className="mt-2 min-w-0" data-testid="timetable-loader">

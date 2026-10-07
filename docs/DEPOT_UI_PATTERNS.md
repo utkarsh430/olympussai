@@ -425,8 +425,12 @@ the chart and its table say the same thing.
   left ("28 of 40 buses still to load; a press loads up to 20.", or "Every bus seen on this
   route has its timetable loaded.") and, when an earlier date stands in, "Timetable of 5
   Oct 2026 used for 6 Oct 2026."
-- On the saved sample every lookup is refused without an outside call, so a run ends "Done:
-  0 of 20 loaded · 20 could not be read." and the page stays as it was.
+- On the saved sample there is no press: the schedule-day route refuses every lookup there
+  without an outside call, so the line says "Timetables load from the schedule service on
+  the live feed only; this is the saved sample." A lookup refused on the live feed counts as
+  "could not be read" and the page stays as it was.
+- `SectionLabel`'s controls wrap within the row (`flex-wrap`, `max-w-full`), so the loader
+  and "Show as table" sit on two lines at 390 rather than pushing the page sideways.
 - A run that looked anything up asks for the route's figures again when it ends; the
   scheduled line and the legend's coverage change then.
 

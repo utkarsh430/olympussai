@@ -2,6 +2,7 @@ import { act, cloneElement, isValidElement, type ReactElement, type ReactNode } 
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { RouteHourlyPage } from '@/components/depot/service/RouteHourlyPage';
+import { SAMPLE_TIMETABLE_REFUSAL } from '@/components/depot/service/TimetableLoader';
 import { FIXTURE_BUSES, routeHourlyFixture } from './depot-service-fixtures';
 
 /*
@@ -106,13 +107,24 @@ describe('the route day timetable loader', () => {
     expect(calls).toBe(21);
   });
 
-  it('says the sample refusal and keeps the page', async () => {
+  it('says a refused lookup and keeps the page', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => json(200, { status: 'unavailable', reason: 'upstream_error' })));
     act(() => root.render(<RouteHourlyPage response={routeHourlyFixture()} error={null} loading={false} />));
     act(() => button('timetable-load')?.click());
     await settle();
     expect(status()).toBe('Done: 0 of 20 loaded · 20 could not be read. The chart updates on its next refresh.');
     expect(container.querySelector('[data-testid="route-hourly-page"]')).not.toBeNull();
+  });
+
+  it('offers no press on the saved sample and says why', () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const response = routeHourlyFixture({ source: 'fixture', stale: true });
+    act(() => root.render(<RouteHourlyPage response={response} error={null} loading={false} />));
+    expect(button('timetable-load')).toBeNull();
+    expect(container.textContent).toContain(SAMPLE_TIMETABLE_REFUSAL);
+    expect(container.querySelector('[data-testid="hour-chart-plot"]')).not.toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('says nothing is left, and a borrowed timetable', () => {
