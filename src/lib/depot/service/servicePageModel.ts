@@ -109,8 +109,8 @@ export function routeHourlyProvenance(body: Body | null): ProvenanceDescription 
   const classes: ProvenanceDescription = {
     default: 'mixed',
     live: 'Buses on the route now',
-    derived: 'deployed and scheduled buses by hour',
-    modelled: 'passenger demand, buses needed and the proposals',
+    derived: 'observed and scheduled buses by hour',
+    modelled: 'deployment in hours not observed, passenger demand, buses needed and the proposals',
   };
   return body === null ? classes : { ...classes, second: coverageSentences(body).join(' ') };
 }

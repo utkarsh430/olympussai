@@ -71,6 +71,9 @@ describe('coverage and provenance', () => {
     expect(line.live).toBeTruthy();
     expect(line.derived).toBeTruthy();
     expect(line.modelled).toMatch(/demand/);
+    // Most hours of a day not yet observed come from the modelled day: the line says so.
+    expect(line.derived).toBe('observed and scheduled buses by hour');
+    expect(line.modelled).toMatch(/^deployment in hours not observed, /);
     expect(line.second).toContain('Observed by this server since 05:02 (79 samples).');
   });
 });
