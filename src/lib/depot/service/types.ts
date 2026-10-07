@@ -437,7 +437,10 @@ export interface NetworkHourlyBody {
     readonly pageSize: number;
     readonly rows: readonly NetworkRouteStrip[];
   };
+  /** The band's proposals, each group cut to its first `NETWORK_PROPOSALS_PER_GROUP` by weight. */
   readonly proposals: readonly NetworkProposal[];
+  /** How many proposals each group held before the cut. */
+  readonly proposalTotals: Readonly<Record<NetworkProposalGroup, number>>;
   readonly reallocation: BandReallocation;
   readonly totals: NetworkHourlyTotals;
   readonly observed: ObservedSummary | null;

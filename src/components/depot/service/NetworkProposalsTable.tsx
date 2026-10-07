@@ -18,13 +18,14 @@ import {
   type NetworkProposalColumnKey,
 } from '@/lib/depot/service/networkProposalColumns';
 import {
+  cutNote,
   NETWORK_GROUP_LABEL,
   networkProposalRow,
   orderNetworkProposals,
   type NetworkProposalRow,
 } from '@/lib/depot/service/networkPageModel';
 import { SERVICE_TEXT } from '@/lib/depot/service/serviceWording';
-import type { NetworkProposal } from '@/lib/depot/service/types';
+import type { NetworkProposal, NetworkProposalGroup } from '@/lib/depot/service/types';
 
 const TITLE_ID = 'service-network-proposals';
 
@@ -87,7 +88,13 @@ function NetworkProposalDetail({ row }: { readonly row: NetworkProposalRow }) {
 }
 
 /** The band's proposals across the network, grouped (changes, findings, network moves), 25 a page. */
-export function NetworkProposalsTable({ proposals }: { readonly proposals: readonly NetworkProposal[] }) {
+export interface NetworkProposalsTableProps {
+  readonly proposals: readonly NetworkProposal[];
+  /** How many each group held before the body's cut. */
+  readonly totals: Readonly<Record<NetworkProposalGroup, number>>;
+}
+
+export function NetworkProposalsTable({ proposals, totals }: NetworkProposalsTableProps) {
   const tier = useWidthTier(NETWORK_PROPOSAL_TIERS);
   const [page, setPage] = useState(0);
   const rows = useMemo(() => orderNetworkProposals(proposals).map(networkProposalRow), [proposals]);
@@ -105,6 +112,7 @@ export function NetworkProposalsTable({ proposals }: { readonly proposals: reado
         <StatePanel kind="empty" compact tone="ok" sentence="No proposal in this band: no route or depot is short or over by enough to act." />
       ) : (
         <>
+          {cutNote(proposals, totals) ? <p className="depot-note mb-2">{cutNote(proposals, totals)}</p> : null}
           <DataTable
             columns={columns}
             rows={rows.slice(range.start, range.end)}

@@ -41,6 +41,7 @@ export function networkHourlyFixture(over: Partial<NetworkHourlyResponse> = {}):
     bands: bandSummaries(DAYS),
     routes: { total: rows.length, page: 0, pageSize: 25, rows },
     proposals: [...own, ...network],
+    proposalTotals: { changes: 2, findings: 2, network: 2 },
     reallocation: {
       band: 'morning_peak',
       moves: [

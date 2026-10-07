@@ -1,11 +1,14 @@
 import { DEMAND_BASIS } from '../sim/hourlyDemandConfig';
 import { nextPeakBand, routeStrip } from '../service/networkHours';
+import { compareProposals } from '../service/proposals';
 import type {
   BandReallocation,
   ImpactRange,
   NetworkHourlyBody,
   NetworkProposal,
+  NetworkProposalGroup,
   NetworkRouteStrip,
+  Proposal,
   ServiceBandKey,
   ServiceBandSummary,
 } from '../service/types';
@@ -19,6 +22,14 @@ import type { NetworkDay } from './networkHourlyDay';
 
 /** Route strips per page of the heat map. */
 export const NETWORK_ROUTES_PAGE_SIZE = 25;
+
+/**
+ * The most proposals of one group a body carries: a network day can hold a thousand route
+ * proposals in a band, more than a person reads and a body worth sending each minute. The
+ * heaviest are kept (the most passengers carried, else the most buses or trips), and the
+ * page says how many there were.
+ */
+export const NETWORK_PROPOSALS_PER_GROUP = 100;
 
 export interface NetworkSelection {
   readonly band: ServiceBandKey;
@@ -59,6 +70,27 @@ function proposalsFor(
   return proposals.filter((p) => p.depotId === depotId || p.routes.some((r) => routesOfDepot.has(r)));
 }
 
+const GROUPS: readonly NetworkProposalGroup[] = ['changes', 'findings', 'network'];
+
+/** Heaviest first: a route's own as its day orders them, a network kind by its figure. */
+function compareWeight(a: NetworkProposal, b: NetworkProposal): number {
+  if (a.count !== null || b.count !== null) return (b.count ?? 0) - (a.count ?? 0) || a.id.localeCompare(b.id);
+  return compareProposals(a as Proposal, b as Proposal) || a.id.localeCompare(b.id);
+}
+
+function cut(proposals: readonly NetworkProposal[]): {
+  readonly kept: NetworkProposal[];
+  readonly totals: Record<NetworkProposalGroup, number>;
+} {
+  const totals = { changes: 0, findings: 0, network: 0 };
+  const kept = GROUPS.flatMap((group) => {
+    const members = proposals.filter((p) => p.group === group);
+    totals[group] = members.length;
+    return [...members].sort(compareWeight).slice(0, NETWORK_PROPOSALS_PER_GROUP);
+  });
+  return { kept, totals };
+}
+
 function reallocationFor(r: BandReallocation, depotId: string | null): BandReallocation {
   if (depotId === null) return r;
   const moves = r.moves.filter((m) => m.fromDepotId === depotId || m.toDepotId === depotId);
@@ -90,14 +122,16 @@ export function networkHourlyBody(day: NetworkDay, selection: NetworkSelection):
   const start = page * NETWORK_ROUTES_PAGE_SIZE;
   const plan = day.plans.get(band);
   const routesOfDepot = new Set(days.map((d) => d.day.routeName));
-  const proposals = proposalsFor(plan?.proposals ?? [], depotId, routesOfDepot);
+  const all = proposalsFor(plan?.proposals ?? [], depotId, routesOfDepot);
+  const { kept: proposals, totals: proposalTotals } = cut(all);
   const reallocation = reallocationFor(
     plan?.reallocation ?? { band, moves: [], uncovered: [], busesWithin: 0, busesBetween: 0, deadKm: 0 },
     depotId,
   );
   const bands = bandsFor(day.bands, depotId);
   const tally = bands.find((b) => b.band === band);
-  const changes = proposals.filter((p) => p.group === 'changes');
+  // The totals sum every change of the band, not only those the cut keeps.
+  const changes = all.filter((p) => p.group === 'changes');
   return {
     operatingDate: day.operatingDate,
     currentHour: day.currentHour,
@@ -113,6 +147,7 @@ export function networkHourlyBody(day: NetworkDay, selection: NetworkSelection):
       rows: strips.slice(start, start + NETWORK_ROUTES_PAGE_SIZE),
     },
     proposals,
+    proposalTotals,
     reallocation,
     totals: {
       busesShort: tally?.busesShort ?? 0,

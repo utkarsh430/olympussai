@@ -101,7 +101,7 @@ export function NetworkServicePage(props: NetworkServicePageProps) {
             ))}
           </FigureBand>
         </div>
-        <NetworkProposalsTable proposals={response.proposals} />
+        <NetworkProposalsTable proposals={response.proposals} totals={response.proposalTotals} />
         <NetworkReallocation reallocation={response.reallocation} />
         <HowProduced id="how-produced" paragraphs={NETWORK_HOW_PRODUCED}>
           <p className="depot-prose">{`The modelled demand: ${response.demandBasis}`}</p>

@@ -99,6 +99,10 @@ describe('the network hourly view on the recorded sample', () => {
     expect(moved + b.totals.uncovered).toBe(b.totals.busesShort);
     expect(b.totals.passengersPerDay.low).toBeLessThanOrEqual(b.totals.passengersPerDay.high);
     for (const p of b.proposals) expect(['changes', 'findings', 'network']).toContain(p.group);
+    for (const group of ['changes', 'findings', 'network'] as const) {
+      const shown = b.proposals.filter((p) => p.group === group).length;
+      expect(shown).toBe(Math.min(100, b.proposalTotals[group]));
+    }
   });
 
   it('filters to one depot, and answers the fixed 404 for a depot the snapshot lacks', async () => {

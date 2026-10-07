@@ -9,6 +9,7 @@ import {
   networkProvenance,
   orderNetworkProposals,
   uncoveredWords,
+  cutNote,
 } from '@/lib/depot/service/networkPageModel';
 import type { NetworkHourlyResponse, NetworkProposal, NetworkRouteStrip } from '@/lib/depot/service/types';
 import {
@@ -135,5 +136,15 @@ describe('the network proposals table width per tier', () => {
       expect.arrayContaining(['route', 'depot']),
     );
     expect(networkProposalColumnKeys(networkProposalTierFor(800))).toContain('route');
+  });
+});
+
+describe('the cut note', () => {
+  it('says which groups were cut, and nothing when none was', () => {
+    const shown = [{ group: 'changes' as const }, { group: 'network' as const }];
+    expect(cutNote(shown, { changes: 1, findings: 0, network: 1 })).toBeNull();
+    expect(cutNote(shown, { changes: 685, findings: 0, network: 1 })).toBe(
+      'Listed by weight: the first 1 of 685 changes.',
+    );
   });
 });

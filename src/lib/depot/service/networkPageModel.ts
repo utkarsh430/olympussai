@@ -160,3 +160,20 @@ const UNCOVERED_WORDS: Readonly<Record<ReallocationUncoveredReason, string>> = {
 export function uncoveredWords(reason: ReallocationUncoveredReason): string {
   return UNCOVERED_WORDS[reason];
 }
+
+/**
+ * When the body cut a group, one sentence that says so: "Listed: the 100 changes carrying the
+ * most passengers of 685." Null when nothing was cut.
+ */
+export function cutNote(
+  proposals: readonly Pick<NetworkProposal, 'group'>[],
+  totals: Readonly<Record<NetworkProposalGroup, number>>,
+): string | null {
+  const parts = GROUP_ORDER.flatMap((group) => {
+    const shown = proposals.filter((p) => p.group === group).length;
+    const total = totals[group];
+    if (shown >= total) return [];
+    return [`the first ${formatCount(shown)} of ${formatCount(total)} ${NETWORK_GROUP_LABEL[group].toLowerCase()}`];
+  });
+  return parts.length === 0 ? null : `Listed by weight: ${parts.join('; ')}.`;
+}
