@@ -24,9 +24,12 @@ import { SERVICE_TEXT } from '@/lib/depot/service/serviceWording';
 import type { Proposal, RouteHourFigures } from '@/lib/depot/service/types';
 import { ProposalDecisionTrail } from './ProposalDecisionTrail';
 import { ProposalDetail } from './ProposalDetail';
+import { PRINT_KEEP_ATTR } from './ServicePrintRule';
 import { useProposalDecisions, type ProposalDecisions } from './useProposalDecisions';
 
 const TITLE_ID = 'service-proposals';
+/** Printed beside the daily brief where the brief is on the page (`ServicePrintRule`). */
+const PRINT_MARK = { [PRINT_KEEP_ATTR]: '' };
 const W = PROPOSAL_COLUMN_WIDTHS;
 /** The band's figures are its hours' means, said once in each header. */
 const MEAN = SERVICE_TEXT.bandMean;
@@ -130,7 +133,12 @@ function ProposalsView({
   const columns = useMemo(() => proposalColumnKeys(tier).map((key) => COLUMNS[key]), [tier]);
   const range = pageRange(page, rows.length);
   return (
-    <section aria-labelledby={TITLE_ID} className="min-w-0" data-testid="service-proposals">
+    <section
+      aria-labelledby={TITLE_ID}
+      className="min-w-0"
+      data-testid="service-proposals"
+      {...PRINT_MARK}
+    >
       <SectionLabel id={TITLE_ID} label={SERVICE_TEXT.proposalsTitle} />
       <div className="mb-3">
         <Notice status="info" word="Recommendation only">
