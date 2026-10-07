@@ -36,6 +36,9 @@ function subject(id: string, routeName = 'KANPUR-LUCKNOW', change = 3): Proposal
     proposalKind: change >= 0 ? 'add_buses' : 'hold_buses',
     band: { fromHour: 7, toHour: 10 },
     change,
+    routes: [],
+    depotName: null,
+    count: null,
   };
 }
 
@@ -111,10 +114,10 @@ describe('proposal decisions per proposal', () => {
   it('a click on the decision in force for the same change records nothing', () => {
     const events = record([], proposalDecisionEvent(input(subject('a'))));
     const current = proposalDecisionsFor(events, DATE).get('a') ?? null;
-    expect(isRepeatProposalDecision(current, 'approved', 3)).toBe(true);
-    expect(isRepeatProposalDecision(current, 'approved', 4)).toBe(false);
-    expect(isRepeatProposalDecision(current, 'rejected', 3)).toBe(false);
-    expect(isRepeatProposalDecision(null, 'approved', 3)).toBe(false);
+    expect(isRepeatProposalDecision(current, 'approved', { change: 3, count: null })).toBe(true);
+    expect(isRepeatProposalDecision(current, 'approved', { change: 4, count: null })).toBe(false);
+    expect(isRepeatProposalDecision(current, 'rejected', { change: 3, count: null })).toBe(false);
+    expect(isRepeatProposalDecision(null, 'approved', { change: 3, count: null })).toBe(false);
   });
 });
 
@@ -123,11 +126,11 @@ describe('proposal decision wording', () => {
   const current = proposalDecisionsFor(events, DATE).get('a') ?? null;
 
   it('says the decision with the change it was made for', () => {
-    expect(proposalStatusText(null, 3)).toBe('None yet');
-    expect(proposalStatusText(current, 3)).toBe('Approved for Add 3');
-    expect(proposalStatusText(current, 5)).toBe('Approved for Add 3; the proposal now says Add 5');
-    expect(isProposalDecisionCurrent(current, 'approved', 3)).toBe(true);
-    expect(isProposalDecisionCurrent(current, 'approved', 5)).toBe(false);
+    expect(proposalStatusText(null, { change: 3, count: null })).toBe('None yet');
+    expect(proposalStatusText(current, { change: 3, count: null })).toBe('Approved for Add 3');
+    expect(proposalStatusText(current, { change: 5, count: null })).toBe('Approved for Add 3; the proposal now says Add 5');
+    expect(isProposalDecisionCurrent(current, 'approved', { change: 3, count: null })).toBe(true);
+    expect(isProposalDecisionCurrent(current, 'approved', { change: 5, count: null })).toBe(false);
   });
 
   it('a trail line names its subject, a proposal or a transfer', () => {

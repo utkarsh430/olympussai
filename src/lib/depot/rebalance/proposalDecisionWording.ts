@@ -1,7 +1,6 @@
 import { formatCount, formatPlainDate } from '../format';
-import { changeCell } from '../service/serviceWording';
 import type { ProposalDecisionCounts } from '../service/types';
-import type { ProposalSubject } from './decisionSubject';
+import { sameFigures, type ProposalFigures, type ProposalSubject } from './decisionSubject';
 import {
   BROWSER_TRAIL_NOTE,
   DECISION_NOUN,
@@ -11,6 +10,7 @@ import {
 } from './decisionWording';
 import {
   proposalWhat,
+  subjectChange,
   type ProposalDecisionEntry,
   type ProposalTrailItem,
 } from './proposalDecisionEvents';
@@ -22,25 +22,24 @@ import type { TransferDecisionKind } from './rebalanceModel';
  * can propose a different one for the same band.
  */
 
-function changeOf(subject: ProposalSubject, change: number = subject.change): string {
-  return changeCell(subject.proposalKind, change);
-}
-
 /** "Approved for Add 3", or with "; the proposal now says Add 5" when the proposal moved. */
-export function proposalStatusText(decision: ProposalDecisionEntry | null, change: number): string {
+export function proposalStatusText(
+  decision: ProposalDecisionEntry | null,
+  figures: ProposalFigures,
+): string {
   if (decision === null) return 'None yet';
-  const made = `${DECISION_WORD[decision.decision]} for ${changeOf(decision.subject)}`;
-  if (decision.subject.change === change) return made;
-  return `${made}; the proposal now says ${changeOf(decision.subject, change)}`;
+  const made = `${DECISION_WORD[decision.decision]} for ${subjectChange(decision.subject)}`;
+  if (sameFigures(decision.subject, figures)) return made;
+  return `${made}; the proposal now says ${subjectChange(decision.subject, figures)}`;
 }
 
 /** Whether a decision button reads as pressed: same verdict, made for the change shown. */
 export function isProposalDecisionCurrent(
   decision: ProposalDecisionEntry | null,
   kind: TransferDecisionKind,
-  change: number,
+  figures: ProposalFigures,
 ): boolean {
-  return decision !== null && decision.decision === kind && decision.subject.change === change;
+  return decision !== null && decision.decision === kind && sameFigures(decision.subject, figures);
 }
 
 /** The polite status line after a decision on a proposal is recorded. */

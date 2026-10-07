@@ -25,6 +25,9 @@ const SUBJECT: ProposalSubject = {
   proposalKind: 'add_buses',
   band: { fromHour: 7, toHour: 10 },
   change: 3,
+  routes: [],
+  depotName: null,
+  count: null,
 };
 
 function transfer(overrides: Partial<DecisionInput> = {}): DecisionInput {
@@ -142,5 +145,60 @@ describe('one trail for both subjects', () => {
     const trail = decisionTrail(events, DATE);
     expect(trail.baseline).toHaveLength(1);
     expect(trail.baseline[0]?.subject.kind).toBe('transfer');
+  });
+});
+
+describe('network kinds as decision subjects', () => {
+  const reserve: ProposalSubject = {
+    ...SUBJECT,
+    proposalId: 'n-reserve',
+    proposalKind: 'reserve_by_hour',
+    routeName: null,
+    depotName: 'Alambagh',
+    change: 0,
+    count: 4,
+  };
+  const corridor: ProposalSubject = {
+    ...SUBJECT,
+    proposalId: 'n-corridor',
+    proposalKind: 'corridor_under_served',
+    routeName: null,
+    routes: ['KANPUR-LUCKNOW', 'KANPUR-AGRA'],
+    change: 0,
+    count: 3,
+  };
+
+  it('a depot reserve names no route and is said by its depot and figure', () => {
+    const event = stored(proposalDecisionEvent(proposal({ subject: reserve })));
+    expect(parseProposalDecisionEvent(event)?.subject).toEqual(reserve);
+    expect(event.summary).toBe('Approved proposal Alambagh 07:00–11:00, Reserve 4 (modelled)');
+  });
+
+  it('a corridor is said by its routes', () => {
+    expect(proposalDecisionEvent(proposal({ subject: corridor })).summary).toBe(
+      'Approved proposal KANPUR-LUCKNOW, KANPUR-AGRA 07:00–11:00, Corridor short 3 (modelled)',
+    );
+  });
+
+  it('a route subject stored without routes, depot or figure reads them as none', () => {
+    const event = stored(proposalDecisionEvent(proposal()));
+    const payload = JSON.parse(event.detail ?? '{}') as { subject: Record<string, unknown> };
+    const older = { ...payload.subject, routes: undefined, depotName: undefined, count: undefined };
+    const detail = JSON.stringify({ ...payload, subject: older });
+    expect(parseProposalDecisionEvent({ ...event, detail })?.subject).toEqual(SUBJECT);
+  });
+
+  it('refuses damaged network fields', () => {
+    const event = stored(proposalDecisionEvent(proposal({ subject: corridor })));
+    const payload = JSON.parse(event.detail ?? '{}') as Record<string, unknown>;
+    for (const subject of [
+      { ...corridor, routes: ['KANPUR-AGRA', 'not a route!'] },
+      { ...corridor, routes: 'KANPUR-LUCKNOW' },
+      { ...corridor, depotName: 7 },
+      { ...corridor, count: 2.5 },
+    ]) {
+      const detail = JSON.stringify({ ...payload, subject });
+      expect(parseProposalDecisionEvent({ ...event, detail })).toBeNull();
+    }
   });
 });

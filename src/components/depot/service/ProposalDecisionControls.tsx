@@ -9,7 +9,7 @@ import {
   proposalStatusText,
 } from '@/lib/depot/rebalance/proposalDecisionWording';
 import type { TransferDecisionKind } from '@/lib/depot/rebalance/rebalanceModel';
-import type { Proposal } from '@/lib/depot/service/types';
+import { figuresOf, type DecidableProposal } from './useProposalDecisions';
 
 const DECISIONS: readonly { readonly kind: TransferDecisionKind; readonly label: string }[] = [
   { kind: 'approved', label: 'Approve' },
@@ -18,13 +18,13 @@ const DECISIONS: readonly { readonly kind: TransferDecisionKind; readonly label:
 ];
 
 export interface ProposalDecisionControlsProps {
-  readonly proposal: Proposal;
+  readonly proposal: DecidableProposal;
   /** What the proposal is, for the note's label and the group's name: "07:00–11:00 Add 3". */
   readonly label: string;
   /** The decision in force on this proposal, or null. */
   readonly decision: ProposalDecisionEntry | null;
   /** Records a decision; it changes nothing but the record. */
-  readonly onDecide: (proposal: Proposal, kind: TransferDecisionKind, note: string) => void;
+  readonly onDecide: (proposal: DecidableProposal, kind: TransferDecisionKind, note: string) => void;
   /** Withdraws the decision in force; null when there is none to undo. */
   readonly onUndo: (() => void) | null;
 }
@@ -62,7 +62,7 @@ export function ProposalDecisionControls({
     >
       <p className="depot-prose text-[13px]">
         <span className="depot-label mr-2">Decision</span>
-        {proposalStatusText(decision, proposal.change)}
+        {proposalStatusText(decision, figuresOf(proposal))}
       </p>
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <label htmlFor={noteId} className="sr-only">
@@ -81,7 +81,7 @@ export function ProposalDecisionControls({
           <button
             key={d.kind}
             type="button"
-            aria-pressed={isProposalDecisionCurrent(decision, d.kind, proposal.change)}
+            aria-pressed={isProposalDecisionCurrent(decision, d.kind, figuresOf(proposal))}
             onClick={() => decide(d.kind)}
             className="depot-filter-button shrink-0"
           >

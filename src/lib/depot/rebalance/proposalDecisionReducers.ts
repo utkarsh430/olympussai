@@ -6,6 +6,7 @@ import {
   type ProposalDecisionEntry,
   type ProposalTrailItem,
 } from './proposalDecisionEvents';
+import { sameFigures, type ProposalFigures } from './decisionSubject';
 import type { TransferDecisionKind } from './rebalanceModel';
 
 /*
@@ -57,13 +58,13 @@ export function proposalUndoableFor(
   return trail.find((i) => i.undoable && i.subject.proposalId === proposalId) ?? null;
 }
 
-/** A click on the decision already in force for this change records nothing. */
+/** A click on the decision already in force for these figures records nothing. */
 export function isRepeatProposalDecision(
   current: ProposalDecisionEntry | null,
   kind: TransferDecisionKind,
-  change: number,
+  figures: ProposalFigures,
 ): boolean {
-  return current !== null && current.decision === kind && current.subject.change === change;
+  return current !== null && current.decision === kind && sameFigures(current.subject, figures);
 }
 
 /**

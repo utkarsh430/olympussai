@@ -1,5 +1,6 @@
 import type { AuditEventType } from '@/lib/audit/auditLog';
-import { bandLabel, changeCell } from '../service/serviceWording';
+import { networkChangeCell } from '../service/networkPageModel';
+import { bandLabel } from '../service/serviceWording';
 import {
   PAYLOAD_VERSION,
   VERB,
@@ -11,7 +12,11 @@ import {
   type NewAuditEvent,
   type TrailFlags,
 } from './decisionEvents';
-import { readProposalSubject, type ProposalSubject } from './decisionSubject';
+import {
+  readProposalSubject,
+  type ProposalFigures,
+  type ProposalSubject,
+} from './decisionSubject';
 import type { TransferDecisionKind } from './rebalanceModel';
 
 /*
@@ -45,9 +50,21 @@ const EVENT_TYPE: Readonly<Record<TransferDecisionKind, AuditEventType>> = {
   deferred: 'depot-proposal-deferred',
 };
 
-/** "KANPUR-LUCKNOW 07:00–11:00, Add 3": the route, the band and the change decided on. */
+/** The change as its table cell says it: "Add 3", "Reserve 4", "Shift 6 trips". */
+export function subjectChange(subject: ProposalSubject, figures: ProposalFigures = subject): string {
+  return networkChangeCell(subject.proposalKind, figures.change, figures.count);
+}
+
+/** Who a proposal is about: its route, a corridor's routes, or the depot of a network kind. */
+function whoOf(subject: ProposalSubject): string {
+  if (subject.routeName !== null) return subject.routeName;
+  if (subject.routes.length > 0) return subject.routes.join(', ');
+  return subject.depotName ?? 'The network';
+}
+
+/** "KANPUR-LUCKNOW 07:00–11:00, Add 3": who, the band and the change decided on. */
 export function proposalWhat(subject: ProposalSubject): string {
-  return `${subject.routeName} ${bandLabel(subject.band)}, ${changeCell(subject.proposalKind, subject.change)}`;
+  return `${whoOf(subject)} ${bandLabel(subject.band)}, ${subjectChange(subject)}`;
 }
 
 function eventFor(
