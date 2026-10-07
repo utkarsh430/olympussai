@@ -737,6 +737,12 @@
     @apply cursor-pointer hover:bg-depot-raised;
   }
 
+  /* A focused row is the frame's full width, so the global ring (offset outward) would be
+     clipped by the scrolling frame and hidden under the sticky header: draw it inside. */
+  .depot-row-selectable:focus-visible {
+    outline-offset: -2px;
+  }
+
   .depot-row-selected {
     @apply bg-depot-selected;
   }
