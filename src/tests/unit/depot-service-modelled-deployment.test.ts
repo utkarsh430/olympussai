@@ -21,15 +21,35 @@ describe('modelledRouteHours: the route own buses, each on a modelled duty', () 
   });
 
   it('never runs more buses than the route has, nor fewer than none', () => {
-    for (const journeyMinutes of [null, 45, 120, 300, 493]) {
+    for (const journeyMinutes of [null, 30, 45, 120, 300, 493, 1200]) {
       const day = modelledRouteHours(fleet({ journeyMinutes }));
       expect(day.every((h) => h.deployed >= 0 && h.deployed <= FLEET)).toBe(true);
     }
   });
 
   it('reaches near the whole fleet at its peak, for an unknown and for a long journey', () => {
-    expect(peakOf(fleet())).toBeGreaterThanOrEqual(0.6 * FLEET);
-    expect(peakOf(fleet({ journeyMinutes: 493 }))).toBeGreaterThanOrEqual(0.6 * FLEET);
+    expect(peakOf(fleet())).toBeGreaterThanOrEqual(0.75 * FLEET);
+    expect(peakOf(fleet({ journeyMinutes: 493 }))).toBeGreaterThanOrEqual(0.75 * FLEET);
+  });
+
+  it('works each bus a day on a short route: a 30-minute route with 20 buses peaks at 80% or more', () => {
+    const short = fleet({ routeName: 'SLP_198_ORD_OUT', buses: 20, journeyMinutes: 30 });
+    expect(peakOf(short)).toBeGreaterThanOrEqual(0.8 * 20);
+    // Seeded starts vary by date (a third of buses start through the day, not in the
+    // morning), so across a fortnight the peak averages near four fifths of the fleet, where
+    // one round trip a bus gave about half.
+    const dates = Array.from({ length: 14 }, (_, i) => `2026-10-${String(i + 1).padStart(2, '0')}`);
+    const shares = dates.map((operatingDate) => peakOf({ ...short, operatingDate }) / 20);
+    expect(shares.reduce((s, x) => s + x, 0) / shares.length).toBeGreaterThanOrEqual(0.75);
+  });
+
+  it('runs a long route bus for at least one journey and its layover', () => {
+    // 493 + 15 minutes is longer than the shortest drawn day (6 hours), so every duty runs
+    // at least that long unless the day ends first.
+    const one = modelledRouteHours(fleet({ buses: 1, journeyMinutes: 493 }));
+    const hours = one.reduce((s, h) => s + h.deployed, 0);
+    const lastHour = Math.max(...one.filter((h) => h.deployed > 0).map((h) => h.hour));
+    expect(hours >= 508 / 60 - 0.2 || lastHour === 23).toBe(true);
   });
 
   it('runs little at night: no duty starts before 04:00', () => {
@@ -48,9 +68,22 @@ describe('modelledRouteHours: the route own buses, each on a modelled duty', () 
 
   it('counts the bus-hours of each duty in each hour it covers, one decimal', () => {
     const one = modelledRouteHours(fleet({ buses: 1, journeyMinutes: 60 }));
-    // One bus, out and back plus a layover: 150 minutes in all, spread over the hours it covers.
-    expect(one.reduce((s, h) => s + h.deployed, 0)).toBeCloseTo(2.5, 1);
+    // One bus works a drawn day of 6 to 10 hours (longer than its journey and layover),
+    // clipped at the end of the day.
+    const total = one.reduce((s, h) => s + h.deployed, 0);
+    expect(total).toBeGreaterThan(0);
+    expect(total).toBeLessThanOrEqual(10.05);
     expect(one.every((h) => Math.round(h.deployed * 10) === h.deployed * 10)).toBe(true);
+  });
+
+  it('draws a working day of 6 to 10 hours on a short route, unless the day ends first', () => {
+    for (const date of ['2026-10-06', '2026-10-07', '2026-10-08', '2026-10-09', '2026-10-10']) {
+      const one = modelledRouteHours(fleet({ operatingDate: date, buses: 1, journeyMinutes: 30 }));
+      const total = one.reduce((s, h) => s + h.deployed, 0);
+      const endsAtMidnight = (one[23]?.deployed ?? 0) === 1;
+      expect(total).toBeLessThanOrEqual(10.05);
+      if (!endsAtMidnight) expect(total).toBeGreaterThanOrEqual(5.95);
+    }
   });
 
   it('runs nothing without a whole bus, or for a bus count the trip model refuses', () => {

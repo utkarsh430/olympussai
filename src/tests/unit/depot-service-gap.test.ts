@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { activeHoursOf, routeHourFigures, unroutedCoverGuard } from '@/lib/depot/service/gap';
-import { busesNeeded } from '@/lib/depot/service/need';
+import { busesNeededByHour } from '@/lib/depot/service/need';
 import type {
   ModelledRouteHour,
   NeedInputs,
@@ -79,9 +79,17 @@ describe('routeHourFigures', () => {
 
   it('answers 24 hours with need from the formula and the gap as needed minus deployed', () => {
     expect(hours).toHaveLength(24);
-    expect(hours[10]?.needed).toBe(busesNeeded(260, need));
+    const byHour = busesNeededByHour(demand.map((d) => d.boardings), need);
+    expect(hours.map((h) => h.needed)).toEqual(byHour);
     expect(hours[10]?.gap).toBe((hours[10]?.needed ?? 0) - 6);
     expect(hours[2]?.needed).toBe(0);
+  });
+
+  it('counts the trips still out from the hour before on a two-hour cycle', () => {
+    // 260 boardings is 4 trips an hour from 06:00; on a 2-hour cycle 06:00 needs 4, 07:00 needs 8.
+    expect(hours[6]?.needed).toBe(4);
+    expect(hours[10]?.needed).toBe(8);
+    expect(hours[22]?.needed).toBe(4);
   });
 
   it('takes an observed hour over the modelled one, with its delay figures', () => {

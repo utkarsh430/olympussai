@@ -2,11 +2,12 @@
 import { describe, expect, it } from 'vitest';
 import { hourOf, minuteOfDay, spanMinutes } from '@/lib/depot/service/feedMinutes';
 import {
-  busesNeeded,
+  busesNeededByHour,
   journeyMinutesFromLedger,
   needInputsFor,
   serviceClassOfRoute,
   TRIP_MODEL_DURATION_MIN,
+  tripsNeededByHour,
 } from '@/lib/depot/service/need';
 import type { LedgerJourney, NeedInputs } from '@/lib/depot/service/types';
 import { SEATS_BY_CLASS } from '@/lib/depot/sim/config';
@@ -43,34 +44,103 @@ describe('feed minutes', () => {
   });
 });
 
-describe('busesNeeded', () => {
-  const inputs: NeedInputs = {
+const HOURS = 24;
+
+/** 24 hourly boardings: `value` in the listed hours, none elsewhere. */
+function day(value: number, hours: readonly number[]): number[] {
+  return Array.from({ length: HOURS }, (_, h) => (hours.includes(h) ? value : 0));
+}
+
+const range = (from: number, to: number): number[] =>
+  Array.from({ length: to - from + 1 }, (_, i) => from + i);
+
+function needWith(journeyMinutes: number): NeedInputs {
+  return {
     routeName: 'R1',
     serviceClass: 'ordinary',
     seatsPerBus: 52,
-    journeyMinutes: 105,
+    journeyMinutes,
     journeyMinutesProvenance: 'derived',
     layoverMinutes: 15,
     targetLoad: 0.75,
     busiestStretchShare: 0.6,
   };
+}
 
-  it('follows the formula on a worked example', () => {
-    // 520 boardings x 0.6 on the busiest stretch = 312 seats wanted at once;
-    // a trip offers 52 x 0.75 = 39, so 8 trips; each takes 105 + 15 = 120 min,
-    // so a bus makes half a trip an hour: 8 x 120 / 60 = 16 buses.
-    expect(busesNeeded(520, inputs)).toBe(16);
+describe('tripsNeededByHour', () => {
+  it('turns each hour of boardings into trips that must start in it', () => {
+    // 520 boardings x 0.6 on the busiest stretch = 312 seats wanted; a trip offers 52 x 0.75 = 39.
+    const trips = tripsNeededByHour(day(520, [8]), needWith(105));
+    expect(trips).toHaveLength(HOURS);
+    expect(trips[8]).toBeCloseTo(8, 9);
+    expect(trips[7]).toBe(0);
   });
 
-  it('rounds a part bus up', () => {
-    // 100 x 0.6 / 39 = 1.54 trips x 2 = 3.08, so 4 buses.
-    expect(busesNeeded(100, inputs)).toBe(4);
+  it('needs no trip for no demand, a corrupt figure or a missing hour', () => {
+    const trips = tripsNeededByHour([0, -3, Number.NaN], needWith(105));
+    expect(trips).toEqual(Array.from({ length: HOURS }, () => 0));
+  });
+});
+
+describe('busesNeededByHour: the trips started within the last cycle', () => {
+  it('equals trips times the cycle on a cycle of an hour or less (a 30-minute route)', () => {
+    // 30 + 15 minutes: three quarters of an hour; 8 trips x 0.75 = 6 buses.
+    const buses = busesNeededByHour(day(520, [8, 9]), needWith(30));
+    expect(buses[8]).toBe(6);
+    expect(buses[9]).toBe(6);
+    expect(buses[10]).toBe(0);
+    // 100 boardings: 1.54 trips x 0.75 = 1.15, rounded up.
+    expect(busesNeededByHour(day(100, [8]), needWith(30))[8]).toBe(2);
   });
 
-  it('needs no bus for no demand or a corrupt figure', () => {
-    expect(busesNeeded(0, inputs)).toBe(0);
-    expect(busesNeeded(-3, inputs)).toBe(0);
-    expect(busesNeeded(Number.NaN, inputs)).toBe(0);
+  it('on a steady day reaches the round-trip figure: 8 trips an hour on a 2-hour cycle is 16', () => {
+    const buses = busesNeededByHour(day(520, range(5, 21)), needWith(105));
+    expect(buses[5]).toBe(8);
+    expect(buses[6]).toBe(16);
+    expect(buses[21]).toBe(16);
+    // Trips started at 21:00 are still out at 22:00; none is out by 23:00.
+    expect(buses[22]).toBe(8);
+    expect(buses[23]).toBe(0);
+  });
+
+  it('weights the oldest hour by the share of it inside a part-hour cycle', () => {
+    // 75 + 15 minutes: an hour and a half. 4 trips start at 07:00 (260 boardings).
+    const buses = busesNeededByHour(day(260, [7]), needWith(75));
+    expect(buses[7]).toBe(4);
+    expect(buses[8]).toBe(2);
+    expect(buses[9]).toBe(0);
+  });
+
+  it('starts the day clean: nothing wraps from the evening before', () => {
+    const buses = busesNeededByHour(day(520, [23]), needWith(105));
+    expect(buses[0]).toBe(0);
+    expect(buses[23]).toBe(8);
+  });
+
+  it('on a 493-minute route needs no more than about nine hours of trips at once', () => {
+    // An intercity day: departures through 05:00-22:00, leaning to the morning.
+    const need = needWith(493);
+    const boardings = range(0, 23).map((h) => (h >= 5 && h <= 22 ? (h <= 9 ? 220 : 120) : 0));
+    const trips = tripsNeededByHour(boardings, need);
+    const buses = busesNeededByHour(boardings, need);
+    const nineHours = Math.max(
+      ...range(0, 15).map((h) => trips.slice(h, h + 9).reduce((s, t) => s + t, 0)),
+    );
+    const peak = Math.max(...buses);
+    expect(peak).toBeLessThanOrEqual(Math.ceil(nineHours));
+    // The old figure charged the busiest hour with the whole cycle: about 29 buses here.
+    const busiest = Math.max(...trips);
+    expect(Math.ceil(busiest * (508 / 60))).toBeGreaterThan(peak + 5);
+  });
+
+  it('keeps a long route within its fleet when the day balances (21 buses, 48 journeys a day)', () => {
+    // 48 one-way journeys spread over 04:00-23:59, about what 21 buses on a 508-minute cycle
+    // run in that span (21 x 20 h / 8.47 h = 49.6): at most the fleet is out at once.
+    const need = needWith(493);
+    const perTrip = (52 * 0.75) / 0.6;
+    const boardings = range(0, 23).map((h) => (h >= 4 ? (48 * perTrip) / 20 : 0));
+    const peak = Math.max(...busesNeededByHour(boardings, need));
+    expect(peak).toBeLessThanOrEqual(21);
   });
 });
 

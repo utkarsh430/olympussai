@@ -149,6 +149,10 @@ function rangeText(range: ImpactRange, figure: (n: number) => string, joiner: st
   return `${figure(range.low)}${joiner}${figure(range.high)}`;
 }
 
+/**
+ * The source cell names the depot only, so it fits its column at every width; what the depot
+ * offers (its standing buses, or the day plan's idle ones) is in the title and the expanded row.
+ */
 function sourceCell(p: Proposal): Pick<ProposalRow, 'source' | 'sourceTitle'> {
   if (p.source === null) {
     const title = p.change === 0 ? SERVICE_TEXT.noSource : SERVICE_TEXT.noSourceFound;
@@ -157,16 +161,22 @@ function sourceCell(p: Proposal): Pick<ProposalRow, 'source' | 'sourceTitle'> {
   const { depotName, standingInYard, basis } = p.source;
   if (basis === 'observed' && standingInYard !== null) {
     return {
-      source: `${depotName} · ${formatCount(standingInYard)} standing`,
+      source: depotName,
       sourceTitle: `${depotName}: ${formatCount(standingInYard)} buses standing in its yard in the hour before the band, as observed.`,
     };
   }
-  return {
-    source: `${depotName} · day plan`,
-    sourceTitle: `${depotName}: idle buses in the modelled day plan.`,
-  };
+  return { source: depotName, sourceTitle: `${depotName}: idle buses in the modelled day plan.` };
 }
 
+/** The bus-km a hold saves, as a positive range: its bus-km figure is the negative saving. */
+function kmSaved(range: ImpactRange): ImpactRange {
+  return { low: Math.max(0, -range.high), high: Math.max(0, -range.low) };
+}
+
+/**
+ * The impact cell: the passengers an add carries, the bus-km a hold saves (a hold carries no
+ * more passengers). The expanded row lists all four ranges either way.
+ */
 function impactCells(p: Proposal): Pick<ProposalRow, 'impact' | 'impactTitle' | 'impactLines'> {
   if (p.impact === null) return { impact: DASH, impactTitle: SERVICE_TEXT.noImpact, impactLines: [] };
   const i = p.impact;
@@ -176,11 +186,11 @@ function impactCells(p: Proposal): Pick<ProposalRow, 'impact' | 'impactTitle' | 
     `Bus-km a day: ${rangeText(i.busKmPerDay, formatCount, ' to ')}`,
     `Cost a day: ${rangeText(i.costPerDay, money, ' to ')}`,
   ];
-  return {
-    impact: rangeText(i.passengersPerDay, formatCount, '–'),
-    impactTitle: lines.join('; '),
-    impactLines: lines,
-  };
+  const impact =
+    p.change < 0
+      ? `${rangeText(kmSaved(i.busKmPerDay), formatCount, '–')} km saved`
+      : `${rangeText(i.passengersPerDay, formatCount, '–')} pax`;
+  return { impact, impactTitle: lines.join('; '), impactLines: lines };
 }
 
 export function proposalRow(p: Proposal): ProposalRow {
@@ -221,9 +231,9 @@ export type ProposalTableTier = 'full' | 'wide' | 'narrow';
 
 /**
  * Widths in px, as a browser draws them: each fits its header (a MODELLED pill included)
- * and its longest cell word. The source cell is capped inside this width (a long depot
- * name truncates, with the full text in its title), since an automatic table layout
- * would otherwise widen the column to the whole name.
+ * and its longest cell word. The source cell is the depot's name alone, capped inside this
+ * width (a very long name truncates, with the full text in its title), since an automatic
+ * table layout would otherwise widen the column to the whole name.
  */
 export const PROPOSAL_COLUMN_WIDTHS: Readonly<Record<ProposalColumnKey, number>> = {
   band: 112,

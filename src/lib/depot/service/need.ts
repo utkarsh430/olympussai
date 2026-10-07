@@ -1,7 +1,12 @@
 import { median } from '../stats/robust';
 import { SEATS_BY_CLASS } from '../sim/config';
 import { classFromRoute } from '../sim/fleetMaster';
-import { BUSIEST_STRETCH_SHARE, LAYOVER_MIN, TARGET_LOAD } from '../sim/hourlyDemandConfig';
+import {
+  BUSIEST_STRETCH_SHARE,
+  HOURS_PER_DAY,
+  LAYOVER_MIN,
+  TARGET_LOAD,
+} from '../sim/hourlyDemandConfig';
 import {
   LONG_ROUTE_MIN,
   MAX_PLAUSIBLE_DURATION_MIN,
@@ -97,13 +102,43 @@ export function tripsPerBusHour(inputs: Readonly<NeedInputs>): number {
   return MINUTES_PER_HOUR / (inputs.journeyMinutes + inputs.layoverMinutes);
 }
 
+/** Trips that must start in an hour to carry its boardings; none for no demand or a corrupt figure. */
+function tripsFor(boardings: number | undefined, inputs: Readonly<NeedInputs>): number {
+  if (boardings === undefined || !Number.isFinite(boardings) || boardings <= 0) return 0;
+  return boardings / boardingsPerTrip(inputs);
+}
+
 /**
- * Buses needed in an hour: trips needed = boardings x busiest-stretch share ÷
- * (seats x target load); buses = trips x (journey + layover) ÷ 60, rounded up.
- * No demand (or a figure that is not a positive number) needs no bus.
+ * Trips needed to start in each hour of the day: the hour's boardings x busiest-stretch
+ * share ÷ (seats x target load). Always 24 values; a missing or corrupt hour needs none.
  */
-export function busesNeeded(demandBoardings: number, inputs: Readonly<NeedInputs>): number {
-  if (!Number.isFinite(demandBoardings) || demandBoardings <= 0) return 0;
-  const trips = demandBoardings / boardingsPerTrip(inputs);
-  return Math.ceil(trips / tripsPerBusHour(inputs) - CEIL_TOLERANCE);
+export function tripsNeededByHour(
+  boardingsByHour: readonly number[],
+  inputs: Readonly<NeedInputs>,
+): number[] {
+  return Array.from({ length: HOURS_PER_DAY }, (_, h) => tripsFor(boardingsByHour[h], inputs));
+}
+
+/**
+ * Buses needed on the road in each hour: every trip started within the last cycle
+ * (journey + layover) is still out, so the need at hour h is the trips started in the
+ * hours (h - cycle, h], the oldest weighted by the share of it inside the window, rounded
+ * up. The day starts clean: nothing wraps from the evening before. On a cycle of an hour
+ * or less this is the hour's trips times the cycle, the round-trip figure; on a steady day
+ * it reaches that figure once a cycle has passed. Always 24 values.
+ */
+export function busesNeededByHour(
+  boardingsByHour: readonly number[],
+  inputs: Readonly<NeedInputs>,
+): number[] {
+  const trips = tripsNeededByHour(boardingsByHour, inputs);
+  const cycleHours = 1 / tripsPerBusHour(inputs);
+  const whole = Math.floor(cycleHours);
+  const part = cycleHours - whole;
+  return trips.map((_, h) => {
+    const full = trips.slice(Math.max(0, h - whole + 1), h + 1).reduce((s, t) => s + t, 0);
+    const oldest = h - whole >= 0 ? (trips[h - whole] ?? 0) * part : 0;
+    // Never below none: rounding up the tolerance on an empty window would give -0.
+    return Math.max(0, Math.ceil(full + oldest - CEIL_TOLERANCE));
+  });
 }

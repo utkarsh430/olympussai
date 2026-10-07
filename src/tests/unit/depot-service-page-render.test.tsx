@@ -108,6 +108,8 @@ describe('RouteHourlyPage body', () => {
     const headers = Array.from(proposals?.querySelectorAll('th') ?? []).map((th) => th.textContent ?? '');
     expect(headers.find((h) => h.startsWith('Needed'))).toMatch(/MODELLED/i);
     expect(headers.find((h) => h.startsWith('Impact'))).toMatch(/MODELLED/i);
+    // One word: the cell says its own unit, passengers for an add and bus-km for a hold.
+    expect(headers.find((h) => h.startsWith('Impact'))).not.toMatch(/pax/);
     // The reason is a sentence: it lives in the expanded row, never as a clipped column.
     expect(headers.some((h) => h.startsWith('Reason'))).toBe(false);
     const source = proposals?.querySelector('tbody td[title^="Alambagh"] span');

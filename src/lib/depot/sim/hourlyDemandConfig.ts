@@ -94,6 +94,16 @@ export const BUSIEST_STRETCH_SHARE = 0.6;
 export const LAYOVER_MIN = 15;
 
 /**
+ * The working day of one bus on the route page's modelled day, in minutes: a seeded draw
+ * in this range, or one journey and its layover when that is longer, never past the cap.
+ * Basis: a bus put on a route works a shift of about 6 to 10 hours, running trip after
+ * trip, rather than one round trip; 16 hours is the longest a bus is out in a day. The
+ * depot duty board keeps its own rule (`sim/duties.ts`).
+ */
+export const ROUTE_BUS_DAY_MIN = { from: 360, to: 600 } as const;
+export const ROUTE_BUS_DAY_MAX_MIN = 960;
+
+/**
  * Operating cost of one bus-kilometre in rupees, all in (fuel, wages,
  * maintenance, tyres, overheads). Basis: a round planning figure for a state
  * road transport bus; the fuel part alone is about Rs 19 to 26 by class

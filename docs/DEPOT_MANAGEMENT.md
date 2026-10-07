@@ -820,11 +820,16 @@ is built per request.
    hour takes the snapshot's figure. Any other hour comes from a modelled day anchored to
    the route's own buses (`modelledRouteHours` in `modelledDeployment.ts`, MODELLED): each
    bus carrying the route name in the snapshot (the route row's `buses`, whatever their
-   state) runs one duty drawn by the duty roll's rules (`drawDutySpan` in `sim/duties.ts`:
-   a start in the morning triangle or spread over the day; out and back plus a layover
-   when the journey time is known from the feed's schedule or the profile, else 4 to 10
-   hours; at most 16 hours), seeded by route and date; an hour's figure is the minutes
-   those duties overlap it, over 60. So the observed and modelled hours are one route on
+   state) works one day on it (`drawRouteBusDay`): it starts as the duty roll starts a
+   duty (`drawDutyStart` in `sim/duties.ts`: the morning triangle, or spread over the day)
+   and works a seeded `ROUTE_BUS_DAY_MIN` = 6 to 10 hours, or one journey plus
+   `LAYOVER_MIN` when that is longer (the journey known from the feed's schedule or the
+   profile), at most `ROUTE_BUS_DAY_MAX_MIN` = 16 hours, clipped at 24:00
+   (`sim/hourlyDemandConfig.ts`); seeded by route and date. An hour's figure is the minutes
+   those days overlap it, over 60. A bus works a shift of trips, not one round trip, so a
+   short route peaks near its fleet (about four fifths on average: a third of the starts
+   spread through the day). The depot duty board keeps its own rule (out and back plus a
+   layover, else 4 to 10 hours). So the observed and modelled hours are one route on
    one scale, and no hour runs more buses than the feed shows on the route. **This page's
    modelled day is drawn from the buses the feed shows on the route, while the depot pages'
    modelled day is drawn per depot** (the depot's peak requirement dealt round-robin over
@@ -856,9 +861,16 @@ is built per request.
    buses are short rather than how many are short over the whole day; the page's method
    says so, and that its modelled day can differ from the depot pages'.
 
-**Need and gap** (`need.ts`, `gap.ts`). Trips needed in an hour are the hour's boardings
-times the busiest stretch's share, divided by seats per bus times the target load; buses
-needed are trips times the journey time plus layover, over 60, rounded up. Journey time is
+**Need and gap** (`need.ts`, `gap.ts`). Trips needed to start in hour k, `f_k`
+(`tripsNeededByHour`), are the hour's boardings times the busiest stretch's share, divided
+by seats per bus times the target load. A bus is out from a trip's start until its journey
+and layover are done, so the buses needed on the road at hour h (`busesNeededByHour`) are
+the trips started within the last cycle C = (journey + layover) / 60 hours:
+`needed_h = ceil(Σ f_k over k in (h − C, h])`, the oldest hour weighted by the part of it
+inside the window, clipped at the start of the day (nothing wraps from the evening before).
+On a cycle of an hour or less this is the hour's trips times C; on a steady day it reaches
+that round-trip figure once a cycle has passed. A long route's peak is therefore at most
+about a cycle's worth of trips, not its busiest hour charged with the whole cycle. Journey time is
 the median of the feed's scheduled end less start for the route (DERIVED), else the cached
 route profile's scheduled duration (DERIVED), else `TRIP_MODEL_DURATION_MIN = 285`
 (MODELLED). Seats come from the class in the modelled fleet master. The gap is needed less
@@ -891,9 +903,13 @@ REFERENCE, for the owner to set): `TARGET_LOAD = 0.75`, `BUSIEST_STRETCH_SHARE =
   on the modelled day and modelled demand, and also when the main depot's buses on the road
   with no route name could cover the gap ("may be covered by buses not reporting a route").
 - **Impact** (`impact.ts`, MODELLED, each a range of `IMPACT_RANGE_SHARE = 0.25` either
-  way): passengers left behind before less after the change, revenue at the class fare over
-  the average ride, bus-km including dead km once per bus moved, and cost at
-  `COST_PER_BUS_KM = 50` rupees.
+  way): for an add, passengers left behind before less after the change, and revenue at the
+  class fare over the average ride; a hold claims no passengers or revenue (it releases only
+  buses beyond the need). Bus-km including dead km once per bus moved, and cost at
+  `COST_PER_BUS_KM = 50` rupees; a hold's are negative, the saving. The proposals table's
+  Impact cell shows passengers for an add and bus-km saved for a hold; the source cell names
+  the depot alone, with its standing or idle buses in the title and the expanded row, which
+  lists all four ranges.
 - Order: more passengers carried first, then the earlier band. Each proposal has a fixed
   one-sentence reason and an id from its date, kind, route and band.
 
