@@ -105,9 +105,8 @@ export const SERVICE_TEXT = {
   punctualityCaption: 'Median delay and late share by hour',
   noPunctuality: 'No journey the feed reported on this route today carried a delay figure.',
   delayUnit: 'Delay is the feed’s own figure; its unit is unconfirmed.',
-  demand:
-    'Passenger demand is modelled from service class and route length, not ticketing; proposals are estimates until ticket data is connected.',
-  recommendation: 'Recommendation only: nothing is dispatched or reassigned.',
+  /** The notice's body; its word, "Recommendation only", is the notice's own label. */
+  recommendation: 'Nothing is dispatched or reassigned.',
   pastBands: 'Bands already past are notes for the next day’s plan.',
   bandMean: 'mean',
   maybeCovered: 'May be covered by buses on the road that report no route name.',

@@ -120,7 +120,10 @@ describe('RouteHourlyPage body', () => {
     const source = proposals?.querySelector('tbody td[title^="Alambagh"] span');
     expect(source?.className).toContain('truncate');
     expect(proposals?.textContent).toContain('Recommendation only');
-    expect(proposals?.textContent).toContain('not ticketing');
+    // The notice says its word once; the demand caveat is the closing disclosure's.
+    expect(proposals?.textContent).toContain('Nothing is dispatched or reassigned.');
+    expect(proposals?.textContent?.match(/Recommendation only/gi)).toHaveLength(1);
+    expect(proposals?.textContent).not.toContain('not ticketing');
     expect(proposals?.querySelectorAll('tbody tr[tabindex]')).toHaveLength(3);
   });
 

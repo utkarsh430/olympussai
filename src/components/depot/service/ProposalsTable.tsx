@@ -154,7 +154,7 @@ export function ProposalsTable({ proposals, hours = [], currentHour = null }: Pr
       <SectionLabel id={TITLE_ID} label={SERVICE_TEXT.proposalsTitle} />
       <div className="mb-3">
         <Notice status="info" word="Recommendation only">
-          {`${SERVICE_TEXT.recommendation} ${SERVICE_TEXT.demand}`}
+          {SERVICE_TEXT.recommendation}
         </Notice>
       </div>
       {rows.length === 0 ? (
