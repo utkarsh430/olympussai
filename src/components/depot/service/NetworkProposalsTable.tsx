@@ -166,17 +166,20 @@ function NetworkProposalsView({
       ) : (
         <>
           {cutNote(proposals, totals) ? <p className="depot-note mb-2">{cutNote(proposals, totals)}</p> : null}
-          <DataTable
-            columns={columns}
-            rows={rows.slice(range.start, range.end)}
-            rowKey={(r) => r.id}
-            rowLabel={(r) => `${r.band} ${r.change} ${r.route}`}
-            caption="Proposals across the network for this band"
-            fixedRows
-            renderExpanded={(r) => <NetworkProposalDetail row={r} decisions={decisions} />}
-            group={GROUP}
-            multipleExpanded
-          />
+          {/* In the page flow: an opened row grows the frame, and every row of the page prints. */}
+          <div className="depot-table-flow">
+            <DataTable
+              columns={columns}
+              rows={rows.slice(range.start, range.end)}
+              rowKey={(r) => r.id}
+              rowLabel={(r) => `${r.band} ${r.change} ${r.route}`}
+              caption="Proposals across the network for this band"
+              fixedRows
+              renderExpanded={(r) => <NetworkProposalDetail row={r} decisions={decisions} />}
+              group={GROUP}
+              multipleExpanded
+            />
+          </div>
           <div className="print:hidden">
             <Pager page={range.page} total={rows.length} onPage={setPage} />
           </div>

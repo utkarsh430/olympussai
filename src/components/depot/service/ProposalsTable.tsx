@@ -152,19 +152,23 @@ function ProposalsView({
           {hasPastBand(proposals, currentHour) ? (
             <p className="depot-note mb-2">{SERVICE_TEXT.pastBands}</p>
           ) : null}
-          <DataTable
-            columns={columns}
-            rows={rows.slice(range.start, range.end)}
-            rowKey={(r) => r.id}
-            rowLabel={(r) => `${r.band} ${r.change}`}
-            caption={SERVICE_TEXT.proposalsCaption}
-            fixedRows
-            renderExpanded={(r) => (
-              <ProposalDetail row={r} shown={shownKeys} decisions={decisions} />
-            )}
-            group={GROUP}
-            multipleExpanded
-          />
+          {/* In the page flow: an opened row (explanation, decision) grows the frame rather
+              than hiding inside a second vertical scroll, and every row of the page prints. */}
+          <div className="depot-table-flow">
+            <DataTable
+              columns={columns}
+              rows={rows.slice(range.start, range.end)}
+              rowKey={(r) => r.id}
+              rowLabel={(r) => `${r.band} ${r.change}`}
+              caption={SERVICE_TEXT.proposalsCaption}
+              fixedRows
+              renderExpanded={(r) => (
+                <ProposalDetail row={r} shown={shownKeys} decisions={decisions} />
+              )}
+              group={GROUP}
+              multipleExpanded
+            />
+          </div>
           <div className="print:hidden">
             <Pager page={range.page} total={rows.length} onPage={setPage} />
           </div>

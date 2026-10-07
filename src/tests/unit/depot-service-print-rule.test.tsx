@@ -30,4 +30,11 @@ describe('the print layout of the brief and the proposals', () => {
     const markup = renderToStaticMarkup(<ProposalsTable proposals={day.proposals} />);
     expect(markup).toContain(`data-testid="service-proposals" ${PRINT_KEEP_ATTR}=""`);
   });
+
+  it('keeps the table in the page flow, so an opened row and every row of the page print', () => {
+    const day = routeHourlyFixture();
+    const frame = document.createElement('div');
+    frame.innerHTML = renderToStaticMarkup(<ProposalsTable proposals={day.proposals} />);
+    expect(frame.querySelector('table')?.closest('.depot-table-flow')).not.toBeNull();
+  });
 });
