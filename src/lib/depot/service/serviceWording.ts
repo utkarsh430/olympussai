@@ -17,9 +17,14 @@ const HOURS_PER_DAY = 24;
 /** The empty cell's mark, as the format module writes it. */
 export const DASH = '—';
 
+/** An hour of the operating day as its two digits, "07", for an axis or a column head. */
+export function hourDigits(hour: number): string {
+  return String(hour).padStart(2, '0');
+}
+
 /** An hour of the operating day as "HH:00". */
 export function hourLabel(hour: number): string {
-  return `${String(hour).padStart(2, '0')}:00`;
+  return `${hourDigits(hour)}:00`;
 }
 
 /** A band of hours from the start of its first to the end of its last: "07:00–11:00". */
@@ -61,6 +66,11 @@ export const PROPOSAL_KIND_LABEL: Readonly<Record<ProposalKind, string>> = {
   service_span_gap: 'Service span gap',
   headway_gap: 'Headway gap',
   revise_running_time: 'Revise running time',
+  reserve_by_hour: 'Reserve by hour',
+  maintenance_window: 'Maintenance window',
+  shift_departures: 'Shift departures',
+  corridor_over_served: 'Corridor over-served',
+  corridor_under_served: 'Corridor under-served',
 };
 
 /** The short cell word for a finding that moves no bus. */
@@ -71,6 +81,11 @@ const KIND_CELL: Readonly<Record<ProposalKind, string>> = {
   service_span_gap: 'Span gap',
   headway_gap: 'Headway gap',
   revise_running_time: 'Running time',
+  reserve_by_hour: 'Reserve',
+  maintenance_window: 'Window',
+  shift_departures: 'Shift',
+  corridor_over_served: 'Corridor over',
+  corridor_under_served: 'Corridor short',
 };
 
 /** "Add 3", "Hold 2", or the finding's short name when no bus moves. */

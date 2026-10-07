@@ -153,9 +153,13 @@ assignment ("This is a recommendation; nothing is dispatched or assigned."); a c
 or a crew; that modelled demand is measured ("Needs rest on modelled passenger demand until
 measured passenger counts are connected."); a route the snapshot does not carry.
 
-The network kinds read the network view's day by band (`NetworkHourlyBody`). Until that view
-is passed to the copilot route as a loader (`ServiceSources.networkHours`), `hourProposals`
-and `serviceBrief` answer "That answer is not available".
+The network kinds read the network's day by band as the copilot's shape (`CopilotNetworkHours`),
+which `live/copilotNetworkHours.ts` selects from the same held day the Service page's API
+answers (every short and over route per band, each route's own proposals once by modelled
+passengers, the reallocation's moves summed; the network kinds — a depot's reserve or
+maintenance window, shifted departures, a corridor — are not named). The copilot route passes
+it as the loader `ServiceSources.networkHours`; without the loader (the unit tests),
+`hourProposals` and `serviceBrief` answer "That answer is not available".
 
 ## Settings (server environment)
 

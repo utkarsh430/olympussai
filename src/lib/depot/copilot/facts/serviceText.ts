@@ -60,6 +60,11 @@ const FINDING_WORDS: Readonly<Record<ProposalKind, string>> = {
   service_span_gap: 'service span gap',
   headway_gap: 'headway gap',
   revise_running_time: 'revise running time',
+  reserve_by_hour: 'reserve by hour',
+  maintenance_window: 'maintenance window',
+  shift_departures: 'shift departures',
+  corridor_over_served: 'corridor over-served',
+  corridor_under_served: 'corridor under-served',
 };
 
 /** "add 3 buses", "hold 2 buses", or the finding's name when no bus moves. */

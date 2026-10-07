@@ -10,15 +10,15 @@ import {
 } from '@/lib/depot/copilot/facts/networkHours';
 import { DEMAND_NOTE, RECOMMENDATION_ONLY } from '@/lib/depot/copilot/facts/serviceText';
 import type { CopilotRequest } from '@/lib/depot/copilot/types';
-import type { NetworkBandSummary, NetworkHourlyBody } from '@/lib/depot/service/types';
+import type { CopilotBandSummary, CopilotNetworkHours } from '@/lib/depot/service/types';
 
 /** Without a feed clock the brief looks at the morning peak, the day's first demanding band. */
-function bandInFocus(body: NetworkHourlyBody): NetworkBandSummary | undefined {
+function bandInFocus(body: CopilotNetworkHours): CopilotBandSummary | undefined {
   const now = body.currentHour === null ? undefined : bandAt(body, body.currentHour);
   return now ?? body.bands.find((b) => b.key === 'morning_peak') ?? body.bands[0];
 }
 
-function observedSentence(body: NetworkHourlyBody): string {
+function observedSentence(body: CopilotNetworkHours): string {
   return body.observed === null
     ? 'This server has not yet observed the feed today, so the deployed figures come from the modelled plan.'
     : `This server has observed the feed since ${ph('brief.observed_since')}.`;
@@ -44,7 +44,7 @@ const OTHER_DATE = answer('the service brief', [], {
  * the reallocation's moves, the leading proposals by modelled passengers, and the
  * decisions recorded when a trail exists. Every figure is a placeholder.
  */
-export function serviceBriefAnswer(body: NetworkHourlyBody | undefined, date?: string): CopilotRequest {
+export function serviceBriefAnswer(body: CopilotNetworkHours | undefined, date?: string): CopilotRequest {
   if (body === undefined) return unavailable('the service brief');
   if (date !== undefined && date !== body.operatingDate) return OTHER_DATE;
   const band = bandInFocus(body);

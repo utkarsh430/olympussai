@@ -967,6 +967,79 @@ buses whose whole day is loaded, of those seen on the route, are on the Schedule
 the buses that report a route name, of every bus in the feed (only they are counted), and
 the route's standing buses now (not counted as deployed) are in the closing disclosure.
 
+### 7.16 The network's day hour by hour — `service/networkHours.ts`, `optimise/hourlyReallocate.ts`, `live/networkHourlyView.ts`
+
+The page "Service by the hour" (`/project/depots/service`, under Intelligence; `SERVICE_PATH`
+in `nav.ts`) reads every route's day the way the route page does and puts them side by side,
+one band of the day at a time. Recommendation only: nothing is dispatched or reassigned, and
+no person is named or scored.
+
+**One route day, two views.** The per-route composition is the pure `routeDayOf(inputs)` in
+`service/routeDay.ts`; `live/routeHourlyBody.ts` gathers its inputs (`routeDayInputsFor`) and
+the route page and the network view both call it, so a route's gaps are the same on both
+pages (a test holds this on the recorded sample). The network view gathers what every route
+reads from the rows once per snapshot (`snapshotRouteShared`: the journeys the snapshot
+reports, by route, and the cached profiles), so the whole network (about 1,300 routes on the
+sample) is built in about a tenth of a second.
+
+**Bands** (`SERVICE_BANDS`, REFERENCE): early 04–06, morning peak 06–10, midday 10–16, evening
+peak 16–20, late 20–24 (end exclusive); 00–04 belongs to none. A route is short in a band when
+its mean gap over the band's hours rounds to one bus or more, over when it rounds to minus one
+or less; the buses short or over are those rounded means summed. Each route counts at its
+primary depot (the one running most of its buses). The "next peak" is the morning peak until
+it ends (hour 9), then the evening peak until it ends (hour 19), then the next morning's.
+
+**Hourly reallocation** (`planHourlyReallocation`, MODELLED). Per band, each depot's surplus is
+what its over-served routes could release (the rounded surplus, keeping `HOLD_KEEP_MIN` = 1 bus
+on each) plus its standing pool (the observed yard mean in the band, else in the hour before,
+else the buses its modelled day leaves without a duty). Short routes take buses by
+minimum-cost maximum flow (`optimise/minCostFlow.ts`): a move within the route's own depot
+costs nothing; a move from another depot costs its empty kilometres there and back, in tenths
+of a km (`deadKmFor` from the route's loaded profile, else twice the road distance between the
+two depots' positions, `depotPositions.ts`), and is not offered beyond `MAX_INTRA_DAY_KM` = 60.
+A deficit left over says why, in `rebalance.ts`'s order: `insufficient_surplus` (reachable
+surplus ran out), `no_surplus_in_range`, `no_position` (the route's depot has no position and
+no profile is loaded, so no other depot can be measured to it). Depots and routes are taken in
+id order, so the plan never depends on input order.
+
+**Network proposal kinds** (additive in `ProposalKind`; `service/networkProposals.ts`,
+`networkFindings.ts`; every threshold REFERENCE):
+
+- `reserve_by_hour`: per depot, `DEFAULT_SPARE_RATIO` (8%) of its routes' need in the band,
+  rounded up.
+- `maintenance_window`: per depot, a band outside the peaks with at least
+  `MAINTENANCE_MIN_IDLE` = 3 idle buses (standing pool plus releasable) while its need is at
+  most `MAINTENANCE_LOW_DEMAND_SHARE` = 60% of its busier peak; the row links to the depot's
+  Maintenance page.
+- `shift_departures`: per route, the neighbouring over and short hours touching the band with
+  the most buses movable; the trips are those buses times trips per bus hour (at least one).
+- `corridor_under_served` / `corridor_over_served`: routes whose loaded profiles share the same
+  two terminals (either way) grouped; short together by at least max(2, 20% of their need), or
+  over together by at least `CORRIDOR_MIN_OVER` = 2. Without loaded profiles there are none.
+
+A network proposal moves no bus by itself (change 0, no source, no impact) and carries its
+figure in `count`; ids come from `proposalId` keyed on `depot:<id>`, the route, or
+`corridor:<ends>`. The route's own proposals whose bands meet the chosen band join them as
+`changes` (add, hold) or `findings` (timetable findings); the network kinds are `network`
+("Network moves"), corridors `findings`.
+
+**API.** `GET /api/upsrtc/depot/service?band=&depot=&page=` (session first; strict zod: `band`
+one of the five keys, `depot` a depot id, `page` 0 to 200; no repeats; the fixed 400
+`Invalid query`; the fixed 404 `Depot not found` for a depot the snapshot does not carry;
+`no-store`; no upstream call). The whole network day is held per snapshot and catalogue
+revision (`queryMemo`, two kept); each band, depot and page is a selection held beside it. The
+body (`NetworkHourlyBody`): the five band tallies (a depot's own when one is chosen), one page
+of 25 route strips (24 gaps and measured/modelled per hour, by the band's peak gap), the band's
+proposals with each group cut to its heaviest `NETWORK_PROPOSALS_PER_GROUP` = 100 and
+`proposalTotals` saying how many there were, the reallocation, and the totals (buses short and
+over, moves within and between, uncovered, the band's changes' passengers and bus-km summed
+over every change). On the sample the body is about 330 kB before compression. Once bus days
+are recorded between snapshots, both memo keys must carry the scheduled store's revision.
+
+**Elsewhere.** The overview shows one figure, "Routes short at the next peak" (MODELLED), and
+each depot cockpit an attention line "N of this depot's routes short at the next peak", both
+linking to the page (the cockpit's filtered with `?depot=`).
+
 ## 8. The copilot
 
 A server route (`POST /api/upsrtc/depot/copilot`) writes briefings, transfer rationales and

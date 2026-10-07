@@ -205,7 +205,14 @@ export type ProposalKind =
   | 'trips_not_run'
   | 'service_span_gap'
   | 'headway_gap'
-  | 'revise_running_time';
+  | 'revise_running_time'
+  // The network view's kinds: a depot's reserve and maintenance window, peak spreading on a
+  // route, and service on a corridor (the routes sharing a terminal pair).
+  | 'reserve_by_hour'
+  | 'maintenance_window'
+  | 'shift_departures'
+  | 'corridor_over_served'
+  | 'corridor_under_served';
 
 /** A band of consecutive hours, `fromHour` to `toHour` inclusive. */
 export interface HourBand {
@@ -306,14 +313,154 @@ export interface RouteHourlyResponse extends RouteHourlyBody, DepotFeedEnvelope 
 /** What this server has observed of a date: since when (`HH:MM` feed digits), hours, samples. */
 export type ObservedSummary = NonNullable<RouteHourlyBody['observed']>;
 
-/*
- * The network's hours, as the copilot reads them. The network view (`live/networkHourlyView.ts`)
- * fills this shape; the copilot's network facts and the daily brief are built against it.
- * Every field below is what those facts need: the view may carry more.
- */
-
-/** The hour bands of the operating day: early 04–06, morning peak 06–10, midday 10–16, evening peak 16–20, late 20–24. */
+/** The network view's five bands of the operating day; hours 00 to 03 belong to none. */
 export type ServiceBandKey = 'early' | 'morning_peak' | 'midday' | 'evening_peak' | 'late';
+
+/** One band of the operating day, `fromHour` to `toHour` inclusive. */
+export interface ServiceBand extends HourBand {
+  readonly key: ServiceBandKey;
+  readonly label: string;
+}
+
+/** Short and over routes, and the buses short and over, in one band (all routes, or one depot's). */
+export interface BandTally {
+  readonly shortRoutes: number;
+  readonly overRoutes: number;
+  /** Sum over short routes of the band's mean gap, rounded per route. */
+  readonly busesShort: number;
+  readonly busesOver: number;
+}
+
+/** One depot's tally in a band; the depot is the one running most of each route's buses. */
+export interface DepotBandTally extends BandTally {
+  readonly depotId: string;
+  readonly depotName: string;
+}
+
+/** One band across the network: its tally and the tally per depot. */
+export interface ServiceBandSummary extends BandTally {
+  readonly band: ServiceBandKey;
+  readonly label: string;
+  readonly fromHour: number;
+  readonly toHour: number;
+  readonly byDepot: readonly DepotBandTally[];
+}
+
+/** One route's day as a row of the network heat map: 24 gaps and what each rests on. */
+export interface NetworkRouteStrip {
+  readonly routeName: string;
+  readonly depotId: string | null;
+  readonly depotName: string | null;
+  /** needed minus deployed per hour, 24 entries; positive is short. */
+  readonly gaps: readonly number[];
+  /** 'measured' where deployment was observed or is the feed clock's hour; 'modelled' elsewhere. */
+  readonly bases: readonly ('measured' | 'modelled')[];
+  /** The band's mean gap, one decimal. */
+  readonly bandGap: number;
+  /** The largest gap in the band and its hour; the hour is null when no hour is short. */
+  readonly peakGap: number;
+  readonly peakHour: number | null;
+}
+
+/** Buses one depot's surplus gives one short route in a band. */
+export interface ReallocationMove {
+  readonly fromDepotId: string;
+  readonly fromDepotName: string;
+  readonly toDepotId: string | null;
+  readonly toDepotName: string | null;
+  readonly routeName: string;
+  readonly buses: number;
+  /** True when the giving depot runs the route itself: the move costs no dead km. */
+  readonly withinDepot: boolean;
+  /** Empty km per bus to the route and back; 0 within a depot. */
+  readonly deadKmPerBus: number;
+}
+
+export type ReallocationUncoveredReason = 'no_position' | 'no_surplus_in_range' | 'insufficient_surplus';
+
+export interface ReallocationUncovered {
+  readonly routeName: string;
+  readonly depotId: string | null;
+  readonly buses: number;
+  readonly reason: ReallocationUncoveredReason;
+}
+
+/** One band's hourly reallocation: surpluses (held and standing buses) to route deficits. */
+export interface BandReallocation {
+  readonly band: ServiceBandKey;
+  readonly moves: readonly ReallocationMove[];
+  readonly uncovered: readonly ReallocationUncovered[];
+  readonly busesWithin: number;
+  readonly busesBetween: number;
+  readonly deadKm: number;
+}
+
+/** The network table's three groups: route changes, findings, and the network's own moves. */
+export type NetworkProposalGroup = 'changes' | 'findings' | 'network';
+
+/**
+ * A proposal on the network page: a route's own (add, hold, a timetable finding) or a
+ * network kind. A depot's reserve or maintenance window names no route; a corridor names
+ * its routes.
+ */
+export interface NetworkProposal extends Omit<Proposal, 'routeName'> {
+  readonly routeName: string | null;
+  readonly depotId: string | null;
+  readonly depotName: string | null;
+  /** The corridor's routes, or the route's own name alone. */
+  readonly routes: readonly string[];
+  readonly group: NetworkProposalGroup;
+  /** The network kind's figure: buses in reserve or idle, trips movable, buses short or over; null for a route's own. */
+  readonly count: number | null;
+}
+
+export interface NetworkHourlyTotals {
+  readonly busesShort: number;
+  readonly busesOver: number;
+  readonly movesWithin: number;
+  readonly movesBetween: number;
+  readonly uncovered: number;
+  /** The band's change proposals' modelled impact, summed. */
+  readonly passengersPerDay: ImpactRange;
+  readonly busKmPerDay: ImpactRange;
+}
+
+/** The network's day hour by hour, for one band and (optionally) one depot, as the API answers it. */
+export interface NetworkHourlyBody {
+  readonly operatingDate: string;
+  readonly currentHour: number | null;
+  readonly band: ServiceBandKey;
+  /** The band that is now or next a peak: the overview and the cockpit read it. */
+  readonly nextPeak: ServiceBandKey;
+  readonly depotId: string | null;
+  /** Depots that run at least one route today, for the filter. */
+  readonly depots: readonly { readonly depotId: string; readonly depotName: string }[];
+  readonly bands: readonly ServiceBandSummary[];
+  /** Routes by the band's peak gap, largest first, one page of them. */
+  readonly routes: {
+    readonly total: number;
+    readonly page: number;
+    readonly pageSize: number;
+    readonly rows: readonly NetworkRouteStrip[];
+  };
+  /** The band's proposals, each group cut to its first `NETWORK_PROPOSALS_PER_GROUP` by weight. */
+  readonly proposals: readonly NetworkProposal[];
+  /** How many proposals each group held before the cut. */
+  readonly proposalTotals: Readonly<Record<NetworkProposalGroup, number>>;
+  readonly reallocation: BandReallocation;
+  readonly totals: NetworkHourlyTotals;
+  readonly observed: ObservedSummary | null;
+  readonly routeCoverage: Coverage;
+  readonly demandBasis: string;
+}
+
+export interface NetworkHourlyResponse extends NetworkHourlyBody, DepotFeedEnvelope {}
+
+/*
+ * The network's hours, as the copilot reads them: a selection from the same held network day
+ * the API answers (`live/copilotNetworkHours.ts` fills it). Every field below is what the
+ * copilot's network facts and the daily brief need; the view carries more.
+ */
 
 /** One route's mean gap over a band; positive is short, negative over-served. */
 export interface NetworkRouteGap {
@@ -327,8 +474,8 @@ export interface NetworkRouteGap {
   readonly observed: boolean;
 }
 
-/** One band across the network: the short and over-served routes, largest first. */
-export interface NetworkBandSummary {
+/** One band across the network, for the copilot: the short and over-served routes, largest first. */
+export interface CopilotBandSummary {
   readonly key: ServiceBandKey;
   readonly band: HourBand;
   readonly shortRoutes: readonly NetworkRouteGap[];
@@ -338,8 +485,8 @@ export interface NetworkBandSummary {
   readonly busesOver: number;
 }
 
-/** A route's proposal on the network page, with the depot that runs the route. */
-export interface NetworkProposal extends Proposal {
+/** A route's own proposal as the copilot names it, with the depot that runs the route. */
+export interface CopilotNetworkProposal extends Proposal {
   readonly depotId: string | null;
 }
 
@@ -350,17 +497,17 @@ export interface ProposalDecisionCounts {
   readonly open: number;
 }
 
-/** The network's day by band, as the API answers it, less the envelope. */
-export interface NetworkHourlyBody {
+/** The network's day by band, as the copilot reads it. */
+export interface CopilotNetworkHours {
   readonly operatingDate: string;
   readonly currentHour: number | null;
   readonly observed: ObservedSummary | null;
   /** In band order, early first. */
-  readonly bands: readonly NetworkBandSummary[];
-  /** Every route's proposals, largest modelled passenger impact first. */
-  readonly proposals: readonly NetworkProposal[];
+  readonly bands: readonly CopilotBandSummary[];
+  /** Every route's own proposals, largest modelled passenger impact first. */
+  readonly proposals: readonly CopilotNetworkProposal[];
   /** Buses the reallocation moves within a depot and between depots, over the day. */
   readonly moves: { readonly withinDepots: number; readonly betweenDepots: number };
-  /** Null until a decision trail exists. */
+  /** Null until a decision trail exists; decisions are kept in the browser, so the server answers null. */
   readonly decisions: ProposalDecisionCounts | null;
 }

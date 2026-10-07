@@ -221,6 +221,23 @@ test.describe('1. the depot API contract', () => {
         expect(await res.json()).toEqual(body);
       }
     });
+
+    test('the network hours refuse an unknown band, a bad page and a depot the sample lacks', async ({
+      request,
+    }) => {
+      const base = '/api/upsrtc/depot/service';
+      for (const [url, status, body] of [
+        [`${base}?band=night`, 400, INVALID_QUERY],
+        [`${base}?page=-1`, 400, INVALID_QUERY],
+        [`${base}?depot=..%2Fx`, 400, INVALID_QUERY],
+        [`${base}?depot=999999`, 404, DEPOT_NOT_FOUND],
+      ] as const) {
+        const res = await request.get(url);
+        expect(res.status(), url).toBe(status);
+        expect(res.headers()['cache-control']).toContain('no-store');
+        expect(await res.json()).toEqual(body);
+      }
+    });
   });
 });
 
@@ -242,6 +259,7 @@ const PAGE_HEADING: Readonly<Record<string, string>> = {
   '/project/depots/rebalance': 'Fleet distribution',
   '/project/depots/routes': 'Routes',
   '/project/depots/routes/r/[routeName]': 'Hour by hour',
+  '/project/depots/service': 'Service by the hour',
   '/project/depots/sources': 'Data sources',
   '/project/depots/trends': 'Trends',
   '/project/depots/d/[depotId]': 'Depot cockpit',

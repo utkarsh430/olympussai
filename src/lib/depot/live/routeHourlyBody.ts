@@ -6,72 +6,48 @@ import { cachedRouteProfiles } from '../routes/routeCatalogue';
 import type { RouteRow } from '../routes/routeTableTypes';
 import type { RouteProfile } from '../routes/types';
 import { feedMinuteOn } from '../sim/dayPlan';
-import { DEMAND_BASIS } from '../sim/hourlyDemandConfig';
-import { modelHourlyDemand } from '../sim/hourlyDemand';
-import { modelRouteLength } from '../sim/operatingDay';
 import type { OperatingDay } from '../sim/operatingDayTypes';
 import { operatingDateOf } from '../sim/seed';
-import { activeHoursOf, routeHourFigures, type CurrentRouteHour } from '../service/gap';
 import { ledgerJourneysOf, mergeJourneys } from '../service/journeyLedger';
-import { modelledRouteHours } from '../service/modelledDeployment';
-import { needInputsFor } from '../service/need';
-import { capAddsAtStanding } from '../service/proposalCap';
-import { buildProposals } from '../service/proposals';
-import { reliabilityByHour } from '../service/reliability';
-import { routeDayBoardings } from '../service/routeDayBoardings';
+import { primaryDepotOf, routeDayOf, type RouteDayInputs } from '../service/routeDay';
 import { routeTimetable, type RouteTimetable } from '../service/routeTimetable';
-import { scheduledSupply } from '../service/scheduledSupply';
-import type { LedgerJourney, NeedInputs, RouteHourlyBody, ScheduledTrip } from '../service/types';
-import { MINUTES_PER_HOUR } from '../units';
+import type { LedgerJourney, RouteHourlyBody, ScheduledTrip } from '../service/types';
+import type { Coverage } from '../types';
 import { analyseSnapshot, type SnapshotAnalysis } from './analysis';
 import { operatingDayFor } from './operatingDayView';
 import { routeTableOf } from './routeInputs';
 
 /*
- * One route's day hour by hour, composed from what is held for it: the snapshot's route
- * row (the feed clock's hour), what this server observed of the date, the journeys the
- * feed reported and the looked-up bus days (scheduled), a modelled day drawn from the
- * buses the snapshot shows on the route (modelled deployment and the day's boardings, so
- * the observed and modelled hours are one route on one scale), the shared modelled
- * operating day of each depot running it (route length and the depot's idle buses), and
- * the engine in `service/` (demand, need, gap, proposals, punctuality). No upstream call.
+ * One route's day hour by hour, gathered from what is held for it (the snapshot's route
+ * row, what this server observed of the date, the journeys the feed reported, the looked-up
+ * bus days, the operating depots' shared modelled day, the cached route profile) and
+ * composed by `routeDayOf`, the engine's pure route day. No upstream call.
  */
 
-/** The depot the route's proposals draw on: the one running most of its buses now. */
-function primaryDepotOf(row: RouteRow): string | null {
-  return row.primaryDepotId ?? row.operators[0]?.depotId ?? null;
+/**
+ * What every route of the snapshot reads from its rows, gathered in one pass: this
+ * snapshot's own journey sightings by route, and the cached route profiles. The network
+ * view gathers it once for all its routes rather than once per route.
+ */
+export interface SnapshotRouteShared {
+  readonly seen: ReadonlyMap<string, readonly LedgerJourney[]>;
+  readonly profiles: ReadonlyMap<string, RouteProfile>;
+}
+
+export function snapshotRouteShared(view: FleetSnapshotView): SnapshotRouteShared {
+  const operatingDate = operatingDateOf(view.feedNow, view.fetchedAt);
+  const seen = new Map<string, LedgerJourney[]>();
+  if (view.feedNow !== null) {
+    for (const j of ledgerJourneysOf(view.rows, operatingDate, view.feedNow)) {
+      seen.set(j.routeName, [...(seen.get(j.routeName) ?? []), j]);
+    }
+  }
+  return { seen, profiles: cachedRouteProfiles(view, operatingDate) };
 }
 
 /** The date's journeys on the route: those held, with this snapshot's own sightings merged in. */
-function routeLedger(
-  view: FleetSnapshotView,
-  held: readonly LedgerJourney[],
-  routeName: string,
-  operatingDate: string,
-): LedgerJourney[] {
-  const seen =
-    view.feedNow === null
-      ? []
-      : ledgerJourneysOf(view.rows, operatingDate, view.feedNow).filter((j) => j.routeName === routeName);
+function routeLedger(held: readonly LedgerJourney[], seen: readonly LedgerJourney[]): LedgerJourney[] {
   return [...mergeJourneys(new Map(held.map((j) => [j.journeyId, j] as const)), seen).values()];
-}
-
-/** In service or on the road, as an observed hour counts deployed; standing buses run nothing. */
-function currentHourOf(row: RouteRow, feedMinute: number | null): CurrentRouteHour | null {
-  if (feedMinute === null) return null;
-  const { inService, onRoad } = row.states;
-  return {
-    hour: Math.floor(feedMinute / MINUTES_PER_HOUR),
-    deployed: inService + onRoad,
-    delayMedianMin: row.delay.medianMin,
-    lateShare: row.delay.lateShare,
-    delayCoverage: row.delay.coverage,
-  };
-}
-
-/** The journey minutes the feed's schedule or the profile gives; null when only the trip model's assumption is left. */
-function knownJourneyMinutes(need: NeedInputs): number | null {
-  return need.journeyMinutesProvenance === 'derived' ? need.journeyMinutes : null;
 }
 
 /** Each operating depot's shared modelled day, the one the duty and revenue pages read. */
@@ -92,7 +68,7 @@ function deadKmPerTripOf(
 }
 
 /** Buses carrying any route name, of every bus in the snapshot. */
-function routedShare(view: FleetSnapshotView): RouteHourlyBody['routeCoverage'] {
+export function routedShare(view: FleetSnapshotView): Coverage {
   const routed = routeTableOf(view).reduce((sum, row) => sum + row.buses, 0);
   return { n: routed, of: view.rows.length };
 }
@@ -114,17 +90,17 @@ async function timetableOf(
   return routeTimetable({ heldBuses, snapshotBuses, recordedBuses, knownOnRoute, trips });
 }
 
-/** The route's day as the API answers it, less the envelope; null when the snapshot has no such route. */
-export async function routeHourlyBody(
+/** Everything `routeDayOf` needs for one route of the snapshot, read from the stores and the snapshot. */
+export async function routeDayInputsFor(
   view: FleetSnapshotView,
-  routeName: string,
+  row: RouteRow,
   services: ServiceRepositories,
-): Promise<RouteHourlyBody | null> {
-  const row = routeTableOf(view).find((r) => r.routeName === routeName);
-  if (row === undefined) return null;
+  routeCoverage: Coverage,
+  shared: SnapshotRouteShared = snapshotRouteShared(view),
+): Promise<RouteDayInputs> {
+  const routeName = row.routeName;
   const analysis = analyseSnapshot(view);
   const operatingDate = operatingDateOf(view.feedNow, view.fetchedAt);
-  const feedMinute = feedMinuteOn(view.feedNow, operatingDate);
   const primary = primaryDepotOf(row);
   const { hourly, scheduled } = services;
   const [observed, depotHours, summary, distinct, held, trips] = await Promise.all([
@@ -135,70 +111,37 @@ export async function routeHourlyBody(
     hourly.journeysOnRoute(routeName, operatingDate),
     scheduled.tripsForRoute(routeName, operatingDate),
   ]);
-  const ledger = routeLedger(view, held, routeName, operatingDate);
   const timetable = await timetableOf(view, routeName, operatingDate, services, trips);
   const days = operatorDays(view, row);
-  const profile = cachedRouteProfiles(view, operatingDate).get(routeName);
-  const need = needInputsFor({ routeName, ledger, profileDurationMin: profile?.scheduledDurationMin ?? null });
-  const journeyMinutes = knownJourneyMinutes(need);
-  const fleet = { routeName, operatingDate, buses: row.buses, journeyMinutes };
-  const modelled = modelledRouteHours(fleet);
-  const current = currentHourOf(row, feedMinute);
-  const demand = modelHourlyDemand({
-    routeName,
-    operatingDate,
-    serviceClass: need.serviceClass,
-    journeyMinutes: need.journeyMinutes,
-    dayBoardings: routeDayBoardings(fleet).boardings,
-    activeHours: activeHoursOf(observed, modelled, current),
-  });
-  const supply = scheduledSupply({
-    routeName,
-    operatingDate,
-    ledger,
-    trips,
-    distinctBusesSeen: Math.max(distinct, row.buses, timetable.busesOnRoute.length),
-    busesWithDay: timetable.busesWithDay.length,
-  });
-  const hours = routeHourFigures({ observed, modelled, current, scheduled: supply.hours, demand, need });
-  const lengthKm =
-    days.flatMap((d) => d.routes).find((r) => r.routeName === routeName)?.lengthKm ??
-    modelRouteLength(routeName, need.serviceClass, profile?.lengthKm).lengthKm;
-  const deadKmPerTrip = deadKmPerTripOf(analysis, primary, profile);
+  const profile = shared.profiles.get(routeName);
   const primaryDay = days.find((d) => d.depotId === primary);
-  const depotName = row.operators.find((o) => o.depotId === primary)?.depotName;
-  const proposals = buildProposals({
-    routeName,
-    operatingDate,
-    feedMinute,
-    hours,
-    need,
-    ledger,
-    trips,
-    observedSince: summary?.since ?? null,
-    depot: primary === null ? null : { depotId: primary, depotName: depotName ?? primary },
-    depotHours,
-    modelledIdleBuses: primaryDay ? primaryDay.notRun.filter((b) => b.reason === 'no_duty').length : null,
-    lengthKm,
-    deadKmPerTrip,
-  });
   return {
-    routeName,
-    routeDescription: row.description,
-    serviceClass: need.serviceClass,
+    row,
     operatingDate,
-    currentHour: current?.hour ?? null,
-    hours,
-    need,
-    observed: summary,
-    scheduledCoverage: supply.coverage,
-    routeCoverage: routedShare(view),
-    standingNow: row.states.standing,
-    proposals: capAddsAtStanding({ proposals, hours, need, lengthKm, deadKmPerTrip }),
-    demandBasis: DEMAND_BASIS,
-    reliability: reliabilityByHour(routeName, ledger),
-    busesOnRoute: timetable.busesOnRoute,
-    busesWithDay: timetable.busesWithDay,
-    timetableBorrowedFrom: timetable.borrowedFrom,
+    feedMinute: feedMinuteOn(view.feedNow, operatingDate),
+    observed,
+    depotHours,
+    summary,
+    distinctBuses: distinct,
+    ledger: routeLedger(held, shared.seen.get(routeName) ?? []),
+    trips,
+    timetable,
+    profileDurationMin: profile?.scheduledDurationMin ?? null,
+    profileLengthKm: profile?.lengthKm ?? null,
+    dayLengthKm: days.flatMap((d) => d.routes).find((r) => r.routeName === routeName)?.lengthKm ?? null,
+    modelledIdleBuses: primaryDay ? primaryDay.notRun.filter((b) => b.reason === 'no_duty').length : null,
+    deadKmPerTrip: deadKmPerTripOf(analysis, primary, profile),
+    routeCoverage,
   };
+}
+
+/** The route's day as the API answers it, less the envelope; null when the snapshot has no such route. */
+export async function routeHourlyBody(
+  view: FleetSnapshotView,
+  routeName: string,
+  services: ServiceRepositories,
+): Promise<RouteHourlyBody | null> {
+  const row = routeTableOf(view).find((r) => r.routeName === routeName);
+  if (row === undefined) return null;
+  return routeDayOf(await routeDayInputsFor(view, row, services, routedShare(view)));
 }
