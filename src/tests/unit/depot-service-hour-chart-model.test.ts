@@ -84,12 +84,15 @@ describe('hour chart model', () => {
       basis: 'Observed',
       scheduled: '6',
       needed: '13',
-      gap: '+4',
+      gap: '+4 Short by 4',
+      neededRange: '9.8 to 16.3',
       delay: '8',
       lateShare: '50%',
     });
     expect(rows[0]).toMatchObject({ basis: 'Not observed', scheduled: '—', delay: '—' });
     expect(rows[11]?.basis).toBe('Current hour');
+    expect(rows[12]?.gap).toBe('−2 Over by 2');
+    expect(rows[0]?.gap).toBe('0 Even');
     expect(rows[20]?.basis).toBe('Modelled');
   });
 });

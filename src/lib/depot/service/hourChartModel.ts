@@ -4,6 +4,7 @@ import {
   busFigure,
   feedDelayFigure,
   gapFigure,
+  gapWords,
   hourLabel,
 } from './serviceWording';
 import type { RouteHourFigures, RouteHourlyBody } from './types';
@@ -173,7 +174,7 @@ export function hourTableRows(model: HourChartModel): readonly HourTableRow[] {
     scheduled: busFigure(c.scheduled),
     needed: busFigure(c.needed),
     neededRange: `${busFigure(c.neededBand[0])} to ${busFigure(c.neededBand[1])}`,
-    gap: c.gapText,
+    gap: `${c.gapText} ${gapWords(c.gap)}`,
     gapTitle: c.gapSeen ? undefined : MODELLED_GAP_TITLE,
     delay: feedDelayFigure(c.figures.delayMedianMin),
     lateShare: c.figures.lateShare === null ? DASH : formatPercent(c.figures.lateShare),

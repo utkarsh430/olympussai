@@ -133,6 +133,17 @@ describe('HourChart', () => {
     expect(container.querySelector('[data-testid="hour-chart-plot"]')).not.toBeNull();
   });
 
+  it('says the gap in words, shows the needed range and the delay caveat in the table view', () => {
+    render();
+    act(() => container.querySelector<HTMLButtonElement>('button[aria-pressed]')?.click());
+    const headers = Array.from(container.querySelectorAll('th')).map((th) => th.textContent ?? '');
+    expect(headers.some((h) => h.startsWith('Range'))).toBe(true);
+    const row8 = container.querySelectorAll('tbody tr')[8]?.textContent ?? '';
+    expect(row8).toContain('+4 Short by 4');
+    expect(row8).toContain('9.8 to 16.3');
+    expect(container.textContent).toContain('Delay is the feed’s own figure; its unit is unconfirmed.');
+  });
+
   it('shows no banned word or raw date, as chart or table', () => {
     render();
     expect(bannedOnScreen(container)).toEqual([]);
