@@ -3,14 +3,14 @@ import { askQuery, type ServiceAnswerData } from '@/lib/depot/copilot/service/pr
 import type { ValidCopilotRequest } from '@/lib/depot/copilot/service/schema';
 import { buildRouteHourlyResponse } from '@/lib/depot/live/routeHourlyView';
 import type { FleetSnapshotView, ServiceRepositories } from '@/lib/depot/repositories/types';
-import type { NetworkHourlyBody, RouteHourlyBody } from '@/lib/depot/service/types';
+import type { CopilotNetworkHours, RouteHourlyBody } from '@/lib/depot/service/types';
 
 /** The network's day by band for a snapshot; null when it cannot be built. */
-export type NetworkHoursLoader = (view: FleetSnapshotView) => Promise<NetworkHourlyBody | null>;
+export type NetworkHoursLoader = (view: FleetSnapshotView) => Promise<CopilotNetworkHours | null>;
 
 export interface ServiceSources {
   readonly services: ServiceRepositories;
-  /** Absent until the network view is wired in: the hour and brief kinds then say they are not available. */
+  /** The network's day (`live/copilotNetworkHours.ts`); absent, the hour and brief kinds say the data is not available. */
   readonly networkHours?: NetworkHoursLoader;
 }
 

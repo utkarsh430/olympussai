@@ -1,15 +1,15 @@
 import { FIXTURE_PROPOSALS } from './depot-service-fixtures';
 import type {
-  NetworkBandSummary,
-  NetworkHourlyBody,
-  NetworkProposal,
+  CopilotBandSummary,
+  CopilotNetworkHours,
+  CopilotNetworkProposal,
   NetworkRouteGap,
   ServiceBandKey,
 } from '@/lib/depot/service/types';
 
 /*
  * A network's day by band for the copilot's network facts and the daily brief, built to
- * the `NetworkHourlyBody` contract until the network view fills it: two depots, short and
+ * the `CopilotNetworkHours` contract until the network view fills it: two depots, short and
  * over-served routes in the peaks, the route fixture's proposals spread over both depots.
  */
 
@@ -32,7 +32,7 @@ function band(
   toHour: number,
   shortRoutes: readonly NetworkRouteGap[],
   overRoutes: readonly NetworkRouteGap[],
-): NetworkBandSummary {
+): CopilotBandSummary {
   const sum = (rs: readonly NetworkRouteGap[]): number =>
     rs.reduce((s, r) => s + Math.abs(r.gap), 0);
   return {
@@ -45,7 +45,7 @@ function band(
   };
 }
 
-const BANDS: readonly NetworkBandSummary[] = [
+const BANDS: readonly CopilotBandSummary[] = [
   band('early', 4, 5, [], []),
   band(
     'morning_peak',
@@ -59,13 +59,13 @@ const BANDS: readonly NetworkBandSummary[] = [
   band('late', 20, 23, [], []),
 ];
 
-const PROPOSALS: readonly NetworkProposal[] = FIXTURE_PROPOSALS.map((p, i) => ({
+const PROPOSALS: readonly CopilotNetworkProposal[] = FIXTURE_PROPOSALS.map((p, i) => ({
   ...p,
   routeName: i === 0 ? 'VND_1613_ORD_OUT' : 'LKO_204_EXP_IN',
   depotId: i === 0 ? '101' : '102',
 }));
 
-export function networkHoursFixture(overrides: Partial<NetworkHourlyBody> = {}): NetworkHourlyBody {
+export function networkHoursFixture(overrides: Partial<CopilotNetworkHours> = {}): CopilotNetworkHours {
   return {
     operatingDate: '2026-10-06',
     currentHour: 11,

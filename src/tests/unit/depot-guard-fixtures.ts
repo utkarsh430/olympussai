@@ -1,5 +1,6 @@
 import type { DepotBusRow } from '@/models/depotLive';
 import { createServiceHoldStore } from '@/lib/depot/live/serviceHold';
+import type { NetworkHourlyQuery } from '@/lib/depot/live/networkHourlyView';
 import type { RouteHourlyQuery } from '@/lib/depot/live/routeHourlyView';
 import { createMemoryHourlyObservationRepository } from '@/lib/depot/repositories/memoryHourlyObservationRepository';
 import { createMemoryScheduledTripRepository } from '@/lib/depot/repositories/memoryScheduledTripRepository';
@@ -60,4 +61,9 @@ export function guardServiceRepositories(): ServiceRepositories {
 /** One route of the guard snapshot, on the feed's own date. */
 export function guardRouteHourlyQuery(): RouteHourlyQuery {
   return { routeName: GUARD_ROUTE, date: null };
+}
+
+/** The network's hours for the peak now or next, every depot, the first page. */
+export function guardNetworkHourlyQuery(): NetworkHourlyQuery {
+  return { band: null, depotId: null, page: 0 };
 }

@@ -12,9 +12,9 @@ import { formatPlainDate } from '@/lib/depot/format';
 import { bandLabel, inBand } from '@/lib/depot/service/bands';
 import type {
   HourBand,
-  NetworkBandSummary,
-  NetworkHourlyBody,
-  NetworkProposal,
+  CopilotBandSummary,
+  CopilotNetworkHours,
+  CopilotNetworkProposal,
   NetworkRouteGap,
   ServiceBandKey,
 } from '@/lib/depot/service/types';
@@ -38,7 +38,7 @@ const BAND_NAME: Readonly<Record<ServiceBandKey, string>> = {
 };
 
 /** The band that holds the hour; none for the hours before the early band. */
-export const bandAt = (body: NetworkHourlyBody, hour: number): NetworkBandSummary | undefined =>
+export const bandAt = (body: CopilotNetworkHours, hour: number): CopilotBandSummary | undefined =>
   body.bands.find((b) => inBand(b.band, hour));
 
 const overlaps = (a: HourBand, b: HourBand): boolean =>
@@ -51,7 +51,7 @@ const sumOf = (routes: readonly NetworkRouteGap[]): number =>
   routes.reduce((sum, r) => sum + Math.abs(r.gap), 0);
 
 /** The band's routes, optionally one depot's, with the bus totals recomputed for that subset. */
-export function bandSubset(band: NetworkBandSummary, depotId?: string): NetworkBandSummary {
+export function bandSubset(band: CopilotBandSummary, depotId?: string): CopilotBandSummary {
   if (depotId === undefined) return band;
   const shortRoutes = band.shortRoutes.filter(ofDepot(depotId));
   const overRoutes = band.overRoutes.filter(ofDepot(depotId));
@@ -66,7 +66,7 @@ function routeFacts(prefix: 'short' | 'over', routes: readonly NetworkRouteGap[]
 }
 
 /** The band's name and span, its route counts and bus totals, and its leading routes. */
-export function bandFacts(band: NetworkBandSummary): CopilotFact[] {
+export function bandFacts(band: CopilotBandSummary): CopilotFact[] {
   return [
     makeFact('band.label', 'Band', `${BAND_NAME[band.key]}, ${bandLabel(band.band)}`, 'reference'),
     makeFact('band.short_routes', 'Routes short', countText(band.shortRoutes.length, 'route', 'routes'), 'modelled'),
@@ -80,22 +80,22 @@ export function bandFacts(band: NetworkBandSummary): CopilotFact[] {
 
 /** The proposals whose band overlaps this band, optionally one depot's, in the body's order. */
 export function bandProposals(
-  body: NetworkHourlyBody,
-  band: NetworkBandSummary,
+  body: CopilotNetworkHours,
+  band: CopilotBandSummary,
   depotId?: string,
-): NetworkProposal[] {
+): CopilotNetworkProposal[] {
   return body.proposals.filter((p) => overlaps(p.band, band.band) && ofDepot(depotId)(p));
 }
 
 /** `band.p.<n>`: the route, its band and its change, provenance by what it rests on. */
-export function bandProposalFacts(proposals: readonly NetworkProposal[]): CopilotFact[] {
+export function bandProposalFacts(proposals: readonly CopilotNetworkProposal[]): CopilotFact[] {
   return proposals.slice(0, MAX_BAND_PROPOSALS).map((p, i) =>
     makeFact(`band.p.${i + 1}`, `Proposal ${i + 1}`, proposalLine(p, true), proposalProvenance(p.tier)),
   );
 }
 
 /** `brief.p.<n>`: the leading proposals by modelled passengers, each with its range. */
-export function briefProposalFacts(body: NetworkHourlyBody): CopilotFact[] {
+export function briefProposalFacts(body: CopilotNetworkHours): CopilotFact[] {
   return body.proposals.slice(0, MAX_BAND_PROPOSALS).map((p, i) => {
     const passengers = passengersText(p);
     const text = passengers === null ? proposalLine(p, true) : `${proposalLine(p, true)}, ${passengers}`;
@@ -104,7 +104,7 @@ export function briefProposalFacts(body: NetworkHourlyBody): CopilotFact[] {
 }
 
 /** The day's moves and, when a trail exists, the decisions recorded. */
-export function briefDayFacts(body: NetworkHourlyBody): CopilotFact[] {
+export function briefDayFacts(body: CopilotNetworkHours): CopilotFact[] {
   const facts = [
     makeFact('brief.date', 'Operating date', formatPlainDate(body.operatingDate), 'derived'),
     makeFact('brief.moves_within', 'Moves within depots', busesText(body.moves.withinDepots), 'modelled'),

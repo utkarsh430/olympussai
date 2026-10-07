@@ -10,6 +10,7 @@ import { buildCockpit } from '@/lib/depot/cockpit/cockpitModel';
 import type { CopilotScope } from '@/lib/depot/copilot/wire';
 import { depotHref } from '@/lib/depot/depotNav';
 import { DEPOTS_ROOT } from '@/lib/depot/nav';
+import { ServicePeakLine } from '@/components/depot/service/ServicePeak';
 import { AttentionStrip } from './AttentionStrip';
 import { AvailabilityBar } from './AvailabilityBar';
 import { BriefingRow } from './BriefingRow';
@@ -70,6 +71,7 @@ export function DepotCockpit() {
     <div data-testid="depot-cockpit" className="depot-stack min-w-0">
       {data.stale || error ? <StaleNotice since={data.feedNow} /> : null}
       <AttentionStrip attention={model.attention} />
+      <ServicePeakLine depotId={depotId} />
       <AvailabilityBar
         fleet={model.board.fleet}
         segments={model.availability}

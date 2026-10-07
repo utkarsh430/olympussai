@@ -21,7 +21,7 @@ import { buildNetworkBriefing } from '@/lib/depot/copilot/facts/network';
 import { dataSourceOf } from '@/lib/depot/copilot/service/stale';
 import type { CopilotRequest } from '@/lib/depot/copilot/types';
 import type { CopilotDataSource } from '@/lib/depot/copilot/wire';
-import type { NetworkHourlyBody, RouteHourlyBody } from '@/lib/depot/service/types';
+import type { CopilotNetworkHours, RouteHourlyBody } from '@/lib/depot/service/types';
 
 /** The views a query may need. Only `network` is always present. */
 export interface AnswerData {
@@ -31,7 +31,7 @@ export interface AnswerData {
   /** The named route's day, for the route kinds. */
   readonly routeDay?: RouteHourlyBody;
   /** The network's day by band, for the hour and brief kinds. */
-  readonly networkHours?: NetworkHourlyBody;
+  readonly networkHours?: CopilotNetworkHours;
 }
 
 const SCOPE_SENTENCE =

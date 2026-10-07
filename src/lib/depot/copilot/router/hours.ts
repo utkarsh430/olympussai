@@ -6,20 +6,22 @@
  * guesses one, and the wall clock is never read.
  */
 
+import { serviceBand } from '@/lib/depot/service/networkHours';
+
 const HOURS_PER_HALF_DAY = 12;
 const LAST_HOUR = 23;
 const MINUTES_PER_HOUR = 60;
 
 /**
- * The first hour of each band a part of the day names: the morning peak (06–10), midday
- * (10–16), the evening peak (16–20) and late (20–24). These are the network view's bands.
+ * The first hour of each band a part of the day names: the morning peak, midday, the evening
+ * peak and late, as the network view's bands (`SERVICE_BANDS`) draw them.
  */
 export const PART_OF_DAY_HOUR: Readonly<Record<string, number>> = {
-  morning: 6,
-  afternoon: 10,
-  evening: 16,
-  night: 20,
-  tonight: 20,
+  morning: serviceBand('morning_peak').fromHour,
+  afternoon: serviceBand('midday').fromHour,
+  evening: serviceBand('evening_peak').fromHour,
+  night: serviceBand('late').fromHour,
+  tonight: serviceBand('late').fromHour,
 };
 
 const MIDNIGHT = /\bmidnight\b/;

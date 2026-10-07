@@ -15,6 +15,7 @@ export const EXCEPTIONS_PATH = `${DEPOTS_ROOT}/exceptions`;
 export const ECONOMICS_PATH = `${DEPOTS_ROOT}/economics`;
 export const NETWORK_TRENDS_PATH = `${DEPOTS_ROOT}/trends`;
 export const ASK_PATH = `${DEPOTS_ROOT}/ask`;
+export const SERVICE_PATH = `${DEPOTS_ROOT}/service`;
 export const SOURCES_PATH = `${DEPOTS_ROOT}/sources`;
 
 /**
@@ -53,7 +54,10 @@ export const NETWORK_NAV: readonly DepotNavGroup[] = [
   },
   {
     heading: 'Intelligence',
-    items: [{ href: ASK_PATH, label: 'Ask' }],
+    items: [
+      { href: SERVICE_PATH, label: 'Service by the hour' },
+      { href: ASK_PATH, label: 'Ask' },
+    ],
   },
   {
     heading: 'System',

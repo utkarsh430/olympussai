@@ -15,7 +15,12 @@ import { fetchUpstream } from '@/lib/upsrtc/client';
 import { getLiveSnapshot } from '@/lib/upsrtc/liveSnapshot';
 import { fetchBusSchedule } from '@/lib/upsrtc/scheduleService';
 import { filesUnder, parseFile, ROOT } from './depot-guard-source';
-import { guardRouteHourlyQuery, guardServiceRepositories, guardView } from './depot-guard-fixtures';
+import {
+  guardNetworkHourlyQuery,
+  guardRouteHourlyQuery,
+  guardServiceRepositories,
+  guardView,
+} from './depot-guard-fixtures';
 import ts from 'typescript';
 
 /*
@@ -77,6 +82,7 @@ const ARGUMENTS: Readonly<Record<string, () => unknown>> = {
   HistoryQuery: () => parsed(parseHistoryQuery(search('metric=index&scope=network'))),
   ForecastQuery: () => parsed(parseForecastQuery(search('metric=index&scope=network'))),
   RouteHourlyQuery: guardRouteHourlyQuery,
+  NetworkHourlyQuery: guardNetworkHourlyQuery,
   ServiceRepositories: guardServiceRepositories,
 };
 

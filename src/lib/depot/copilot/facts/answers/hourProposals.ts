@@ -11,7 +11,7 @@ import {
 } from '@/lib/depot/copilot/facts/networkHours';
 import { DEMAND_NOTE, RECOMMENDATION_ONLY } from '@/lib/depot/copilot/facts/serviceText';
 import type { CopilotRequest } from '@/lib/depot/copilot/types';
-import type { NetworkBandSummary, NetworkHourlyBody } from '@/lib/depot/service/types';
+import type { CopilotBandSummary, CopilotNetworkHours } from '@/lib/depot/service/types';
 
 /** The band's route counts and bus totals, in two sentences with no figure in the prose. */
 export function bandCountSentences(): string {
@@ -21,7 +21,7 @@ export function bandCountSentences(): string {
   );
 }
 
-function routeList(band: NetworkBandSummary): string | null {
+function routeList(band: CopilotBandSummary): string | null {
   const list = (prefix: 'short' | 'over', count: number, words: string): string =>
     Array.from({ length: Math.min(count, MAX_BAND_ROUTES) }, (_, i) =>
       `${ph(`${prefix}.${i + 1}.name`)}, ${words} ${ph(`${prefix}.${i + 1}.gap`)}`,
@@ -53,7 +53,7 @@ const NO_BAND = answer('an hour outside the bands', [], {
  * one depot's, with the band's proposals. `depotName` is the depot's name when one is asked.
  */
 export function hourProposalsAnswer(
-  body: NetworkHourlyBody | undefined,
+  body: CopilotNetworkHours | undefined,
   hour: number,
   depot?: { readonly id: string; readonly name: string },
 ): CopilotRequest {

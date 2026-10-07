@@ -18,7 +18,7 @@ import { buildDistributionResponse } from '@/lib/depot/live/distributionView';
 import { buildNetworkResponse } from '@/lib/depot/live/networkView';
 import { routeTableOf } from '@/lib/depot/live/routeInputs';
 import type { FleetSnapshotView } from '@/lib/depot/repositories/types';
-import type { NetworkHourlyBody, RouteHourlyBody } from '@/lib/depot/service/types';
+import type { CopilotNetworkHours, RouteHourlyBody } from '@/lib/depot/service/types';
 import { answerTable, interpretQuery } from '@/lib/depot/copilot/service/interpret';
 import type { ValidCopilotRequest } from '@/lib/depot/copilot/service/schema';
 
@@ -40,7 +40,7 @@ const NOT_FOUND = { ok: false, status: 404 } as const;
  */
 export interface ServiceAnswerData {
   readonly routeDay?: RouteHourlyBody;
-  readonly networkHours?: NetworkHourlyBody;
+  readonly networkHours?: CopilotNetworkHours;
 }
 
 /**
