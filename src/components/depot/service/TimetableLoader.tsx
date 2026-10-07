@@ -14,7 +14,7 @@ import type { DepotFeedEnvelope } from '@/lib/depot/api';
 
 /** On the saved sample the schedule server is never asked, so no timetable can load. */
 export const SAMPLE_TIMETABLE_REFUSAL =
-  'Timetables load from the schedule service on the live feed only; this is the saved sample.';
+  'On the saved sample the schedule service is not asked, so no timetable loads.';
 
 const onSample = (body: TimetableBody): boolean => body.source === 'fixture';
 

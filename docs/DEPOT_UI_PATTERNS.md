@@ -426,8 +426,8 @@ the chart and its table say the same thing.
   route has its timetable loaded.") and, when an earlier date stands in, "Timetable of 5
   Oct 2026 used for 6 Oct 2026."
 - On the saved sample there is no press: the schedule-day route refuses every lookup there
-  without an outside call, so the line says "Timetables load from the schedule service on
-  the live feed only; this is the saved sample." A lookup refused on the live feed counts as
+  without an outside call, so the line says "On the saved sample the schedule service is not
+  asked, so no timetable loads." A lookup refused on the live feed counts as
   "could not be read" and the page stays as it was.
 - `SectionLabel`'s controls wrap within the row (`flex-wrap`, `max-w-full`), so the loader
   and "Show as table" sit on two lines at 390 rather than pushing the page sideways.
