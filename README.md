@@ -620,7 +620,11 @@ Redistribution") is unchanged and is opened from a bus's analysis menu
 > more — `toggleAudit` and `toggleDiagnostics` are now referenced only from
 > inside the drawers themselves, to close them. The audit trail keeps recording
 > normally (the e2e test asserts against `localStorage` instead of the drawer).
-> Restoring a trigger for both is outstanding.
+> Restoring a trigger for both is outstanding. On 2026-10-07 the **Scenario Lab**
+> button and the "Predictive Engine Active" chip were removed from the bar as well
+> (the owner's call); the Scenario Lab drawer stays mounted, reachable only through
+> `toggleScenarioLab` in the store, so it is in the same position as Audit and
+> Diagnostics.
 
 ### Fleet panel (left, 272 px)
 

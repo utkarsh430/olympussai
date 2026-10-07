@@ -248,13 +248,14 @@ test.describe('UPSRTC AI Operations Copilot', () => {
     await expect(overlay).not.toBeVisible({ timeout: 15_000 });
   });
 
-  test('12. live-data and predictive markers remain visible together', async ({ page }) => {
+  test('12. the live-data marker and the predictive markers remain visible together', async ({ page }) => {
     await page.goto('/project/upsrtc');
     await waitForFleet(page);
 
-    // The top bar always distinguishes live data from the predictive layer.
+    // The top bar always names the data source; the "Predictive Engine Active" chip was
+    // removed from it, so the predictive layer is marked on the panels themselves.
     await expect(page.getByText(/LIVE UPSRTC GPS|UPSRTC FIXTURE FALLBACK/).first()).toBeVisible();
-    await expect(page.getByText('Predictive Engine Active')).toBeVisible();
+    await expect(page.getByText('Predictive Engine Active')).toHaveCount(0);
 
     await selectFirstBus(page);
     await page.getByTestId('analysis-breakdown').click();
@@ -297,21 +298,19 @@ test.describe('UPSRTC AI Operations Copilot', () => {
     expect(errors, `Unexpected console errors:\n${errors.join('\n')}`).toEqual([]);
   });
 
-  test('15. scenario lab drawer opens, and the header exposes Bunching', async ({ page }) => {
+  test('15. the header exposes Bunching and Depot Management, and no drawer buttons', async ({ page }) => {
     await page.goto('/project/upsrtc');
     await waitForFleet(page);
 
-    await page.getByRole('button', { name: /Scenario Lab/i }).click();
-    await expect(page.getByTestId('scenario-lab')).toBeVisible();
-    await expect(page.getByTestId('reset-demonstration')).toBeVisible();
-    await page.keyboard.press('Escape');
-
-    // The Audit and Diagnostics header controls were replaced by Bunching. The
-    // drawers themselves remain in the application and keep recording (see the
-    // audit-trail test below); they simply no longer have a header trigger.
+    // The Audit and Diagnostics header controls were replaced by Bunching, and the
+    // Scenario Lab button was removed on 2026-10-07. The drawers themselves remain in
+    // the application (the audit trail keeps recording; see the audit-trail test below);
+    // they simply no longer have a header trigger.
     await expect(page.getByRole('button', { name: /^Audit$/i })).toHaveCount(0);
     await expect(page.getByRole('button', { name: /^Diagnostics$/i })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /Scenario Lab/i })).toHaveCount(0);
     await expect(page.getByTestId('open-bunching')).toBeVisible();
+    await expect(page.getByTestId('open-depot-management')).toBeVisible();
   });
 
   test('16. impact dashboard shows projected figures', async ({ page }) => {
@@ -430,14 +429,8 @@ test.describe('UPSRTC AI Operations Copilot', () => {
       await assertClean(testId);
     }
 
-    // And every auxiliary surface.
-    await page.getByRole('button', { name: /Scenario Lab/i }).click();
-    await expect(page.getByTestId('scenario-lab')).toBeVisible();
-    await assertClean('scenario lab');
-    await page.keyboard.press('Escape');
-
-    // The Diagnostics and Audit drawer steps are omitted: no control opens either drawer
-    // any more (see "Known gap" in README.md). Restore them if a trigger returns.
+    // The Scenario Lab, Diagnostics and Audit drawer steps are omitted: no control opens
+    // any of them any more (see "Known gap" in README.md). Restore them if a trigger returns.
 
     await page.getByTestId('open-impact').click();
     await expect(page.getByTestId('impact-dashboard')).toBeVisible();

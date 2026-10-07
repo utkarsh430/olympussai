@@ -56,7 +56,7 @@ export const NETWORK_NAV: readonly DepotNavGroup[] = [
     heading: 'Intelligence',
     items: [
       { href: SERVICE_PATH, label: 'Service by the hour' },
-      { href: ASK_PATH, label: 'Ask' },
+      { href: ASK_PATH, label: 'AI Engine' },
     ],
   },
   {
