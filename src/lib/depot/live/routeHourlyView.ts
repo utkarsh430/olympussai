@@ -60,12 +60,13 @@ export function parseRouteHourlyQuery(
 
 /*
  * The body depends on the rows (through the analysis, which also fixes what this server
- * had observed when the snapshot arrived), the route and the route catalogue (a newly
- * cached profile changes journey times and lengths), so it is held per analysis under
+ * had observed when the snapshot arrived), the route, the route catalogue (a newly
+ * cached profile changes journey times and lengths) and the bus days recorded, so it is held per analysis under
  * that key and goes with the snapshot. The route is the caller's to choose, so the memo is
  * bounded; a route the snapshot lacks is not held. The envelope is never part of it.
  */
-// Once bus days are recorded between snapshots, the key must also carry the scheduled store's revision.
+// A bus day recorded between two snapshots changes the body, so the key carries the
+// scheduled store's revision: a loaded timetable shows on the next poll.
 const bodies = queryMemo<RouteHourlyBody | null>({ keep: (body) => body !== null });
 
 /** How many route bodies are held for this snapshot; read by the tests of the bound. */
@@ -88,7 +89,7 @@ export async function buildRouteHourlyResponse(
   if (query.date !== null && query.date !== operatingDate) {
     return { status: 400, body: INVALID_ROUTE_HOURLY_QUERY };
   }
-  const key = `${query.routeName}|${routeCatalogueRevision()}`;
+  const key = `${query.routeName}|${routeCatalogueRevision()}|${await services.scheduled.revision()}`;
   const body = await bodies.hold(analyseSnapshot(view), key, () =>
     routeHourlyBody(view, query.routeName, services),
   );

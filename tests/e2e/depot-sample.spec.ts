@@ -74,6 +74,10 @@ const SAMPLE_ROUTE_NAME = 'ABC';
 /** The route day's API answers only a route the sample carries, so it is given one. */
 const ROUTE_HOURLY_API = '/api/upsrtc/depot/service/route/[routeName]';
 
+/** One bus's day: a bus the sample shows on its route, asked about that route. */
+const SCHEDULE_DAY_API = '/api/upsrtc/depot/schedule-day/[registration]';
+const REGISTRATION_SEGMENT = '[registration]';
+
 /** Query strings the routes that require one need for a valid request. */
 const VALID_QUERY: Readonly<Record<string, string>> = {
   '/api/upsrtc/depot/trends': '?metric=onRoadShare',
@@ -82,6 +86,10 @@ const VALID_QUERY: Readonly<Record<string, string>> = {
 };
 
 function fill(template: string, sample: SampleFacts): string {
+  if (template === SCHEDULE_DAY_API) {
+    const route = new URLSearchParams({ route: sample.routeName }).toString();
+    return `${template.replace(REGISTRATION_SEGMENT, sample.busOnRoute)}?${route}`;
+  }
   const routeName = template === ROUTE_HOURLY_API ? sample.routeName : SAMPLE_ROUTE_NAME;
   return (
     template.replace(DEPOT_SEGMENT, sample.depotId).replace(ROUTE_SEGMENT, routeName) +

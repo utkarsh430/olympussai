@@ -118,7 +118,7 @@ describe('the route day page in every state', () => {
     await renderPage();
     expect(line()?.textContent).not.toContain('trips known');
     expect(line()?.textContent).not.toContain('Observed by this server');
-    expect(container.textContent).toContain('Scheduled (trips known for 12 of 40 buses)');
+    expect(container.textContent).toContain('Scheduled (full day loaded for 12 of 40 buses)');
     state.polled = polled({ loading: true });
     await renderPage();
     expect(line()?.textContent).not.toContain('trips known');

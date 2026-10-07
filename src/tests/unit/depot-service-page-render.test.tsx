@@ -257,7 +257,7 @@ describe('RouteHourlyPage words', () => {
     render();
     const chart = section('hour-chart')?.textContent ?? '';
     expect(chart).toContain('Observed by this server since 05:02 (79 samples)');
-    expect(chart).toContain('Scheduled (trips known for 12 of 40 buses)');
+    expect(chart).toContain('Scheduled (full day loaded for 12 of 40 buses)');
     expect(text()).toContain('Only buses that report a route name are counted: 10 of the 14 buses in the feed report one.');
     expect(text()).toContain('4 standing now carry this route’s name');
   });

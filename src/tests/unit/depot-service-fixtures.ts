@@ -151,6 +151,12 @@ function reliabilityAt(hour: number): HourReliability {
   return { hour, delayMedianMin: medianMin, lateShare, coverage: { n: covered, of: covered } };
 }
 
+/** The 40 buses seen on the route, the first 12 with a recorded day (the scheduled coverage). */
+export const FIXTURE_BUSES: readonly string[] = Array.from(
+  { length: 40 },
+  (_, i) => `UP78AB${String(1000 + i)}`,
+);
+
 /** A full response for the route; any field may be replaced. */
 export function routeHourlyFixture(
   overrides: Partial<RouteHourlyResponse> = {},
@@ -180,6 +186,9 @@ export function routeHourlyFixture(
     demandBasis:
       'Seats offered for the day times the modelled load factor of an ordinary service, spread by its hour-of-day shape.',
     reliability: Array.from({ length: 24 }, (_, hour) => reliabilityAt(hour)),
+    busesOnRoute: FIXTURE_BUSES,
+    busesWithDay: FIXTURE_BUSES.slice(0, 12),
+    timetableBorrowedFrom: [],
     feedNow: '2026-10-06T11:24:00Z',
     fetchedAt: '2026-10-06T05:54:10.000Z',
     source: 'live',

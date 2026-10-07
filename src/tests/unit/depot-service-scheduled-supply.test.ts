@@ -23,21 +23,22 @@ function trip(over: Partial<ScheduledTrip>): ScheduledTrip {
 describe('the scheduled supply of a route', () => {
   it('has no hours and no buses when nothing is known, so every hour reads as unknown', () => {
     const supply = scheduledSupply({
-      routeName: ROUTE, operatingDate: DATE, ledger: [], trips: [], distinctBusesSeen: 4,
+      routeName: ROUTE, operatingDate: DATE, ledger: [], trips: [], distinctBusesSeen: 4, busesWithDay: 0,
     });
     expect(supply.hours).toEqual([]);
     expect(supply.coverage).toEqual({ n: 0, of: 4 });
   });
 
-  it('places the feed journeys alone and says so', () => {
+  it('places the feed journeys alone and says so; one journey is no bus day', () => {
     const supply = scheduledSupply({
       routeName: ROUTE, operatingDate: DATE, ledger: [journey({})], trips: [], distinctBusesSeen: 3,
+      busesWithDay: 0,
     });
     expect(supply.hours).toHaveLength(24);
     expect(supply.hours[7]).toMatchObject({ tripsStarting: 1, busHours: 1, fromFeedRowsOnly: true });
     expect(supply.hours[8]).toMatchObject({ tripsStarting: 0, busHours: 0.5 });
-    expect(supply.coverage).toEqual({ n: 1, of: 3 });
-    expect(supply.hours[7]?.coverage).toEqual({ n: 1, of: 3 });
+    expect(supply.coverage).toEqual({ n: 0, of: 3 });
+    expect(supply.hours[7]?.coverage).toEqual({ n: 0, of: 3 });
   });
 
   it('adds the loaded timetable trips the feed did not report, counting each bus once', () => {
@@ -52,17 +53,18 @@ describe('the scheduled supply of a route', () => {
         trip({ journeyId: 't3', routeName: 'OTHER' }),
       ],
       distinctBusesSeen: 1,
+      busesWithDay: 2,
     });
     expect(supply.hours[7]?.tripsStarting).toBe(1);
     expect(supply.hours[10]).toMatchObject({ tripsStarting: 1, busHours: 1, fromFeedRowsOnly: false });
-    // Two buses known (UP1 from the feed, UP9 from a timetable); never more than are known.
+    // Two bus days recorded, though one bus was seen: never fewer seen than are known.
     expect(supply.coverage).toEqual({ n: 2, of: 2 });
   });
 
   it('leaves out a journey of another date', () => {
     const supply = scheduledSupply({
       routeName: ROUTE, operatingDate: DATE, ledger: [journey({ operatingDate: '2026-10-05' })],
-      trips: [], distinctBusesSeen: 0,
+      trips: [], distinctBusesSeen: 0, busesWithDay: 0,
     });
     expect(supply.hours).toEqual([]);
     expect(supply.coverage).toEqual({ n: 0, of: 0 });

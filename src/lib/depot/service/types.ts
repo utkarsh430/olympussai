@@ -293,6 +293,12 @@ export interface RouteHourlyBody {
   readonly demandBasis: string;
   /** Punctuality by hour from the journeys the feed reported, placed by scheduled start; 24 hours. */
   readonly reliability: readonly HourReliability[];
+  /** Every bus seen carrying the route name in the date, sorted: the timetable loader's list. */
+  readonly busesOnRoute: readonly string[];
+  /** The buses whose whole day is recorded for the date (the scheduled coverage's count), sorted. */
+  readonly busesWithDay: readonly string[];
+  /** Dates whose timetable stands in for this date's (the server had none for it), sorted. */
+  readonly timetableBorrowedFrom: readonly string[];
 }
 
 export interface RouteHourlyResponse extends RouteHourlyBody, DepotFeedEnvelope {}

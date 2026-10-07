@@ -108,7 +108,8 @@ describe('one route, hour by hour, on the recorded sample', () => {
 
   it('places the journeys of the day the feed reported on the route as scheduled supply', async () => {
     const answer = await body(sampleView(), query(ROUTE));
-    expect(answer.scheduledCoverage.n).toBeGreaterThan(0);
+    // A reported journey is one trip of a bus, not its day: no bus day is recorded yet.
+    expect(answer.scheduledCoverage.n).toBe(0);
     // The route's journey of the day starts at 11:01 and runs past 19:00.
     expect(answer.hours[11]?.scheduledTripsStarting).toBeGreaterThanOrEqual(1);
     expect(answer.hours[12]?.scheduled).toBeGreaterThan(0);
