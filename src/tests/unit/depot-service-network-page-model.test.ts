@@ -11,6 +11,13 @@ import {
   uncoveredWords,
 } from '@/lib/depot/service/networkPageModel';
 import type { NetworkHourlyResponse, NetworkProposal, NetworkRouteStrip } from '@/lib/depot/service/types';
+import {
+  NETWORK_PROPOSAL_COLUMN_WIDTHS,
+  networkProposalColumnKeys,
+  networkProposalTierFor,
+} from '@/lib/depot/service/networkProposalColumns';
+import { TABLE_FRAME_BORDER_PX, contentWidthAt } from '@/lib/depot/shell/geometry';
+import { tableWidth } from '@/lib/depot/shell/tableWidth';
 import { FIXTURE_PROPOSALS } from './depot-service-fixtures';
 
 const strip: NetworkRouteStrip = {
@@ -110,5 +117,23 @@ describe('a network proposal row', () => {
     expect(uncoveredWords('no_surplus_in_range')).toMatch(/within/);
     expect(uncoveredWords('insufficient_surplus')).toMatch(/ran out/);
     expect(uncoveredWords('no_position')).toMatch(/position/);
+  });
+});
+
+describe('the network proposals table width per tier', () => {
+  const VIEWPORTS = [390, 640, 799, 800, 1023, 1024, 1279, 1280, 1439, 1440] as const;
+
+  it.each([...VIEWPORTS])('at %ipx the chosen column set fits the frame', (viewport) => {
+    const keys = networkProposalColumnKeys(networkProposalTierFor(viewport));
+    const width = tableWidth(NETWORK_PROPOSAL_COLUMN_WIDTHS, keys, { expander: true }) + TABLE_FRAME_BORDER_PX;
+    expect(width).toBeLessThanOrEqual(contentWidthAt(viewport));
+    expect(keys).toContain('change');
+  });
+
+  it('shows Route and Depot from 1440, Route from 800', () => {
+    expect(networkProposalColumnKeys(networkProposalTierFor(1440))).toEqual(
+      expect.arrayContaining(['route', 'depot']),
+    );
+    expect(networkProposalColumnKeys(networkProposalTierFor(800))).toContain('route');
   });
 });
