@@ -90,9 +90,10 @@ describe('hour chart model', () => {
       lateShare: '50%',
     });
     expect(rows[0]).toMatchObject({ basis: 'Not observed', scheduled: '—', delay: '—' });
-    expect(rows[11]?.basis).toBe('Current hour');
+    // The table's basis words are the legend's own.
+    expect(rows[11]?.basis).toBe('Now, from the feed');
     expect(rows[12]?.gap).toBe('−2 Over by 2');
     expect(rows[0]?.gap).toBe('0 Even');
-    expect(rows[20]?.basis).toBe('Modelled');
+    expect(rows[20]?.basis).toBe('Modelled day');
   });
 });

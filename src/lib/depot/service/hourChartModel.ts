@@ -140,10 +140,11 @@ export function buildHourChartModel(body: Pick<RouteHourlyBody, 'hours' | 'curre
   };
 }
 
+/** What each hour's deployed figure rests on: the legend's words, so the table and the chart agree. */
 export const BASIS_WORD: Readonly<Record<HourColumnKind, string>> = {
   observed: 'Observed',
-  current: 'Current hour',
-  modelled: 'Modelled',
+  current: 'Now, from the feed',
+  modelled: 'Modelled day',
   not_observed: 'Not observed',
 };
 
