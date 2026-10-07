@@ -52,7 +52,8 @@ describe("the copilot's network hours", () => {
       const overs = band.overRoutes.map((r) => r.gap);
       expect(overs.every((g) => g < 0)).toBe(true);
       expect([...overs].sort((a, b) => a - b)).toEqual(overs);
-      const sum = (gs: readonly number[]): number => Math.round(gs.reduce((s, g) => s + Math.abs(g), 0) * 10) / 10;
+      const sum = (gs: readonly number[]): number => gs.reduce((s, g) => s + Math.abs(g), 0);
+      expect(shorts.every(Number.isInteger) && overs.every(Number.isInteger)).toBe(true);
       expect(band.busesShort).toBe(sum(shorts));
       expect(band.busesOver).toBe(sum(overs));
     }

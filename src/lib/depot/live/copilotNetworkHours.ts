@@ -27,20 +27,21 @@ const NETWORK_KINDS: ReadonlySet<ProposalKind> = new Set<ProposalKind>([
   'corridor_under_served',
 ]);
 
-const TENTHS = 10;
-const oneDecimal = (n: number): number => Math.round(n * TENTHS) / TENTHS + 0;
-
 const sumOfGaps = (routes: readonly NetworkRouteGap[]): number =>
-  oneDecimal(routes.reduce((sum, r) => sum + Math.abs(r.gap), 0));
+  routes.reduce((sum, r) => sum + Math.abs(r.gap), 0);
 
-/** A route's mean gap over the band, and whether this server observed every hour of it. */
+/**
+ * A route's mean gap over the band as whole buses (the copilot never says a fraction of a
+ * bus; a mean within half a bus of zero is not short or over), and whether this server
+ * observed every hour of it.
+ */
 function routeGap(route: NetworkRouteDay, band: ServiceBand): NetworkRouteGap {
   const hours = bandHours(route.day, band.key);
   return {
     routeName: route.day.routeName,
     depotId: route.depotId,
     depotName: route.depotName,
-    gap: bandGapOf(route.day, band.key),
+    gap: Math.round(bandGapOf(route.day, band.key)) + 0,
     observed: hours.length > 0 && hours.every((h) => h.deployedBasis !== 'modelled'),
   };
 }

@@ -162,7 +162,7 @@ describe('service answers: provenance per fact', () => {
     const r = buildAnswer({ kind: 'hourProposals', hour: 7, depotId: '101' }, data());
     expect(by(r, 'depot.name')).toMatchObject({ text: 'KANPUR', kind: 'name' });
     expect(by(r, 'band.short_routes')?.text).toBe('2 routes');
-    expect(by(r, 'band.buses_short')?.text).toBe('4.4 buses');
+    expect(by(r, 'band.buses_short')?.text).toBe('4 buses');
     expect(by(r, 'band.over_routes')?.text).toBe('0 routes');
     expect(r.facts.some((f) => f.text.includes('LKO_204_EXP_IN'))).toBe(false);
   });
