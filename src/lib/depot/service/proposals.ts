@@ -1,5 +1,5 @@
 import { compareText } from '../stats/order';
-import { bandFigures, bandsOf, inBand, proposalId } from './bands';
+import { bandFigures, bandsOf, inBand, proposalId, splitOnSteps } from './bands';
 import { unroutedCoverGuard } from './gap';
 import { proposalImpact } from './impact';
 import {
@@ -8,6 +8,8 @@ import {
   HOLD_KEEP_MIN,
   HOLD_MIN_SURPLUS,
   MIN_BAND_HOURS,
+  SPLIT_STEP_MIN_BUSES,
+  SPLIT_STEP_SHARE,
 } from './proposalConfig';
 import { proposalReason } from './proposalReasons';
 import { timetableFindings } from './timetableFindings';
@@ -157,6 +159,16 @@ function supplyProposal(
   };
 }
 
+const STEP_RULE = { minBuses: SPLIT_STEP_MIN_BUSES, share: SPLIT_STEP_SHARE } as const;
+
+/** The runs of qualifying hours, each split where its gap steps (so a band's figure fits every hour). */
+function steppedBands(ctx: ProposalContext, hours: readonly number[]): readonly HourBand[] {
+  const gapAt = (hour: number): number => ctx.hours.find((h) => h.hour === hour)?.gap ?? 0;
+  return bandsOf(hours, MIN_BAND_HOURS).flatMap((band) =>
+    splitOnSteps(band, gapAt, STEP_RULE, MIN_BAND_HOURS),
+  );
+}
+
 const KIND_ORDER: readonly ProposalKind[] = [
   'add_buses',
   'hold_buses',
@@ -182,7 +194,9 @@ export function compareProposals(a: Proposal, b: Proposal): number {
 
 /**
  * The route's proposals for the day. Add: a gap of at least max(2 buses, a
- * fifth of the need) for two hours or more, the band's mean gap rounded up.
+ * fifth of the need) for two hours or more, the band's mean gap rounded up; a band is
+ * split where the gap steps from one hour to the next by more than max(2 buses, half the
+ * larger gap), a piece shorter than two hours joining its nearest-gap neighbour.
  * Hold: a surplus of a bus or more for two hours or more, the least any hour
  * can release while keeping one bus and its scheduled supply. Then the tier-A
  * timetable findings. Recommendation only: nothing is dispatched.
@@ -191,8 +205,8 @@ export function buildProposals(ctx: ProposalContext): Proposal[] {
   const short = ctx.hours.filter((h) => h.gap > 0 && h.gap >= addThreshold(h)).map((h) => h.hour);
   const spare = ctx.hours.filter((h) => releasable(h) >= 1).map((h) => h.hour);
   const supply = [
-    ...bandsOf(short, MIN_BAND_HOURS).map((band) => supplyProposal(ctx, 'add_buses', band)),
-    ...bandsOf(spare, MIN_BAND_HOURS).map((band) => supplyProposal(ctx, 'hold_buses', band)),
+    ...steppedBands(ctx, short).map((band) => supplyProposal(ctx, 'add_buses', band)),
+    ...steppedBands(ctx, spare).map((band) => supplyProposal(ctx, 'hold_buses', band)),
   ].filter((p): p is Proposal => p !== null);
   return [...supply, ...timetableFindings(ctx)].sort(compareProposals);
 }

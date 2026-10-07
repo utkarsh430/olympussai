@@ -371,20 +371,38 @@ the chart and its table say the same thing.
 
 - **Deployed** is a bar per hour, a plain count (cyan). An observed hour and the feed clock's
   hour are solid; a modelled hour after now is hatched; a modelled hour before now is an
-  empty dashed outline at the modelled height, called "Not observed" in the table. With no
-  feed clock every modelled hour is hatched.
+  empty outline (a solid 1px hairline in `depot-faint`) at the modelled height, called "Not
+  observed" in the table. With no feed clock every modelled hour is hatched. Only the needed
+  line is dashed.
 - **Scheduled** is a step line in the neutral ink; an hour with no known trip has no step.
 - **Needed** is a dashed teal line (the forecast meaning) over a faint band, the demand
   model's spread of a quarter either way turned into buses.
+- Both lines are drawn over a page-coloured casing two pixels wider (`CASING_WIDTH`), so a
+  line keeps a dark edge where it crosses a solid cyan bar of nearly its own colour.
 - **Now** is the amber marker on the feed clock's hour.
-- **The gap row** sits under the hour axis, one signed figure per hour (+ short in crimson,
-  − over in green, 0 in the label colour). It is a second axis on the same 24 categories, so
-  it cannot drift out of step with the bars.
+- **The gap row** sits under the hour axis, one signed figure per hour. It is a second axis
+  on the same 24 categories, so it cannot drift out of step with the bars. **Rule:** a gap is
+  coloured only for an hour whose deployment was seen in the feed (observed, or the current
+  hour; `HourColumn.gapSeen`): + short in crimson, − over in amber (the standing meaning:
+  surplus buses could stand), 0 in the label colour. Every other hour's gap compares a model
+  with a model, so it prints in the axis colour; the sign still says the direction.
+- **The legend** says every series in words beside its own mark (`LEGEND_TEXT` in
+  `service/serviceWording.ts`): the solid bar is "Deployed, observed (and now, from the
+  feed)", or "Deployed now, from the feed" when this server has observed nothing today; the
+  Scheduled entry carries the buses whose trips are known ("Scheduled (trips known for 11 of
+  21 buses)"); the gap entry says "+ short, − over; gaps in modelled hours are modelled". The
+  table's Basis words are the legend's (`BASIS_WORD`).
+- The section note is the operating day and what this server observed of it ("Operating day
+  6 Oct 2026 · Observed by this server since 05:02 (79 samples)", or "Not yet observed by
+  this server today"); the page's provenance line stays one short MIXED sentence.
 - Ticks every 3 hours; the bus scale steps 1, 2 or 5 with at most five intervals; nothing
   below 11px.
-- The plot is `role="img"` with an `aria-label` that says what it shows; the legend says
-  every series in words beside its own mark (`LEGEND_TEXT` in `service/serviceWording.ts`).
-  "Show as table" (`aria-pressed`) swaps the plot for a 24-row table of the same figures.
+- The plot is `role="img"` with an `aria-label` that says what it shows and that "Show as
+  table" lists every figure. The toggle's words say what it will show next ("Show as table",
+  then "Show as chart"), so it carries no `aria-pressed`. The table runs its 24 rows in the
+  page flow (`depot-table-flow`); its Gap cell says the sign in words ("+9 Short by 9"), the
+  needed range is its own column, a modelled hour's gap has a title saying so, and the delay
+  caveat sits under it.
 - Colours are the palette's meanings (`hourChartStyle.ts`); a series is never told apart by
   colour alone.
 

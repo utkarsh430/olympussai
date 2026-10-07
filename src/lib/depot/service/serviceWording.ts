@@ -41,11 +41,17 @@ export function gapFigure(gap: number): string {
   return whole > 0 ? `+${formatCount(whole)}` : `${MINUS}${formatCount(-whole)}`;
 }
 
-/** A delay through the duration formatter, keeping the sign of an early running. */
-export function delayFigure(minutes: number | null): string {
-  if (minutes === null || !Number.isFinite(minutes)) return DASH;
-  const text = formatDurationMinutes(Math.abs(minutes));
-  return minutes < 0 && Math.floor(Math.abs(minutes)) > 0 ? `${MINUS}${text}` : text;
+/**
+ * The feed's delay figure as a plain number in the feed's own unit, early with the module
+ * minus. Never through the duration formatter: the unit is unconfirmed, and "7 h 34 min"
+ * would assert one.
+ */
+export function feedDelayFigure(value: number | null): string {
+  if (value === null || !Number.isFinite(value)) return DASH;
+  // Rounded to tenths first, so a figure that rounds to a whole number has no ".0".
+  const size = Math.round(Math.abs(value) * 10) / 10;
+  const text = Number.isInteger(size) ? formatCount(size) : formatOneDecimal(size);
+  return value < 0 && text !== '0' ? `${MINUS}${text}` : text;
 }
 
 export const PROPOSAL_KIND_LABEL: Readonly<Record<ProposalKind, string>> = {
@@ -73,10 +79,11 @@ export function changeCell(kind: ProposalKind, change: number): string {
   return `${KIND_CELL[kind]} ${formatCount(Math.abs(change))}`;
 }
 
+/** What a proposal rests on, in the page's provenance words; the sentence is in the cell's title. */
 export const TIER_CELL: Readonly<Record<ProposalTier, string>> = {
-  A: 'A · Measured',
-  B: 'B · Mixed',
-  C: 'C · Modelled',
+  A: 'Derived',
+  B: 'Mixed',
+  C: 'Modelled',
 };
 
 export const TIER_SENTENCE: Readonly<Record<ProposalTier, string>> = {
@@ -88,8 +95,9 @@ export const TIER_SENTENCE: Readonly<Record<ProposalTier, string>> = {
 export const SERVICE_TEXT = {
   chartTitle: 'Buses by hour',
   showTable: 'Show as table',
+  showChart: 'Show as chart',
   tableCaption: 'Buses deployed, scheduled and needed for each hour of the day',
-  bandLabel: 'This hour',
+  bandLabel: 'Now and the day',
   deployedCaption: 'In service or on the road',
   proposalsTitle: 'Proposals',
   proposalsCaption: 'Proposals for this route',
@@ -97,10 +105,11 @@ export const SERVICE_TEXT = {
   punctualityTitle: 'Punctuality by hour',
   punctualityCaption: 'Median delay and late share by hour',
   noPunctuality: 'No journey the feed reported on this route today carried a delay figure.',
-  delayUnit: 'The delay unit is unconfirmed.',
-  demand:
-    'Passenger demand is modelled from service class and route length, not ticketing; proposals are estimates until ticket data is connected.',
-  recommendation: 'Recommendation only: nothing is dispatched or reassigned.',
+  delayUnit: 'Delay is the feed’s own figure; its unit is unconfirmed.',
+  /** The notice's body; its word, "Recommendation only", is the notice's own label. */
+  recommendation: 'Nothing is dispatched or reassigned.',
+  pastBands: 'Bands already past are notes for the next day’s plan.',
+  bandMean: 'mean',
   maybeCovered: 'May be covered by buses on the road that report no route name.',
   noSource: 'No bus moves for this finding.',
   noSourceFound: 'No source was identified for these buses.',
@@ -110,7 +119,7 @@ export const SERVICE_TEXT = {
   errorTitle: 'Route day unavailable',
   empty: 'This route has no figures for today yet: the feed has not reported it.',
   noFeedClock: 'No feed clock',
-  notObservedYet: 'Not observed yet',
+  noHourShort: 'No hour short',
   even: 'Even',
 } as const;
 
@@ -123,13 +132,13 @@ export function gapWords(gap: number): string {
 
 /** The chart's legend, in words; each entry also has its own mark. */
 export const LEGEND_TEXT = {
-  observed: 'Deployed, observed',
+  observed: 'Deployed, observed (and now, from the feed)',
+  nowOnly: 'Deployed now, from the feed',
   modelled: 'Deployed, modelled day',
   notObserved: 'Not observed (modelled day)',
-  scheduled: 'Scheduled',
   needed: 'Needed, from modelled demand, with its range',
   now: 'Now',
-  gap: 'Gap row: + short, − over',
+  gap: 'Gap row: + short, − over; gaps in modelled hours are modelled',
 } as const;
 
 /** Where the journey time came from, in words. */

@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react';
 import { LEGEND_TEXT } from '@/lib/depot/service/serviceWording';
-import { GAP_COLOUR, HOUR_COLOUR, NEEDED_BAND_OPACITY, NEEDED_DASH, OUTLINE_DASH } from './hourChartStyle';
+import { GAP_COLOUR, HOUR_COLOUR, NEEDED_BAND_OPACITY, NEEDED_DASH } from './hourChartStyle';
 
 const SWATCH = 14;
 
@@ -14,10 +14,18 @@ function Swatch({ children }: { readonly children: ReactNode }) {
   );
 }
 
+export interface HourLegendProps {
+  readonly hasNow: boolean;
+  /** False when this server has observed nothing today: the one solid bar is the feed now. */
+  readonly observed: boolean;
+  /** The Scheduled entry's words, carrying the buses whose trips are known. */
+  readonly scheduled: string;
+}
+
 /** Each entry is its mark and its words; nothing in the chart is told by colour alone. */
-export function HourLegend({ hasNow }: { readonly hasNow: boolean }) {
+export function HourLegend({ hasNow, observed, scheduled }: HourLegendProps) {
   const entries: readonly (readonly [string, ReactNode])[] = [
-    [LEGEND_TEXT.observed, <rect key="o" x={2} y={2} width={10} height={10} fill={HOUR_COLOUR.deployed} />],
+    [observed ? LEGEND_TEXT.observed : LEGEND_TEXT.nowOnly, <rect key="o" x={2} y={2} width={10} height={10} fill={HOUR_COLOUR.deployed} />],
     [
       LEGEND_TEXT.modelled,
       <g key="m" stroke={HOUR_COLOUR.deployed} strokeWidth={1}>
@@ -27,9 +35,9 @@ export function HourLegend({ hasNow }: { readonly hasNow: boolean }) {
     ],
     [
       LEGEND_TEXT.notObserved,
-      <rect key="n" x={2} y={2} width={10} height={10} fill="none" stroke={HOUR_COLOUR.outline} strokeDasharray={OUTLINE_DASH} />,
+      <rect key="n" x={2} y={2} width={10} height={10} fill="none" stroke={HOUR_COLOUR.outline} />,
     ],
-    [LEGEND_TEXT.scheduled, <path key="s" d="M1 10 H7 V4 H13" fill="none" stroke={HOUR_COLOUR.scheduled} strokeWidth={2} />],
+    [scheduled, <path key="s" d="M1 10 H7 V4 H13" fill="none" stroke={HOUR_COLOUR.scheduled} strokeWidth={2} />],
     [
       LEGEND_TEXT.needed,
       <g key="d">

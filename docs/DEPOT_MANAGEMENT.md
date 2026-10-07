@@ -880,7 +880,15 @@ REFERENCE, for the owner to set): `TARGET_LOAD = 0.75`, `BUSIEST_STRETCH_SHARE =
 
 **Proposals** (`proposals.ts`, `timetableFindings.ts`, `proposalCap.ts`; constants in
 `service/proposalConfig.ts`). Consecutive qualifying hours form a band of at least
-`MIN_BAND_HOURS = 2`.
+`MIN_BAND_HOURS = 2`. **A band is split** (`splitOnSteps` in `bands.ts`) wherever the gap
+moves from one hour to the next by more than the larger of `SPLIT_STEP_MIN_BUSES = 2` buses
+and `SPLIT_STEP_SHARE = 0.5` of the larger of the two gaps, so one proposal never covers a
+quiet stretch and a peak with one figure; a piece left shorter than `MIN_BAND_HOURS` joins
+the neighbouring piece whose mean gap is nearest. A gap that climbs a bus or two at a time
+stays one band, and its add shows the range of its hourly gaps instead ("Add 4 to 19", the
+peak hour in the title and the expanded row); a hold stays one figure, the least every hour
+can release. Bands that ended before the current hour stay in the list, under one sentence
+saying they are notes for the next day's plan.
 
 - **Add buses**: each hour short by at least the larger of `ADD_MIN_BUSES = 2` and
   `ADD_MIN_SHARE = 0.2` of the need; the change is the band's mean gap rounded up. The
@@ -911,16 +919,25 @@ REFERENCE, for the owner to set): `TARGET_LOAD = 0.75`, `BUSIEST_STRETCH_SHARE =
   the depot alone, with its standing or idle buses in the title and the expanded row, which
   lists all four ranges.
 - Order: more passengers carried first, then the earlier band. Each proposal has a fixed
-  one-sentence reason and an id from its date, kind, route and band.
+  one-sentence reason and an id from its date, kind, route and band. The page's table groups
+  them instead: "Changes" (add, hold) then "Timetable findings", each by start hour; its
+  Deployed, Scheduled and Needed headers say "mean" (band means), Rests on is one word
+  (Derived, Mixed, Modelled), and below 800px it shows the band, the change and Rests on
+  only, the rest in the expanded row, which also gives the net a day (revenue less cost).
 
 **Punctuality by hour** (`reliability.ts`, DERIVED): median delay and the share later than
 `LATE_AFTER_MIN = 10`, per hour of the journeys' scheduled start, with the journeys it rests
-on. The feed does not state its delay unit, so the page says it is unconfirmed.
+on. The feed does not state its delay unit, so the page prints the feed's delay figure as a
+plain number (never through the duration formatter) and says the unit is unconfirmed; the
+section is closed by default.
 
-**Coverage sentences**, in the provenance line: "Observed by this server since HH:MM
-(N samples)"; the buses that report a route name, of every bus in the feed (only they are
-counted); the route's standing buses now, not counted as deployed; and the buses whose
-trips are known, of those seen on the route.
+**Coverage** (`serviceCoverage.ts`), each fact once where it belongs: the provenance line is
+one short MIXED sentence (buses now LIVE; observed hours and scheduled trips DERIVED; other
+hours, demand, need and proposals MODELLED; with nothing observed it names no observed
+hours); "Observed by this server since HH:MM (N samples)" is the chart section's note; the
+buses whose trips are known, of those seen on the route, are on the Scheduled legend entry;
+the buses that report a route name, of every bus in the feed (only they are counted), and
+the route's standing buses now (not counted as deployed) are in the closing disclosure.
 
 ## 8. The copilot
 
@@ -962,7 +979,7 @@ answers. In summary (detail, settings and limits in
 | Folder | Holds |
 | --- | --- |
 | `live/` | Snapshot analysis, aggregation, the held peak on-road shares and peak requirements, the hour store (`serviceHold.ts`, `serviceHoldReads.ts`), the bounded query memo, the feed-time hold of the allocation plan, and one view builder per API route (the route day's in `routeHourlyView.ts` and `routeHourlyBody.ts`) |
-| `service/` | One route's day hour by hour (section 7.15): the shared shapes (`types.ts`), sampling and hour roll-ups (`observe.ts`, `observeHours.ts`), the journey ledger and scheduled supply (`journeyLedger.ts`, `scheduledSupply.ts`), modelled deployment and day boardings of the route's own buses (`modelledDeployment.ts`, `routeDayBoardings.ts`), need, gap, proposals and their cap, timetable findings, impact, punctuality, bands, reasons, and the page's wording and models (`serviceWording.ts`, `servicePageModel.ts`, `hourChartModel.ts`) |
+| `service/` | One route's day hour by hour (section 7.15): the shared shapes (`types.ts`), sampling and hour roll-ups (`observe.ts`, `observeHours.ts`), the journey ledger and scheduled supply (`journeyLedger.ts`, `scheduledSupply.ts`), modelled deployment and day boardings of the route's own buses (`modelledDeployment.ts`, `routeDayBoardings.ts`), need, gap, proposals and their cap, timetable findings, impact, punctuality, bands, reasons, and the page's wording and models (`serviceWording.ts`, `serviceCoverage.ts`, `servicePageModel.ts`, `proposalChange.ts`, `proposalDetail.ts`, `punctualityModel.ts`, `hourChartModel.ts`) |
 | `infer/` | Bus state, location, yard inference and continuity, outshedding |
 | `score/`, `stats/` | Efficiency index, peer groups, rolling window; robust statistics (`stats/robust.ts`), the rounding helpers and `clamp` (`stats/rounding.ts`), text ordering (`stats/order.ts`) |
 | `exceptions/` | Depot and bus exceptions, paging |

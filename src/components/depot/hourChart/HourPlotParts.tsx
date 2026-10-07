@@ -21,8 +21,10 @@ export interface GapTickProps {
 }
 
 /**
- * One cell of the gap row under the hour axis: the signed whole gap, crimson when short,
- * green when over, the label colour at zero. The sign says it without the colour. The
+ * One cell of the gap row under the hour axis: the signed whole gap. An hour whose
+ * deployment was seen in the feed is crimson when short, amber when over; any other hour's
+ * gap compares a model with a model, so it is printed in the axis colour and never reads as
+ * a measured shortfall. The sign says it without the colour. The
  * first cell also writes the row's name, "Gap", in the y-axis band to its left. Staggered,
  * the odd hours drop a line.
  */
@@ -32,7 +34,7 @@ export function GapTick({ x = 0, y = 0, width = 0, column, staggered = false }: 
   const own = staggered && column.hour % 2 === 1 ? baseline + GAP_LINE_PX : baseline;
   const half = width / HOURS / 2;
   return (
-    <g data-testid="hour-gap-cell" data-gap={column.gapTone}>
+    <g data-testid="hour-gap-cell" data-gap={column.gapTone} data-seen={String(column.gapSeen)}>
       {column.hour === 0 ? (
         <text
           x={x - half - LABEL_INSET_PX}
@@ -49,7 +51,7 @@ export function GapTick({ x = 0, y = 0, width = 0, column, staggered = false }: 
         y={own}
         textAnchor="middle"
         fontSize={HOUR_AXIS_FONT_SIZE}
-        fill={GAP_COLOUR[column.gapTone]}
+        fill={column.gapSeen ? GAP_COLOUR[column.gapTone] : HOUR_COLOUR.axisText}
       >
         {column.gapText}
       </text>

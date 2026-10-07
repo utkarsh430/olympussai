@@ -16,8 +16,8 @@ export interface RouteHourlyHeaderProps {
 
 /**
  * The route day's header in every state: the route name as the mono label, the title, one
- * sentence, and the MIXED provenance line, which carries the coverage once the day has
- * loaded so nothing sits between the header and the chart.
+ * sentence, and one short MIXED provenance line; the coverage is said where it belongs (the
+ * chart's note, the Scheduled legend entry, the closing disclosure).
  */
 export function RouteHourlyHeader({ routeName, response }: RouteHourlyHeaderProps) {
   return (

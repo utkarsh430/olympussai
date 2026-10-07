@@ -17,6 +17,7 @@ import type { HourChartModel, HourColumn } from '@/lib/depot/service/hourChartMo
 import { HOUR_PLOT_RIGHT_PX, HOUR_PLOT_Y_AXIS_PX } from '@/lib/depot/service/gapRowLayout';
 import { GAP_LINE_PX, GapTick, HourTooltip } from './HourPlotParts';
 import {
+  CASING_WIDTH,
   HATCH_OPACITY,
   HATCH_SPACING,
   HOUR_AXIS_FONT_SIZE,
@@ -24,7 +25,6 @@ import {
   LINE_WIDTH,
   NEEDED_BAND_OPACITY,
   NEEDED_DASH,
-  OUTLINE_DASH,
 } from './hourChartStyle';
 
 export interface HourPlotProps {
@@ -46,7 +46,9 @@ const BAR_RADIUS: [number, number, number, number] = [2, 2, 0, 0];
 /**
  * The drawn hour chart: one category per hour, so the bars, both lines, the now marker
  * and the gap row (a second axis on the same categories) always share one column grid.
- * No animation, so nothing draws in under reduced motion either. Recharts measures
+ * Each line is drawn over a page-coloured casing, so it keeps a dark edge where it
+ * crosses a solid bar of nearly its own colour. No animation, so nothing draws in under
+ * reduced motion either. Recharts measures
  * its container, so the drawing is only seen in a browser.
  */
 export function HourPlot({ model, height, staggered = false }: HourPlotProps) {
@@ -141,8 +143,19 @@ export function HourPlot({ model, height, staggered = false }: HourPlotProps) {
           fill="none"
           stroke={HOUR_COLOUR.outline}
           strokeWidth={1}
-          strokeDasharray={OUTLINE_DASH}
           isAnimationActive={false}
+        />
+        <Line
+          dataKey="scheduled"
+          type="step"
+          stroke={HOUR_COLOUR.casing}
+          strokeWidth={CASING_WIDTH}
+          dot={false}
+          activeDot={false}
+          connectNulls={false}
+          isAnimationActive={false}
+          legendType="none"
+          tooltipType="none"
         />
         <Line
           dataKey="scheduled"
@@ -153,6 +166,17 @@ export function HourPlot({ model, height, staggered = false }: HourPlotProps) {
           activeDot={false}
           connectNulls={false}
           isAnimationActive={false}
+        />
+        <Line
+          dataKey="needed"
+          type="step"
+          stroke={HOUR_COLOUR.casing}
+          strokeWidth={CASING_WIDTH}
+          dot={false}
+          activeDot={false}
+          isAnimationActive={false}
+          legendType="none"
+          tooltipType="none"
         />
         <Line
           dataKey="needed"
