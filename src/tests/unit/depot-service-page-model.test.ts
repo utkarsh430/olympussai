@@ -43,7 +43,8 @@ describe('service figures', () => {
       ['Hours short', '8'],
     ]);
     expect(figures[1]?.tag).toBe('modelled');
-    expect(figures[2]).toMatchObject({ tone: 'better', lead: true, caption: 'Over by 2' });
+    // Over is amber, the standing meaning: surplus buses are buses that could stand.
+    expect(figures[2]).toMatchObject({ tone: 'standing', lead: true, caption: 'Over by 2' });
     expect(figures[3]).toMatchObject({ caption: 'Peak +5 at 17:00', tag: 'modelled' });
     expect(figures[0]?.caption).toBe('In service or on the road');
   });

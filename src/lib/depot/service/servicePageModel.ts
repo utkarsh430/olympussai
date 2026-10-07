@@ -42,7 +42,8 @@ function currentFigures(body: Body): Body['hours'][number] | null {
 function gapTone(gap: number): DepotMeaning | undefined {
   const whole = Math.round(gap);
   if (whole === 0) return undefined;
-  return whole > 0 ? 'worse' : 'better';
+  // Over is the standing meaning: surplus buses are buses that could stand, not a good hour.
+  return whole > 0 ? 'worse' : 'standing';
 }
 
 /** The day's question beside the hour's: how many hours are short, and when the most. */

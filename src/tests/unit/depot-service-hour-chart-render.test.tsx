@@ -9,7 +9,7 @@ import {
   HOUR_COLOUR,
   LINE_WIDTH,
 } from '@/components/depot/hourChart/hourChartStyle';
-import { DEPOT_PALETTE } from '@/lib/depot/palette';
+import { DEPOT_PALETTE, meaningColour } from '@/lib/depot/palette';
 import { buildHourChartModel } from '@/lib/depot/service/hourChartModel';
 import { bannedOnScreen } from './depot-guard-rendered';
 import { routeHourlyFixture } from './depot-service-fixtures';
@@ -92,6 +92,7 @@ describe('HourChart', () => {
       );
       return Array.from(container.querySelectorAll('text')).pop()?.getAttribute('fill');
     };
+    expect(GAP_COLOUR.over).toBe(meaningColour('standing'));
     expect(fillAt(7)).toBe(GAP_COLOUR.short);
     expect(fillAt(11)).toBe(GAP_COLOUR.over);
     expect(fillAt(17)).toBe(HOUR_COLOUR.axisText);

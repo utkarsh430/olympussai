@@ -6,7 +6,7 @@ import type { GapTone } from '@/lib/depot/service/hourChartModel';
  * depot palette's meanings: deployed buses are a plain count (cyan), needed rests on the
  * demand forecast (teal, dashed, over a faint band; the only dashed mark), scheduled is the neutral ink in a
  * step line, the current hour is the amber "now", a short gap crimson (worse) and an
- * over gap green (better). Every series is also told apart by its mark and a word.
+ * over gap amber (standing: surplus buses are buses that could stand, not a good hour). Every series is also told apart by its mark and a word.
  */
 export const HOUR_COLOUR = {
   deployed: meaningColour('count'),
@@ -22,7 +22,7 @@ export const HOUR_COLOUR = {
 
 export const GAP_COLOUR: Readonly<Record<GapTone, string>> = {
   short: meaningColour('worse'),
-  over: meaningColour('better'),
+  over: meaningColour('standing'),
   even: DEPOT_PALETTE.label,
 };
 
