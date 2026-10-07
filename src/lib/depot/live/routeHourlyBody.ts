@@ -23,17 +23,29 @@ import { routeTableOf } from './routeInputs';
  * composed by `routeDayOf`, the engine's pure route day. No upstream call.
  */
 
+/**
+ * What every route of the snapshot reads from its rows, gathered in one pass: this
+ * snapshot's own journey sightings by route, and the cached route profiles. The network
+ * view gathers it once for all its routes rather than once per route.
+ */
+export interface SnapshotRouteShared {
+  readonly seen: ReadonlyMap<string, readonly LedgerJourney[]>;
+  readonly profiles: ReadonlyMap<string, RouteProfile>;
+}
+
+export function snapshotRouteShared(view: FleetSnapshotView): SnapshotRouteShared {
+  const operatingDate = operatingDateOf(view.feedNow, view.fetchedAt);
+  const seen = new Map<string, LedgerJourney[]>();
+  if (view.feedNow !== null) {
+    for (const j of ledgerJourneysOf(view.rows, operatingDate, view.feedNow)) {
+      seen.set(j.routeName, [...(seen.get(j.routeName) ?? []), j]);
+    }
+  }
+  return { seen, profiles: cachedRouteProfiles(view, operatingDate) };
+}
+
 /** The date's journeys on the route: those held, with this snapshot's own sightings merged in. */
-function routeLedger(
-  view: FleetSnapshotView,
-  held: readonly LedgerJourney[],
-  routeName: string,
-  operatingDate: string,
-): LedgerJourney[] {
-  const seen =
-    view.feedNow === null
-      ? []
-      : ledgerJourneysOf(view.rows, operatingDate, view.feedNow).filter((j) => j.routeName === routeName);
+function routeLedger(held: readonly LedgerJourney[], seen: readonly LedgerJourney[]): LedgerJourney[] {
   return [...mergeJourneys(new Map(held.map((j) => [j.journeyId, j] as const)), seen).values()];
 }
 
@@ -66,6 +78,7 @@ export async function routeDayInputsFor(
   row: RouteRow,
   services: ServiceRepositories,
   routeCoverage: Coverage,
+  shared: SnapshotRouteShared = snapshotRouteShared(view),
 ): Promise<RouteDayInputs> {
   const routeName = row.routeName;
   const analysis = analyseSnapshot(view);
@@ -81,7 +94,7 @@ export async function routeDayInputsFor(
     scheduled.tripsForRoute(routeName, operatingDate),
   ]);
   const days = operatorDays(view, row);
-  const profile = cachedRouteProfiles(view, operatingDate).get(routeName);
+  const profile = shared.profiles.get(routeName);
   const primaryDay = days.find((d) => d.depotId === primary);
   return {
     row,
@@ -91,7 +104,7 @@ export async function routeDayInputsFor(
     depotHours,
     summary,
     distinctBuses: distinct,
-    ledger: routeLedger(view, held, routeName, operatingDate),
+    ledger: routeLedger(held, shared.seen.get(routeName) ?? []),
     trips,
     profileDurationMin: profile?.scheduledDurationMin ?? null,
     profileLengthKm: profile?.lengthKm ?? null,
