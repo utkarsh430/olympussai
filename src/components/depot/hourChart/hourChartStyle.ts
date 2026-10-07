@@ -4,7 +4,7 @@ import type { GapTone } from '@/lib/depot/service/hourChartModel';
 /**
  * The hour chart's colours as values for the SVG attributes Recharts writes, from the
  * depot palette's meanings: deployed buses are a plain count (cyan), needed rests on the
- * demand forecast (teal, dashed, over a faint band), scheduled is the neutral ink in a
+ * demand forecast (teal, dashed, over a faint band; the only dashed mark), scheduled is the neutral ink in a
  * step line, the current hour is the amber "now", a short gap crimson (worse) and an
  * over gap green (better). Every series is also told apart by its mark and a word.
  */
@@ -33,8 +33,6 @@ export const NEEDED_BAND_OPACITY = 0.14;
 /** The hatch: thin diagonal strokes this far apart, at this strength. */
 export const HATCH_SPACING = 5;
 export const HATCH_OPACITY = 0.7;
-/** The not-observed column: an outline only, dashed so it never reads as a measured bar. */
-export const OUTLINE_DASH = '3 2';
 export const LINE_WIDTH = 2;
 /** The casing is a pixel wider each side than the line it sits under. */
 export const CASING_WIDTH = LINE_WIDTH + 2;

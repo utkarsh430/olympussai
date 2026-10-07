@@ -153,6 +153,15 @@ describe('HourChart', () => {
     expect(contrast(HOUR_COLOUR.deployed, HOUR_COLOUR.casing)).toBeGreaterThanOrEqual(3);
   });
 
+  it('draws a not-observed hour as a solid hairline, so only the needed line is dashed', () => {
+    render();
+    const outlined = Array.from(container.querySelectorAll(`[stroke="${HOUR_COLOUR.outline}"]`));
+    expect(outlined.length).toBeGreaterThan(0);
+    expect(outlined.filter((el) => el.hasAttribute('stroke-dasharray'))).toEqual([]);
+    const dashed = Array.from(container.querySelectorAll('[stroke-dasharray]')).map((el) => el.getAttribute('stroke'));
+    expect(new Set(dashed)).toEqual(new Set([HOUR_COLOUR.needed]));
+  });
+
   it('has a legend in words for every mark', () => {
     render();
     const legend = container.querySelector('[data-testid="hour-legend"]')?.textContent ?? '';

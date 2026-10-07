@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react';
 import { LEGEND_TEXT } from '@/lib/depot/service/serviceWording';
-import { GAP_COLOUR, HOUR_COLOUR, NEEDED_BAND_OPACITY, NEEDED_DASH, OUTLINE_DASH } from './hourChartStyle';
+import { GAP_COLOUR, HOUR_COLOUR, NEEDED_BAND_OPACITY, NEEDED_DASH } from './hourChartStyle';
 
 const SWATCH = 14;
 
@@ -35,7 +35,7 @@ export function HourLegend({ hasNow, observed, scheduled }: HourLegendProps) {
     ],
     [
       LEGEND_TEXT.notObserved,
-      <rect key="n" x={2} y={2} width={10} height={10} fill="none" stroke={HOUR_COLOUR.outline} strokeDasharray={OUTLINE_DASH} />,
+      <rect key="n" x={2} y={2} width={10} height={10} fill="none" stroke={HOUR_COLOUR.outline} />,
     ],
     [scheduled, <path key="s" d="M1 10 H7 V4 H13" fill="none" stroke={HOUR_COLOUR.scheduled} strokeWidth={2} />],
     [

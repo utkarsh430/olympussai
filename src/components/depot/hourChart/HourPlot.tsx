@@ -25,7 +25,6 @@ import {
   LINE_WIDTH,
   NEEDED_BAND_OPACITY,
   NEEDED_DASH,
-  OUTLINE_DASH,
 } from './hourChartStyle';
 
 export interface HourPlotProps {
@@ -144,7 +143,6 @@ export function HourPlot({ model, height, staggered = false }: HourPlotProps) {
           fill="none"
           stroke={HOUR_COLOUR.outline}
           strokeWidth={1}
-          strokeDasharray={OUTLINE_DASH}
           isAnimationActive={false}
         />
         <Line
