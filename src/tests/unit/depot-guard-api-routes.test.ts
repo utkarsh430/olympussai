@@ -79,7 +79,7 @@ const HOSTILE_RAW = 'REFLECTED';
  */
 const PARAM_NAMES = [
   'depotId', 'bus', 'metric', 'scope', 'days', 'horizon', 'kind', 'q', 'offset', 'limit',
-  'sort', 'dir', 'reason', 'serviceClass', 'date',
+  'sort', 'dir', 'reason', 'serviceClass', 'date', 'band', 'depot', 'page',
 ];
 const HOSTILE_QUERY = [...PARAM_NAMES, HOSTILE]
   .map((name) => `${name}=${encodeURIComponent(`-1${HOSTILE}`)}`)
@@ -97,6 +97,7 @@ const ACCEPTED_QUERY: Readonly<Record<string, string>> = {
   'history/route.ts': 'metric=index&scope=network',
   'forecast/route.ts': 'metric=index&scope=network',
   'service/route/[routeName]/route.ts': `date=${GUARD_FEED_NOW.slice(0, 10)}`,
+  'service/route.ts': 'band=midday&depot=1&page=0',
 };
 
 /*
