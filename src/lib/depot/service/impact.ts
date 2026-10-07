@@ -30,25 +30,32 @@ function leftBehind(demand: number, buses: number, need: Readonly<NeedInputs>): 
   return Math.max(0, demand - carried);
 }
 
+/** Boardings the change lets the band carry; none for a hold, which releases only buses beyond the need. */
+function passengersCarried(input: Readonly<ImpactInput>): number {
+  const { band, change, need } = input;
+  if (change <= 0) return 0;
+  return input.hours
+    .filter((h) => h.hour >= band.fromHour && h.hour <= band.toHour)
+    .reduce(
+      (sum, h) =>
+        sum + leftBehind(h.demand, h.deployed, need) - leftBehind(h.demand, h.deployed + change, need),
+      0,
+    );
+}
+
 /**
- * The MODELLED consequence of a proposal, each figure a range. Passengers: the
- * boardings the band's hours leave behind before the change less those left
- * behind after it (what a bus carries is the need formula run backwards, so
- * the two never disagree); negative for a hold that leaves some behind.
- * Revenue: those passengers at the class fare over the average ride. Bus-km:
- * the change times the band's trips times the route length, plus dead km once
- * per bus moved when known. Cost: bus-km at the REFERENCE cost per km.
+ * The MODELLED consequence of a proposal, each figure a range. Passengers: for
+ * an add, the boardings the band's hours leave behind before the change less
+ * those left behind after it (what a bus carries is the need formula run
+ * backwards); none for a hold, whose figures are what it saves. Revenue: those
+ * passengers at the class fare over the average ride. Bus-km: the change times
+ * the band's trips times the route length, plus dead km once per bus moved
+ * when known, so a hold's bus-km and cost are negative: the saving. Cost:
+ * bus-km at the REFERENCE cost per km.
  */
 export function proposalImpact(input: Readonly<ImpactInput>): ProposalImpact {
   const { band, change, need } = input;
-  const inBand = input.hours.filter((h) => h.hour >= band.fromHour && h.hour <= band.toHour);
-  const passengers = inBand.reduce(
-    (sum, h) =>
-      sum +
-      leftBehind(h.demand, h.deployed, need) -
-      leftBehind(h.demand, h.deployed + change, need),
-    0,
-  );
+  const passengers = passengersCarried(input);
   const revenuePerBoarding =
     AVG_TRIP_LENGTH_SHARE * input.lengthKm * FARE_PER_KM[need.serviceClass];
   const bandHours = band.toHour - band.fromHour + 1;

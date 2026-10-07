@@ -86,6 +86,19 @@ describe('proposalImpact', () => {
     expect(impact.costPerDay.low).toBeLessThan(impact.costPerDay.high);
   });
 
+  it('claims no passengers for a hold, only the bus-km and cost it saves, dead km included', () => {
+    // A hold releases buses beyond the need; the hour's carrying never decides it.
+    const impact = proposalImpact({ ...base, change: -2, deadKmPerTrip: 10 });
+    expect(impact.passengersPerDay).toEqual({ low: 0, high: 0 });
+    expect(impact.revenuePerDay).toEqual({ low: 0, high: 0 });
+    // 2 buses x 2 hours x half a trip an hour x 40 km = 80 km, plus 2 x 10 dead km = 100 km.
+    expect(impact.busKmPerDay).toEqual({ low: -125, high: -75 });
+    expect(impact.costPerDay).toEqual({
+      low: -Math.round(100 * COST_PER_BUS_KM * 1.25),
+      high: -Math.round(100 * COST_PER_BUS_KM * 0.75),
+    });
+  });
+
   it('answers zero everywhere for no change', () => {
     const impact = proposalImpact({ ...base, change: 0, deadKmPerTrip: 12 });
     const zero = { low: 0, high: 0 };
