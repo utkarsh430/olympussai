@@ -43,13 +43,19 @@ describe('modelledRouteHours: the route own buses, each on a modelled duty', () 
     expect(shares.reduce((s, x) => s + x, 0) / shares.length).toBeGreaterThanOrEqual(0.75);
   });
 
-  it('runs a long route bus for at least one journey and its layover', () => {
-    // 493 + 15 minutes is longer than the shortest drawn day (6 hours), so every duty runs
-    // at least that long unless the day ends first.
+  it('runs a long route bus for at least a round trip and its layover', () => {
+    // 2 × 493 + 15 minutes is longer than the longest drawn day (10 hours) and the cap (16
+    // hours) applies, so every duty runs 16 hours unless the day ends first.
     const one = modelledRouteHours(fleet({ buses: 1, journeyMinutes: 493 }));
     const hours = one.reduce((s, h) => s + h.deployed, 0);
     const lastHour = Math.max(...one.filter((h) => h.deployed > 0).map((h) => h.hour));
-    expect(hours >= 508 / 60 - 0.2 || lastHour === 23).toBe(true);
+    expect(hours >= 16 - 0.2 || lastHour === 23).toBe(true);
+  });
+
+  it('keeps a long route near its fleet into the evening', () => {
+    const day = modelledRouteHours(fleet({ journeyMinutes: 493 }));
+    const evening = day.filter((h) => h.hour >= 17 && h.hour <= 20).map((h) => h.deployed);
+    expect(Math.min(...evening)).toBeGreaterThanOrEqual(0.5 * FLEET);
   });
 
   it('runs little at night: no duty starts before 04:00', () => {

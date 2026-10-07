@@ -822,7 +822,7 @@ is built per request.
    bus carrying the route name in the snapshot (the route row's `buses`, whatever their
    state) works one day on it (`drawRouteBusDay`): it starts as the duty roll starts a
    duty (`drawDutyStart` in `sim/duties.ts`: the morning triangle, or spread over the day)
-   and works a seeded `ROUTE_BUS_DAY_MIN` = 6 to 10 hours, or one journey plus
+   and works a seeded `ROUTE_BUS_DAY_MIN` = 6 to 10 hours, or a round trip (out and back) plus
    `LAYOVER_MIN` when that is longer (the journey known from the feed's schedule or the
    profile), at most `ROUTE_BUS_DAY_MAX_MIN` = 16 hours, clipped at 24:00
    (`sim/hourlyDemandConfig.ts`); seeded by route and date. An hour's figure is the minutes

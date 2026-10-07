@@ -95,7 +95,8 @@ export const LAYOVER_MIN = 15;
 
 /**
  * The working day of one bus on the route page's modelled day, in minutes: a seeded draw
- * in this range, or one journey and its layover when that is longer, never past the cap.
+ * in this range, or a round trip (out and back) and its layover when that is longer, never
+ * past the cap.
  * Basis: a bus put on a route works a shift of about 6 to 10 hours, running trip after
  * trip, rather than one round trip; 16 hours is the longest a bus is out in a day. The
  * depot duty board keeps its own rule (`sim/duties.ts`).

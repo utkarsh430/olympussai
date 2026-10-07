@@ -39,17 +39,19 @@ const isKnown = (minutes: number | null): minutes is number =>
 
 /**
  * One bus's working day on the route: it starts as the depot duty roll starts a duty (the
- * morning triangle or spread over the day) and works a seeded 6 to 10 hours, or one journey
- * and its layover when that is longer, at most 16 hours, clipped at the end of the day.
+ * morning triangle or spread over the day) and works a seeded 6 to 10 hours, or a round
+ * trip (out and back) with its layover when that is longer, at most 16 hours, clipped at
+ * the end of the day.
  * The length is always drawn so the stream stays aligned whether the journey is known.
  */
 export function drawRouteBusDay(rng: SeededRandom, journeyMinutes: number | null): DutySpan {
   const startMin = drawDutyStart(rng);
   const drawn = rng.float(ROUTE_BUS_DAY_MIN.from, ROUTE_BUS_DAY_MIN.to);
-  const oneJourney = isKnown(journeyMinutes) ? journeyMinutes + LAYOVER_MIN : 0;
+  // Out and back with one layover: a long route's bus returns on the paired direction.
+  const roundTrip = isKnown(journeyMinutes) ? 2 * journeyMinutes + LAYOVER_MIN : 0;
   const length = Math.min(
     ROUTE_BUS_DAY_MAX_MIN,
-    Math.round(Math.max(drawn, oneJourney) / ROUND_TO_MIN) * ROUND_TO_MIN,
+    Math.round(Math.max(drawn, roundTrip) / ROUND_TO_MIN) * ROUND_TO_MIN,
   );
   return { startMin, endMin: Math.min(DAY_END_MIN, startMin + length) };
 }
@@ -64,7 +66,7 @@ function wholeBuses(buses: number): number {
  * A route's MODELLED deployment per hour, for the hours this server did not
  * observe, anchored to the route's own buses: each bus carrying the route name
  * in the snapshot works one day on it (`drawRouteBusDay`: a start as the depot
- * duty roll draws one, then 6 to 10 hours or one journey and its layover when
+ * duty roll draws one, then 6 to 10 hours or a round trip and its layover when
  * longer), seeded by route and date. An hour's figure is the bus-hours of those
  * days inside it (buses running the route, as an observed hour counts in service
  * plus on the road), one decimal. Always 24 hours.
