@@ -54,7 +54,7 @@ export function DepotBarMenu() {
           className="absolute inset-x-0 top-full z-50 flex flex-wrap items-center gap-2 border-b border-depot-line bg-depot-page px-4 py-3 sm:px-6"
         >
           {nav.depotGroup ? (
-            <nav aria-label="Network pages" className="mb-1 flex basis-full flex-col gap-2">
+            <nav aria-label="Headquarters pages" className="mb-1 flex basis-full flex-col gap-2">
               {nav.networkGroups.map((group) => (
                 <div key={group.heading}>
                   <div className="depot-label mb-1">{group.heading}</div>

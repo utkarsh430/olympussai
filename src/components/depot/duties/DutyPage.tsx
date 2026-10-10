@@ -50,7 +50,7 @@ function UnknownDepot({ depotId }: { readonly depotId: string }) {
       sentence={`No depot has the id ${depotId} in the current feed.`}
       action={
         <Link href={DEPOTS_ROOT} className="depot-link">
-          Back to the network overview
+          Back to the headquarters overview
         </Link>
       }
     />
@@ -96,7 +96,7 @@ function useDutyBody(depotId: string): {
       body: (
         <ErrorPanel title="Could not load duties" message={message} onRetry={refresh}>
           <Link href={DEPOTS_ROOT} className="depot-link">
-            Back to the network overview
+            Back to the headquarters overview
           </Link>
         </ErrorPanel>
       ),

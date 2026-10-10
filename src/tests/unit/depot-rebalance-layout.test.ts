@@ -52,7 +52,7 @@ describe('plan figures', () => {
     for (const f of figures) expect(f.label.length).toBeLessThanOrEqual(24);
     expect(figures[0]?.value).toBe('9 → 0');
     expect(figures[1]?.value).toBe('40 → 40');
-    expect(figures[1]?.caption).toBe('network, before → after');
+    expect(figures[1]?.caption).toBe('all depots, before → after');
     expect(figures[2]?.caption).toBe('in 13 transfers');
     expect(figures[3]?.value).toBe('576.0');
     expect(figures[3]?.caption).toBe('bus-km, road estimate');

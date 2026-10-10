@@ -163,7 +163,7 @@ const TIMETABLE: FeedEntry = {
   id: 'network-timetable',
   name: 'Network timetable',
   status: 'awaiting',
-  summary: 'Scheduled trips or vehicle blocks for the whole network, not only buses on the road.',
+  summary: 'Scheduled trips or vehicle blocks for the whole fleet, not only buses on the road.',
   unlocks: 'A real requirement per depot, so real surplus and deficit, and routes with no bus.',
   fields: [
     { name: 'routeId', type: 'string' },

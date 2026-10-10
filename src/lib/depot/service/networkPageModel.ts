@@ -135,7 +135,7 @@ export function networkProposalRow(p: NetworkProposal): NetworkProposalRow {
 export const NETWORK_GROUP_LABEL: Readonly<Record<NetworkProposalGroup, string>> = {
   changes: 'Changes',
   findings: 'Findings',
-  network: 'Network moves',
+  network: 'Headquarters moves',
 };
 
 const GROUP_ORDER: readonly NetworkProposalGroup[] = ['changes', 'findings', 'network'];

@@ -75,13 +75,13 @@ export interface ScopeOption {
 
 const NETWORK_OPTION: ScopeOption = {
   key: NETWORK_SCOPE_KEY,
-  label: 'Network',
+  label: 'Headquarters',
   id: '',
   detail: 'All depots',
   href: DEPOTS_ROOT,
 };
 
-/** "Network" first, then every depot by name (id breaks a tie), with kind and fleet. */
+/** "Headquarters" first, then every depot by name (id breaks a tie), with kind and fleet. */
 export function scopeOptions(depots: readonly ScopeDepot[]): readonly ScopeOption[] {
   const sorted = [...depots].sort(
     (a, b) => a.name.localeCompare(b.name, 'en') || a.id.localeCompare(b.id, 'en'),
@@ -149,7 +149,7 @@ export function scopeLabelForPath(pathname: string, depots: readonly ScopeDepot[
 
 /** The crumb: the network, a depot by name, or its id while the list is unavailable. */
 export function scopeLabel(depotId: string | null, depots: readonly ScopeDepot[] | null): string {
-  if (depotId === null) return `${SCOPE_PREFIX}Network`;
+  if (depotId === null) return `${SCOPE_PREFIX}Headquarters`;
   const depot = depots?.find((d) => d.id === depotId);
   return `${SCOPE_PREFIX}${depot ? depot.name : `Depot ${depotId}`}`;
 }

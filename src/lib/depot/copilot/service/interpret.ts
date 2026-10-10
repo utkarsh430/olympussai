@@ -37,7 +37,7 @@ export function interpretQuery(query: CopilotQuery, nameOf: (depotId: string) =>
   const name = (id: string): string => cleanName(nameOf(id));
   switch (query.kind) {
     case 'networkSummary':
-      return 'A summary of the whole network';
+      return 'A summary of the whole fleet';
     case 'depotSummary':
       return `A summary of ${name(query.depotId)}`;
     case 'depotMeasure':

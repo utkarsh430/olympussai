@@ -145,16 +145,16 @@ describe('the duty page in every state', () => {
     expect(markup).toContain('data-testid="depot-error"');
     expect(body).toContain('Could not load duties');
     expect(body).toContain('Retry');
-    expect(body).toContain('Back to the network overview');
+    expect(body).toContain('Back to the headquarters overview');
     expect(markup).toContain('href="/project/depots"');
   });
 
-  it('not found: names the id and links back to the network overview', async () => {
+  it('not found: names the id and links back to the headquarters overview', async () => {
     setHook({ error: DEPOT_NOT_FOUND_MESSAGE });
     const markup = await renderPage();
     expect(markup).toContain('data-testid="duties-unknown"');
     expect(text(markup)).toContain('No depot has the id 20 in the current feed.');
-    expect(text(markup)).toContain('Back to the network overview');
+    expect(text(markup)).toContain('Back to the headquarters overview');
     expect(markup).toContain('href="/project/depots"');
     expect(text(markup)).not.toContain('Retry');
   });

@@ -24,7 +24,7 @@ export function ServicePeakFigure() {
       ? `Of ${formatCount(summary.routes)} routes, ${summary.peak}`
       : error !== null
         ? UNAVAILABLE
-        : 'Loading the network’s hours';
+        : 'Loading the whole fleet’s hours';
   return (
     <section aria-label="Service by the hour" data-testid="service-peak-figure">
       <FigureBand label="Service by the hour">

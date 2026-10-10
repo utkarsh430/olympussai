@@ -25,7 +25,7 @@ function observedSentence(body: CopilotNetworkHours): string {
 }
 
 function proposalSentence(count: number): string {
-  if (count === 0) return `No proposal is made across the network today. ${RECOMMENDATION_ONLY}`;
+  if (count === 0) return `No proposal is made across all depots today. ${RECOMMENDATION_ONLY}`;
   const lines = Array.from({ length: Math.min(count, MAX_BAND_PROPOSALS) }, (_, i) =>
     ph(`brief.p.${i + 1}`),
   ).join('; ');

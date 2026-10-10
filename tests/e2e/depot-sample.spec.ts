@@ -251,7 +251,7 @@ const PAGE_TEMPLATES: readonly string[] = discover(PAGES_DIR, 'page.tsx').map((f
 
 /** Each page's heading, as the page writes it (the screen shows it in capitals). */
 const PAGE_HEADING: Readonly<Record<string, string>> = {
-  '/project/depots': 'Network overview',
+  '/project/depots': 'Headquarters overview',
   '/project/depots/ask': 'AI Engine',
   '/project/depots/economics': 'Economics',
   '/project/depots/exceptions': 'Exceptions',
@@ -794,7 +794,7 @@ test.describe('10. the sample is never presented as live', () => {
 
   test('the footer disclaimer does not call the sample live', async ({ page, sample }) => {
     expect(sample.depotId).toBeTruthy();
-    await openPage(page, '/project/depots', 'Network overview');
+    await openPage(page, '/project/depots', 'Headquarters overview');
     await expect(page.getByTestId('footer-disclaimer')).not.toContainText(/\blive\b/i);
   });
 });

@@ -24,7 +24,7 @@ let fetchMock: ReturnType<typeof vi.fn>;
 async function show(feedTime: string): Promise<void> {
   await act(async () =>
     root?.render(
-      <BriefingCard scope={{ kind: 'network' }} title="Network briefing" currentFeedTime={feedTime} />,
+      <BriefingCard scope={{ kind: 'network' }} title="Headquarters briefing" currentFeedTime={feedTime} />,
     ),
   );
 }
@@ -77,14 +77,14 @@ describe('BriefingCard embedded in a row that already names it', () => {
       root?.render(
         <BriefingCard
           scope={{ kind: 'network' }}
-          title="Network briefing"
+          title="Headquarters briefing"
           currentFeedTime={WRITTEN_AT}
           embedded
         />,
       ),
     );
     expect(container.querySelectorAll('h2, h3, h4')).toHaveLength(0);
-    expect(container.querySelector('section')?.getAttribute('aria-label')).toBe('Network briefing');
+    expect(container.querySelector('section')?.getAttribute('aria-label')).toBe('Headquarters briefing');
     await act(async () => buttonsNamed('Write briefing')[0]?.click());
     expect(container.querySelectorAll('h2, h3, h4')).toHaveLength(0);
     expect(container.textContent).not.toContain('Headline');
@@ -94,7 +94,7 @@ describe('BriefingCard embedded in a row that already names it', () => {
 
   it('keeps its label and the headline when it stands alone', async () => {
     await show(WRITTEN_AT);
-    expect(container.querySelector('h2')?.textContent).toBe('Network briefing');
+    expect(container.querySelector('h2')?.textContent).toBe('Headquarters briefing');
     await act(async () => buttonsNamed('Write briefing')[0]?.click());
     expect(container.querySelector('h3')?.textContent).toBe('Headline');
   });

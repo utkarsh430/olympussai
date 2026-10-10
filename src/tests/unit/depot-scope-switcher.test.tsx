@@ -50,7 +50,7 @@ describe('ScopeSwitcher', () => {
     const user = userEvent.setup();
     render(<ScopeSwitcher />);
     await user.click(screen.getByRole('button'));
-    await user.type(screen.getByRole('combobox'), 'a');
+    await user.type(screen.getByRole('combobox'), 'ra');
     expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual([
       expect.stringContaining('Agra Fort'),
       expect.stringContaining('Varanasi'),

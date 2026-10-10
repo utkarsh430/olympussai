@@ -43,7 +43,7 @@ export function NetworkTrends({ metric }: NetworkTrendsProps) {
       <div className="flex min-w-0 flex-col gap-3">
         <MetricChooser path={NETWORK_TRENDS_PATH} metric={metric} />
         {stale ? <StaleNotice since={forecast.data?.feedNow ?? trends.data?.feedNow ?? null} /> : null}
-        <ForecastBlock state={forecast} errorTitle="Could not load the network trend" />
+        <ForecastBlock state={forecast} errorTitle="Could not load the headquarters trend" />
       </div>
       <section aria-labelledby="trends-units-heading" className="min-w-0">
         <SectionLabel

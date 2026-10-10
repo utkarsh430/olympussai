@@ -101,9 +101,9 @@ const DEPOTS: readonly ScopeDepot[] = [
 describe('scopeOptions', () => {
   const options = scopeOptions(DEPOTS);
 
-  it('puts Network first, then depots by name with kind and fleet', () => {
+  it('puts Headquarters first, then depots by name with kind and fleet', () => {
     expect(options.map((o) => o.label)).toEqual([
-      'Network',
+      'Headquarters',
       'Agra Fort',
       'Lucknow Electric',
       'Varanasi',
@@ -130,9 +130,9 @@ describe('filterScopeOptions', () => {
 
   it('matches name and id case-insensitively, keeping the order', () => {
     expect(filterScopeOptions(options, 'LUCK').map((o) => o.label)).toEqual(['Lucknow Electric']);
-    expect(filterScopeOptions(options, 'a').map((o) => o.label)).toEqual(['Agra Fort', 'Varanasi']);
+    expect(filterScopeOptions(options, 'a').map((o) => o.label)).toEqual(['Headquarters', 'Agra Fort', 'Varanasi']);
     expect(filterScopeOptions(options, '31').map((o) => o.label)).toEqual(['Lucknow Electric']);
-    expect(filterScopeOptions(options, 'net').map((o) => o.label)).toEqual(['Network']);
+    expect(filterScopeOptions(options, 'head').map((o) => o.label)).toEqual(['Headquarters']);
   });
 
   it('returns nothing when nothing matches', () => {
@@ -167,7 +167,7 @@ describe('moveActiveIndex (wraps around)', () => {
 
 describe('scopeLabel', () => {
   it('names the network, a known depot, or an id not yet in the list', () => {
-    expect(scopeLabel(null, DEPOTS)).toBe('UPSRTC / Network');
+    expect(scopeLabel(null, DEPOTS)).toBe('UPSRTC / Headquarters');
     expect(scopeLabel('20', DEPOTS)).toBe('UPSRTC / Varanasi');
     expect(scopeLabel('99', DEPOTS)).toBe('UPSRTC / Depot 99');
     expect(scopeLabel('99', null)).toBe('UPSRTC / Depot 99');
@@ -178,6 +178,6 @@ describe('scopeLabelForPath', () => {
   it('never claims the network for a malformed depot address', () => {
     expect(scopeLabelForPath('/project/depots/d/abc', DEPOTS)).toBe('UPSRTC / Unknown depot');
     expect(scopeLabelForPath('/project/depots/d/20/roster', DEPOTS)).toBe('UPSRTC / Varanasi');
-    expect(scopeLabelForPath('/project/depots/league', DEPOTS)).toBe('UPSRTC / Network');
+    expect(scopeLabelForPath('/project/depots/league', DEPOTS)).toBe('UPSRTC / Headquarters');
   });
 });

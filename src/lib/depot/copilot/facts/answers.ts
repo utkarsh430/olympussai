@@ -35,7 +35,7 @@ export interface AnswerData {
 }
 
 const SCOPE_SENTENCE =
-  'This assistant can answer questions about the network as a whole, a named depot, depot rankings, depots in deficit or surplus, proposed transfers, exceptions, comparisons between depots, departures from the yard, a named route at a given time of day or across its day, the routes short or in surplus in a band of the day, and the service brief for today.';
+  'This assistant can answer questions about the whole fleet, a named depot, depot rankings, depots in deficit or surplus, proposed transfers, exceptions, comparisons between depots, departures from the yard, a named route at a given time of day or across its day, the routes short or in surplus in a band of the day, and the service brief for today.';
 
 type UnsupportedReason = Extract<CopilotQuery, { kind: 'unsupported' }>['reason'];
 

@@ -37,7 +37,7 @@ describe('AnswerView layout', () => {
     act(() =>
       root.render(
         <ol>
-          <AnswerView entry={{ id: 1, question: 'Which depots are dark?', scopeLabel: 'Whole network', response: RESPONSE }} />
+          <AnswerView entry={{ id: 1, question: 'Which depots are dark?', scopeLabel: 'Headquarters', response: RESPONSE }} />
         </ol>,
       ),
     );
@@ -60,7 +60,7 @@ describe('AnswerView layout', () => {
     act(() =>
       root.render(
         <ol>
-          <AnswerView entry={{ id: 1, question: 'Which depots are dark?', scopeLabel: 'Whole network', response }} />
+          <AnswerView entry={{ id: 1, question: 'Which depots are dark?', scopeLabel: 'Headquarters', response }} />
         </ol>,
       ),
     );
@@ -72,7 +72,7 @@ describe('AnswerView layout', () => {
     act(() =>
       root.render(
         <ol>
-          <AnswerView entry={{ id: 1, question: 'q', scopeLabel: 'Whole network', response: RESPONSE }} />
+          <AnswerView entry={{ id: 1, question: 'q', scopeLabel: 'Headquarters', response: RESPONSE }} />
         </ol>,
       ),
     );

@@ -91,7 +91,7 @@ describe('the network overview page', () => {
     const page = await visible();
     expect(page).toContain('DERIVED');
     expect(page).not.toMatch(/\bMIXED\b|\bLIVE\b/);
-    expect(page).toContain('Network overview');
+    expect(page).toContain('Headquarters overview');
   });
 
   it.each(STATES.slice(2))(

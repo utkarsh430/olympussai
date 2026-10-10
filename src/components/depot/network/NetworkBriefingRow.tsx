@@ -31,7 +31,7 @@ export function NetworkBriefingRow({ feedNow }: { readonly feedNow: string | nul
     >
       <div className="flex min-h-9 min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 py-1">
         <h2 id="network-briefing-row" className="depot-label">
-          Network briefing
+          Headquarters briefing
         </h2>
         <p
           data-testid="depot-briefing-row-sentence"
@@ -54,7 +54,7 @@ export function NetworkBriefingRow({ feedNow }: { readonly feedNow: string | nul
         {mounted ? (
           <BriefingCard
             scope={NETWORK_SCOPE}
-            title="Network briefing"
+            title="Headquarters briefing"
             currentFeedTime={feedNow}
             embedded
           />

@@ -102,7 +102,7 @@ export function NetworkServicePage(props: NetworkServicePageProps) {
         <Filters response={response} onBand={props.onBand} onDepot={props.onDepot} />
         <NetworkHeatMap response={response} onPage={props.onPage ?? NO_OP} />
         <div data-testid="network-figure-band">
-          <FigureBand label="The band across the network">
+          <FigureBand label="The band across all depots">
             {networkFigures(response).map((f) => (
               <Figure key={f.label} label={f.label} value={f.value} caption={f.caption} tag={f.tag} tone={f.tone} lead={f.lead} />
             ))}

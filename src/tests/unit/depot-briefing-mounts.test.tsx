@@ -47,14 +47,14 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
-describe('Network overview briefing', () => {
+describe('Headquarters overview briefing', () => {
   it('shows the card once when data is present and requests nothing on mount', () => {
     contexts.network = {
       ...base,
       data: { stale: false, depots: [], scores: [], kpis: {}, feedNow: 'x' },
     };
     const markup = renderToStaticMarkup(<NetworkOverview />);
-    expect(countOf(markup, '>Network briefing<')).toBe(1);
+    expect(countOf(markup, '>Headquarters briefing<')).toBe(1);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
@@ -69,15 +69,15 @@ describe('Network overview briefing', () => {
     expect(markup).not.toMatch(/<details[^>]*\sopen/);
     expect(markup).toContain('How these figures are produced');
     expect(markup.indexOf('How these figures are produced')).toBeGreaterThan(
-      markup.indexOf('Network briefing'),
+      markup.indexOf('Headquarters briefing'),
     );
   });
 
   it('does not show the card while loading or after a failure', () => {
     contexts.network = { ...base, data: null, loading: true };
-    expect(renderToStaticMarkup(<NetworkOverview />)).not.toContain('Network briefing');
+    expect(renderToStaticMarkup(<NetworkOverview />)).not.toContain('Headquarters briefing');
     contexts.network = { ...base, data: null, error: 'down' };
-    expect(renderToStaticMarkup(<NetworkOverview />)).not.toContain('Network briefing');
+    expect(renderToStaticMarkup(<NetworkOverview />)).not.toContain('Headquarters briefing');
   });
 });
 

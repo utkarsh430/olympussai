@@ -60,9 +60,9 @@ const TABLE: readonly (readonly [string, CopilotQuery, string])[] = [
     'A question outside what can be answered here',
   ],
   // No depot: the network.
-  ['How many buses are dark right now?', { kind: 'networkSummary' }, 'A summary of the whole network'],
-  ['how many buses are off the road', { kind: 'networkSummary' }, 'A summary of the whole network'],
-  ['How many buses are on the road?', { kind: 'networkSummary' }, 'A summary of the whole network'],
+  ['How many buses are dark right now?', { kind: 'networkSummary' }, 'A summary of the whole fleet'],
+  ['how many buses are off the road', { kind: 'networkSummary' }, 'A summary of the whole fleet'],
+  ['How many buses are on the road?', { kind: 'networkSummary' }, 'A summary of the whole fleet'],
   // Unchanged: a summary, a ranking and a list stay what they were.
   ['Tell me about Kaushambi', { kind: 'depotSummary', depotId: '49' }, 'A summary of KAUSHAMBI'],
   [

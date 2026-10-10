@@ -10,9 +10,9 @@ describe('depot scope not-found page', () => {
     expect(markup).toContain('This depot address is not valid');
   });
 
-  it('links back to the network overview', () => {
+  it('links back to the headquarters overview', () => {
     expect(markup).toMatch(
-      /<a[^>]*href="\/project\/depots"[^>]*>Back to the network overview<\/a>/,
+      /<a[^>]*href="\/project\/depots"[^>]*>Back to the headquarters overview<\/a>/,
     );
   });
 });

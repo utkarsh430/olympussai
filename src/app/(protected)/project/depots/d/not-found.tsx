@@ -16,9 +16,9 @@ export default function DepotNotFound() {
         description="This depot address is not valid: depot ids are the feed's home-depot numbers."
       />
       <EmptyState>
-        Choose a depot from the scope switcher or the network overview.{' '}
+        Choose a depot from the scope switcher or the headquarters overview.{' '}
         <Link href={DEPOTS_ROOT} className="depot-link">
-          Back to the network overview
+          Back to the headquarters overview
         </Link>
       </EmptyState>
     </>

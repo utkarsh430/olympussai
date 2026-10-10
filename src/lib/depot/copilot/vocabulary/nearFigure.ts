@@ -16,7 +16,7 @@ export const FIGURE_WINDOW_WORDS = 2;
 export const BEFORE_FIGURE_WORDS: readonly string[] = words(`
 account against already although and are as at away buses by count cover coverage covers
 currently dark deficit depot depots distance efficiency feed figure fleet flagged flags for gone
-had has have held here holds homed in index is it its known latest leave level lost maintenance maximum moving
+had has have headquarters held here holds homed in index is it its known latest leave level lost maintenance maximum moving
 network now of off on plan position proposes rate receiving reporting reports road running schedule sending
 share short signal since snapshot stand stands surplus that the this those though time to
 updated was were which while with yard

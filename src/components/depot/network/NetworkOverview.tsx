@@ -32,7 +32,7 @@ const OPERATIONS_HREF = '/project/upsrtc';
 function OverviewLoading() {
   return (
     <div className="space-y-8" data-testid="depot-overview-loading">
-      <LoadingBlock rows={2} rowHeight={72} label="Loading network figures" />
+      <LoadingBlock rows={2} rowHeight={72} label="Loading headquarters figures" />
       <div className="depot-map-layout">
         <LoadingBlock rows={1} rowHeight={460} label="Loading the units map" />
         <LoadingBlock rows={1} rowHeight={220} label="Loading the depot summary" />

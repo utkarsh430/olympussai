@@ -444,7 +444,7 @@ test.describe('UPSRTC AI Operations Copilot', () => {
     await page.getByTestId('open-depot-management').click();
 
     await expect(page).toHaveURL(/\/project\/depots$/);
-    await expect(page.getByRole('heading', { level: 1, name: /Network overview/i })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: /Headquarters overview/i })).toBeVisible();
     await expect(page.getByTestId('depot-nav')).toBeVisible();
   });
 

@@ -44,7 +44,7 @@ describe('depotScopeState', () => {
   it('is the network scope when there is no depot id', () => {
     expect(depotScopeState({ depotId: null, depots: DEPOTS, detailError: null })).toEqual({
       known: true,
-      label: 'UPSRTC / Network',
+      label: 'UPSRTC / Headquarters',
     });
   });
 });

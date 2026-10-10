@@ -935,7 +935,7 @@ describe('pinned scripted phrasing', () => {
   if (!transfer) throw new Error('fixture needs a transfer');
   const caveat =
     'The requirement is modelled until a network timetable is supplied, so these figures are a planning estimate rather than a measured need.';
-  const unassessed = `${caveat} The move cannot be assessed from the available modelled balances, so the network team may wish to review it before relying on it.`;
+  const unassessed = `${caveat} The move cannot be assessed from the available modelled balances, so the headquarters team may wish to review it before relying on it.`;
   const closing = (d: DepotDistributionResponse) =>
     paragraphsOf(buildTransferRationale(transfer, d)).at(-1);
 
@@ -1002,7 +1002,7 @@ describe('pinned scripted phrasing', () => {
 
   it('makes the transfer closing paragraph depend on the modelled balances', () => {
     expect(closing(dist)).toBe(
-      `${caveat} On the modelled figures the surplus at KANPUR covers the move and ETAWAH has a deficit it would ease; the network team may wish to confirm it.`,
+      `${caveat} On the modelled figures the surplus at KANPUR covers the move and ETAWAH has a deficit it would ease; the headquarters team may wish to confirm it.`,
     );
     expect(closing({ ...dist, balances: [] })).toBe(unassessed);
     const giver = (balance: number) =>
@@ -1020,7 +1020,7 @@ describe('pinned scripted phrasing', () => {
   it('says the move is beyond the maximum, never supported, when the distance exceeds it', () => {
     const far = { ...dist, rebalanceParams: { ...dist.rebalanceParams, maxTransferKm: 100 } };
     expect(closing(far)).toBe(
-      `${caveat} The modelled balances alone would suit the move, but the distance is beyond the planner's maximum, so the network team may wish to review it before relying on it.`,
+      `${caveat} The modelled balances alone would suit the move, but the distance is beyond the planner's maximum, so the headquarters team may wish to review it before relying on it.`,
     );
     expect(closing(far)).not.toContain('covers the move');
     const edge = { ...dist, rebalanceParams: { ...dist.rebalanceParams, maxTransferKm: 142.34 } };

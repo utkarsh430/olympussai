@@ -74,11 +74,11 @@ function verdict(
     giving.balance >= buses &&
     receiving.balance < 0;
   if (balancesSupport && !withinMaximum) {
-    return `${MODELLED_CAVEAT} The modelled balances alone would suit the move, but the distance is beyond the planner's maximum, so the network team may wish to review it before relying on it.`;
+    return `${MODELLED_CAVEAT} The modelled balances alone would suit the move, but the distance is beyond the planner's maximum, so the headquarters team may wish to review it before relying on it.`;
   }
   return balancesSupport
-    ? `${MODELLED_CAVEAT} On the modelled figures the surplus at ${ph('transfer.from_name')} covers the move and ${ph('transfer.to_name')} has a deficit it would ease; the network team may wish to confirm it.`
-    : `${MODELLED_CAVEAT} The move cannot be assessed from the available modelled balances, so the network team may wish to review it before relying on it.`;
+    ? `${MODELLED_CAVEAT} On the modelled figures the surplus at ${ph('transfer.from_name')} covers the move and ${ph('transfer.to_name')} has a deficit it would ease; the headquarters team may wish to confirm it.`
+    : `${MODELLED_CAVEAT} The move cannot be assessed from the available modelled balances, so the headquarters team may wish to review it before relying on it.`;
 }
 
 function givingSentence(balance: DepotBalance | undefined): string {
