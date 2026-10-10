@@ -8,8 +8,8 @@ import { answerScopeLabel, answerTableView, scopeMismatchLine } from '@/lib/depo
  */
 describe('answerScopeLabel', () => {
   it('shows the scope the answer used, not the form', () => {
-    expect(answerScopeLabel({ kind: 'network' }, 'KAUSHAMBI')).toBe('Whole network');
-    expect(answerScopeLabel({ kind: 'depot', depotId: '7', depotName: 'KAUSHAMBI' }, 'Whole network')).toBe(
+    expect(answerScopeLabel({ kind: 'network' }, 'KAUSHAMBI')).toBe('Headquarters');
+    expect(answerScopeLabel({ kind: 'depot', depotId: '7', depotName: 'KAUSHAMBI' }, 'Headquarters')).toBe(
       'KAUSHAMBI',
     );
     expect(
@@ -21,12 +21,12 @@ describe('answerScopeLabel', () => {
             { depotId: '8', depotName: 'GARH' },
           ],
         },
-        'Whole network',
+        'Headquarters',
       ),
     ).toBe('KAUSHAMBI and GARH');
   });
   it('falls back to the form for a declined question (no answer scope)', () => {
-    expect(answerScopeLabel(undefined, 'Whole network')).toBe('Whole network');
+    expect(answerScopeLabel(undefined, 'Headquarters')).toBe('Headquarters');
   });
 });
 
@@ -76,11 +76,11 @@ describe('answerTableView', () => {
 });
 
 describe('scopeMismatchLine', () => {
-  const network = { depotId: null, label: 'Whole network' };
-  it('says so when the answer was about a depot while the form is on the whole network', () => {
+  const network = { depotId: null, label: 'Headquarters' };
+  it('says so when the answer was about a depot while the form is on headquarters', () => {
     expect(
       scopeMismatchLine({ kind: 'depot', depotId: '49', depotName: 'KAUSHAMBI' }, network),
-    ).toBe('The last answer was about KAUSHAMBI; the form is set to the whole network.');
+    ).toBe('The last answer was about KAUSHAMBI; the form is set to headquarters.');
   });
   it('is silent when the answer and the form agree', () => {
     expect(scopeMismatchLine({ kind: 'network' }, network)).toBeNull();
@@ -92,9 +92,9 @@ describe('scopeMismatchLine', () => {
     ).toBeNull();
     expect(scopeMismatchLine(undefined, network)).toBeNull();
   });
-  it('names the network when the form is on a depot', () => {
+  it('names headquarters when the form is on a depot', () => {
     expect(scopeMismatchLine({ kind: 'network' }, { depotId: '8', label: 'GARH' })).toBe(
-      'The last answer was about the whole network; the form is set to GARH.',
+      'The last answer was about headquarters; the form is set to GARH.',
     );
   });
 });

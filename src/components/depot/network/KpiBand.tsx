@@ -74,8 +74,8 @@ export function KpiBand({ kpis, depots }: KpiBandProps) {
   const { figures } = kpiLayout(kpis, depots);
 
   return (
-    <section aria-label="Network figures" data-testid="depot-kpi-band">
-      <FigureBand label="Network figures">
+    <section aria-label="Headquarters figures" data-testid="depot-kpi-band">
+      <FigureBand label="Headquarters figures">
         {figures.map((figure) => (
           <BandFigure key={figure.key} figure={figure} progress={progress} />
         ))}

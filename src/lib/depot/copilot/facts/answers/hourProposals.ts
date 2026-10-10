@@ -68,7 +68,7 @@ export function hourProposalsAnswer(
     ...bandProposalFacts(proposals),
   ];
   const routes = routeList(band);
-  return answer(depot ? cleanName(depot.name) : 'the network', facts, {
+  return answer(depot ? cleanName(depot.name) : 'the whole fleet', facts, {
     headline: depot
       ? `Routes of ${ph('depot.name')} short and in surplus: ${ph('band.label')}`
       : `Routes short and in surplus: ${ph('band.label')}`,

@@ -157,7 +157,7 @@ describe('network Trends page', () => {
     hooks.forecast.mockReturnValue(polled(null, { error: 'Depot data unavailable' }));
     hooks.trends.mockReturnValue(polled(null, { error: 'Depot data unavailable' }));
     const page = text(renderToStaticMarkup(<NetworkTrends metric="onRoadShare" />));
-    expect(page).toContain('Could not load the network trend');
+    expect(page).toContain('Could not load the headquarters trend');
     expect(page).toContain('Could not load the unit trends');
     expect(page).toContain('Retry');
   });

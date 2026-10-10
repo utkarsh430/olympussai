@@ -7,10 +7,10 @@ import type { CopilotAnswerScope, CopilotAnswerTable } from '@/lib/depot/copilot
  * column whose figures are generated. Pure; the components render what this returns.
  */
 
-/** "Whole network", the depot's name, or both names for a comparison; the form's label otherwise. */
+/** "Headquarters", the depot's name, or both names for a comparison; the form's label otherwise. */
 export function answerScopeLabel(scope: CopilotAnswerScope | undefined, formLabel: string): string {
   if (!scope) return formLabel;
-  if (scope.kind === 'network') return 'Whole network';
+  if (scope.kind === 'network') return 'Headquarters';
   if (scope.kind === 'depot') return scope.depotName;
   return scope.depots.length === 0 ? formLabel : scope.depots.map((d) => d.depotName).join(' and ');
 }
@@ -25,11 +25,11 @@ export function scopeMismatchLine(
   form: { readonly depotId: string | null; readonly label: string },
 ): string | null {
   if (!scope) return null;
-  const formWords = form.depotId === null ? 'the whole network' : form.label;
+  const formWords = form.depotId === null ? 'headquarters' : form.label;
   if (scope.kind === 'network') {
     return form.depotId === null
       ? null
-      : `The last answer was about the whole network; the form is set to ${formWords}.`;
+      : `The last answer was about headquarters; the form is set to ${formWords}.`;
   }
   if (scope.kind === 'depot') {
     return scope.depotId === form.depotId

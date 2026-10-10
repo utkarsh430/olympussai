@@ -21,7 +21,7 @@ const HOW_PRODUCED: readonly string[] = [
   'The last five answers stay on this page and nothing is stored.',
 ];
 
-/** Plain-language questions about the network or one depot, answered from the live figures. */
+/** Plain-language questions about the whole fleet or one depot, answered from the live figures. */
 export default async function DepotAskPage() {
   // Layouts do not re-run on client navigation, so the page gates itself too.
   await requireProjectSession(ASK_PATH);
@@ -30,7 +30,7 @@ export default async function DepotAskPage() {
     <>
       <PageHeader
         title="AI Engine"
-        description="Ask the AI Engine about the network or one depot; answers are advisory, and questions about staff are not answered."
+        description="Ask the AI Engine about the whole fleet or one depot; answers are advisory, and questions about staff are not answered."
         provenanceLine={ASK_PROVENANCE}
       />
       <AskPanel />

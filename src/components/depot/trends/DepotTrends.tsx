@@ -42,7 +42,7 @@ export function DepotTrends({ metric }: DepotTrendsProps) {
         <EmptyState>
           No depot has the id {depotId} in the current feed.{' '}
           <Link href={DEPOTS_ROOT} className="depot-link">
-            Back to the network overview
+            Back to the headquarters overview
           </Link>
         </EmptyState>
       </div>

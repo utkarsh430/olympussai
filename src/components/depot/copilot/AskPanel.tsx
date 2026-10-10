@@ -29,7 +29,7 @@ interface PendingQuestion {
 
 /** What the console answers about, shown while nothing has been asked. */
 const CAPABILITIES: readonly { readonly label: string; readonly text: string }[] = [
-  { label: 'Network', text: 'Rankings, a summary, depots short of buses or with spare ones.' },
+  { label: 'Headquarters', text: 'Rankings, a summary, depots short of buses or with spare ones.' },
   { label: 'One depot', text: 'Its summary, exceptions, transfers, outshedding; choose it under About.' },
   { label: 'Service by the hour', text: "Today's plan, routes over-served by band, why a route is short at an hour." },
 ];
@@ -56,7 +56,7 @@ export function AskPanel() {
   );
   const chosen = depots.find((d) => d.id === scopeValue);
   const scope: CopilotScope = chosen ? { kind: 'depot', depotId: chosen.id } : { kind: 'network' };
-  const scopeLabel = chosen ? chosen.name : 'Whole network';
+  const scopeLabel = chosen ? chosen.name : 'Headquarters';
   // The last answer's scope and the form's never silently disagree.
   const mismatch = scopeMismatchLine(history[0]?.response.answerScope, {
     depotId: chosen ? chosen.id : null,
@@ -138,7 +138,7 @@ export function AskPanel() {
             value={chosen ? chosen.id : NETWORK_VALUE}
             onChange={(event) => setScopeValue(event.target.value)}
           >
-            <option value={NETWORK_VALUE}>Whole network</option>
+            <option value={NETWORK_VALUE}>Headquarters</option>
             {depots.map((depot) => (
               <option key={depot.id} value={depot.id}>
                 {depot.name}
@@ -169,7 +169,7 @@ export function AskPanel() {
               rows={3}
               value={text}
               aria-describedby={ids.help}
-              placeholder={`Ask about ${scopeLabel === 'Whole network' ? 'the network' : scopeLabel}, a route or an hour of the day…`}
+              placeholder={`Ask about ${scopeLabel === 'Headquarters' ? 'the whole fleet' : scopeLabel}, a route or an hour of the day…`}
               onChange={(event) => {
                 setText(event.target.value);
                 setMessage('');

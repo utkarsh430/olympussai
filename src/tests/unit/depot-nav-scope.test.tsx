@@ -44,7 +44,7 @@ describe('the navigation strip below 1280px', () => {
     route.path = '/project/depots/league';
     render(<DepotNav />);
     const strip = within(screen.getByTestId('depot-nav-strip'));
-    expect(strip.queryByRole('button', { name: 'Network' })).toBeNull();
+    expect(strip.queryByRole('button', { name: 'Headquarters' })).toBeNull();
     expect(strip.getByRole('link', { name: 'League table' }).getAttribute('aria-current')).toBe(
       'page',
     );
@@ -66,7 +66,7 @@ describe('the rail from 1280px', () => {
     route.path = '/project/depots/d/49/yard';
     render(<DepotNav />);
     const tabs = within(screen.getByTestId('depot-nav')).getAllByTestId('depot-nav-category');
-    expect(tabs.map((tab) => tab.textContent)).toEqual(['KAUSHAMBI', 'Network', 'Intelligence', 'System']);
+    expect(tabs.map((tab) => tab.textContent)).toEqual(['KAUSHAMBI', 'Headquarters', 'Intelligence', 'System']);
     for (const tab of tabs) expect(tab.className.split(/\s+/)).toContain('depot-nav-category');
     const lit = tabs.filter((tab) => tab.className.split(/\s+/).includes('depot-nav-category-current'));
     expect(lit.map((tab) => tab.textContent)).toEqual(['KAUSHAMBI']);

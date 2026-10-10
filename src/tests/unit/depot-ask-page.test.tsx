@@ -166,10 +166,10 @@ describe('the ask page', () => {
     },
   );
 
-  it('says when the answer was about a depot while the form is still on the whole network', async () => {
+  it('says when the answer was about a depot while the form is still on headquarters', async () => {
     await askShort('claude');
     expect(container.querySelector('[data-testid="ask-scope-mismatch"]')?.textContent).toBe(
-      'The last answer was about KAUSHAMBI; the form is set to the whole network.',
+      'The last answer was about KAUSHAMBI; the form is set to headquarters.',
     );
   });
 

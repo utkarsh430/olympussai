@@ -52,7 +52,7 @@ const E2E_ORIGIN =
   `http://${process.env.E2E_HOST ?? 'localhost'}:${process.env.E2E_PORT ?? '3000'}`;
 const E2E_PROJECT_NAME = process.env.E2E_PROJECT_NAME ?? 'upsrtc';
 
-const NETWORK_OVERVIEW = /Network overview/i;
+const NETWORK_OVERVIEW = /Headquarters overview/i;
 
 test.use({ viewport: { width: 1440, height: 900 } });
 

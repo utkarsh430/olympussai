@@ -49,7 +49,7 @@ export function planFigures(s: PlanSummary): readonly PlanFigure[] {
       key: 'spare',
       label: 'Surplus buses',
       value: `${formatCount(s.before.totalSurplus)} → ${formatCount(s.after.totalSurplus)}`,
-      caption: 'network, before → after',
+      caption: 'all depots, before → after',
     },
     {
       key: 'moved',

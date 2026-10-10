@@ -72,7 +72,7 @@ afterEach(() => {
 });
 
 const STATES = [
-  ['loading', () => polled({ loading: true }), 'Loading the network’s day hour by hour'],
+  ['loading', () => polled({ loading: true }), 'Loading the whole fleet’s day hour by hour'],
   ['error', () => polled({ error: 'Depot data unavailable' }), 'Depot data unavailable'],
   ['empty', () => polled({ data: networkHourlyFixture({ routes: { total: 0, page: 0, pageSize: 25, rows: [] } }) }), 'No route reports a route name'],
   ['data', () => polled({ data: networkHourlyFixture() }), 'Routes by hour'],
@@ -145,7 +145,7 @@ describe('the network service page with data', () => {
     const table = container.querySelector('[data-testid="service-network-proposals"]');
     expect(table?.textContent).toContain('Changes');
     expect(table?.textContent).toContain('Findings');
-    expect(table?.textContent).toContain('Network moves');
+    expect(table?.textContent).toContain('Headquarters moves');
     expect(table?.textContent).toContain('Reserve 2');
     expect(table?.textContent).toContain('Recommendation only');
   });

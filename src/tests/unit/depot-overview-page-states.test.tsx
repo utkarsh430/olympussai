@@ -132,7 +132,7 @@ describe('the overview provenance line, driven through its own states', () => {
     expect(container.querySelectorAll('[data-testid="depot-provenance-line"]')).toHaveLength(1);
     expect(line()?.getAttribute('data-tone')).toBe('derived');
     expect(line()?.textContent).toMatch(WORDS[name]!);
-    expect(container.querySelector('h1')?.textContent).toBe('Network overview');
+    expect(container.querySelector('h1')?.textContent).toBe('Headquarters overview');
   });
 
   it('draws "last good data" in the stale tone only when the data is stale', async () => {
@@ -173,7 +173,7 @@ describe('the overview never prints a raw date (date rule)', () => {
     // The whole body is drawn, so the scan above covered it: table, exceptions, briefing row.
     expect(container.textContent).toContain('KAUSHAMBI');
     expect(container.textContent).toContain('All units');
-    expect(container.textContent).toContain('Network briefing');
+    expect(container.textContent).toContain('Headquarters briefing');
     expect(container.textContent).toContain('Exceptions');
     const probe = document.createElement('span');
     probe.setAttribute('aria-label', 'as of 2026-10-06');

@@ -92,7 +92,7 @@ async function buildBody(
   query: TrendsQuery,
 ): Promise<TrendsBody> {
   const [network, ...units] = await Promise.all([
-    trendRow(view, query, { kind: 'network' }, 'Network'),
+    trendRow(view, query, { kind: 'network' }, 'Headquarters'),
     ...analysis.depots.map((d) => trendRow(view, query, { kind: 'depot', depotId: d.id }, d.name)),
   ]);
   return {

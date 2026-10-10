@@ -157,7 +157,7 @@ describe('BriefingCard', () => {
 
   it('requests nothing until asked, announces progress and focuses the headline', async () => {
     const fn = stubFetchOk();
-    await render(<BriefingCard scope={{ kind: 'network' }} title="Network briefing" />);
+    await render(<BriefingCard scope={{ kind: 'network' }} title="Headquarters briefing" />);
     expect(fn).not.toHaveBeenCalled();
     const status = container.querySelector('[role="status"]') as HTMLElement;
     expect(status.textContent).toBe('');

@@ -73,7 +73,7 @@ const MIN_NAME_CHARS = 3;
 /** Words that may follow "for/of/at" without naming a depot. */
 const SCOPE_WORDS = new Set(
   (
-    'network whole entire system fleet all overall every each today now moment general total ' +
+    'network headquarters headquarter hq whole entire system fleet all overall every each today now moment general total ' +
     'current state it us our this week morning evening depots buses service operations brief ' +
     'short detail plain words simple a an one'
   ).split(' '),

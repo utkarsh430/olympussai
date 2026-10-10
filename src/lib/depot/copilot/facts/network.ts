@@ -18,7 +18,7 @@ import type { BusExceptionKind, DepotExceptionKind } from '@/lib/depot/exception
 
 
 const GUIDANCE =
-  'Write a short briefing for the whole network: its scale, how much of the fleet is running, ' +
+  'Write a short briefing for the whole fleet as seen from headquarters: its scale, how much of the fleet is running, ' +
   'how much has no signal or is in maintenance, the strongest and weakest ranked depots, and ' +
   'any exceptions. Use only the supplied facts and describe rather than instruct.';
 
@@ -162,7 +162,7 @@ function networkDraft(network: DepotNetworkResponse): CopilotDraft {
   const fleet = network.kpis.fleet.value;
   if (fleet === 0) {
     return {
-      headline: 'Network briefing: no buses in the feed',
+      headline: 'Headquarters briefing: no buses in the feed',
       paragraphs: ['The feed lists no buses at the moment, so there is nothing to brief on yet.'],
     };
   }
@@ -182,7 +182,7 @@ function networkDraft(network: DepotNetworkResponse): CopilotDraft {
     ),
   ];
   return {
-    headline: `Network briefing: ${ph('network.fleet')} and ${ph('network.depots')}`,
+    headline: `Headquarters briefing: ${ph('network.fleet')} and ${ph('network.depots')}`,
     paragraphs,
   };
 }
@@ -190,7 +190,7 @@ function networkDraft(network: DepotNetworkResponse): CopilotDraft {
 export function buildNetworkBriefing(network: DepotNetworkResponse): CopilotRequest {
   return buildRequest({
     task: 'briefing',
-    scopeLabel: 'the whole network',
+    scopeLabel: 'the whole fleet',
     facts: networkFacts(network),
     guidance: GUIDANCE,
     scriptedDraft: networkDraft(network),

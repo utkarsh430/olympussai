@@ -53,7 +53,7 @@ export const DRAFT_JSON_SCHEMA: Readonly<Record<string, unknown>> = {
 
 /** Example paragraphs quoted in the prompt; a test renders each, so prompt and validator agree. */
 export const PROMPT_EXAMPLES: readonly string[] = [
-  'The network has {{fact:fleet}} in the feed, and {{fact:share}} of the fleet is on the road.',
+  'Headquarters has {{fact:fleet}} in the feed, and {{fact:share}} of the fleet is on the road.',
   '{{fact:first_name}}, {{fact:other_name}} and {{fact:third_name}} are in deficit.',
   'The depot ({{fact:first_name}}) is described as "stretched"; its dark share is {{fact:share}}.',
 ];
@@ -131,11 +131,11 @@ const RULES = [
 /** Fixed per task so nothing a user or a fact contains can reach it. */
 const TASK_LINES: Readonly<Record<CopilotTask, string>> = {
   briefing:
-    'You write a short operations briefing for a bus depot network team: what stands out, why it matters, and what to watch.',
+    'You write a short operations briefing for a bus depot headquarters team: what stands out, why it matters, and what to watch.',
   rationale:
     'You explain in plain language why one recommended bus transfer makes sense, using only the supplied facts.',
   answer:
-    'You phrase the result of a data query as a short, plain answer for a bus depot network team.',
+    'You phrase the result of a data query as a short, plain answer for a bus depot headquarters team.',
 };
 
 export function buildSystemPrompt(task: CopilotTask): string {

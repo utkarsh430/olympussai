@@ -37,7 +37,7 @@ function UnknownDepot({ depotId }: { readonly depotId: string }) {
       sentence={`No depot has the id ${depotId} in the current feed.`}
       action={
         <Link href={DEPOTS_ROOT} className="depot-link">
-          Back to the network overview
+          Back to the headquarters overview
         </Link>
       }
     />

@@ -41,7 +41,7 @@ export interface DepotNavGroup {
 
 export const NETWORK_NAV: readonly DepotNavGroup[] = [
   {
-    heading: 'Network',
+    heading: 'Headquarters',
     items: [
       { href: DEPOTS_ROOT, label: 'Overview', exact: true },
       { href: LEAGUE_PATH, label: 'League table' },
@@ -49,7 +49,7 @@ export const NETWORK_NAV: readonly DepotNavGroup[] = [
       { href: ROUTES_PATH, label: 'Routes' },
       { href: EXCEPTIONS_PATH, label: 'Exceptions' },
       { href: ECONOMICS_PATH, label: 'Economics' },
-      { href: NETWORK_TRENDS_PATH, label: 'Network trends' },
+      { href: NETWORK_TRENDS_PATH, label: 'Headquarters trends' },
     ],
   },
   {

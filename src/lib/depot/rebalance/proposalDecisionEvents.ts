@@ -59,7 +59,7 @@ export function subjectChange(subject: ProposalSubject, figures: ProposalFigures
 function whoOf(subject: ProposalSubject): string {
   if (subject.routeName !== null) return subject.routeName;
   if (subject.routes.length > 0) return subject.routes.join(', ');
-  return subject.depotName ?? 'The network';
+  return subject.depotName ?? 'Headquarters';
 }
 
 /** "KANPUR-LUCKNOW 07:00–11:00, Add 3": who, the band and the change decided on. */

@@ -34,7 +34,7 @@ describe('NETWORK_NAV', () => {
 
   it('links every network page that exists, each once', () => {
     expect(NETWORK_NAV.map((group) => group.heading)).toEqual([
-      'Network',
+      'Headquarters',
       'Intelligence',
       'System',
     ]);
@@ -45,7 +45,7 @@ describe('NETWORK_NAV', () => {
       ['Routes', '/project/depots/routes'],
       ['Exceptions', '/project/depots/exceptions'],
       ['Economics', '/project/depots/economics'],
-      ['Network trends', '/project/depots/trends'],
+      ['Headquarters trends', '/project/depots/trends'],
       ['Service by the hour', '/project/depots/service'],
       ['AI Engine', '/project/depots/ask'],
       ['Data sources', '/project/depots/sources'],

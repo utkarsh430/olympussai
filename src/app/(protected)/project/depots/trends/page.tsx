@@ -24,7 +24,7 @@ export default async function DepotTrendsPage({
     <>
       <PageHeader
         title="Trends"
-        description="Where each network measure has been and where it is heading, with a forecast range."
+        description="Where each headquarters measure has been and where it is heading, with a forecast range."
         provenanceLine={{
           default: 'modelled',
           replacedBy: 'a database of real history',
