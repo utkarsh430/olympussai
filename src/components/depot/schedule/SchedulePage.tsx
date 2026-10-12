@@ -15,6 +15,7 @@ import { CoverageStrip } from './CoverageStrip';
 import { ResourceBand } from './ResourceBand';
 import { ScheduleDecision } from './ScheduleDecision';
 import { ScheduleHeader } from './ScheduleHeader';
+import { ScheduleRationale } from './ScheduleRationale';
 import { ShiftTable } from './ShiftTable';
 import { UncoveredNeed } from './UncoveredNeed';
 import { WhatIfPanel } from './WhatIfPanel';
@@ -77,6 +78,7 @@ export function SchedulePage() {
         <BlockBoard depotId={shown.depotId} rows={blockRows(plan)} feedNow={shown.feedNow} />
         <ShiftTable rows={shiftRows(plan)} />
         <UncoveredNeed rows={uncoveredRows(plan)} heldOut={heldOutSentence(plan)} />
+        <ScheduleRationale depotId={shown.depotId} planKey={shown.planKey} />
         <ScheduleDecision subject={subject} operatingDate={plan.operatingDate} />
       </div>
     </>

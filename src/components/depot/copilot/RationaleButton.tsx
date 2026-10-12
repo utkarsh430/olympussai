@@ -89,6 +89,17 @@ export function useProposalRationale(proposalId: string, routeName: string): Rat
   return useRationaleFor(body);
 }
 
+/** One depot's schedule plan's explanation; a changed plan (a new key) starts fresh. */
+export function useScheduleRationale(depotId: string, planKey: string): RationaleControl {
+  const body = useMemo(
+    (): RationaleRequest => ({ task: 'rationale', scheduleDepotId: depotId }),
+    // The key is not sent; it is in the memo so a new plan is a new explanation.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [depotId, planKey],
+  );
+  return useRationaleFor(body);
+}
+
 export interface RationaleToggleProps {
   readonly expanded: boolean;
   readonly onToggle: () => void;

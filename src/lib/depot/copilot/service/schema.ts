@@ -45,6 +45,9 @@ const requestSchema = z.union([
     })
     .strict(),
   z
+    .object({ task: z.literal('rationale'), scheduleDepotId: z.string().refine(isValidDepotId) })
+    .strict(),
+  z
     .object({
       task: z.literal('ask'),
       question: z.string().min(1).max(MAX_QUESTION_CHARS),

@@ -65,6 +65,14 @@ export const copilotQuerySchema = z.discriminatedUnion('kind', [
   z
     .object({ kind: z.literal('hourProposals'), hour, depotId: depotId.optional() })
     .strict(),
+  /** One depot's schedule plan: buses and slots against today, and the need left uncovered. */
+  z.object({ kind: z.literal('scheduleSummary'), depotId }).strict(),
+  /** The plan's shifts: slots needed, covered and short, per role. */
+  z.object({ kind: z.literal('scheduleShiftCover'), depotId }).strict(),
+  /** The hours of need the plan leaves uncovered, by route. */
+  z.object({ kind: z.literal('scheduleUncovered'), depotId }).strict(),
+  /** Every depot's plan rolled up: depots planned, buses freed, need uncovered. */
+  z.object({ kind: z.literal('schedulerSummary') }).strict(),
   /** The daily brief; the date defaults to the feed's operating date. */
   z.object({ kind: z.literal('serviceBrief'), date: isoDate.optional() }).strict(),
   z

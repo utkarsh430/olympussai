@@ -38,6 +38,11 @@ export interface CopilotRequest {
   readonly guidance: string;
   /** Authored beside the facts; always valid, used on any failure. */
   readonly scriptedDraft: CopilotDraft;
+  /**
+   * Words a model's text may not carry for this request even though the vocabulary allows
+   * them; a text that does is replaced by the scripted draft.
+   */
+  readonly refuseWords?: readonly string[];
 }
 
 export type FallbackReason =

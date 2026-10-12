@@ -20,6 +20,8 @@ import { routeTableOf } from '@/lib/depot/live/routeInputs';
 import type { FleetSnapshotView } from '@/lib/depot/repositories/types';
 import type { CopilotNetworkHours, RouteHourlyBody } from '@/lib/depot/service/types';
 import { answerTable, interpretQuery } from '@/lib/depot/copilot/service/interpret';
+import { buildScheduleRationale, type SchedulePlanBody } from '@/lib/depot/copilot/facts/schedule';
+import type { SchedulerRollupResponse } from '@/lib/depot/schedule/api';
 import type { ValidCopilotRequest } from '@/lib/depot/copilot/service/schema';
 
 export type Prepared =
@@ -41,6 +43,8 @@ const NOT_FOUND = { ok: false, status: 404 } as const;
 export interface ServiceAnswerData {
   readonly routeDay?: RouteHourlyBody;
   readonly networkHours?: CopilotNetworkHours;
+  readonly schedule?: Readonly<Record<string, SchedulePlanBody>>;
+  readonly scheduler?: SchedulerRollupResponse | null;
 }
 
 /**
@@ -70,6 +74,9 @@ function depotIdsOf(query: CopilotQuery): string[] {
     case 'transfersFor':
     case 'exceptionsFor':
     case 'outshedStatus':
+    case 'scheduleSummary':
+    case 'scheduleShiftCover':
+    case 'scheduleUncovered':
       return [query.depotId];
     case 'compareDepots':
       return [query.depotA, query.depotB];
@@ -147,6 +154,10 @@ export function prepareCopilotRequest(
       return detail ? { ok: true, request: buildDepotBriefing(detail) } : NOT_FOUND;
     }
     case 'rationale': {
+      if ('scheduleDepotId' in body) {
+        const held = service.schedule?.[body.scheduleDepotId];
+        return held ? { ok: true, request: buildScheduleRationale(held) } : NOT_FOUND;
+      }
       if ('proposalId' in body) {
         const day = service.routeDay;
         const proposal =

@@ -37,4 +37,10 @@ export const BOUND_PHRASES: readonly (readonly string[])[] = [
   words('due to leave'),
   words('rated critical'),
   words('questions about people'),
+  // The scheduler's anonymous slots, by role: a count of slots, never a person.
+  words('driver slots'),
+  words('driver slot'),
+  words('conductor slots'),
+  words('conductor slot'),
+  words('crew slots'),
 ];

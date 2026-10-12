@@ -68,6 +68,14 @@ export function interpretQuery(query: CopilotQuery, nameOf: (depotId: string) =>
         : `Routes of ${name(query.depotId)} short and over-served around ${hourLabel(query.hour)}`;
     case 'serviceBrief':
       return query.date === undefined ? "The day's service brief" : `The service brief for ${query.date}`;
+    case 'scheduleSummary':
+      return `The schedule plan for ${name(query.depotId)}`;
+    case 'scheduleShiftCover':
+      return `Driver slots and conductor slots in the schedule plan for ${name(query.depotId)}`;
+    case 'scheduleUncovered':
+      return `Need the schedule plan leaves uncovered at ${name(query.depotId)}`;
+    case 'schedulerSummary':
+      return 'The schedule plans across every depot';
     case 'unsupported':
       return query.reason === 'unknown_route'
         ? 'A route that is not in the current feed'
@@ -139,6 +147,11 @@ export function answerTable(
     table = nameAndFigure('Spare', rowsFrom(facts, 'list', 'size'));
   } else if (query.kind === 'hourProposals') {
     table = bandRoutes(facts);
+  } else if (query.kind === 'scheduleUncovered') {
+    const list = rowsFrom(facts, 'unc', 'buses');
+    table = { columns: ['Route', 'Short by'], rows: list.rows, provenance: [null, list.valueProvenance] };
+  } else if (query.kind === 'schedulerSummary') {
+    table = nameAndFigure('Buses freed', rowsFrom(facts, 'roll', 'freed'));
   }
   return table && table.rows.length > 0 ? table : undefined;
 }

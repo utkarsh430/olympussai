@@ -133,7 +133,7 @@ const TASK_LINES: Readonly<Record<CopilotTask, string>> = {
   briefing:
     'You write a short operations briefing for a bus depot headquarters team: what stands out, why it matters, and what to watch.',
   rationale:
-    'You explain in plain language why one recommended bus transfer makes sense, using only the supplied facts.',
+    'You explain in plain language why one recommendation makes sense: a bus transfer, a route proposal or a depot schedule plan, using only the supplied facts.',
   answer:
     'You phrase the result of a data query as a short, plain answer for a bus depot headquarters team.',
 };
