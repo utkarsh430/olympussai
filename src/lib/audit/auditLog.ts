@@ -26,7 +26,10 @@ export type AuditEventType =
   // A planner's decision on a route's proposal for a band of hours; recorded only, never dispatched.
   | 'depot-proposal-approved'
   | 'depot-proposal-rejected'
-  | 'depot-proposal-deferred';
+  | 'depot-proposal-deferred'
+  | 'depot-schedule-approved'
+  | 'depot-schedule-rejected'
+  | 'depot-schedule-deferred';
 
 export interface AuditEvent {
   id: string;
@@ -62,6 +65,9 @@ export const AUDIT_EVENT_LABELS: Record<AuditEventType, string> = {
   'depot-proposal-approved': 'Route proposal approved',
   'depot-proposal-rejected': 'Route proposal rejected',
   'depot-proposal-deferred': 'Route proposal deferred',
+  'depot-schedule-approved': 'Schedule plan approved',
+  'depot-schedule-rejected': 'Schedule plan rejected',
+  'depot-schedule-deferred': 'Schedule plan deferred',
 };
 
 function safeStorage(): Storage | null {
