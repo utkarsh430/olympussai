@@ -112,6 +112,7 @@ const ACCEPTED_QUERY: Readonly<Record<string, string>> = {
  */
 const NOT_PLAIN_GETS: Readonly<Record<string, string>> = {
   'POST copilot/route.ts': 'needs a same-origin question body; covered by the copilot suites',
+  'POST [depotId]/incidents/route.ts': 'needs a registration body; covered by the incident route test',
 };
 
 /**

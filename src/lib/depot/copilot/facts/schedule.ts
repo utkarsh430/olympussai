@@ -19,7 +19,7 @@ export interface SchedulePlanBody {
 
 export const RECOMMENDATION_ONLY = 'This is a recommendation; nothing is dispatched or assigned.';
 /** Words the schedule texts never carry, on any writer: the pages say nothing about where a figure comes from. */
-export const ORIGIN_WORDS: readonly string[] = ['model', 'models', 'modelled', 'modelling', 'simulated'];
+export const ORIGIN_WORDS: readonly string[] = ['model', 'models', 'modelled', 'modelling'];
 const RATIONALE_GUIDANCE =
   'Explain in plain language why this schedule plan for the depot covers the day with the resources it names: ' +
   'what is freed against today, where slots are short and why, what the plan could not cover. ' +

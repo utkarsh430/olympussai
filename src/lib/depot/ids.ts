@@ -24,3 +24,10 @@ export function isValidDepotId(value: unknown): value is string {
 export function isValidRouteName(value: unknown): value is string {
   return typeof value === 'string' && ROUTE_NAME_PATTERN.test(value);
 }
+
+/** A registration as the feed spells it: letters, digits and a few separators, at most 24 characters. */
+const REGISTRATION_SHAPE = /^[A-Za-z0-9][A-Za-z0-9 _.-]{0,23}$/;
+
+export function isValidRegistration(value: unknown): value is string {
+  return typeof value === 'string' && REGISTRATION_SHAPE.test(value);
+}
