@@ -37,6 +37,7 @@ describe('depotNav', () => {
       'Duties',
       'Maintenance',
       'Crew',
+      'Schedule',
       'Fuel and cost',
       'Revenue',
       'Trends',
@@ -57,6 +58,7 @@ describe('depotNav', () => {
     expect(activeOn(`${ROOT}/duties`)).toEqual(['Duties']);
     expect(activeOn(`${ROOT}/maintenance`)).toEqual(['Maintenance']);
     expect(activeOn(`${ROOT}/crew`)).toEqual(['Crew']);
+    expect(activeOn(`${ROOT}/schedule`)).toEqual(['Schedule']);
     expect(activeOn(`${ROOT}/fuel`)).toEqual(['Fuel and cost']);
     expect(activeOn(`${ROOT}/revenue`)).toEqual(['Revenue']);
     expect(activeOn(`${ROOT}/trends`)).toEqual(['Trends']);

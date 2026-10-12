@@ -259,6 +259,7 @@ const PAGE_HEADING: Readonly<Record<string, string>> = {
   '/project/depots/rebalance': 'Fleet distribution',
   '/project/depots/routes': 'Routes',
   '/project/depots/routes/r/[routeName]': 'Hour by hour',
+  '/project/depots/scheduler': 'AI Scheduler',
   '/project/depots/service': 'Service by the hour',
   '/project/depots/sources': 'Data sources',
   '/project/depots/trends': 'Trends',
@@ -269,9 +270,19 @@ const PAGE_HEADING: Readonly<Record<string, string>> = {
   '/project/depots/d/[depotId]/maintenance': 'Maintenance',
   '/project/depots/d/[depotId]/revenue': 'Revenue and ridership',
   '/project/depots/d/[depotId]/roster': 'Roster',
+  '/project/depots/d/[depotId]/schedule': 'AI Scheduler',
   '/project/depots/d/[depotId]/trends': 'Trends',
   '/project/depots/d/[depotId]/yard': 'Yard',
 };
+
+/**
+ * Pages that show no provenance line, by the owner's decision: a plan is a recommendation, not
+ * a claim about where its figures come from. The line must be absent there, not merely unchecked.
+ */
+const NO_PROVENANCE_LINE: ReadonlySet<string> = new Set([
+  '/project/depots/scheduler',
+  '/project/depots/d/[depotId]/schedule',
+]);
 
 /** A page template with its segments filled from the sample: its depot and its busy route. */
 function pageUrl(template: string, sample: SampleFacts): string {
@@ -330,6 +341,10 @@ test.describe('2. every depot page renders honestly on the sample', () => {
       await openPage(page, pageUrl(template, sample), headingOf(template));
 
       const provenance = page.getByTestId('depot-provenance-line');
+      if (NO_PROVENANCE_LINE.has(template)) {
+        await expect(provenance).toHaveCount(0);
+        return;
+      }
       await expect(provenance).toBeVisible();
       await expect(provenance).toContainText(/DERIVED|MODELLED|MIXED|LIVE|REFERENCE/);
     });
@@ -780,6 +795,10 @@ test.describe('10. the sample is never presented as live', () => {
       await expect(chip).toHaveAttribute('data-tone', /^(fixture|stale)$/);
       await expect(chip).toHaveAttribute('title', 'Sample data, not the live feed');
       await expect(chip).toContainText(/fixture/i);
+      if (NO_PROVENANCE_LINE.has(template)) {
+        await expect(page.getByTestId('depot-provenance-line')).toHaveCount(0);
+        return;
+      }
       await expect(page.getByTestId('depot-provenance-line')).toContainText(
         template === '/project/depots/sources' ? 'not from the feed' : 'sample data',
       );

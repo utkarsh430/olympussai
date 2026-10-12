@@ -36,6 +36,7 @@ export function depotNav(depotId: string): readonly DepotNavItem[] {
     { href: `${root}/duties`, label: 'Duties' },
     { href: `${root}/maintenance`, label: 'Maintenance' },
     { href: `${root}/crew`, label: 'Crew' },
+    { href: `${root}/schedule`, label: 'Schedule' },
     { href: `${root}/fuel`, label: 'Fuel and cost' },
     { href: `${root}/revenue`, label: 'Revenue' },
     { href: `${root}/trends`, label: 'Trends' },
