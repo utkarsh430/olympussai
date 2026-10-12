@@ -90,7 +90,7 @@ export interface PresetGroup {
  */
 
 const SERVICE_SUGGESTIONS: PresetGroup = {
-  label: 'Service by the hour',
+  label: 'AI Redistribution Engine',
   questions: [
     'What is the plan for today?',
     'Which routes need more buses at 10 am?',

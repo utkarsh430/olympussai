@@ -1,11 +1,11 @@
 import { Suspense } from 'react';
 import { requireProjectSession } from '@/lib/auth/server';
-import { NetworkServicePage } from '@/components/depot/service/NetworkServicePage';
-import { NetworkServiceHeader, NetworkServiceScreen } from '@/components/depot/service/NetworkServiceScreen';
+import { RedistributionHeader, RedistributionScreen } from '@/components/depot/redistribution/RedistributionScreen';
+import { LoadingBlock } from '@/components/depot/shell/DataStates';
 import { SERVICE_PATH } from '@/lib/depot/nav';
 
-/** The network's day hour by hour: routes short and over by band, the proposals and the moves. */
-export default async function NetworkServiceRoutePage() {
+/** The AI Redistribution Engine: hourly demand against supply, the engine's transfers and their projected impact. */
+export default async function RedistributionRoutePage() {
   // Layouts do not re-run on client navigation, so the page gates itself too.
   await requireProjectSession(SERVICE_PATH);
 
@@ -13,12 +13,12 @@ export default async function NetworkServiceRoutePage() {
     <Suspense
       fallback={
         <>
-          <NetworkServiceHeader response={null} />
-          <NetworkServicePage response={null} error={null} loading />
+          <RedistributionHeader />
+          <LoadingBlock rows={8} label="Loading the network's hours" />
         </>
       }
     >
-      <NetworkServiceScreen />
+      <RedistributionScreen />
     </Suspense>
   );
 }
