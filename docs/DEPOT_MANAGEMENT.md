@@ -1225,3 +1225,50 @@ each real feed must provide.
 
 The corporation must also confirm the meaning and unit of the feed's `distance` field and
 of `delayMinutes`, and the meaning of tamper codes other than `C`.
+
+
+## 12. The AI Scheduler and Incident Response
+
+Approved on 2026-10-12 (`docs/superpowers/specs/2026-10-12-ai-scheduler-design.md`,
+`2026-10-12-incident-response-design.md`). By the owner's decision these two features show no
+provenance line and no "modelled" wording: a plan is a recommendation, not a claim about where
+its figures come from. Every other page keeps its line.
+
+### 12.1 The AI Scheduler (`src/lib/depot/schedule/`)
+
+Per depot and operating date, `planSchedule(input, params)` builds the day: the depot's share
+of each route's need per hour (Service by the hour's figure, apportioned by the depot's buses
+on the route), pieces of work by level decomposition, the fewest vehicle blocks by interval
+cover with a turnaround and a block cap, real buses through the duty board's own matcher
+(`assignDuties`), shifts within the daily limit, and the fewest driver and conductor slots by
+chaining shifts into slot-days. The baseline is the shared duty plan (`dutyPlanFor`) measured
+by the same rule, so "freed" compares like with like. The schedule sits beside the shared plan;
+the Duty board, Crew, Fuel, Revenue and parking pages are unchanged.
+
+Ports (`schedule/ports.ts`, served by `repositories/schedulePorts.ts`): route need and timing
+from the route day, dead running from the inferred yard and the cached profile, holds from the
+service model, crew from `CrewRepository`. A real feed replaces one adapter there.
+
+Routes: `GET /api/upsrtc/depot/[depotId]/schedule` (baseline), `POST` with a strict what-if
+body (rate-limited, memoised per snapshot and clamped parameters), `GET /api/upsrtc/depot/scheduler`
+(Headquarters, built a batch of depots per request). Pages: a depot's `schedule`, and
+`/project/depots/scheduler`. Decisions on a plan are kept in the browser trail under their own
+event types.
+
+### 12.2 Incident Response (`src/lib/depot/incident/`)
+
+`detectIncidents` lists, per depot, the buses that may have broken down: the feed's own tow
+status and emergency flag (high confidence), a bus standing away from every stop, terminal and
+yard on a journey still running (medium once a per-process holder has seen it still for ten
+minutes, else low), or one not heard on its journey (low). Stop positions come only from
+cached profiles. A person may also declare any bus from the roster's drawer.
+
+`planReplacement` ranks the candidates by passengers moving soonest, then dead km, then the
+delay to other passengers: a spare in the yard, a spare at a nearby depot, the following bus on
+the route when it is behind and has the seats, a bus ending its block nearby, and the next
+scheduled bus as the baseline. Passengers aboard are a busiest-stretch estimate from the route
+day until ticketing arrives; road time is straight line at 30 km/h with the detour factor.
+
+Routes: `GET`/`POST /api/upsrtc/depot/[depotId]/incidents`, `GET /api/upsrtc/depot/incidents`.
+Pages: a depot's `incidents`, `/project/depots/incidents`. The cockpit's attention strip counts
+the suspected incidents; a declared incident lives in the page until it is reloaded.

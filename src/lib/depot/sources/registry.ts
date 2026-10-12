@@ -164,7 +164,7 @@ const TIMETABLE: FeedEntry = {
   name: 'Network timetable',
   status: 'awaiting',
   summary: 'Scheduled trips or vehicle blocks for the whole fleet, not only buses on the road.',
-  unlocks: 'A real requirement per depot, so real surplus and deficit, and routes with no bus.',
+  unlocks: 'A real requirement per depot, so real surplus and deficit, and routes with no bus. The AI Scheduler then plans on real duties, and Incident Response on real blocks.',
   fields: [
     { name: 'routeId', type: 'string' },
     { name: 'tripId', type: 'string' },
@@ -185,7 +185,7 @@ const CREW: FeedEntry = {
   summary:
     'Crew availability as anonymous driver and conductor slots per depot, MODELLED today; duties come from the modelled operating day, the same duties the duty board shows.',
   unlocks:
-    'The crew page: duty coverage and shortfall per depot, on real rosters. Availability and rostering only; no individual is assessed.',
+    'The crew page: duty coverage and shortfall per depot, on real rosters. Availability and rostering only; no individual is assessed. The AI Scheduler then covers its shifts from the real roster.',
   fields: [
     { name: 'depotId', type: 'string', note: 'The home depot the slot belongs to.' },
     { name: 'date', type: 'date', note: 'The operating date the availability applies to.' },
@@ -257,7 +257,7 @@ const TICKETING: FeedEntry = {
   summary:
     'Boardings and revenue per route per day, MODELLED today from the trips of the modelled operating day, a load factor per class and fares. A route without a real length runs on a MODELLED typical length for its class; a route master with real route lengths would replace those in the revenue totals.',
   unlocks:
-    'The revenue page and the economics page: revenue and load per route and depot, and the Depot Economics Index on measured figures.',
+    'The revenue page and the economics page: revenue and load per route and depot, and the Depot Economics Index on measured figures. The AI Scheduler then plans on real demand, and Incident Response counts real passengers aboard.',
   fields: [
     { name: 'routeName', type: 'string', note: 'The route; joins to the GPS feed route name.' },
     { name: 'date', type: 'date', note: 'The operating date.' },

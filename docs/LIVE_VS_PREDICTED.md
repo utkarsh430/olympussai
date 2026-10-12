@@ -247,3 +247,13 @@ provide is listed on the Data sources page (`src/lib/depot/sources/registry.ts`)
 - Modelled passenger demand is not a passenger count: until ticketing is connected it says when
   in the day a route is short, not how many passengers it carries.
 - No individual driver or conductor is named or scored.
+
+
+## The AI Scheduler and Incident Response
+
+Neither page states provenance (owner's decision, 2026-10-12). Behind them: the fleet, its
+states, positions and yards are live; route need, timing without a cached profile, crew slots,
+service holds and passengers aboard are generated as elsewhere in the module; the feed's tow
+status and emergency flag are live signals. A timetable, roster or ticketing feed replaces the
+generated input through the ports in `src/lib/depot/schedule/ports.ts` and
+`src/lib/depot/incident/ports.ts`.

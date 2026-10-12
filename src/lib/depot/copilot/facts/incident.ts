@@ -44,10 +44,10 @@ export function breakdownSummaryAnswer(body: IncidentsResponse | null | undefine
   ];
   const paragraphs =
     rows.length === 0
-      ? [`Buses checked at ${ph('inc.depot')}: ${ph('inc.checked')}. No bus looks to have a breakdown on this snapshot.`, RECOMMENDATION_ONLY]
+      ? [`Buses checked at ${ph('inc.depot')} on this snapshot: ${ph('inc.checked')}. No bus looks to have a breakdown.`, RECOMMENDATION_ONLY]
       : [
-          `Buses that may have a breakdown at ${ph('inc.depot')}: ${ph('inc.count')}; checked: ${ph('inc.checked')}.`,
-          ...rows.map((_, i) => `Bus ${ph(`inc.${i + 1}.name`)} on ${ph(`inc.${i + 1}.route`)}; signals: ${ph(`inc.${i + 1}.signals`)}; passengers: ${ph(`inc.${i + 1}.aboard`)}; replacement: ${ph(`inc.${i + 1}.arrival`)}.`),
+          `Buses that may have a breakdown at ${ph('inc.depot')} on this snapshot: ${ph('inc.count')}; checked: ${ph('inc.checked')}.`,
+          ...rows.map((_, i) => `Bus ${ph(`inc.${i + 1}.name`)} on the route ${ph(`inc.${i + 1}.route`)}; signals: ${ph(`inc.${i + 1}.signals`)}; passengers: ${ph(`inc.${i + 1}.aboard`)}; replacement: ${ph(`inc.${i + 1}.arrival`)}.`),
           RECOMMENDATION_ONLY,
         ];
   return { ...answer(cleanName(body.depotName), facts, { headline: `Breakdowns at ${ph('inc.depot')}`, paragraphs }), refuseWords: ORIGIN_WORDS };
@@ -73,7 +73,7 @@ export function replacementForAnswer(view: IncidentView | null | undefined, depo
   if (!view) return unavailable('a replacement for that bus');
   const facts = replacementFacts(view, depotName, depotId);
   const paragraphs = [
-    `Bus ${ph('inc.1.name')} on ${ph('inc.1.route')}; signals: ${ph('inc.1.signals')}; confidence: ${ph('inc.1.confidence')}.`,
+    `Bus ${ph('inc.1.name')} on the route ${ph('inc.1.route')}; signals: ${ph('inc.1.signals')}; confidence: ${ph('inc.1.confidence')}.`,
     `Passengers on the bus: ${ph('inc.1.aboard')}. The recommended replacement: ${ph('inc.1.arrival')}; passengers moving in ${ph('rep.moving')}.`,
     `Empty running: ${ph('rep.dead')}; delay to other passengers: ${ph('rep.knock')}. The next scheduled bus: ${ph('rep.next')}.`,
     RECOMMENDATION_ONLY,

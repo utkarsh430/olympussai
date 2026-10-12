@@ -53,7 +53,7 @@ export interface AnswerData {
 }
 
 const SCOPE_SENTENCE =
-  'This assistant can answer questions about the whole fleet, a named depot, depot rankings, depots in deficit or surplus, proposed transfers, exceptions, comparisons between depots, departures from the yard, a named route at a given time of day or across its day, the routes short or in surplus in a band of the day, the service brief for today, and the schedule plan of a depot with its driver slots and conductor slots and the need it leaves uncovered, and the buses of a depot that may have broken down with the replacement recommended for each.';
+  'This assistant can answer questions about the whole fleet, a named depot, depot rankings, depots in deficit or surplus, proposed transfers, exceptions, comparisons between depots, departures from the yard, a named route at a given time of day or across its day, the routes short or in surplus in a band of the day, the service brief for today, the schedule plan of a depot, and the buses of a depot that may have a breakdown.';
 
 type UnsupportedReason = Extract<CopilotQuery, { kind: 'unsupported' }>['reason'];
 
