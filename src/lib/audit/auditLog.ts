@@ -29,7 +29,10 @@ export type AuditEventType =
   | 'depot-proposal-deferred'
   | 'depot-schedule-approved'
   | 'depot-schedule-rejected'
-  | 'depot-schedule-deferred';
+  | 'depot-schedule-deferred'
+  | 'depot-replacement-approved'
+  | 'depot-replacement-rejected'
+  | 'depot-replacement-deferred';
 
 export interface AuditEvent {
   id: string;
@@ -68,6 +71,9 @@ export const AUDIT_EVENT_LABELS: Record<AuditEventType, string> = {
   'depot-schedule-approved': 'Schedule plan approved',
   'depot-schedule-rejected': 'Schedule plan rejected',
   'depot-schedule-deferred': 'Schedule plan deferred',
+  'depot-replacement-approved': 'Replacement approved',
+  'depot-replacement-rejected': 'Replacement rejected',
+  'depot-replacement-deferred': 'Replacement deferred',
 };
 
 function safeStorage(): Storage | null {

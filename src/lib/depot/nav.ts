@@ -17,6 +17,7 @@ export const NETWORK_TRENDS_PATH = `${DEPOTS_ROOT}/trends`;
 export const ASK_PATH = `${DEPOTS_ROOT}/ask`;
 export const SERVICE_PATH = `${DEPOTS_ROOT}/service`;
 export const SCHEDULER_PATH = `${DEPOTS_ROOT}/scheduler`;
+export const INCIDENTS_PATH = `${DEPOTS_ROOT}/incidents`;
 export const SOURCES_PATH = `${DEPOTS_ROOT}/sources`;
 
 /**
@@ -58,6 +59,7 @@ export const NETWORK_NAV: readonly DepotNavGroup[] = [
     items: [
       { href: SERVICE_PATH, label: 'Service by the hour' },
       { href: SCHEDULER_PATH, label: 'AI Scheduler' },
+      { href: INCIDENTS_PATH, label: 'Incident Response' },
       { href: ASK_PATH, label: 'AI Engine' },
     ],
   },

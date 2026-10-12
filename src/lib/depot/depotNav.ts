@@ -22,6 +22,11 @@ export function depotHref(depotId: string): string {
   return `${DEPOTS_ROOT}/d/${encodeURIComponent(depotId)}`;
 }
 
+/** The Incident Response page with one bus declared broken down. */
+export function incidentBusHref(depotId: string, registration: string): string {
+  return `${depotHref(depotId)}/incidents?${ROSTER_BUS_PARAM}=${encodeURIComponent(registration)}`;
+}
+
 /** The roster page with one bus pre-selected. */
 export function rosterBusHref(depotId: string, registration: string): string {
   return `${depotHref(depotId)}/roster?${ROSTER_BUS_PARAM}=${encodeURIComponent(registration)}`;
@@ -37,6 +42,7 @@ export function depotNav(depotId: string): readonly DepotNavItem[] {
     { href: `${root}/maintenance`, label: 'Maintenance' },
     { href: `${root}/crew`, label: 'Crew' },
     { href: `${root}/schedule`, label: 'Schedule' },
+    { href: `${root}/incidents`, label: 'Incident Response' },
     { href: `${root}/fuel`, label: 'Fuel and cost' },
     { href: `${root}/revenue`, label: 'Revenue' },
     { href: `${root}/trends`, label: 'Trends' },

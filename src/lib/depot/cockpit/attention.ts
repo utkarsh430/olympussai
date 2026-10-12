@@ -40,7 +40,14 @@ function verb(n: number, one: string, many: string): string {
   return n === 1 ? one : many;
 }
 
-export function buildAttention(detail: DepotDetailResponse, depotId: string): Attention {
+export interface AttentionExtras {
+  /** Buses the Incident Response page lists as possibly broken down; null while not loaded. */
+  readonly suspectedIncidents: number | null;
+}
+
+const NO_EXTRAS: AttentionExtras = { suspectedIncidents: null };
+
+export function buildAttention(detail: DepotDetailResponse, depotId: string, extras: AttentionExtras = NO_EXTRAS): Attention {
   const all = detail.buses;
   const count = (test: (bus: (typeof all)[number]) => boolean): number => all.filter(test).length;
   const emergency = new Set(
@@ -53,7 +60,15 @@ export function buildAttention(detail: DepotDetailResponse, depotId: string): At
   const notHeard = count((b) => notHeardText(b) !== null);
   const tamper = count(hasTamperCode);
 
+  const incidents = extras.suspectedIncidents ?? 0;
   const candidates: AttentionLine[] = [
+    {
+      key: 'incidents',
+      count: incidents,
+      text: `${buses(incidents)} may have broken down on the road`,
+      href: `${depotHref(depotId)}/incidents`,
+      destination: 'Incident Response',
+    },
     {
       key: 'emergency',
       count: emergency,

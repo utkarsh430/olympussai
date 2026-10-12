@@ -7,6 +7,7 @@ import { ErrorPanel, StaleNotice } from '@/components/depot/shell/DataStates';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
 import { DEPOT_NOT_FOUND_MESSAGE } from '@/lib/depot/scopeState';
 import { buildCockpit } from '@/lib/depot/cockpit/cockpitModel';
+import { useDepotIncidents } from '@/hooks/useDepotIncidents';
 import type { CopilotScope } from '@/lib/depot/copilot/wire';
 import { depotHref } from '@/lib/depot/depotNav';
 import { DEPOTS_ROOT } from '@/lib/depot/nav';
@@ -52,7 +53,9 @@ function UnknownDepot({ depotId }: { readonly depotId: string }) {
  */
 export function DepotCockpit() {
   const { data, error, loading, refresh, depotId } = useDepotDetailContext();
-  const model = useMemo(() => (data ? buildCockpit(data) : null), [data]);
+  const incidents = useDepotIncidents(depotId);
+  const suspectedIncidents = incidents.data?.incidents.length ?? null;
+  const model = useMemo(() => (data ? buildCockpit(data, { suspectedIncidents }) : null), [data, suspectedIncidents]);
   const scope = useMemo<CopilotScope>(() => ({ kind: 'depot', depotId }), [depotId]);
 
   if (!data || !model) {

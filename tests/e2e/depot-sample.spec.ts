@@ -260,6 +260,7 @@ const PAGE_HEADING: Readonly<Record<string, string>> = {
   '/project/depots/routes': 'Routes',
   '/project/depots/routes/r/[routeName]': 'Hour by hour',
   '/project/depots/scheduler': 'AI Scheduler',
+  '/project/depots/incidents': 'Incident Response',
   '/project/depots/service': 'Service by the hour',
   '/project/depots/sources': 'Data sources',
   '/project/depots/trends': 'Trends',
@@ -271,6 +272,7 @@ const PAGE_HEADING: Readonly<Record<string, string>> = {
   '/project/depots/d/[depotId]/revenue': 'Revenue and ridership',
   '/project/depots/d/[depotId]/roster': 'Roster',
   '/project/depots/d/[depotId]/schedule': 'AI Scheduler',
+  '/project/depots/d/[depotId]/incidents': 'Incident Response',
   '/project/depots/d/[depotId]/trends': 'Trends',
   '/project/depots/d/[depotId]/yard': 'Yard',
 };
@@ -282,6 +284,8 @@ const PAGE_HEADING: Readonly<Record<string, string>> = {
 const NO_PROVENANCE_LINE: ReadonlySet<string> = new Set([
   '/project/depots/scheduler',
   '/project/depots/d/[depotId]/schedule',
+  '/project/depots/incidents',
+  '/project/depots/d/[depotId]/incidents',
 ]);
 
 /** A page template with its segments filled from the sample: its depot and its busy route. */

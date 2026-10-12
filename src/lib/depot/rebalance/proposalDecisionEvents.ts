@@ -19,6 +19,7 @@ import {
 } from './decisionSubject';
 import type { TransferDecisionKind } from './rebalanceModel';
 import { parseScheduleDecisionEvent, type ScheduleDecisionEntry } from '../schedule/scheduleDecisions';
+import { parseReplacementDecisionEvent, type ReplacementDecisionEntry } from '../incident/incidentDecisions';
 
 /*
  * A planner's decisions on a route's proposals, kept in the same append-only trail as the
@@ -43,7 +44,7 @@ export interface ProposalDecisionEntry extends ProposalDecisionInput {
 export interface ProposalTrailItem extends ProposalDecisionEntry, TrailFlags {}
 
 /** A stored decision on either subject, told apart by `subject.kind`. */
-export type AnyDecisionEntry = DecisionEntry | ProposalDecisionEntry | ScheduleDecisionEntry;
+export type AnyDecisionEntry = DecisionEntry | ProposalDecisionEntry | ScheduleDecisionEntry | ReplacementDecisionEntry;
 
 const EVENT_TYPE: Readonly<Record<TransferDecisionKind, AuditEventType>> = {
   approved: 'depot-proposal-approved',
@@ -129,5 +130,5 @@ export function parseProposalDecisionEvent(event: unknown): ProposalDecisionEntr
 
 /** A stored event as a decision on either subject, or null when it is neither. */
 export function parseAnyDecisionEvent(event: unknown): AnyDecisionEntry | null {
-  return parseDecisionEvent(event) ?? parseProposalDecisionEvent(event) ?? parseScheduleDecisionEvent(event);
+  return parseDecisionEvent(event) ?? parseProposalDecisionEvent(event) ?? parseScheduleDecisionEvent(event) ?? parseReplacementDecisionEvent(event);
 }

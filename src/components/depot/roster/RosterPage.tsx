@@ -41,7 +41,7 @@ import { useRosterTier } from './useRosterTier';
  * drawer opens at once and quick filter clicks build on each other.
  */
 export function RosterPage() {
-  const { data, error, loading, refresh } = useDepotDetailContext();
+  const { data, error, loading, refresh, depotId } = useDepotDetailContext();
   const pathname = usePathname();
   const params = useSearchParams();
   // A `?bus=` value is a registration or nothing: a link cannot put a sentence in the
@@ -168,6 +168,7 @@ export function RosterPage() {
           feedNow={data.feedNow}
           onClose={close}
           restoreFocusTo={restoreFocusTo}
+          depotId={depotId}
         />
       ) : null}
     </>

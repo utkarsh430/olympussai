@@ -48,6 +48,7 @@ describe('NETWORK_NAV', () => {
       ['Headquarters trends', '/project/depots/trends'],
       ['Service by the hour', '/project/depots/service'],
       ['AI Scheduler', '/project/depots/scheduler'],
+      ['Incident Response', '/project/depots/incidents'],
       ['AI Engine', '/project/depots/ask'],
       ['Data sources', '/project/depots/sources'],
     ]);
