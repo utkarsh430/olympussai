@@ -31,6 +31,10 @@ const ROLE_JUDGEMENT =
 const SHIFT_WORDS = /\b(drivers?|conductors?|crews?|shifts?|rosters?)\b/;
 const UNCOVERED_WORDS = /\b(uncovered|not covered|gaps?)\b/;
 const EVERY_DEPOT = /\b(scheduler|every depot|all depots|across depots|across the depots|across every depot)\b/;
+/** A breakdown question: the feed's tow status, a breakdown, a replacement. */
+const INCIDENT = /\b(incidents?|breakdowns?|broke(?:n)?[\s-]?down|breaks?[\s-]?down|replacements?|under tow|towing|towed)\b/;
+/** A registration as the feed spells it, found whole in the question. */
+const REGISTRATION = /\b([a-z]{2}\s?\d{1,2}\s?[a-z]{0,3}\s?\d{1,4})\b/;
 /**
  * No catalogue query answers "who" about people, so a question that opens with it is
  * declined, unless it carries a ranking cue and a depot, bus or fleet noun ("who has the most
@@ -60,7 +64,7 @@ const BAD_WORDS = /\b(worst|weakest|poorest|poor|struggling|lagging|underperform
 
 const METRIC_PATTERNS: readonly (readonly [RankMetric, RegExp])[] = [
   ['dark', /\b(dark|no[\s-]?signal|silent|offline|unreachable)\b/],
-  ['offRoad', /\b(off[\s-]?road|maintenance|workshop|breakdowns?)\b/],
+  ['offRoad', /\b(off[\s-]?road|maintenance|workshop)\b/],
   ['onRoad', /\b(on[\s-]?road|running|moving|active)\b/],
   ['scheduled', /\b(schedul\w*|timetable|assigned|coverage)\b/],
 ];
@@ -315,6 +319,12 @@ export function scriptedRoute(
     return id === undefined ? declined(text, depots) : build(id);
   };
 
+  if (INCIDENT.test(text)) {
+    const registration = REGISTRATION.exec(text)?.[1]?.replace(/\s+/g, '').toUpperCase() ?? null;
+    return needsDepot((depotId) =>
+      registration !== null ? { kind: 'replacementFor', depotId, registrationNumber: registration } : { kind: 'breakdownSummary', depotId },
+    );
+  }
   if (ROLE.test(text)) {
     if (first === undefined && scope === undefined && EVERY_DEPOT.test(text)) return { kind: 'schedulerSummary' };
     return needsDepot((depotId) =>

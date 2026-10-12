@@ -24,6 +24,8 @@ import {
   type SchedulePlanBody,
 } from '@/lib/depot/copilot/facts/schedule';
 import type { SchedulerRollupResponse } from '@/lib/depot/schedule/api';
+import { breakdownSummaryAnswer, replacementForAnswer } from '@/lib/depot/copilot/facts/incident';
+import type { IncidentView, IncidentsResponse } from '@/lib/depot/incident/api';
 import { buildDepotBriefing } from '@/lib/depot/copilot/facts/depot';
 import { buildNetworkBriefing } from '@/lib/depot/copilot/facts/network';
 import { dataSourceOf } from '@/lib/depot/copilot/service/stale';
@@ -44,10 +46,14 @@ export interface AnswerData {
   readonly schedule?: Readonly<Record<string, SchedulePlanBody>>;
   /** Every depot's plan rolled up, for the scheduler kind. */
   readonly scheduler?: SchedulerRollupResponse | null;
+  /** A depot's suspected breakdowns, by depot id. */
+  readonly incidents?: Readonly<Record<string, IncidentsResponse>>;
+  /** The plan for one declared bus, when the question names one not in the suspected list. */
+  readonly declaredIncident?: IncidentView | null;
 }
 
 const SCOPE_SENTENCE =
-  'This assistant can answer questions about the whole fleet, a named depot, depot rankings, depots in deficit or surplus, proposed transfers, exceptions, comparisons between depots, departures from the yard, a named route at a given time of day or across its day, the routes short or in surplus in a band of the day, the service brief for today, and the schedule plan of a depot with its driver slots and conductor slots and the need it leaves uncovered.';
+  'This assistant can answer questions about the whole fleet, a named depot, depot rankings, depots in deficit or surplus, proposed transfers, exceptions, comparisons between depots, departures from the yard, a named route at a given time of day or across its day, the routes short or in surplus in a band of the day, the service brief for today, and the schedule plan of a depot with its driver slots and conductor slots and the need it leaves uncovered, and the buses of a depot that may have broken down with the replacement recommended for each.';
 
 type UnsupportedReason = Extract<CopilotQuery, { kind: 'unsupported' }>['reason'];
 
@@ -133,6 +139,14 @@ export function buildAnswer(query: CopilotQuery, data: AnswerData): CopilotReque
       return scheduleUncoveredAnswer(data.schedule?.[query.depotId]);
     case 'schedulerSummary':
       return schedulerSummaryAnswer(data.scheduler);
+    case 'breakdownSummary':
+      return breakdownSummaryAnswer(data.incidents?.[query.depotId]);
+    case 'replacementFor': {
+      const body = data.incidents?.[query.depotId];
+      const key = query.registrationNumber.trim().toLowerCase();
+      const found = body?.incidents.find((v) => v.incident.registrationNumber.toLowerCase() === key) ?? data.declaredIncident ?? null;
+      return replacementForAnswer(found, body?.depotName ?? nameOf(data, query.depotId) ?? query.depotId, query.depotId);
+    }
     case 'unsupported':
       return unsupported(query.reason, data.network);
   }

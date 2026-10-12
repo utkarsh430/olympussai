@@ -7,7 +7,7 @@ import type { DepotMeasure } from '@/lib/depot/copilot/queries';
  */
 export const MEASURE_PATTERNS: readonly (readonly [DepotMeasure, RegExp])[] = [
   ['powerCut', /\b(main power|power (?:is )?off|power[\s-]?cut)\b/],
-  ['offRoad', /\boff[\s-]?(?:the[\s-]?)?road\b|\b(maintenance|workshop|breakdowns?)\b/],
+  ['offRoad', /\boff[\s-]?(?:the[\s-]?)?road\b|\b(maintenance|workshop)\b/],
   ['onRoad', /\bon[\s-]?(?:the[\s-]?)?road\b|\b(running|in service)\b/],
   ['dark', /\b(dark|no[\s-]?signal|lost signal|silent|offline|unreachable)\b/],
   ['visitors', /\b(visit\w*|from other depots)\b/],

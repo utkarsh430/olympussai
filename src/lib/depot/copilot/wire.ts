@@ -21,6 +21,8 @@ export type CopilotApiRequest =
   | { readonly task: 'rationale'; readonly proposalId: string; readonly routeName: string }
   /** A depot's schedule plan, by the depot. */
   | { readonly task: 'rationale'; readonly scheduleDepotId: string }
+  /** The replacement for a bus that may have broken down, by its depot and registration. */
+  | { readonly task: 'rationale'; readonly incidentDepotId: string; readonly registrationNumber: string }
   | { readonly task: 'ask'; readonly question: string; readonly scope: CopilotScope };
 
 /** Who wrote the text. Shown beside it: "Written by Claude" or "Scripted response". */

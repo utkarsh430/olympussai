@@ -113,6 +113,8 @@ describe('scriptedRoute', () => {
     ['How many drivers does Kanpur need today?', { kind: 'scheduleShiftCover', depotId: '101' }],
     ['What need is uncovered in the plan at Kanpur?', { kind: 'scheduleUncovered', depotId: '101' }],
     ['Buses freed by the scheduler across every depot', { kind: 'schedulerSummary' }],
+    ['Any breakdowns at Kanpur?', { kind: 'breakdownSummary', depotId: '101' }],
+    ['What is the replacement for UP32AB1234 at Kanpur?', { kind: 'replacementFor', depotId: '101', registrationNumber: 'UP32AB1234' }],
   ];
 
   it.each(cases)('routes %j', (question, expected) => {

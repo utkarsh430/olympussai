@@ -22,6 +22,8 @@ import type { CopilotNetworkHours, RouteHourlyBody } from '@/lib/depot/service/t
 import { answerTable, interpretQuery } from '@/lib/depot/copilot/service/interpret';
 import { buildScheduleRationale, type SchedulePlanBody } from '@/lib/depot/copilot/facts/schedule';
 import type { SchedulerRollupResponse } from '@/lib/depot/schedule/api';
+import { buildReplacementRationale } from '@/lib/depot/copilot/facts/incident';
+import type { IncidentView, IncidentsResponse } from '@/lib/depot/incident/api';
 import type { ValidCopilotRequest } from '@/lib/depot/copilot/service/schema';
 
 export type Prepared =
@@ -45,6 +47,8 @@ export interface ServiceAnswerData {
   readonly networkHours?: CopilotNetworkHours;
   readonly schedule?: Readonly<Record<string, SchedulePlanBody>>;
   readonly scheduler?: SchedulerRollupResponse | null;
+  readonly incidents?: Readonly<Record<string, IncidentsResponse>>;
+  readonly declaredIncident?: IncidentView | null;
 }
 
 /**
@@ -77,6 +81,8 @@ function depotIdsOf(query: CopilotQuery): string[] {
     case 'scheduleSummary':
     case 'scheduleShiftCover':
     case 'scheduleUncovered':
+    case 'breakdownSummary':
+    case 'replacementFor':
       return [query.depotId];
     case 'compareDepots':
       return [query.depotA, query.depotB];
@@ -154,6 +160,12 @@ export function prepareCopilotRequest(
       return detail ? { ok: true, request: buildDepotBriefing(detail) } : NOT_FOUND;
     }
     case 'rationale': {
+      if ('incidentDepotId' in body) {
+        const held = service.incidents?.[body.incidentDepotId];
+        const key = body.registrationNumber.trim().toLowerCase();
+        const found = held?.incidents.find((v) => v.incident.registrationNumber.toLowerCase() === key) ?? service.declaredIncident ?? null;
+        return found && held ? { ok: true, request: buildReplacementRationale(found, held.depotName, body.incidentDepotId) } : NOT_FOUND;
+      }
       if ('scheduleDepotId' in body) {
         const held = service.schedule?.[body.scheduleDepotId];
         return held ? { ok: true, request: buildScheduleRationale(held) } : NOT_FOUND;

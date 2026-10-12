@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { isValidDepotId, isValidRouteName } from '@/lib/depot/ids';
+import { isValidDepotId, isValidRegistration, isValidRouteName } from '@/lib/depot/ids';
 import { DEI_COMPONENTS } from '@/lib/depot/score/config';
 
 /**
@@ -73,6 +73,10 @@ export const copilotQuerySchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('scheduleUncovered'), depotId }).strict(),
   /** Every depot's plan rolled up: depots planned, buses freed, need uncovered. */
   z.object({ kind: z.literal('schedulerSummary') }).strict(),
+  /** The buses of a depot that may have broken down, and the replacement recommended for each. */
+  z.object({ kind: z.literal('breakdownSummary'), depotId }).strict(),
+  /** The replacement recommended for one bus of a depot. */
+  z.object({ kind: z.literal('replacementFor'), depotId, registrationNumber: z.string().refine(isValidRegistration) }).strict(),
   /** The daily brief; the date defaults to the feed's operating date. */
   z.object({ kind: z.literal('serviceBrief'), date: isoDate.optional() }).strict(),
   z

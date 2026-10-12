@@ -76,6 +76,10 @@ export function interpretQuery(query: CopilotQuery, nameOf: (depotId: string) =>
       return `Need the schedule plan leaves uncovered at ${name(query.depotId)}`;
     case 'schedulerSummary':
       return 'The schedule plans across every depot';
+    case 'breakdownSummary':
+      return `Buses that may have broken down at ${name(query.depotId)}`;
+    case 'replacementFor':
+      return `The replacement recommended for a bus of ${name(query.depotId)}`;
     case 'unsupported':
       return query.reason === 'unknown_route'
         ? 'A route that is not in the current feed'
