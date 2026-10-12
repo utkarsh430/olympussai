@@ -76,3 +76,30 @@ describe('the depot AI Scheduler page', () => {
     expect(bannedOnScreen(html)).toEqual([]);
   });
 });
+
+vi.mock('@/lib/auth/server', () => ({ requireProjectSession: async (): Promise<void> => {} }));
+vi.mock('@/hooks/useSchedulerRollup', () => ({
+  useSchedulerRollup: (): unknown => ({
+    data: {
+      feedNow: '2026-10-12T10:00:00Z', fetchedAt: '2026-10-12T10:00:05Z', source: 'live', stale: false, operatingDate: '2026-10-12',
+      depots: [{ depotId: '7', depotName: 'Kanpur', busesScheduled: 5, busesToday: 6, busesFreed: 1, crewSlotsUsed: { driver: 8, conductor: 8 }, crewSlotsToday: { driver: 9, conductor: 9 }, crewHours: 60, crewHoursToday: 70, uncoveredBusHours: 0, deadKm: null, routes: 2, planKey: 'abc' }],
+      planned: 1, pending: 2, total: 3,
+      summary: { busesFreed: 1, crewSlotsFreed: 2, uncoveredBusHours: 0, depotsWithUncovered: 0 },
+    },
+    error: null, loading: false, refresh: () => {},
+  }),
+}));
+
+describe('the Headquarters AI Scheduler page', () => {
+  it('rolls the depots up with the progress line and no provenance line', async () => {
+    const { default: SchedulerRoutePage } = await import('@/app/(protected)/project/depots/scheduler/page');
+    const html = renderToStaticMarkup(await SchedulerRoutePage());
+    expect(html).toContain('AI Scheduler');
+    expect(html).toContain('Plans ready for 1 of 3 depots');
+    expect(html).toContain('Kanpur');
+    expect(html).toContain('Recommendation only. Nothing is dispatched or assigned.');
+    expect(html).not.toContain('depot-provenance-line');
+    expect(html).not.toMatch(/\bmodel(led|ling|s)?\b/i);
+    expect(bannedOnScreen(html)).toEqual([]);
+  });
+});
