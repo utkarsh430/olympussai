@@ -1,5 +1,9 @@
 import { SectionLabel } from '@/components/depot/shell/SectionLabel';
+import { DEPOT_PALETTE } from '@/lib/depot/palette';
 import type { CoverageRow } from '@/lib/depot/schedule/schedulePageModel';
+
+/** The short-cell hatch: the palette's crimson at a fifth, beside the figures that say the same. */
+const SHORT_HATCH = { backgroundImage: `repeating-linear-gradient(135deg, transparent 0 3px, ${DEPOT_PALETTE.crimson}33 3px 6px)` } as const;
 
 const HOURS = Array.from({ length: 24 }, (_, h) => h);
 
@@ -33,7 +37,8 @@ export function CoverageStrip({ rows }: { readonly rows: readonly CoverageRow[] 
                   <td
                     key={c.hour}
                     title={`${row.routeName} ${String(c.hour).padStart(2, '0')}:00: ${c.needed} needed, ${c.scheduled} scheduled`}
-                    className={`px-1 text-right font-mono ${c.needed === 0 ? 'text-depot-faint' : c.short ? 'border-l-2 border-alert-crimson bg-[repeating-linear-gradient(135deg,transparent_0_3px,rgba(220,38,38,0.18)_3px_6px)] text-depot-ink' : 'text-depot-ink'}`}
+                    style={c.short ? SHORT_HATCH : undefined}
+                    className={`px-1 text-right font-mono ${c.needed === 0 ? 'text-depot-faint' : c.short ? 'border-l-2 border-alert-crimson text-depot-ink' : 'text-depot-ink'}`}
                   >
                     {c.needed === 0 ? '·' : `${c.needed}/${c.scheduled}`}
                   </td>

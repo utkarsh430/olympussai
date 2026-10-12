@@ -6,16 +6,19 @@ import { DataTable } from '@/components/depot/shell/DataTable';
 import { SectionLabel } from '@/components/depot/shell/SectionLabel';
 import { rosterBusHref } from '@/lib/depot/depotNav';
 import { axisTicks, nowLinePct } from '@/lib/depot/duties/dutyBoardModel';
+import { DEPOT_CATEGORY_HUES } from '@/lib/depot/palette';
 import type { BlockRow } from '@/lib/depot/schedule/schedulePageModel';
 
-/** Six hues, then the same six hatched: a route's colour sits beside its code in the leg. */
-const HUES = ['#0ea5c9', '#16a34a', '#d97706', '#9333ea', '#db2777', '#0d9488'] as const;
+/** The palette's six category hues, then the same six hatched; the route code sits in every leg. */
+const HUES = DEPOT_CATEGORY_HUES;
+/** Two hex digits of alpha appended to a palette hue: a third of full strength. */
+const FILL_ALPHA = '55';
 
 function legStyle(colour: number): { readonly background: string; readonly border: string } {
   const hue = HUES[colour % HUES.length] as string;
   const hatched = colour >= HUES.length;
   return {
-    background: hatched ? `repeating-linear-gradient(135deg, ${hue}55 0 4px, transparent 4px 8px)` : `${hue}55`,
+    background: hatched ? `repeating-linear-gradient(135deg, ${hue}${FILL_ALPHA} 0 4px, transparent 4px 8px)` : `${hue}${FILL_ALPHA}`,
     border: hue,
   };
 }
