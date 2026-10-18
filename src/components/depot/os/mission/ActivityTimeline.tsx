@@ -2,6 +2,7 @@
 
 import { formatCount } from '@/lib/depot/format';
 import type { ServiceBandSummary } from '@/lib/depot/service/types';
+import { clockOf } from '@/lib/depot/os/intel/readiness';
 import { StatusTag } from '../ui';
 
 export interface TimelineEvent {
@@ -22,22 +23,15 @@ const TONE_BG = {
   cyan: 'bg-holo-glow',
 } as const;
 
-const TONE_TEXT = {
-  crimson: 'text-alert-crimson',
-  amber: 'text-alert-amber',
-  teal: 'text-holo-teal',
-  cyan: 'text-holo-glow',
-} as const;
-
 const HOURS = 24;
 const TICKS = [0, 4, 6, 10, 16, 20, 24];
 const pct = (hour: number): string => `${(Math.max(0, Math.min(HOURS, hour)) / HOURS) * 100}%`;
 
 /**
- * Today on one line: the service bands with how many routes and buses each is short,
- * the feed clock's hour, and the operational events that fall in the day (the peak
- * shortage, breakdowns now, the transfer window, the workshop's night intake). A marker
- * tied to a decision selects it.
+ * Today on one line: the service bands with how many buses each is short across routes,
+ * the feed clock's hour, and the day's operational events (the peak shortage, breakdowns
+ * now, the transfer window, the workshop's inspection window) as numbered marks on the
+ * track, listed beneath it. A mark tied to a decision selects it.
  */
 export function ActivityTimeline({
   bands,
@@ -51,76 +45,96 @@ export function ActivityTimeline({
   readonly onSelectDecision?: (id: string) => void;
 }) {
   const maxShort = Math.max(1, ...(bands ?? []).map((b) => b.busesShort));
+  const ordered = [...events].sort((a, b) => a.hour - b.hour);
   return (
-    <div className="space-y-3 p-4" data-testid="os-activity-timeline">
-      <div className="relative h-[92px] overflow-hidden">
-        <div className="absolute inset-x-0 top-[34px] h-[26px] rounded-[3px] bg-depot-raised" />
-        {(bands ?? []).map((b) => {
-          const intensity = b.busesShort / maxShort;
-          return (
-            <div
-              key={b.band}
-              className="absolute top-[34px] h-[26px] overflow-hidden rounded-[3px] border border-holo-glow/15"
-              style={{ left: pct(b.fromHour), width: `calc(${pct(b.toHour + 1)} - ${pct(b.fromHour)})` }}
-              title={`${b.label}: ${b.shortRoutes} routes short by ${b.busesShort} buses; ${b.overRoutes} over-served by ${b.busesOver}`}
-            >
-              <div className="absolute inset-0 bg-alert-crimson" style={{ opacity: 0.08 + intensity * 0.45 }} />
-              <div className="relative truncate px-1.5 pt-[5px] font-sans text-[10.5px] font-medium text-depot-ink">
-                {b.label} · <span className="font-mono">{formatCount(b.busesShort)}</span> short
+    <div className="space-y-3 px-4 pb-4 pt-3" data-testid="os-activity-timeline">
+      <div className="relative">
+        <div className="relative h-[30px] rounded-[3px] bg-depot-raised">
+          {(bands ?? []).map((b) => {
+            const intensity = b.busesShort / maxShort;
+            return (
+              <div
+                key={b.band}
+                className="absolute inset-y-0 overflow-hidden border-x border-void/60"
+                style={{ left: pct(b.fromHour), width: `calc(${pct(b.toHour + 1)} - ${pct(b.fromHour)})` }}
+                title={`${b.label} ${String(b.fromHour).padStart(2, '0')}:00–${String(b.toHour + 1).padStart(2, '0')}:00: ${b.shortRoutes} routes short by ${b.busesShort} buses; ${b.overRoutes} over-served by ${b.busesOver}`}
+              >
+                <div className="absolute inset-0 bg-alert-crimson" style={{ opacity: 0.06 + intensity * 0.42 }} />
+                <div className="relative truncate px-2 pt-[7px] font-sans text-[11px] font-medium text-depot-ink">
+                  {b.label} <span className="font-mono text-depot-prose">· {formatCount(b.busesShort)} short</span>
+                </div>
               </div>
+            );
+          })}
+          {currentHour !== null ? (
+            <div className="absolute -inset-y-1 w-[2px] bg-alert-amber" style={{ left: pct(currentHour + 0.5) }} title="Feed clock" />
+          ) : null}
+        </div>
+        <div className="relative mt-1 h-5">
+          {ordered.map((e, i) => (
+            <div key={e.id}>
+              {e.endHour !== undefined ? (
+                <div
+                  className={`absolute top-[3px] h-[3px] rounded-full ${TONE_BG[e.tone]} opacity-60`}
+                  style={{ left: pct(e.hour), width: `calc(${pct(e.endHour)} - ${pct(e.hour)})` }}
+                  aria-hidden
+                />
+              ) : null}
+              <span
+                className={`absolute top-0 flex h-[11px] w-[11px] -translate-x-1/2 items-center justify-center rounded-full ${TONE_BG[e.tone]} font-mono text-[8px] font-bold text-void`}
+                style={{ left: pct(e.hour) }}
+                aria-hidden
+              >
+                {i + 1}
+              </span>
             </div>
-          );
-        })}
-        {events.map((e, i) => {
-          const top = i % 2 === 0 ? 0 : 66;
-          const clickable = Boolean(e.decisionId && onSelectDecision);
+          ))}
+        </div>
+        <div className="relative h-4">
+          {TICKS.map((h) => (
+            <span
+              key={h}
+              className={`absolute font-mono text-[10px] text-depot-muted ${h === 0 ? '' : h === 24 ? '-translate-x-full' : '-translate-x-1/2'}`}
+              style={{ left: pct(h) }}
+            >
+              {String(h % 24).padStart(2, '0')}:00
+            </span>
+          ))}
+        </div>
+      </div>
+      <ol className="grid gap-1.5 sm:grid-cols-2 xl:grid-cols-3">
+        {ordered.map((e, i) => {
           const body = (
             <>
-              <span className={`h-2 w-2 shrink-0 rounded-full ${TONE_BG[e.tone]}`} aria-hidden />
-              <span className={`truncate font-sans text-[10.5px] ${TONE_TEXT[e.tone]}`}>{e.label}</span>
+              <span className={`mt-[3px] flex h-[13px] w-[13px] shrink-0 items-center justify-center rounded-full ${TONE_BG[e.tone]} font-mono text-[8.5px] font-bold text-void`}>
+                {i + 1}
+              </span>
+              <span className="min-w-0">
+                <span className="font-mono text-[11px] text-depot-muted">
+                  {clockOf(e.hour * 60)}
+                  {e.endHour !== undefined ? `–${clockOf(e.endHour * 60)}` : ''}
+                </span>{' '}
+                <span className="font-sans text-[12.5px] text-depot-ink">{e.label}</span>
+              </span>
             </>
           );
           return (
-            <div
-              key={e.id}
-              className="absolute"
-              style={e.hour > 14 ? { right: `calc(100% - ${pct(e.hour)})`, top, maxWidth: '45%' } : { left: pct(e.hour), top, maxWidth: '45%' }}
-            >
-              {clickable ? (
-                <button type="button" onClick={() => onSelectDecision?.(e.decisionId!)} className="flex max-w-full items-center gap-1 rounded-[3px] px-1 py-0.5 hover:bg-depot-raised">
+            <li key={e.id}>
+              {e.decisionId && onSelectDecision ? (
+                <button type="button" onClick={() => onSelectDecision(e.decisionId!)} className="flex w-full items-start gap-2 rounded-[4px] px-2 py-1 text-left hover:bg-depot-raised">
                   {body}
                 </button>
               ) : (
-                <div className="flex max-w-full items-center gap-1 px-1 py-0.5">{body}</div>
+                <div className="flex items-start gap-2 px-2 py-1">{body}</div>
               )}
-            </div>
+            </li>
           );
         })}
-        {events
-          .filter((e) => e.endHour !== undefined)
-          .map((e) => (
-            <div
-              key={`${e.id}-window`}
-              className={`absolute top-[62px] h-[3px] rounded-full ${TONE_BG[e.tone]} opacity-60`}
-              style={{ left: pct(e.hour), width: `calc(${pct(e.endHour!)} - ${pct(e.hour)})` }}
-              aria-hidden
-            />
-          ))}
-        {currentHour !== null ? (
-          <div className="absolute top-[26px] h-[42px] w-[2px] bg-alert-amber" style={{ left: pct(currentHour) }} title="Feed clock">
-            <span className="absolute -top-0.5 left-1 font-mono text-[9.5px] uppercase tracking-[0.1em] text-alert-amber">Now</span>
-          </div>
-        ) : null}
-      </div>
-      <div className="relative h-4">
-        {TICKS.map((h) => (
-          <span key={h} className="absolute -translate-x-1/2 font-mono text-[10px] text-depot-muted" style={{ left: pct(h) }}>
-            {String(h % 24).padStart(2, '0')}:00
-          </span>
-        ))}
-      </div>
-      <div className="flex items-center justify-between gap-2">
-        <span className="font-sans text-[11.5px] text-depot-prose">Route gaps per band from Hourly Demand; markers from the decision queue.</span>
+      </ol>
+      <div className="flex items-center justify-between gap-2 border-t border-holo-glow/10 pt-2">
+        <span className="font-sans text-[11.5px] text-depot-prose">
+          Band shading: buses short across routes, from Hourly Demand. Amber line: the feed clock.
+        </span>
         <StatusTag status="forecast" />
       </div>
     </div>

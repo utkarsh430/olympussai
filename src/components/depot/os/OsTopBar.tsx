@@ -57,7 +57,8 @@ export function OsTopBar() {
           className="hidden h-8 items-center gap-2 rounded-[4px] border border-depot-line bg-depot-surface px-2.5 font-sans text-[12px] text-depot-prose hover:border-holo-glow/40 hover:text-depot-ink md:inline-flex"
         >
           <Search className="h-3.5 w-3.5" aria-hidden />
-          <span className="hidden lg:inline">Search vehicles, depots, views</span>
+          <span className="hidden min-[1700px]:inline">Search vehicles, depots, views</span>
+          <span className="min-[1700px]:hidden">Search</span>
           <span className="inline-flex items-center gap-0.5 rounded-[3px] border border-depot-line px-1 font-mono text-[10px] text-depot-muted">
             <Command className="h-2.5 w-2.5" aria-hidden />K
           </span>
@@ -72,7 +73,7 @@ export function OsTopBar() {
         </button>
 
         <span
-          className="hidden items-center gap-1.5 rounded-[3px] border border-holo-glow/30 bg-holo-glow/[0.06] px-2 py-1 font-mono text-[10.5px] uppercase tracking-[0.12em] text-holo-glow 2xl:inline-flex"
+          className="hidden items-center gap-1.5 rounded-[3px] border border-holo-glow/30 bg-holo-glow/[0.06] px-2 py-1 font-mono text-[10.5px] uppercase tracking-[0.12em] text-holo-glow min-[1700px]:inline-flex"
           title={
             intel.ready
               ? `The AI engine ranked ${intel.decisions.length} decisions on the latest snapshot; ${critical} critical.`

@@ -184,74 +184,147 @@ function redistributionDecision(input: DecisionInput): Decision[] {
   ];
 }
 
-const CONFIDENCE_SEVERITY: Readonly<Record<IncidentRollupRow['confidence'], Severity>> = {
-  high: 'critical',
-  medium: 'high',
-  low: 'medium',
-};
+/** A breakdown is critical only on the device's own emergency flag with high confidence. */
+function incidentSeverity(r: IncidentRollupRow): Severity {
+  if (r.confidence === 'high' && r.signals.includes('emergency_flag')) return 'critical';
+  if (r.confidence === 'high') return 'high';
+  return r.confidence === 'medium' ? 'medium' : 'low';
+}
+
+function singleIncident(r: IncidentRollupRow): Decision {
+  const aboard = r.passengersAboard;
+  const ready = r.planState === 'ready' && r.recommendedKind !== null;
+  const replacement = ready ? kindText(r.recommendedKind!, r.recommendedDepotName ?? r.depotName) : null;
+  return {
+    id: `incident:${r.registrationNumber}`,
+    category: 'incident',
+    severity: incidentSeverity(r),
+    weight: aboard ?? 0,
+    title: `${r.registrationNumber} may have broken down${r.routeName ? ` on ${r.routeName}` : ''}`,
+    entity: { kind: 'vehicle', id: r.registrationNumber, label: r.registrationNumber },
+    depotId: r.depotId,
+    timing: 'Now',
+    detected: `${r.signals.map((s) => SIGNAL_TEXT[s]).join('; ')}.`,
+    whyItMatters:
+      aboard !== null
+        ? `About ${formatCount(aboard)} passengers are waiting aboard and the bus's later duties are at risk.`
+        : "The bus's later duties are at risk until a replacement is found.",
+    evidence: [
+      { label: 'Signals', value: r.signals.map((s) => SIGNAL_TEXT[s]).join(', '), status: 'live' },
+      { label: 'Confidence', value: r.confidence, status: 'derived' },
+      { label: 'Passengers aboard', value: aboard === null ? 'Unknown' : formatCount(aboard), status: 'estimate' },
+      {
+        label: 'Replacement arrival',
+        value: r.arrivalMinutes === null ? 'Not planned' : `${formatCount(r.arrivalMinutes)} min`,
+        status: 'estimate',
+      },
+    ],
+    recommendation: ready
+      ? {
+          title: replacement!,
+          detail: 'Ranked by passengers moving soonest, then the fewest empty kilometres, then the least knock-on.',
+          impact: r.arrivalMinutes === null ? 'Passengers moving once it arrives.' : `Passengers moving in about ${formatCount(r.arrivalMinutes)} minutes.`,
+          tradeOff: 'The replacement leaves its own duty or spare position; see the knock-on in Disruption Propagation.',
+        }
+      : {
+          title: 'Plan a replacement',
+          detail: 'The plan is still being worked out for this depot.',
+          impact: 'Open the incident for the ranked candidates.',
+          tradeOff: 'None until a candidate is chosen.',
+        },
+    alternatives: [
+      {
+        title: 'Confirm by phone before sending anything',
+        detail: 'A feed status can lag the road; the crew can confirm in a minute.',
+        impact: 'No empty running if the bus is fine.',
+        tradeOff: 'Passengers wait while it is confirmed.',
+      },
+      {
+        title: 'Wait for the next scheduled bus',
+        detail: 'Passengers transfer to the next service on the route.',
+        impact: 'No empty running; passengers wait one headway.',
+        tradeOff: 'Seats on the next bus may not suffice.',
+      },
+    ],
+    impact: ready ? `Recovery planned with ${replacement!.toLowerCase()}.` : 'Recovery not yet planned.',
+    approval: APPROVAL_INCIDENT,
+    links: [
+      { label: 'Incident Response', href: incidentBusHref(r.depotId, r.registrationNumber) },
+      { label: 'Disruption Propagation', href: `${depotHref(r.depotId)}/disruption?bus=${encodeURIComponent(r.registrationNumber)}` },
+    ],
+    basis: 'derived',
+  };
+}
+
+function depotIncidents(depotId: string, rows: readonly IncidentRollupRow[]): Decision {
+  const sorted = [...rows].sort((a, b) => SEVERITY_RANK[incidentSeverity(a)] - SEVERITY_RANK[incidentSeverity(b)] || (b.passengersAboard ?? 0) - (a.passengersAboard ?? 0));
+  const worst = incidentSeverity(sorted[0]!);
+  const name = sorted[0]!.depotName;
+  const aboard = rows.reduce((s, r) => s + (r.passengersAboard ?? 0), 0);
+  const planned = rows.filter((r) => r.planState === 'ready' && r.recommendedKind !== null).length;
+  const high = rows.filter((r) => r.confidence === 'high').length;
+  const flags = rows.filter((r) => r.signals.includes('emergency_flag')).length;
+  return {
+    id: `incidents:${depotId}`,
+    category: 'incident',
+    severity: worst,
+    weight: aboard,
+    title: `${name}: ${formatCount(rows.length)} buses may have broken down on the road`,
+    entity: { kind: 'depot', id: depotId, label: name },
+    depotId,
+    timing: 'Now',
+    detected: `${formatCount(high)} with high confidence${flags > 0 ? `, ${formatCount(flags)} with the device's emergency flag raised` : ''}: ${sorted
+      .slice(0, 3)
+      .map((r) => r.registrationNumber)
+      .join(', ')}${rows.length > 3 ? ' and more' : ''}.`,
+    whyItMatters: `About ${formatCount(aboard)} passengers may be waiting aboard, and each bus's later duties are at risk.`,
+    evidence: [
+      { label: 'Suspected breakdowns', value: formatCount(rows.length), status: 'derived' },
+      { label: 'High confidence', value: formatCount(high), status: 'derived' },
+      { label: 'Emergency flags', value: formatCount(flags), status: 'live' },
+      { label: 'Passengers aboard', value: formatCount(aboard), status: 'estimate' },
+      { label: 'Replacements planned', value: `${formatCount(planned)} of ${formatCount(rows.length)}`, status: 'proposed' },
+    ],
+    recommendation: {
+      title: 'Confirm the high-confidence buses and send the planned replacements',
+      detail: 'Start with an emergency flag, then the most passengers aboard.',
+      impact: `${formatCount(planned)} replacements are ranked and ready to send.`,
+      tradeOff: 'Each replacement leaves its own spare position or duty.',
+    },
+    alternatives: [
+      {
+        title: 'Confirm by phone before sending anything',
+        detail: 'A feed status can lag the road.',
+        impact: 'No empty running for a bus that is fine.',
+        tradeOff: 'Passengers wait while each is confirmed.',
+      },
+    ],
+    impact: `${formatCount(planned)} of ${formatCount(rows.length)} recoveries planned.`,
+    approval: APPROVAL_INCIDENT,
+    links: [
+      { label: 'Incident Response', href: `${depotHref(depotId)}/incidents` },
+      { label: 'Disruption Propagation', href: `${depotHref(depotId)}/disruption` },
+    ],
+    basis: 'derived',
+  };
+}
 
 function incidentDecisions(input: DecisionInput): Decision[] {
-  const rows = input.incidents?.rows ?? [];
-  return rows
-    .filter((r) => inScope(input.scope, r.depotId))
-    .map((r): Decision => {
-      const aboard = r.passengersAboard;
-      const ready = r.planState === 'ready' && r.recommendedKind !== null;
-      const replacement = ready ? kindText(r.recommendedKind!, r.recommendedDepotName ?? r.depotName) : null;
-      return {
-        id: `incident:${r.registrationNumber}`,
-        category: 'incident',
-        severity: CONFIDENCE_SEVERITY[r.confidence],
-        weight: aboard ?? 0,
-        title: `${r.registrationNumber} may have broken down${r.routeName ? ` on ${r.routeName}` : ''}`,
-        entity: { kind: 'vehicle', id: r.registrationNumber, label: r.registrationNumber },
-        depotId: r.depotId,
-        timing: 'Now',
-        detected: `${r.signals.map((s) => SIGNAL_TEXT[s]).join('; ')}.`,
-        whyItMatters:
-          aboard !== null
-            ? `About ${formatCount(aboard)} passengers are waiting aboard and the bus's later duties are at risk.`
-            : "The bus's later duties are at risk until a replacement is found.",
-        evidence: [
-          { label: 'Signals', value: formatCount(r.signals.length), status: 'live' },
-          { label: 'Confidence', value: r.confidence, status: 'derived' },
-          { label: 'Passengers aboard', value: aboard === null ? 'Unknown' : formatCount(aboard), status: 'estimate' },
-          {
-            label: 'Replacement arrival',
-            value: r.arrivalMinutes === null ? 'Not planned' : `${formatCount(r.arrivalMinutes)} min`,
-            status: 'estimate',
-          },
-        ],
-        recommendation: ready
-          ? {
-              title: replacement!,
-              detail: 'Ranked by passengers moving soonest, then the fewest empty kilometres, then the least knock-on.',
-              impact: r.arrivalMinutes === null ? 'Passengers moving once it arrives.' : `Passengers moving in about ${formatCount(r.arrivalMinutes)} minutes.`,
-              tradeOff: 'The replacement leaves its own duty or spare position; see the knock-on in Disruption Propagation.',
-            }
-          : {
-              title: 'Plan a replacement',
-              detail: 'The plan is still being worked out for this depot.',
-              impact: 'Open the incident for the ranked candidates.',
-              tradeOff: 'None until a candidate is chosen.',
-            },
-        alternatives: [
-          {
-            title: 'Wait for the next scheduled bus',
-            detail: 'Passengers transfer to the next service on the route.',
-            impact: 'No empty running; passengers wait one headway.',
-            tradeOff: 'Seats on the next bus may not suffice.',
-          },
-        ],
-        impact: ready ? `Recovery planned with ${replacement!.toLowerCase()}.` : 'Recovery not yet planned.',
-        approval: APPROVAL_INCIDENT,
-        links: [
-          { label: 'Incident Response', href: incidentBusHref(r.depotId, r.registrationNumber) },
-          { label: 'Disruption Propagation', href: `${depotHref(r.depotId)}/disruption?bus=${encodeURIComponent(r.registrationNumber)}` },
-        ],
-        basis: 'derived',
-      };
-    });
+  const groups = new Map<string, IncidentRollupRow[]>();
+  for (const r of input.incidents?.rows ?? []) {
+    if (!inScope(input.scope, r.depotId)) continue;
+    const held = groups.get(r.depotId);
+    if (held) held.push(r);
+    else groups.set(r.depotId, [r]);
+  }
+  const perDepot = [...groups.entries()].map(([depotId, rows]) => (rows.length === 1 ? singleIncident(rows[0]!) : depotIncidents(depotId, rows)));
+  // In one depot's scope, its buses are listed one by one.
+  if (input.scope !== null && input.scope.size === 1) {
+    return (groups.values().next().value ?? []).map(singleIncident);
+  }
+  return perDepot
+    .sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity] || b.weight - a.weight)
+    .slice(0, THRESHOLDS.maxPerCategory);
 }
 
 function maintenanceDecisions(input: DecisionInput, byId: ReadonlyMap<string, DepotSummary>): Decision[] {

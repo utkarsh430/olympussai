@@ -142,11 +142,13 @@ interface MetricProps {
 export function Metric({ label, value, sub, tone = null, status, href, onClick, active, testId }: MetricProps) {
   const body = (
     <>
-      <div className="flex items-center justify-between gap-2">
-        <span className="os-kicker truncate">{label}</span>
+      <div className="os-kicker truncate" title={label}>
+        {label}
+      </div>
+      <div className="mt-1 flex items-center justify-between gap-2">
+        <span className={`os-value ${tone ? TONE_TEXT[tone] : ''}`}>{value}</span>
         {status ? <StatusTag status={status} /> : null}
       </div>
-      <div className={`os-value mt-1 ${tone ? TONE_TEXT[tone] : ''}`}>{value}</div>
       {sub ? <div className="os-sub mt-0.5 truncate">{sub}</div> : null}
     </>
   );

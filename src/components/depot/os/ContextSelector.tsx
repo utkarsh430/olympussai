@@ -98,8 +98,8 @@ export function ContextSelector() {
         className="flex min-w-0 items-center gap-1.5 rounded-[4px] border border-transparent px-2 py-1 font-mono text-[11px] uppercase tracking-[0.12em] text-depot-muted hover:border-depot-line hover:bg-depot-raised disabled:cursor-wait"
       >
         <Globe2 className="h-3.5 w-3.5 shrink-0 text-holo-glow" aria-hidden />
-        <span className="hidden shrink-0 2xl:inline">UPSRTC Network</span>
-        <ChevronRight className="hidden h-3 w-3 shrink-0 text-depot-faint 2xl:inline" aria-hidden />
+        <span className="hidden shrink-0 min-[1800px]:inline">UPSRTC Network</span>
+        <ChevronRight className="hidden h-3 w-3 shrink-0 text-depot-faint min-[1800px]:inline" aria-hidden />
         <span className={`truncate ${depot ? 'hidden md:inline' : 'text-depot-ink'}`}>
           {shownRegion ? `${shownRegion.name} region` : 'Headquarters'}
         </span>
