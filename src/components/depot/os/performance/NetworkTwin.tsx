@@ -83,7 +83,7 @@ export function NetworkTwin() {
     <div className="space-y-4" data-testid="os-network-twin">
       <OsHeader
         title="Digital twin"
-        description="The network as a live schematic: depots where their buses are, pressure by depot, flows and every positioned bus."
+        description="The network as a schematic drawn from the latest snapshot: depots where their buses are, pressure by depot, flows and every positioned bus."
         statuses={['live', 'derived', 'proposed']}
       />
       {!intel.network ? (
