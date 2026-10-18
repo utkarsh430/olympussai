@@ -99,7 +99,7 @@ function AnswerCard({ turn }: { readonly turn: Turn }) {
 export function CopilotDock() {
   const open = useOsStore((s) => s.copilotOpen);
   const setOpen = useOsStore((s) => s.setCopilotOpen);
-  const focus = useOsStore((s) => s.focus);
+  const storedFocus = useOsStore((s) => s.focus);
   const regionId = useOsStore((s) => s.regionId);
   const pendingQuestion = useOsStore((s) => s.pendingQuestion);
   const takePendingQuestion = useOsStore((s) => s.takePendingQuestion);
@@ -114,6 +114,7 @@ export function CopilotDock() {
   const duties = useDepotDuties(open ? intel.scopeDepotId : null);
   const data = useMemo(() => ({ ...intel, spareBuses: duties.data?.spareBuses ?? null }), [intel, duties.data]);
   const view = activeView(pathname, search);
+  const focus = storedFocus && storedFocus.path === pathname ? storedFocus : null;
   const depotName = intel.scopeDepotId ? (intel.depotsById.get(intel.scopeDepotId)?.name ?? null) : null;
   const ctx = useMemo(
     () => ({

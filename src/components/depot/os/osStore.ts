@@ -40,6 +40,8 @@ export interface CopilotFocus {
   readonly kind: 'vehicle' | 'depot' | 'route' | 'incident' | 'journey' | 'decision' | 'scenario';
   readonly id: string;
   readonly label: string;
+  /** The address it was set on; a focus from another page is not this page's. */
+  readonly path?: string;
 }
 
 interface OsState {
@@ -133,7 +135,7 @@ export const useOsStore = create<OsState>((set, get) => ({
   setCapabilitiesOpen: (capabilitiesOpen) => set({ capabilitiesOpen }),
   openEntity: (entity) => set({ entity }),
   closeEntity: () => set({ entity: null }),
-  setFocus: (focus) => set({ focus }),
+  setFocus: (focus) => set({ focus: focus ? { ...focus, path: window.location.pathname } : null }),
   recordReview: (record) => {
     const entry: ReviewRecord = { ...record, at: new Date().toISOString() };
     const reviews = [entry, ...get().reviews.filter((r) => r.decisionId !== record.decisionId)].slice(
