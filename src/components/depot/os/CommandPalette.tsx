@@ -134,7 +134,7 @@ export function CommandPalette() {
     const decisions: Result[] = intel.decisions
       .filter((d) => has(d.title, d.entity.label))
       .slice(0, LIMIT.decision)
-      .map((d) => ({ key: `decision:${d.id}`, kind: 'decision', label: d.title, detail: d.timing, href: decisionHref(d.id) }));
+      .map((d) => ({ key: `decision:${d.id}`, kind: 'decision', label: d.title, detail: d.timing, href: decisionHref(d.id, d.depotId) }));
     return [...buses, ...depots, ...decisions, ...views, ...routes, ...regions];
   }, [query, intel, depotId]);
 

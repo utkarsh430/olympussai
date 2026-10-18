@@ -159,7 +159,7 @@ function shortageAnswer(depot: DepotSummary | null, data: CopilotData, ctx: Copi
         ...own.alternatives.slice(0, 2).map((a) => `Alternative: ${a.title}. ${a.impact}`),
       ],
       actions: [
-        { label: 'Open the decision', href: decisionHref(own.id) },
+        { label: 'Open the decision', href: decisionHref(own.id, own.depotId) },
         { label: 'Between Depots', href: REBALANCE_PATH },
         { label: 'Try it in Scenario Studio', href: `${SIMULATION_PATH}?depot=${encodeURIComponent(depot.id)}` },
       ],
@@ -176,7 +176,7 @@ function shortageAnswer(depot: DepotSummary | null, data: CopilotData, ctx: Copi
     bullets: scoped.slice(0, MAX_LISTED).map((d) => `${d.title}. ${d.recommendation.title}.`),
     actions: [
       { label: 'Between Depots', href: REBALANCE_PATH },
-      ...scoped.slice(0, 2).map((d) => ({ label: `Open ${d.entity.label}`, href: decisionHref(d.id) })),
+      ...scoped.slice(0, 2).map((d) => ({ label: `Open ${d.entity.label}`, href: decisionHref(d.id, d.depotId) })),
     ],
     status: 'estimate',
   };
@@ -351,7 +351,7 @@ function briefingAnswer(data: CopilotData, ctx: CopilotContext, name: string): L
     headline: briefing.headline,
     paragraphs: [...briefing.situation, briefing.outlook],
     bullets: briefing.priorities.map((p) => p.text),
-    actions: data.decisions.slice(0, 2).map((d) => ({ label: `Open: ${d.entity.label}`, href: decisionHref(d.id) })),
+    actions: data.decisions.slice(0, 2).map((d) => ({ label: `Open: ${d.entity.label}`, href: decisionHref(d.id, d.depotId) })),
     status: 'derived',
   };
 }

@@ -504,6 +504,8 @@ export function buildDecisions(input: DecisionInput): readonly Decision[] {
   ].sort(compare);
 }
 
-export function decisionHref(id: string): string {
-  return `${DECISIONS_PATH}?d=${encodeURIComponent(id)}`;
+/** The decision in its own depot's Decision Center, or Headquarters' when it has no depot. */
+export function decisionHref(id: string, depotId: string | null = null): string {
+  const base = depotId ? `${depotHref(depotId)}/decisions` : DECISIONS_PATH;
+  return `${base}?d=${encodeURIComponent(id)}`;
 }

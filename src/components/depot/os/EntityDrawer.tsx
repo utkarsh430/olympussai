@@ -38,7 +38,7 @@ function DecisionList({ intel, match }: { readonly intel: Intel; readonly match:
     <ul className="space-y-1.5">
       {related.map((d) => (
         <li key={d.id}>
-          <Link href={decisionHref(d.id)} onClick={closeEntity} className="flex items-start gap-2 rounded-[4px] border border-holo-glow/10 px-2.5 py-2 hover:border-holo-glow/35">
+          <Link href={decisionHref(d.id, d.depotId)} onClick={closeEntity} className="flex items-start gap-2 rounded-[4px] border border-holo-glow/10 px-2.5 py-2 hover:border-holo-glow/35">
             <SeverityChip severity={d.severity} />
             <span className="min-w-0 flex-1 font-sans text-[12.5px] leading-4 text-depot-ink">{d.title}</span>
           </Link>
