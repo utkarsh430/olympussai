@@ -202,7 +202,7 @@ export function DepotMissionControl() {
                 )}
               </div>
               {upcoming.length === 0 ? (
-                <EmptyNote>No departure left in today's plan.</EmptyNote>
+                <EmptyNote>No departure left in today&apos;s plan.</EmptyNote>
               ) : (
                 <table className="os-table">
                   <thead>
