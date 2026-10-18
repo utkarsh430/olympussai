@@ -34,6 +34,8 @@ export interface CopilotData {
   readonly fuel: FuelAudit | null;
   readonly decisions: readonly Decision[];
   readonly operatingDate: string | null;
+  /** In one depot's scope: the duty plan's spare buses (no duty today); null when not loaded. */
+  readonly spareBuses?: readonly string[] | null;
 }
 
 export interface CopilotContext {
@@ -184,23 +186,27 @@ function shortageAnswer(depot: DepotSummary | null, data: CopilotData, ctx: Copi
 
 function coverAnswer(depot: DepotSummary | null, data: CopilotData, ctx: CopilotContext): LocalAnswer {
   const health = data.health ?? [];
-  const pool = health.filter(
-    (h) =>
-      h.state === 'standing' &&
-      h.band === 'normal' &&
-      h.service.group !== 'overdue' &&
-      (depot ? h.depotId === depot.id : inScope(ctx.scope, h.depotId)),
-  );
+  const fit = (h: VehicleHealth): boolean => h.state === 'standing' && h.band === 'normal' && h.service.group !== 'overdue';
+  // In a depot with its duty plan loaded, only buses the plan leaves free count, as on Dispatch Readiness.
+  const spare = depot && data.spareBuses ? new Set(data.spareBuses) : null;
+  const pool = health.filter((h) => fit(h) && (depot ? h.depotId === depot.id : inScope(ctx.scope, h.depotId)) && (spare === null || spare.has(h.registration)));
   const ranked = [...pool].sort((a, b) => a.risk - b.risk || a.registration.localeCompare(b.registration));
+  const fitStanding = depot ? health.filter((h) => fit(h) && h.depotId === depot.id).length : 0;
+  const paragraphs =
+    spare !== null
+      ? [
+          ranked.length === 0
+            ? `All ${formatCount(fitStanding)} fit standing buses already hold a duty today. Buses that went dark inside the yard can be confirmed and used; Dispatch Readiness proposes them.`
+            : 'Free means the duty plan leaves the bus without a duty today; fit means standing, not past its service and with a normal breakdown-risk index.',
+        ]
+      : ['Fit means standing now, not past its service and with a normal breakdown-risk index. Whether each is free of a duty is on Dispatch Readiness.'];
   return {
     intent: 'cover',
     headline:
       ranked.length === 0
-        ? `No standing bus in ${depot?.name ?? 'scope'} is fit to cover a departure`
-        : `${formatCount(ranked.length)} standing buses can cover departures${depot ? ` at ${depot.name}` : ''}`,
-    paragraphs: [
-      'Fit means standing now, not past its service and with a normal breakdown-risk index. Crew for each still needs confirming on Dispatch Readiness.',
-    ],
+        ? `No free, fit spare bus at ${depot?.name ?? 'this scope'}`
+        : `${formatCount(ranked.length)} ${spare !== null ? 'free, fit spare' : 'fit standing'} buses can cover departures${depot ? ` at ${depot.name}` : ''}`,
+    paragraphs,
     bullets: ranked.slice(0, MAX_LISTED).map(
       (h) => `${h.registration}: risk ${h.risk}, next service in ${formatCount(Math.max(0, h.service.kmToNextService))} km.`,
     ),
@@ -304,10 +310,16 @@ function unavailableAnswer(n: number, depot: DepotSummary | null, data: CopilotD
   const hit = runScenario(dist.balances, { fleetAdjustments: targets });
   const deficitBefore = base.plan.after.totalDeficit;
   const deficitAfter = hit.plan.after.totalDeficit;
+  const own = depot ? { before: base.balances.find((b) => b.depotId === depot.id), after: hit.balances.find((b) => b.depotId === depot.id) } : null;
+  const ownLine =
+    own?.before && own.after
+      ? `${depot!.name}'s own peak balance goes from ${own.before.balance >= 0 ? '+' : ''}${formatCount(own.before.balance)} to ${own.after.balance >= 0 ? '+' : ''}${formatCount(own.after.balance)}${own.after.balance >= 0 ? ': it absorbs the loss from its own spare buses.' : '.'}`
+      : null;
   return {
     intent: 'what-if',
     headline: `If ${formatCount(n)} buses${depot ? ` at ${depot.name}` : ' across the network'} become unavailable`,
     paragraphs: [
+      ...(ownLine ? [ownLine] : []),
       `After the redistribution plan is re-optimised, the uncovered peak shortage moves from ${formatCount(deficitBefore)} to ${formatCount(deficitAfter)} buses (+${formatCount(deficitAfter - deficitBefore)}); depots still short go from ${formatCount(base.plan.after.depotsInDeficit)} to ${formatCount(hit.plan.after.depotsInDeficit)}.`,
       `Transfers rise from ${formatCount(base.plan.transfers.length)} to ${formatCount(hit.plan.transfers.length)}, with ${formatCount(Math.round(hit.plan.totalBusKm - base.plan.totalBusKm))} more empty bus-km.`,
     ],

@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { ArrowUpRight, Send, X } from 'lucide-react';
 import { IntelligenceCore } from '@/components/ai-core/IntelligenceCore';
+import { useDepotDuties } from '@/hooks/useDepotDuties';
 import { requestCopilot } from '@/lib/depot/copilot/ui/copilotClient';
 import { localAnswer, suggestions, type CopilotAction, type LocalAnswer } from '@/lib/depot/os/intel/copilot';
 import { regionById } from '@/lib/depot/os/regions';
@@ -110,6 +111,8 @@ export function CopilotDock() {
   const nextId = useRef(1);
   const listRef = useRef<HTMLDivElement>(null);
 
+  const duties = useDepotDuties(open ? intel.scopeDepotId : null);
+  const data = useMemo(() => ({ ...intel, spareBuses: duties.data?.spareBuses ?? null }), [intel, duties.data]);
   const view = activeView(pathname, search);
   const depotName = intel.scopeDepotId ? (intel.depotsById.get(intel.scopeDepotId)?.name ?? null) : null;
   const ctx = useMemo(
@@ -127,7 +130,7 @@ export function CopilotDock() {
     const text = question.trim();
     if (text === '') return;
     const id = nextId.current++;
-    const local = localAnswer(text, intel, ctx);
+    const local = localAnswer(text, data, ctx);
     if (local) {
       setTurns((held) => [...held, { id, question: text, answer: local, engine: 'local' as const }].slice(-MAX_TURNS));
       return;
