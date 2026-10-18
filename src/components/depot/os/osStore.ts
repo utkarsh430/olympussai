@@ -46,6 +46,7 @@ interface OsState {
   readonly regionId: string | null;
   readonly copilotOpen: boolean;
   readonly paletteOpen: boolean;
+  readonly capabilitiesOpen: boolean;
   readonly entity: EntityRef | null;
   readonly focus: CopilotFocus | null;
   /** A question another part of the interface asks the copilot to answer now. */
@@ -57,6 +58,7 @@ interface OsState {
   readonly askCopilot: (question: string) => void;
   readonly takePendingQuestion: () => string | null;
   readonly setPaletteOpen: (open: boolean) => void;
+  readonly setCapabilitiesOpen: (open: boolean) => void;
   readonly openEntity: (entity: EntityRef) => void;
   readonly closeEntity: () => void;
   readonly setFocus: (focus: CopilotFocus | null) => void;
@@ -104,6 +106,7 @@ export const useOsStore = create<OsState>((set, get) => ({
   regionId: null,
   copilotOpen: false,
   paletteOpen: false,
+  capabilitiesOpen: false,
   entity: null,
   focus: null,
   pendingQuestion: null,
@@ -127,6 +130,7 @@ export const useOsStore = create<OsState>((set, get) => ({
     return question;
   },
   setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
+  setCapabilitiesOpen: (capabilitiesOpen) => set({ capabilitiesOpen }),
   openEntity: (entity) => set({ entity }),
   closeEntity: () => set({ entity: null }),
   setFocus: (focus) => set({ focus }),
