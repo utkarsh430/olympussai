@@ -397,16 +397,14 @@
     @apply font-mono text-[11px] uppercase tracking-[0.12em] text-depot-muted;
   }
 
-  /* The page title: the dashboard's cyan running into its teal, with the cyan glow (a
-     drop shadow, as a text shadow would paint over gradient-clipped text). The colour
-     stays cyan where clipping is not supported. */
+  /* The page title: the sans face at 22px, light ink easing into a soft cyan. Restrained:
+     the workspace kicker above it carries the accent. */
   .depot-title {
-    @apply font-display text-xl font-semibold uppercase tracking-[0.12em] text-holo-glow;
-    background-image: linear-gradient(90deg, #3ff0ff 0%, #22d9f5 45%, #2ef2c4 100%);
+    @apply font-sans text-[22px] font-semibold leading-7 tracking-[-0.01em] text-depot-ink;
+    background-image: linear-gradient(90deg, #e6f6fb 0%, #c4f3f8 55%, #8beff0 100%);
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
-    filter: drop-shadow(0 0 10px rgba(63, 240, 255, 0.35));
   }
 
   /* Forced colours (Windows High Contrast) drop the gradient: print the title in the
