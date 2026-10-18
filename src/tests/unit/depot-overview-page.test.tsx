@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import DepotsOverviewPage from '@/app/(protected)/project/depots/page';
+import DepotsOverviewPage from '@/app/(protected)/project/depots/overview/page';
 import type { DepotSummary, Figure, NetworkKpis } from '@/lib/depot/types';
 import { bannedOnScreen } from './depot-guard-rendered';
 

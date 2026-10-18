@@ -11,7 +11,7 @@ export default async function DepotsOverviewPage() {
   return (
     <>
       <PageHeader
-        title="Operations overview"
+        title="Headquarters overview"
         description="Fleet strength, status and efficiency across every UPSRTC depot."
         provenanceLine={{ default: 'derived', indexWindow: true }}
       />

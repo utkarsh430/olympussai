@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import DepotCockpitPage from '@/app/(protected)/project/depots/d/[depotId]/page';
+import DepotCockpitPage from '@/app/(protected)/project/depots/d/[depotId]/cockpit/page';
 import { DEPOT_NOT_FOUND_MESSAGE } from '@/lib/depot/scopeState';
 import { bannedOnScreen } from './depot-guard-rendered';
 

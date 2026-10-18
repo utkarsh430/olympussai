@@ -2,7 +2,7 @@
 
 import { useDepotForecast } from '@/hooks/useDepotForecast';
 import { DEFAULT_PRICE_PER_LITRE } from '@/lib/depot/fuel/types';
-import { formatCount } from '@/lib/depot/format';
+import { formatCount, signFor } from '@/lib/depot/format';
 import { AUDIT_DAYS } from '@/lib/depot/os/intel/fuelAudit';
 import { DEPOT_PALETTE } from '@/lib/depot/palette';
 import type { MetricKey } from '@/lib/depot/sim/types';
@@ -148,7 +148,7 @@ export function ForecastsView() {
                     <td className="os-num">{formatCount(Math.round(daily))}</td>
                     <td className="os-num">{((daily * 30) / 1e7).toFixed(2)}</td>
                     <td className={`os-num ${daily > base ? 'text-alert-crimson' : daily < base ? 'text-alert-green' : 'text-depot-muted'}`}>
-                      {daily === base ? '—' : `${daily > base ? '+' : '−'}₹${formatCount(Math.round(Math.abs(daily - base) * 30))} / 30 d`}
+                      {daily === base ? '—' : `${signFor(daily - base)}₹${formatCount(Math.round(Math.abs(daily - base) * 30))} / 30 d`}
                     </td>
                   </tr>
                 );

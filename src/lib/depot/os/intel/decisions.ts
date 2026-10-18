@@ -452,7 +452,8 @@ function fuelDecisions(input: DecisionInput, byId: ReadonlyMap<string, DepotSumm
 
 function telemetryDecisions(input: DecisionInput): Decision[] {
   return input.network.depots
-    .filter((d) => d.kind === 'depot' && d.fleet >= THRESHOLDS.darkMinFleet && inScope(input.scope, d.id))
+    // A summary without its state mix (a partial record) is skipped, never read as zero.
+    .filter((d) => d.kind === 'depot' && d.fleet >= THRESHOLDS.darkMinFleet && d.states !== undefined && inScope(input.scope, d.id))
     .map((d) => ({ d, share: d.states.dark / d.fleet }))
     .filter(({ share }) => share >= THRESHOLDS.darkMedium)
     .sort((a, b) => b.share - a.share)

@@ -66,7 +66,7 @@ function nameMatch(depotName: string): string | null {
 export function regionOf(depot: Pick<DepotSummary, 'name' | 'centroid'>): string {
   const byName = nameMatch(depot.name);
   if (byName !== null) return byName;
-  if (depot.centroid === null) return UNPLACED_REGION_ID;
+  if (!depot.centroid) return UNPLACED_REGION_ID;
   let best: { id: string; km: number } | null = null;
   for (const region of REGIONS) {
     const km = haversineKm(depot.centroid.lat, depot.centroid.lng, region.office.lat, region.office.lng);

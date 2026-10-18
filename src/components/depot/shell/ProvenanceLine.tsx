@@ -44,7 +44,7 @@ export function ProvenanceLine({ description }: { readonly description: Provenan
       <span className={`depot-tag depot-tag-pill ${PROVENANCE_TONE_CLASS[line.tone]}`}>
         {line.tag}
       </span>
-      {/* One discreet line: the full sentence is the hover text and stays in the page. */}
+      {/* One discreet line: each part truncates, and the full text is the hover title. */}
       <span className="min-w-0 truncate text-depot-muted" title={full}>
         {sentenceSegments(line.sentence, line.staleWords).map((part, index) =>
           part.stale ? (
@@ -59,13 +59,12 @@ export function ProvenanceLine({ description }: { readonly description: Provenan
             part.text
           ),
         )}
-        {line.context ? ' ' : null}
-        {line.context ? (
-          <span data-testid="depot-provenance-context" className="text-depot-muted">
-            {line.context}
-          </span>
-        ) : null}
       </span>
+      {line.context ? (
+        <span data-testid="depot-provenance-context" className="min-w-0 shrink-[2] truncate text-depot-muted" title={full}>
+          {line.context}
+        </span>
+      ) : null}
       {line.link ? (
         <Link href={line.link.href} className="depot-link shrink-0">
           {line.link.label}

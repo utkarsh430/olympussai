@@ -5,6 +5,7 @@ import { DepotShell } from '@/components/depot/shell/DepotShell';
 vi.mock('next/navigation', () => ({
   usePathname: (): string => '/project/depots/d/49/yard',
   useRouter: (): { push: () => void } => ({ push: () => {} }),
+  useSearchParams: (): URLSearchParams => new URLSearchParams(),
 }));
 vi.mock('@/hooks/useProjectSignOut', () => ({
   useProjectSignOut: (): unknown => ({ signOut: () => {}, pending: false }),
@@ -34,7 +35,7 @@ function focusables(root: Element): readonly HTMLElement[] {
 }
 
 describe('DepotShell structure', () => {
-  it('puts the skip link first, then the bar, then the depot group leading the rail', () => {
+  it('puts the skip link first, then the bar, then the workspace rail, then the page', () => {
     const { container } = render(
       <DepotShell>
         <button type="button">First page control</button>
@@ -44,16 +45,23 @@ describe('DepotShell structure', () => {
     expect(all[0]?.textContent).toBe('Skip to depot content');
     expect(all[0]?.getAttribute('href')).toBe('#depot-main');
 
+    // The rail lists the six workspaces, each entering the depot's own form of its first view.
     const rail = screen.getByTestId('depot-nav');
-    expect(rail.querySelector('[data-testid="depot-nav-category"]')?.textContent).toBe('KAUSHAMBI');
-    expect(focusables(rail)[0]?.textContent).toBe('Cockpit');
+    const workspaces = [...rail.querySelectorAll('[data-testid="os-workspace-link"]')];
+    expect(workspaces).toHaveLength(6);
+    expect(workspaces[0]?.textContent).toContain('Mission Control');
+    expect(workspaces[0]?.getAttribute('href')).toBe('/project/depots/d/49');
     // The bar comes before the navigation, the navigation before the page.
-    const order = all.map((el) => el.textContent);
-    expect(order.indexOf('Operations')).toBeLessThan(order.indexOf('Cockpit'));
+    const order = all.map((el) => el.textContent ?? '');
+    const firstWorkspace = order.findIndex((text) => text.includes('Mission Control') && text.startsWith('01'));
+    expect(order.indexOf('Operations')).toBeLessThan(firstWorkspace);
 
     const main = container.querySelector('#depot-main');
     expect(main?.getAttribute('tabindex')).toBe('-1');
-    expect(focusables(main as Element).map((el) => el.textContent)).toEqual(['First page control']);
+    // The workspace's view tabs lead the page; the page's own controls follow them.
+    const inMain = focusables(main as Element).map((el) => el.textContent);
+    expect(inMain[inMain.length - 1]).toBe('First page control');
+    expect(screen.getByTestId('os-workspace-tabs').compareDocumentPosition(screen.getByText('First page control')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('keeps the scope switcher and the feed chip in separate groups of the top bar', () => {
