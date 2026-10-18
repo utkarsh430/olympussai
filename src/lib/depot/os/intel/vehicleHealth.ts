@@ -71,7 +71,7 @@ export interface VehicleHealth {
 const HISTORY_DAYS = 365;
 const RECURRENCE_WINDOW_DAYS = 180;
 const DAYS_PER_YEAR = 365;
-export const RISK_BANDS = { high: 60, elevated: 40 } as const;
+export const RISK_BANDS = { high: 50, elevated: 32 } as const;
 
 /** Points per factor; a bus's index is their sum, capped at 100. */
 const POINTS = {
@@ -88,10 +88,10 @@ const POINTS = {
 
 function repairsOf(registration: string, ageYears: number): RepairEvent[] {
   const rng = new SeededRandom(seedFor(registration, STATIC_SEED_DATE, 'repair-history'));
-  // Older buses come in more often: 1 to 2 visits a year when new, up to 6 when old.
-  const visits = rng.int(0, 2) + Math.floor(ageYears / 3);
+  // Older buses come in more often: up to one unplanned visit a year when new, more with age.
+  const visits = rng.int(0, 1) + Math.floor(ageYears / 4);
   // A small share of the fleet has one system that keeps coming back.
-  const weakSystem = rng.bool(0.12) ? rng.pick(SYSTEMS) : null;
+  const weakSystem = rng.bool(0.06) ? rng.pick(SYSTEMS) : null;
   const events: RepairEvent[] = [];
   for (let i = 0; i < visits; i += 1) {
     const system = weakSystem !== null && rng.bool(0.6) ? weakSystem : rng.pick(SYSTEMS);
