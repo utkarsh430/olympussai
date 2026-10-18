@@ -46,6 +46,8 @@ export interface AlternativeBus {
   readonly registration: string;
   readonly risk: number;
   readonly reason: string;
+  /** True when the bus can take the duty only once a person confirms it (no GPS signal). */
+  readonly conditional?: boolean;
 }
 
 const LATE_GRACE_MIN = 10;
@@ -206,8 +208,31 @@ export function fitSpares(
     .sort((a, b) => a.risk - b.risk || a.registration.localeCompare(b.registration));
 }
 
+/**
+ * Buses with no GPS signal whose last fix was inside the yard and that hold no duty: each
+ * may be standing there ready, but only a phone call or a walk round the yard can say so.
+ */
+export function unverifiedCandidates(
+  duties: DutyBoardResponse,
+  buses: readonly DepotBusView[],
+  healthByReg: ReadonlyMap<string, VehicleHealth>,
+): AlternativeBus[] {
+  const onDuty = new Set(duties.duties.flatMap((d) => (d.registrationNumber ? [d.registrationNumber] : [])));
+  return buses
+    .filter((b) => b.state === 'dark' && b.location === 'in_yard' && !onDuty.has(b.registrationNumber))
+    .map((b) => ({ b, health: healthByReg.get(b.registrationNumber) }))
+    .filter(({ health }) => !health || (health.band !== 'high' && health.service.group !== 'overdue'))
+    .map(({ b, health }) => ({
+      registration: b.registrationNumber,
+      risk: health?.risk ?? 0,
+      reason: 'No GPS signal; last fix inside the yard. Confirm before dispatch.',
+      conditional: true,
+    }))
+    .sort((a, b) => a.risk - b.risk || a.registration.localeCompare(b.registration));
+}
+
 export interface ReallocationPlan {
-  readonly swaps: readonly { readonly dutyId: string; readonly from: string | null; readonly to: string; readonly why: string }[];
+  readonly swaps: readonly { readonly dutyId: string; readonly from: string | null; readonly to: string; readonly why: string; readonly conditional: boolean }[];
   readonly before: Readonly<Record<Readiness, number>>;
   readonly after: Readonly<Record<Readiness, number>>;
 }
@@ -217,21 +242,29 @@ export interface ReallocationPlan {
  * whose bus check fails or warns. Crew problems are not solved by a bus and stay as they
  * are; the after-counts say so.
  */
-export function proposeReallocation(board: ReadinessBoard, spares: readonly AlternativeBus[]): ReallocationPlan {
-  const pool = [...spares];
+export function proposeReallocation(
+  board: ReadinessBoard,
+  spares: readonly AlternativeBus[],
+  candidates: readonly AlternativeBus[] = [],
+): ReallocationPlan {
+  // Fit spares first; buses awaiting confirmation only after they run out.
+  const pool = [...spares, ...candidates];
   const swaps: ReallocationPlan['swaps'][number][] = [];
   const after: Record<Readiness, number> = { ...board.counts };
   const upcoming = [...board.departures]
-    .filter((d) => d.readiness === 'blocked' || d.readiness === 'at_risk')
+    .filter((d) => (d.readiness === 'blocked' || d.readiness === 'at_risk') && (d.startsInMin === null || d.startsInMin >= 0))
     .sort((a, b) => a.startMin - b.startMin);
   for (const d of upcoming) {
-    const busProblem = d.checks.find((c) => (c.key === 'vehicle' || c.key === 'position' || c.key === 'maintenance') && (c.state === 'fail' || c.state === 'warn'));
+    const busProblem = d.checks.find(
+      (c) => (c.key === 'vehicle' || c.key === 'position' || c.key === 'maintenance') && (c.state === 'fail' || c.state === 'warn'),
+    );
     if (!busProblem) continue;
     const next = pool.shift();
     if (!next) break;
-    swaps.push({ dutyId: d.dutyId, from: d.registration, to: next.registration, why: busProblem.detail });
-    const remaining = d.checks.filter((c) => c !== busProblem && !(c.key === 'position' || c.key === 'maintenance' || c.key === 'vehicle'));
-    const newState = verdict(remaining);
+    const conditional = next.conditional === true;
+    swaps.push({ dutyId: d.dutyId, from: d.registration, to: next.registration, why: busProblem.detail, conditional });
+    const remaining = d.checks.filter((c) => c.key !== 'position' && c.key !== 'maintenance' && c.key !== 'vehicle');
+    const newState = conditional ? 'unverified' : verdict(remaining);
     after[d.readiness] -= 1;
     after[newState] += 1;
   }

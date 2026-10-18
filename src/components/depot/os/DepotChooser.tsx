@@ -17,9 +17,18 @@ import { StateMixBar } from './StateMixBar';
  * The way into a per-depot view from Headquarters: every operating depot as a card with
  * its fleet, its state mix, its peak balance and its open decisions, filtered by region.
  */
-export function DepotChooser() {
+export function DepotChooser({
+  viewKey,
+  title,
+  description,
+}: {
+  /** The view to open in the chosen depot; read from `?view=` when not given. */
+  readonly viewKey?: string;
+  readonly title?: string;
+  readonly description?: string;
+} = {}) {
   const params = useSearchParams();
-  const found = viewByKey(params?.get('view') ?? '');
+  const found = viewByKey(viewKey ?? params?.get('view') ?? '');
   const intel = useIntel();
   const regionId = useOsStore((s) => s.regionId);
   const setRegion = useOsStore((s) => s.setRegion);
@@ -48,8 +57,11 @@ export function DepotChooser() {
   return (
     <>
       <OsHeader
-        title={view ? `Choose a depot for ${view.label}` : 'Choose a depot'}
-        description={view ? `${view.label} runs per depot. Pick one; the context selector switches between depots from any view.` : 'Pick a depot to open its views.'}
+        title={title ?? (view ? `Choose a depot for ${view.label}` : 'Choose a depot')}
+        description={
+          description ??
+          (view ? `${view.label} runs per depot. Pick one; the context selector switches between depots from any view.` : 'Pick a depot to open its views.')
+        }
         statuses={['live', 'estimate']}
         actions={
           <input
