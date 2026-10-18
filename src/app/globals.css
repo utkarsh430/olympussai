@@ -1001,6 +1001,156 @@
   .divider-h {
     @apply h-px w-full bg-gradient-to-r from-transparent via-holo-glow/25 to-transparent;
   }
+
+  /* ── Depot Intelligence OS ─────────────────────────────────────────────
+     The six-workspace frame and its instruments. Same tokens as the depot surface;
+     quieter panels (no corner ticks), a sans face for sentences and headings, mono
+     kept for identifiers, times and figures. */
+  .os-rail-link {
+    @apply flex w-full items-center gap-3 rounded-[4px] px-3 py-2 text-left font-sans text-[13px]
+      font-medium text-depot-prose transition-colors hover:bg-depot-raised hover:text-depot-ink;
+  }
+
+  .os-rail-link-active {
+    @apply bg-depot-selected text-holo-glow;
+    box-shadow: inset 2px 0 0 0 #3ff0ff, inset 0 0 24px -12px rgba(63, 240, 255, 0.5);
+  }
+
+  .os-rail-ordinal {
+    @apply w-5 shrink-0 font-mono text-[10px] tracking-[0.08em] text-depot-faint;
+  }
+
+  .os-rail-link-active .os-rail-ordinal {
+    @apply text-holo-glow;
+  }
+
+  .os-panel {
+    @apply relative min-w-0 rounded-md border bg-depot-surface;
+    border-color: rgba(63, 240, 255, 0.14);
+    box-shadow:
+      inset 0 1px 0 0 rgba(63, 240, 255, 0.06),
+      0 22px 44px -32px rgba(0, 0, 0, 0.95);
+  }
+
+  .os-panel-strong {
+    border-color: rgba(63, 240, 255, 0.3);
+    box-shadow:
+      inset 0 1px 0 0 rgba(63, 240, 255, 0.1),
+      0 0 34px -18px rgba(63, 240, 255, 0.35),
+      0 22px 44px -32px rgba(0, 0, 0, 0.95);
+  }
+
+  .os-panel-head {
+    @apply flex min-w-0 items-center justify-between gap-3 border-b px-4 py-2.5;
+    border-color: rgba(63, 240, 255, 0.1);
+  }
+
+  .os-kicker {
+    @apply font-mono text-[10.5px] font-medium uppercase tracking-[0.14em] text-depot-muted;
+  }
+
+  .os-heading {
+    @apply font-sans text-[14px] font-semibold leading-5 text-depot-ink;
+  }
+
+  .os-page-title {
+    @apply font-sans text-[22px] font-semibold leading-7 tracking-[-0.01em] text-depot-ink;
+  }
+
+  .os-value {
+    @apply font-mono text-[22px] font-medium leading-7 tabular-nums text-depot-ink;
+  }
+
+  .os-sub {
+    @apply font-sans text-[12px] leading-4 text-depot-prose;
+  }
+
+  .os-chip {
+    @apply inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-[3px] border px-1.5 py-px
+      font-mono text-[10px] font-semibold uppercase leading-4 tracking-[0.1em];
+  }
+
+  .os-tab {
+    @apply relative inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap px-3 font-sans text-[13px]
+      font-medium text-depot-prose transition-colors hover:text-depot-ink;
+  }
+
+  .os-tab-active {
+    @apply text-holo-glow;
+  }
+
+  .os-tab-active::after {
+    content: '';
+    @apply absolute inset-x-2 -bottom-px h-[2px] rounded-full bg-holo-glow;
+    box-shadow: 0 0 10px rgba(63, 240, 255, 0.7);
+  }
+
+  .os-button {
+    @apply inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-[4px] border
+      border-holo-glow/35 bg-holo-glow/[0.07] px-2.5 py-1.5 font-sans text-[12px] font-semibold text-holo-glow
+      transition-colors hover:border-holo-glow/70 hover:bg-holo-glow/15 disabled:cursor-not-allowed
+      disabled:opacity-40;
+  }
+
+  .os-button-quiet {
+    @apply border-depot-line bg-transparent text-depot-prose hover:border-holo-glow/40 hover:bg-depot-raised
+      hover:text-depot-ink;
+  }
+
+  .os-button-solid {
+    @apply border-holo-glow bg-holo-glow text-void hover:bg-holo-bright hover:text-void;
+  }
+
+  .os-row {
+    @apply cursor-pointer border-b transition-colors hover:bg-depot-raised;
+    border-color: rgba(63, 240, 255, 0.07);
+  }
+
+  .os-row-selected {
+    @apply bg-depot-selected;
+    box-shadow: inset 2px 0 0 0 #3ff0ff;
+  }
+
+  .os-table {
+    @apply w-full border-collapse font-sans text-[12.5px] text-depot-ink;
+  }
+
+  .os-table th {
+    @apply sticky top-0 z-[1] border-b bg-depot-surface px-3 py-2 text-left font-mono text-[10px] font-medium
+      uppercase tracking-[0.12em] text-depot-muted;
+    border-color: rgba(63, 240, 255, 0.14);
+  }
+
+  .os-table td {
+    @apply px-3 py-2 align-middle;
+  }
+
+  .os-num {
+    @apply text-right font-mono tabular-nums;
+  }
+
+  .os-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(63, 240, 255, 0.25) transparent;
+  }
+
+  .os-ai-glow {
+    background-image: linear-gradient(135deg, rgba(63, 240, 255, 0.08), rgba(46, 242, 196, 0.03) 60%, transparent);
+  }
+
+  .os-bar-track {
+    @apply relative h-1.5 overflow-hidden rounded-full bg-depot-raised;
+  }
+
+  .os-pulse {
+    animation: depot-lamp 2.4s ease-in-out infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .os-pulse {
+      animation: none;
+    }
+  }
 }
 
 @layer utilities {
