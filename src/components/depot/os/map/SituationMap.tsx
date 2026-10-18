@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Layers } from 'lucide-react';
 import { useBaseMap } from '@/components/depot/shell/useBaseMap';
 import { DEPOT_PALETTE } from '@/lib/depot/palette';
+import { haversineKm } from '@/lib/simulation/seededRandom';
 import type { LatLng } from '@/lib/depot/types';
 import { Schematic } from './Schematic';
 
@@ -59,6 +60,10 @@ const VEHICLE_COLOUR: Readonly<Record<MapVehicle['state'], string>> = {
   dark: DEPOT_PALETTE.slate,
 };
 
+const SINGLE_POINT_ZOOM = 12;
+/** A one-depot map frames the buses within this distance of the yard; the rest are still drawn. */
+const LOCAL_FIT_KM = 150;
+
 function radiusFor(fleet: number, maxFleet: number): number {
   return 4 + 10 * Math.sqrt(fleet / Math.max(1, maxFleet));
 }
@@ -71,6 +76,8 @@ interface SituationMapProps {
   readonly selectedId: string | null;
   readonly onSelect: (id: string | null) => void;
   readonly availableLayers: readonly MapLayer[];
+  /** Layers on at first; every available layer but vehicles when not given. */
+  readonly defaultLayers?: readonly MapLayer[];
   readonly heightClass?: string;
 }
 
@@ -89,12 +96,15 @@ export function SituationMap({
   selectedId,
   onSelect,
   availableLayers,
+  defaultLayers,
   heightClass = 'h-[440px]',
 }: SituationMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const overlays = useRef<{ setMap: (m: google.maps.Map | null) => void }[]>([]);
-  const fitted = useRef(false);
-  const [layers, setLayers] = useState<ReadonlySet<MapLayer>>(new Set(availableLayers.filter((l) => l !== 'vehicles')));
+  const fittedCount = useRef(0);
+  const [layers, setLayers] = useState<ReadonlySet<MapLayer>>(
+    new Set(defaultLayers ?? availableLayers.filter((l) => l !== 'vehicles')),
+  );
   const { mapRef, status } = useBaseMap(containerRef, {
     stillAvailable: 'The same layers are drawn on the schematic.',
     onCleanup: () => {
@@ -183,19 +193,21 @@ export function SituationMap({
         );
       }
     }
-    if (!fitted.current) {
-      const bounds = new google.maps.LatLngBounds();
-      let any = false;
-      for (const d of depots) {
-        if (d.position) {
-          bounds.extend(d.position);
-          any = true;
-        }
-      }
-      if (any) {
+    // Fit once on what is positioned; fit again when more arrive after a one-point fit.
+    const anchor = depots.length === 1 ? depots[0]!.position : null;
+    const near = (p: LatLng): boolean =>
+      anchor === null || haversineKm(anchor.lat, anchor.lng, p.lat, p.lng) <= LOCAL_FIT_KM;
+    const points = [...depots.flatMap((d) => (d.position ? [d.position] : [])), ...vehicles.map((v) => v.position).filter(near)];
+    if (points.length > fittedCount.current && fittedCount.current <= 1) {
+      if (points.length === 1) {
+        map.setCenter(points[0]!);
+        map.setZoom(SINGLE_POINT_ZOOM);
+      } else if (points.length > 1) {
+        const bounds = new google.maps.LatLngBounds();
+        for (const point of points) bounds.extend(point);
         map.fitBounds(bounds, 32);
-        fitted.current = true;
       }
+      fittedCount.current = points.length;
     }
   }, [status, mapRef, depots, transfers, incidents, vehicles, layers, selectedId]);
 
