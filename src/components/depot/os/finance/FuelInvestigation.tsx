@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { formatPlainDate } from '@/lib/depot/format';
+import { shortDate } from '@/lib/depot/os/words';
 import { Bot, ShieldAlert } from 'lucide-react';
 import { formatCount } from '@/lib/depot/format';
 import { type JourneyAudit, type VehicleFuelHistory } from '@/lib/depot/os/intel/fuelAudit';
@@ -40,7 +42,7 @@ function HistoryChart({ history, selectedId }: { readonly history: VehicleFuelHi
           fill={x.id === selectedId ? DEPOT_PALETTE.crimson : x.flagged ? DEPOT_PALETTE.amber : DEPOT_PALETTE.deep}
           opacity={x.id === selectedId ? 1 : 0.85}
         >
-          <title>{`${x.date}: ${x.kmPerLitre.toFixed(2)} km/L`}</title>
+          <title>{`${shortDate(x.date)}: ${x.kmPerLitre.toFixed(2)} km/L`}</title>
         </rect>
       ))}
       {history.medianKmPerLitre !== null ? (
@@ -76,7 +78,7 @@ export function FuelInvestigation({
 
   useEffect(() => {
     setAssignee(current?.assignee ?? '');
-    if (journey) setFocus({ kind: 'journey', id: journey.id, label: `${journey.registration} on ${journey.date}` });
+    if (journey) setFocus({ kind: 'journey', id: journey.id, label: `${journey.registration} on ${shortDate(journey.date)}` });
   }, [journey, current?.assignee, setFocus]);
 
   const peerMedian = useMemo(() => {
@@ -96,7 +98,7 @@ export function FuelInvestigation({
             {journey.registration}
           </button>
           <div className="font-sans text-[12px] text-depot-prose">
-            {journey.date} · {journey.routeName ?? 'Route not carried in the feed'} · {history.serviceClass} · {history.ageYears} yrs
+            {formatPlainDate(journey.date)} · {journey.routeName ?? 'Route not carried in the feed'} · {history.serviceClass} · {history.ageYears} yrs
           </div>
         </div>
         <div className="flex items-center gap-1.5">

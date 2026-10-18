@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react';
 import { useDepotEconomics } from '@/hooks/useDepotEconomics';
 import { useDepotRevenue } from '@/hooks/useDepotRevenue';
 import { depotHref } from '@/lib/depot/depotNav';
-import { formatCount } from '@/lib/depot/format';
+import { formatCount, formatPlainDate } from '@/lib/depot/format';
 import { leakageFor, LEAKAGE_FLAG } from '@/lib/depot/os/intel/leakage';
 import { useIntel } from '../IntelProvider';
 import { OsHeader } from '../OsHeader';
@@ -76,7 +76,7 @@ export function RevenueIntelligence() {
       ) : (
         <>
           <MetricStrip columns={5}>
-            <Metric label="Depots with revenue" value={formatCount(rows.length)} sub={`Operating date ${data.operatingDate}`} status="scenario" />
+            <Metric label="Depots with revenue" value={formatCount(rows.length)} sub={`Operating day ${formatPlainDate(data.operatingDate)}`} status="scenario" />
             <Metric label="Earnings per km" value={earnMed === null ? '—' : `₹${earnMed.toFixed(2)}`} sub="Median depot" />
             <Metric label="Fuel cost per km" value={costMed === null ? '—' : `₹${costMed.toFixed(2)}`} sub="Median depot" />
             <Metric label="Fuel contribution per km" value={earnMed !== null && costMed !== null ? `₹${(earnMed - costMed).toFixed(2)}` : '—'} sub="Earnings less fuel; not profit" tone="teal" />

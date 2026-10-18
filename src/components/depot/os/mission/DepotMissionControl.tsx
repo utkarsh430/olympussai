@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { dutyLabel } from '@/lib/depot/os/words';
 import { useMemo, useState } from 'react';
 import { ArrowUpRight, Bot } from 'lucide-react';
 import { useDepotDetailContext } from '@/components/depot/data/DepotDetailProvider';
@@ -108,7 +109,7 @@ export function DepotMissionControl() {
     <div className="space-y-4" data-testid="os-depot-mission-control">
       <OsHeader
         eyebrow={region ? `${region.name} region · ${name}` : name}
-        title={`${name} Mission Control`}
+        title="Mission Control"
         description="Fleet readiness, the next departures, resources against need and the depot's AI decisions."
         statuses={['live', 'estimate', 'scenario']}
         actions={
@@ -219,7 +220,7 @@ export function DepotMissionControl() {
                     {upcoming.map((d) => (
                       <tr key={d.dutyId} className="os-row">
                         <td className="font-mono">{clockOf(d.startMin)}</td>
-                        <td className="font-mono text-depot-prose">{d.dutyId}</td>
+                        <td className="font-mono text-depot-prose">{dutyLabel(d.dutyId)}</td>
                         <td className="max-w-[12rem] truncate font-mono">{d.routeName}</td>
                         <td>
                           {d.registration ? (

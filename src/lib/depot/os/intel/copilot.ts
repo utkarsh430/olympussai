@@ -1,4 +1,5 @@
 import type { DepotDistributionResponse, DepotNetworkResponse } from '../../api';
+import { shortDate } from '../words';
 import { depotHref, incidentBusHref } from '../../depotNav';
 import { formatCount } from '../../format';
 import type { IncidentRollupResponse } from '../../incident/api';
@@ -242,7 +243,7 @@ function fuelAnswer(data: CopilotData, ctx: CopilotContext, name: string): Local
     if (j) {
       return {
         intent: 'fuel-journey',
-        headline: `Why ${j.registration} on ${j.date} was flagged`,
+        headline: `Why ${j.registration} on ${shortDate(j.date)} was flagged`,
         paragraphs: [
           `It drew ${j.fuelLitres} L for ${formatCount(j.distanceKm)} km (${j.kmPerLitre.toFixed(2)} km/L) against ${j.expectedLitres} L expected at its own median of ${j.baselineKmPerLitre.toFixed(2)} km/L: ${j.excessLitres} L (${Math.round(j.variance * 100)}%) over, about ₹${formatCount(j.exposureRupees)}.`,
           'This is an anomaly to verify, not a finding: the causes below are to be checked in order.',
@@ -262,7 +263,7 @@ function fuelAnswer(data: CopilotData, ctx: CopilotContext, name: string): Local
     paragraphs: [
       `About ${formatCount(Math.round(litres))} L above each bus's own median economy, an estimated ₹${formatCount(rupees)} to verify. A flag is a journey to check, never a conclusion.`,
     ],
-    bullets: flagged.slice(0, MAX_LISTED).map((j) => `${j.registration} on ${j.date}: +${j.excessLitres} L (${Math.round(j.variance * 100)}%)${j.recurrence >= 2 ? `, recurring ×${j.recurrence}` : ''}.`),
+    bullets: flagged.slice(0, MAX_LISTED).map((j) => `${j.registration} on ${shortDate(j.date)}: +${j.excessLitres} L (${Math.round(j.variance * 100)}%)${j.recurrence >= 2 ? `, recurring ×${j.recurrence}` : ''}.`),
     actions: [{ label: 'Open the fuel audit', href: ctx.depotId ? `${depotHref(ctx.depotId)}/fuel-audit` : FUEL_AUDIT_PATH }],
     status: 'scenario',
   };

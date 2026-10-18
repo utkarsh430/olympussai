@@ -1,9 +1,10 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { shortDate } from '@/lib/depot/os/words';
 import { useSearchParams } from 'next/navigation';
 import { ArrowDownWideNarrow } from 'lucide-react';
-import { formatCount } from '@/lib/depot/format';
+import { formatCount, formatPlainDate } from '@/lib/depot/format';
 import { auditFleet, type FuelAudit, type JourneyAudit } from '@/lib/depot/os/intel/fuelAudit';
 import type { Severity } from '@/lib/depot/os/intel/types';
 import { regionById } from '@/lib/depot/os/regions';
@@ -29,7 +30,7 @@ function DailyChart({ audit }: { readonly audit: FuelAudit }) {
             key={d.date}
             className={`flex-1 rounded-t-[2px] ${cls}`}
             style={{ height: `${(value(d) / top) * 100}%` }}
-            title={`${d.date}: ${formatCount(Math.round(value(d)))} L`}
+            title={`${shortDate(d.date)}: ${formatCount(Math.round(value(d)))} L`}
           />
         ))}
       </div>
@@ -40,9 +41,9 @@ function DailyChart({ audit }: { readonly audit: FuelAudit }) {
       {row('Issued', (d) => d.fuelLitres, max, 'bg-holo-deep', 64)}
       {row('Flagged excess', (d) => d.excessLitres, maxExcess, 'bg-alert-amber', 28)}
       <div className="flex justify-between pl-[7.75rem] font-mono text-[10px] text-depot-muted">
-        <span>{audit.daily[0]?.date.slice(5)}</span>
+        <span>{shortDate(audit.daily[0]?.date ?? '')}</span>
         <span>Each row on its own scale; hover a bar for its litres</span>
-        <span>{audit.daily[audit.daily.length - 1]?.date.slice(5)}</span>
+        <span>{shortDate(audit.daily[audit.daily.length - 1]?.date ?? '')}</span>
       </div>
     </div>
   );
@@ -202,7 +203,7 @@ export function FuelAuditView() {
                           {flagged.slice(0, limit).map((j) => (
                             <tr key={j.id} onClick={() => setSelectedId(j.id)} className={`os-row ${selected?.id === j.id ? 'os-row-selected' : ''}`}>
                               <td>{j.severity ? <SeverityChip severity={j.severity} /> : null}</td>
-                              <td className="font-mono text-depot-prose">{j.date.slice(5)}</td>
+                              <td className="whitespace-nowrap font-mono text-depot-prose">{shortDate(j.date)}</td>
                               <td className="font-mono">
                                 {j.registration}
                                 {j.recurrence >= 2 ? <span className="ml-1 text-alert-amber">×{j.recurrence}</span> : null}
@@ -264,7 +265,7 @@ export function FuelAuditView() {
                 </div>
               )}
             </Panel>
-            <Panel kicker="Investigation" title={selected ? `Journey ${selected.date}` : 'No journey selected'} strong bodyClassName="os-scroll overflow-y-auto p-0" className="xl:h-[820px]">
+            <Panel kicker="Investigation" title={selected ? `Journey of ${formatPlainDate(selected.date)}` : 'No journey selected'} strong bodyClassName="os-scroll overflow-y-auto p-0" className="xl:h-[820px]">
               <FuelInvestigation journey={selected} history={history} peers={peers} />
             </Panel>
           </div>

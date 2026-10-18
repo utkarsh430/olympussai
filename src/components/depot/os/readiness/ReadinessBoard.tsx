@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { dutyLabel } from '@/lib/depot/os/words';
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowRight, Bot, CheckCircle2, Shuffle } from 'lucide-react';
 import { useDepotDetailContext } from '@/components/depot/data/DepotDetailProvider';
@@ -129,7 +130,7 @@ export function ReadinessBoard() {
   const selected = board?.departures.find((d) => d.dutyId === selectedId) ?? shown.find((d) => d.readiness === 'blocked' || d.readiness === 'at_risk') ?? shown[0] ?? null;
 
   useEffect(() => {
-    if (selected?.registration) setFocus({ kind: 'vehicle', id: selected.registration, label: `${selected.registration} on ${selected.dutyId}` });
+    if (selected?.registration) setFocus({ kind: 'vehicle', id: selected.registration, label: `${selected.registration} on ${dutyLabel(selected.dutyId)}` });
   }, [selected?.registration, selected?.dutyId, setFocus]);
 
   const root = depotHref(depotId);
@@ -204,7 +205,7 @@ export function ReadinessBoard() {
                       {shown.map((d) => (
                         <tr key={d.dutyId} onClick={() => setSelectedId(d.dutyId)} className={`os-row ${selected?.dutyId === d.dutyId ? 'os-row-selected' : ''}`}>
                           <td className="font-mono">{clockOf(d.startMin)}</td>
-                          <td className="font-mono text-depot-prose">{d.dutyId.split('-').slice(-1)[0]}</td>
+                          <td className="font-mono text-depot-prose">{dutyLabel(d.dutyId).replace('Duty ', '')}</td>
                           <td className="max-w-[12rem] truncate font-mono">{d.routeName}</td>
                           <td className="font-mono">{d.registration ?? <span className="text-alert-crimson">No bus</span>}</td>
                           <td>
@@ -230,7 +231,7 @@ export function ReadinessBoard() {
                 {selected ? (
                   <>
                     <div className="flex items-center justify-between">
-                      <span className="font-mono text-[12px] text-depot-prose">{selected.dutyId}</span>
+                      <span className="font-mono text-[12px] text-depot-prose">{dutyLabel(selected.dutyId)}</span>
                       <ReadinessChip readiness={selected.readiness} />
                     </div>
                     <ul className="space-y-1.5">
