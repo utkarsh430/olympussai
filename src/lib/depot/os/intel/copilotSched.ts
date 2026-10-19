@@ -94,7 +94,7 @@ export function scheduleAnswer(depot: DepotSummary | null, data: CopilotData, qu
     intent: 'schedule',
     headline: `${OBJECTIVE_LABEL[day.params.objective]} schedule for ${depot.name}${tomorrow ? ' tomorrow' : ' today'}: ${n(o.busesUsed)} buses run ${n(o.covered)} of ${n(o.departures)} departures.`,
     paragraphs: [
-      `I generated it with the AI Bus Scheduler's engine on the live roster (${n(o.eligibleBuses)} buses eligible after off-road, overdue and reserve holds) and the depot's scenario timetable. The original plan, with buses fixed to routes, runs ${n(b.covered)} and has ${n(day.original.conflicts.length)} vehicle conflicts.`,
+      `I generated it with the AI Bus Scheduler's engine on the GPS roster (${n(o.eligibleBuses)} buses eligible after off-road, overdue and reserve holds) and the depot's scenario timetable. The original plan, with buses fixed to routes, runs ${n(b.covered)} and has ${n(day.original.conflicts.length)} vehicle conflicts.`,
       `Change against the original: ${signFor(o.covered - b.covered)}${n(Math.abs(o.covered - b.covered))} departures, ${signFor(o.idleHours - b.idleHours)}${n(Math.abs(Math.round(o.idleHours - b.idleHours)))} idle bus-hours, estimated cost per departure ₹${n(Math.round(o.cost.total / Math.max(1, o.covered)))} against ₹${n(Math.round(b.cost.total / Math.max(1, b.covered)))}.`,
     ],
     bullets: [...byRoute].slice(0, 4).map(([route, count]) => `${route}: ${count} departure${count === 1 ? '' : 's'} still uncovered`),
