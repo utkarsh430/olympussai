@@ -172,6 +172,8 @@ export interface CrewShift {
   readonly trips: readonly string[];
   /** Any trip on an AC or premium coach: the driver needs the endorsement. */
   readonly needsAc: boolean;
+  /** Forecast passengers on the shift's departures. */
+  readonly passengers: number;
 }
 
 export interface CrewAssignment {
@@ -190,6 +192,8 @@ export interface CrewParams {
   readonly extraUnavailable: Readonly<Record<CrewRole, number>>;
   readonly requireAcEndorsement: boolean;
   readonly objective: CrewObjective;
+  /** Shifts in time order, or the heaviest first when crew are too few for all (the joint optimiser's way). */
+  readonly order?: 'time' | 'value';
 }
 
 export interface CrewMetrics {

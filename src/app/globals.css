@@ -1501,6 +1501,30 @@
     animation: os-fade-in 220ms ease-out;
   }
 
+  .os-cell {
+    @apply flex h-6 w-full min-w-[22px] items-center justify-center rounded-[2px] font-mono text-[10px] transition-[box-shadow,opacity];
+  }
+  .os-cell-covered {
+    @apply bg-holo-teal/25 text-holo-teal;
+  }
+  .os-cell-risk {
+    @apply bg-alert-amber/30 text-alert-amber;
+  }
+  .os-cell-uncovered {
+    @apply bg-alert-crimson/30 text-depot-ink;
+  }
+  .os-cell-lit {
+    box-shadow: 0 0 0 1px #d6ecf7, 0 0 10px rgba(63, 240, 255, 0.6);
+  }
+  .os-cell-selected {
+    box-shadow: 0 0 0 2px #3ff0ff, 0 0 14px rgba(63, 240, 255, 0.8);
+  }
+
+  .os-proposed-banner {
+    @apply flex items-center gap-2 rounded-[5px] border border-alert-amber/40 px-4 py-2 font-sans text-[12.5px] text-alert-amber;
+    background-image: linear-gradient(90deg, rgba(255, 176, 32, 0.1), rgba(255, 176, 32, 0.02));
+  }
+
   @keyframes os-fade-in {
     from {
       opacity: 0;

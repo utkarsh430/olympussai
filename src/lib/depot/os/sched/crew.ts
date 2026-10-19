@@ -38,6 +38,7 @@ export function shiftsOf(blocks: readonly BusBlock[], params: Pick<CrewParams, '
         end: group[group.length - 1]!.arr,
         trips: group.map((t) => t.id),
         needsAc: group.some((t) => t.serviceClass === 'ac' || t.serviceClass === 'premium'),
+        passengers: group.reduce((n, t) => n + t.passengers, 0),
       });
       group = [];
     };
@@ -86,6 +87,13 @@ interface SlotState {
   readonly slot: CrewSlotView;
   minutes: number;
   lastEnd: number | null;
+  /** Shifts already taken, for the break check when shifts come out of time order. */
+  spans: { start: number; end: number }[];
+}
+
+/** No overlap with any shift the slot holds, and the break kept on both sides. */
+function breakHolds(st: SlotState, shift: CrewShift, breakMin: number): boolean {
+  return st.spans.every((sp) => shift.start >= sp.end + breakMin || shift.end + breakMin <= sp.start);
 }
 
 function chooseSlot(states: readonly SlotState[], shift: CrewShift, role: CrewRole, params: CrewParams): SlotState | null {
@@ -97,7 +105,7 @@ function chooseSlot(states: readonly SlotState[], shift: CrewShift, role: CrewRo
       st.slot.role === role &&
       st.slot.available &&
       (role !== 'driver' || !shift.needsAc || !params.requireAcEndorsement || st.slot.acEndorsed) &&
-      (st.lastEnd === null || st.lastEnd + params.minBreakMin <= shift.start) &&
+      breakHolds(st, shift, params.minBreakMin) &&
       st.minutes + len <= limit + Math.max(allowance, st.minutes === 0 ? Math.max(0, len - limit) : 0),
   );
   if (candidates.length === 0) return null;
@@ -151,9 +159,10 @@ function metricsOf(assignments: readonly CrewAssignment[], slots: readonly CrewS
 
 /** The optimised roster: every rule respected; a shift with no crew for a role stays uncovered. */
 export function rosterCrew(shifts: readonly CrewShift[], slots: readonly CrewSlotView[], params: CrewParams): CrewRoster {
-  const states: SlotState[] = slots.map((slot) => ({ slot, minutes: 0, lastEnd: null }));
+  const states: SlotState[] = slots.map((slot) => ({ slot, minutes: 0, lastEnd: null, spans: [] }));
   const assignments: CrewAssignment[] = [];
-  for (const shift of shifts) {
+  const ordered = params.order === 'value' ? [...shifts].sort((a, b) => b.passengers - a.passengers || a.start - b.start) : shifts;
+  for (const shift of ordered) {
     const picked = ROLES.map((role) => chooseSlot(states, shift, role, params));
     const [driver, conductor] = picked;
     if (!driver || !conductor) {
@@ -166,11 +175,13 @@ export function rosterCrew(shifts: readonly CrewShift[], slots: readonly CrewSlo
     const len = shift.end - shift.start;
     for (const st of [driver, conductor]) {
       st.minutes += len;
-      st.lastEnd = shift.end;
+      st.lastEnd = Math.max(st.lastEnd ?? 0, shift.end);
+      st.spans.push({ start: shift.start, end: shift.end });
     }
     const overtimeMin = Math.max(0, Math.max(driver.minutes, conductor.minutes) - params.maxDutyHours * 60);
     assignments.push({ shift, driver: driver.slot.id, conductor: conductor.slot.id, overtimeMin, issues: [] });
   }
+  assignments.sort((a, b) => a.shift.start - b.shift.start || a.shift.id.localeCompare(b.shift.id));
   const minutes = new Map(states.map((s) => [s.slot.id, s.minutes]));
   return { kind: 'optimised', assignments, slots, hoursBySlot: Object.fromEntries([...minutes].map(([k, m]) => [k, m / 60])), metrics: metricsOf(assignments, slots, minutes, params) };
 }
@@ -181,7 +192,7 @@ export function rosterCrew(shifts: readonly CrewShift[], slots: readonly CrewSlo
  * rules are then checked and every breach listed.
  */
 export function sequentialRoster(shifts: readonly CrewShift[], slots: readonly CrewSlotView[], params: CrewParams): CrewRoster {
-  const states: SlotState[] = slots.map((slot) => ({ slot, minutes: 0, lastEnd: null }));
+  const states: SlotState[] = slots.map((slot) => ({ slot, minutes: 0, lastEnd: null, spans: [] }));
   const limit = (params.maxDutyHours + params.overtimeHours) * 60;
   const assignments: CrewAssignment[] = [];
   for (const shift of shifts) {

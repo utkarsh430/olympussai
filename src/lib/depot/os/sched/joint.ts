@@ -62,15 +62,36 @@ export function blockLimits(busParams: BusParams, crewParams: CrewParams): numbe
   return [...new Set([one, one + 2, 12, busParams.maxBlockHours].map((h) => Math.min(18, Math.max(6, h))))].sort((a, b) => a - b);
 }
 
-const better = (a: JointCandidate, b: JointCandidate): boolean =>
-  a.operablePassengers !== b.operablePassengers ? a.operablePassengers > b.operablePassengers : a.operable !== b.operable ? a.operable > b.operable : a.cost < b.cost;
+/**
+ * The joint plans worth building: under the person's objective and the bus-saving one
+ * (whose denser days need fewer crews), at each limit on a bus's day, with crews given
+ * to the heaviest shifts first, so a crew shortage costs the lightest departures.
+ */
+export function jointCandidates(timetable: Timetable, trips: readonly Trip[], buses: readonly SchedBus[], slots: readonly CrewSlotView[], busParams: BusParams, crewParams: CrewParams): JointCandidate[] {
+  const objectives = [...new Set([busParams.objective, 'min_buses' as const])];
+  const valueFirst = { ...crewParams, order: 'value' as const };
+  return objectives.flatMap((objective) =>
+    blockLimits(busParams, crewParams).map((h) =>
+      evaluateJoint(
+        optimiseBuses(timetable, trips, buses, { ...busParams, objective, maxBlockHours: h }),
+        slots,
+        valueFirst,
+        `${objective}-${h}`,
+        `${objective === busParams.objective ? 'Joint' : 'Joint, bus-saving'} · bus day up to ${h} h`,
+        h,
+      ),
+    ),
+  );
+}
+
+export function betterJoint(a: JointCandidate, b: JointCandidate): boolean {
+  return a.operablePassengers !== b.operablePassengers ? a.operablePassengers > b.operablePassengers : a.operable !== b.operable ? a.operable > b.operable : a.cost < b.cost;
+}
 
 export function jointOptimise(timetable: Timetable, trips: readonly Trip[], buses: readonly SchedBus[], slots: readonly CrewSlotView[], busParams: BusParams, crewParams: CrewParams): JointResult {
   const baseline = evaluateJoint(baselineBuses(timetable, trips, buses, busParams), slots, crewParams, 'baseline', 'Original plan', busParams.maxBlockHours);
   const independent = evaluateJoint(optimiseBuses(timetable, trips, buses, busParams), slots, crewParams, 'independent', 'Buses and crew planned separately', busParams.maxBlockHours);
-  const candidates = blockLimits(busParams, crewParams).map((h) =>
-    evaluateJoint(optimiseBuses(timetable, trips, buses, { ...busParams, maxBlockHours: h }), slots, crewParams, `cap-${h}`, `Bus day up to ${h} h`, h),
-  );
-  const best = candidates.reduce((acc, c) => (better(c, acc) ? c : acc), candidates[0] ?? independent);
-  return { baseline, independent, candidates, best: better(independent, best) ? independent : best };
+  const candidates = jointCandidates(timetable, trips, buses, slots, busParams, crewParams);
+  const best = [independent, ...candidates].reduce((acc, c) => (betterJoint(c, acc) ? c : acc), independent);
+  return { baseline, independent, candidates, best };
 }
