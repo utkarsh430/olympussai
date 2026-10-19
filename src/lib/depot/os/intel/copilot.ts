@@ -444,16 +444,24 @@ export function localAnswer(question: string, data: CopilotData, ctx: CopilotCon
 /** Questions the dock suggests for the current context. */
 export function suggestions(ctx: CopilotContext, depotName: string | null): readonly string[] {
   const where = depotName ?? (ctx.regionName ? `the ${ctx.regionName} region` : 'the network');
-  const list = [
-    depotName ? `Generate an optimised schedule for ${depotName} tomorrow` : `What needs attention at ${where}?`,
-    depotName ? 'Compare baseline and optimised depot operations' : `What needs attention at ${where}?`,
-    depotName ? `Why is ${depotName} facing a shortage?` : 'Which depot should receive additional buses?',
-    depotName ? `Which buses can cover the next departures at ${depotName}?` : 'Which routes are likely to be underserved at 8 AM?',
-    `What happens if ${depotName ? 5 : 15} buses become unavailable${depotName ? ` at ${depotName}` : ''}?`,
-    depotName ? 'Show which buses are underutilised this afternoon' : 'Which fuel journeys were flagged and why?',
-  ];
+  const list = depotName
+    ? [
+        `Generate an optimised schedule for ${depotName} tomorrow`,
+        'Compare baseline and optimised depot operations',
+        `Why is ${depotName} facing a shortage?`,
+        `Which buses can cover the next departures at ${depotName}?`,
+        `What happens if 5 buses become unavailable at ${depotName}?`,
+        'Show which buses are underutilised this afternoon',
+      ]
+    : [
+        `What needs attention at ${where}?`,
+        'Which depot should receive additional buses?',
+        'Which routes are likely to be underserved at 8 AM?',
+        'What happens if 15 buses become unavailable?',
+        'Which fuel journeys were flagged and why?',
+      ];
   if (ctx.focus?.kind === 'vehicle') list.unshift(`Tell me about bus ${ctx.focus.id}`);
   if (ctx.focus?.kind === 'decision') list.unshift('Explain this decision');
   if (ctx.focus?.kind === 'journey') list.unshift('Why was this fuel journey flagged?');
-  return list.slice(0, 6);
+  return [...new Set(list)].slice(0, 6);
 }

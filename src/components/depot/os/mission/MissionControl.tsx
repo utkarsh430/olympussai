@@ -11,6 +11,7 @@ import { buildBriefing } from '@/lib/depot/os/intel/briefing';
 import { regionById } from '@/lib/depot/os/regions';
 import { DECISIONS_PATH, OVERVIEW_PATH, RELIABILITY_PATH } from '@/lib/depot/os/workspaces';
 import { useIntel } from '../IntelProvider';
+import { ActivityPanel, AiPulse } from '../ai/AiPulse';
 import { OsHeader } from '../OsHeader';
 import { useOsStore } from '../osStore';
 import { DecisionPanel } from '../decisions/DecisionPanel';
@@ -250,6 +251,11 @@ export function MissionControl() {
           onSelectDecision={setSelectedDecision}
         />
       </Panel>
+
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_400px]">
+        <ActivityPanel depotId={null} />
+        <AiPulse depotId={null} />
+      </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_400px]">
         <Panel kicker="AI decision" title="Selected decision" strong bodyClassName="p-0">

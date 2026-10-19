@@ -1550,6 +1550,21 @@
       transition-colors hover:bg-depot-raised hover:text-depot-ink;
   }
 
+  .os-pulse-icon {
+    @apply inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-holo-glow/30;
+    background: radial-gradient(circle, rgba(63, 240, 255, 0.16), rgba(63, 240, 255, 0.02) 70%);
+  }
+
+  .os-pulse-icon-teal {
+    @apply border-holo-teal/35;
+    background: radial-gradient(circle, rgba(46, 242, 196, 0.16), rgba(46, 242, 196, 0.02) 70%);
+  }
+
+  .os-flagship {
+    @apply flex flex-col rounded-[5px] border border-holo-teal/25 p-3 transition-colors hover:border-holo-teal/50;
+    background-image: linear-gradient(160deg, rgba(46, 242, 196, 0.08), rgba(63, 240, 255, 0.02) 60%, transparent);
+  }
+
   @keyframes os-fade-in {
     from {
       opacity: 0;

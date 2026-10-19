@@ -13,6 +13,7 @@ import { buildReadiness, clockOf, feedMinuteOf } from '@/lib/depot/os/intel/read
 import { summariseHealth } from '@/lib/depot/os/intel/vehicleHealth';
 import { regionById, regionOf } from '@/lib/depot/os/regions';
 import { useIntel } from '../IntelProvider';
+import { ActivityPanel, AiPulse, FlagshipLaunch } from '../ai/AiPulse';
 import { OsHeader } from '../OsHeader';
 import { useOsStore } from '../osStore';
 import { DecisionPanel } from '../decisions/DecisionPanel';
@@ -294,9 +295,17 @@ export function DepotMissionControl() {
         </Panel>
       </div>
 
-      <Panel kicker="AI decision" title="Selected decision" strong bodyClassName="p-0">
-        <DecisionPanel decision={decision} />
-      </Panel>
+      <FlagshipLaunch depotId={depotId} depotName={name} />
+
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_400px]">
+        <Panel kicker="AI decision" title="Selected decision" strong bodyClassName="p-0">
+          <DecisionPanel decision={decision} />
+        </Panel>
+        <div className="flex min-w-0 flex-col gap-4">
+          <AiPulse depotId={depotId} />
+          <ActivityPanel depotId={depotId} />
+        </div>
+      </div>
     </div>
   );
 }
