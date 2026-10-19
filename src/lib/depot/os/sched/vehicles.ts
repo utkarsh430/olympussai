@@ -119,7 +119,7 @@ function unplaceLast(state: BusState): Trip {
 }
 
 /** One pass of the greedy over trips in the given order; returns the buses' days and the uncovered. */
-function assign(timetable: Timetable, trips: readonly Trip[], eligible: readonly SchedBus[], params: BusParams): { states: BusState[]; uncovered: UncoveredTrip[] } {
+function assign(timetable: Timetable, trips: readonly Trip[], eligible: readonly SchedBus[], params: BusParams, scoring: Objective): { states: BusState[]; uncovered: UncoveredTrip[] } {
   const states: BusState[] = eligible.map((bus) => ({ bus, trips: [], freeAt: 0, terminal: 0, routeId: '', blockStart: 0 }));
   const uncovered: UncoveredTrip[] = [];
   for (const trip of trips) {
@@ -127,7 +127,7 @@ function assign(timetable: Timetable, trips: readonly Trip[], eligible: readonly
     let bestScore = Number.POSITIVE_INFINITY;
     for (const state of states) {
       if (!fits(state, trip, params)) continue;
-      const s = score(state, trip, timetable, params.objective);
+      const s = score(state, trip, timetable, scoring);
       if (s < bestScore) {
         best = state;
         bestScore = s;
@@ -165,6 +165,14 @@ function assign(timetable: Timetable, trips: readonly Trip[], eligible: readonly
 const MIRROR = 48 * 60;
 const mirrored = (t: Trip): Trip => ({ ...t, dep: MIRROR - t.arr, arr: MIRROR - t.dep });
 
+const SCORING_WORD: Readonly<Record<Objective, string>> = {
+  coverage: 'coverage-led',
+  min_buses: 'bus-saving',
+  min_empty_km: 'terminal-keeping',
+  min_cost: 'cost-led',
+  balanced: 'balanced',
+};
+
 /** What an objective minimises once uncovered passengers are equal. */
 function objectiveCost(plan: BusPlan, objective: Objective): number {
   const m = plan.metrics;
@@ -198,27 +206,32 @@ function planFrom(timetable: Timetable, trips: readonly Trip[], buses: readonly 
 }
 
 /**
- * The optimised plan under the parameters' objective. The greedy is run twice, from the
- * start of the day and from its end (a bus's longest day binds differently each way),
- * and the plan carrying more passengers, then better on the objective, is kept.
+ * The optimised plan under the parameters' objective. The greedy is run from the start
+ * of the day and from its end (a bus's longest day binds differently each way), and for
+ * coverage under every way of choosing a bus; the plan carrying the most passengers, then
+ * best on the objective, is kept.
  */
 export function optimiseBuses(timetable: Timetable, trips: readonly Trip[], buses: readonly SchedBus[], params: BusParams, trace?: (t: OptimiseTrace) => void): BusPlan {
   const eligible = buses.filter((b) => b.restriction === null);
-  const forward = assign(timetable, trips, eligible, params);
-  const forwardPlan = planFrom(timetable, trips, buses, eligible, forward.states, forward.uncovered, params, null);
   const byId = new Map(trips.map((t) => [t.id, t]));
   const reverseTrips = trips.map(mirrored).sort((a, b) => a.dep - b.dep || b.weight - a.weight || a.id.localeCompare(b.id));
-  const reverse = assign(timetable, reverseTrips, eligible, params);
-  const reversePlan = planFrom(timetable, trips, buses, eligible, reverse.states, reverse.uncovered, params, byId);
+  // Coverage tries every way of choosing a bus and keeps the one carrying most; the
+  // other objectives choose by their own measure.
+  const scorings: readonly Objective[] = params.objective === 'coverage' ? ['coverage', 'min_cost', 'balanced', 'min_buses', 'min_empty_km'] : [params.objective];
+  const tried: { label: string; plan: BusPlan }[] = [];
+  for (const scoring of scorings) {
+    const lead = scoring === params.objective ? '' : ` (${SCORING_WORD[scoring]})`;
+    const forward = assign(timetable, trips, eligible, params, scoring);
+    tried.push({ label: `Planned from the start of the day${lead}`, plan: planFrom(timetable, trips, buses, eligible, forward.states, forward.uncovered, params, null) });
+    const reverse = assign(timetable, reverseTrips, eligible, params, scoring);
+    tried.push({ label: `Planned from the end of the day${lead}`, plan: planFrom(timetable, trips, buses, eligible, reverse.states, reverse.uncovered, params, byId) });
+  }
   const lost = (p: BusPlan): number => p.metrics.passengersTotal - p.metrics.passengersCovered;
-  const pickReverse = lost(reversePlan) < lost(forwardPlan) || (lost(reversePlan) === lost(forwardPlan) && objectiveCost(reversePlan, params.objective) < objectiveCost(forwardPlan, params.objective));
+  const chosen = tried.reduce((acc, t) => (lost(t.plan) < lost(acc.plan) || (lost(t.plan) === lost(acc.plan) && objectiveCost(t.plan, params.objective) < objectiveCost(acc.plan, params.objective)) ? t : acc), tried[0]!);
   trace?.({
-    candidates: [
-      { label: 'Planned from the start of the day', covered: forwardPlan.metrics.covered, busesUsed: forwardPlan.metrics.busesUsed, cost: forwardPlan.metrics.cost.total, chosen: !pickReverse },
-      { label: 'Planned from the end of the day', covered: reversePlan.metrics.covered, busesUsed: reversePlan.metrics.busesUsed, cost: reversePlan.metrics.cost.total, chosen: pickReverse },
-    ],
+    candidates: tried.map((t) => ({ label: t.label, covered: t.plan.metrics.covered, busesUsed: t.plan.metrics.busesUsed, cost: t.plan.metrics.cost.total, chosen: t === chosen })),
   });
-  return pickReverse ? reversePlan : forwardPlan;
+  return chosen.plan;
 }
 
 /**

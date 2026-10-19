@@ -45,7 +45,7 @@ const SERVICE_HOURS = { from: 5, to: 22 } as const;
  * depot. Off-road, overdue and reserve buses take about a fifth of a fleet, so the
  * tightest depots end a little short and the rest have a margin.
  */
-const TIGHTNESS = { min: 0.68, max: 0.82 } as const;
+const TIGHTNESS = { min: 0.64, max: 0.78 } as const;
 const CALIBRATION_STEPS = 9;
 const DAILY_JITTER = 0.08;
 
