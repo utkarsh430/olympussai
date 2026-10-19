@@ -12,6 +12,7 @@ import type { DataStatus } from '../dataStatus';
 import type { FleetBus } from '../fleetIndex';
 import { FUEL_AUDIT_PATH, RELIABILITY_PATH, SIMULATION_PATH } from '../workspaces';
 import { buildBriefing } from './briefing';
+import { compareAnswer, crewAnswer, scheduleAnswer, underusedAnswer } from './copilotSched';
 import { decisionHref } from './decisions';
 import { auditVehicle, type FuelAudit } from './fuelAudit';
 import type { Decision } from './types';
@@ -19,10 +20,10 @@ import { FAULT_LABEL, summariseHealth, type VehicleHealth } from './vehicleHealt
 
 /**
  * The copilot's own answers: a fixed set of intents, each answered from the records the
- * workspaces show (the decision queue, the fleet index, fleet health, the fuel audit and
- * the redistribution plan), with the action that opens the records behind it. A question
- * outside these intents returns null and is passed to the AI Engine on the server. No
- * answer names, scores or judges a person.
+ * workspaces show (the decision queue, the fleet index, fleet health, the fuel audit, the
+ * redistribution plan and the scheduling engine), with the action that opens the records
+ * behind it. A question outside these intents returns null and is passed to the AI Engine
+ * on the server. No answer names, scores or judges a person.
  */
 
 export interface CopilotData {
@@ -68,6 +69,7 @@ export interface LocalAnswer {
 }
 
 const MAX_LISTED = 5;
+const NUMBER_WORDS: Readonly<Record<string, number>> = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, twenty: 20 };
 const REGISTRATION = /\b([a-z]{2})[\s-]?(\d{1,2})[\s-]?([a-z]{0,3})[\s-]?(\d{3,4})\b/i;
 
 const normalise = (s: string): string => s.toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -405,9 +407,28 @@ export function localAnswer(question: string, data: CopilotData, ctx: CopilotCon
     if (d) return decisionAnswer(d);
   }
 
-  const unavailable = /(\d+)\s+(?:more\s+)?(?:buses|bus|vehicles)\s+(?:become|are|go|went|break|fail)?\s*(?:unavailable|off[- ]road|down|out)|lose\s+(\d+)\s+(?:buses|bus)/.exec(q);
+  if (/\b(generate|create|make|build|optimi[sz]e)\b.*\b(schedule|timetable|bus plan)\b|\bschedule\b.*\b(tomorrow|today)\b/.test(q)) {
+    const answer = scheduleAnswer(named ?? depot, data, q);
+    if (answer) return answer;
+  }
+  if (/under[- ]?(used|utili[sz]ed)|idle buses|spare capacity/.test(q)) {
+    const answer = underusedAnswer(named ?? depot, data);
+    if (answer) return answer;
+  }
+  if (/\bcompare\b.*\b(baseline|original|optimi[sz]ed|plan)/.test(q)) {
+    const answer = compareAnswer(named ?? depot, data);
+    if (answer) return answer;
+  }
+  if (/\bcrew\b.*\b(roster|schedule|short|enough|cover)|\b(drivers|conductors)\b.*\b(roster|enough|short)/.test(q)) {
+    const answer = crewAnswer(named ?? depot, data);
+    if (answer) return answer;
+  }
+
+  const unavailable =
+    /(\d+|one|two|three|four|five|six|seven|eight|nine|ten|twenty)\s+(?:more\s+)?(?:buses|bus|vehicles)\s+(?:become|are|go|went|break|fail)?\s*(?:unavailable|off[- ]road|down|out)|(?:lose|losing|remov(?:e|ing)|without|take out|taking out)\s+(\d+|one|two|three|four|five|six|seven|eight|nine|ten|twenty)\s+(?:buses|bus|vehicles)/.exec(q);
   if (unavailable) {
-    const n = Number(unavailable[1] ?? unavailable[2]);
+    const word = unavailable[1] ?? unavailable[2] ?? '';
+    const n = NUMBER_WORDS[word] ?? Number(word);
     if (Number.isFinite(n) && n > 0 && n <= 500) return unavailableAnswer(n, named ?? depot, data);
   }
   if (/\bwhy\b.*\bflag|fuel|diesel|km\/l|mileage|anomal/.test(q)) return fuelAnswer(data, scoped, name);
@@ -424,11 +445,12 @@ export function localAnswer(question: string, data: CopilotData, ctx: CopilotCon
 export function suggestions(ctx: CopilotContext, depotName: string | null): readonly string[] {
   const where = depotName ?? (ctx.regionName ? `the ${ctx.regionName} region` : 'the network');
   const list = [
-    `What needs attention at ${where}?`,
+    depotName ? `Generate an optimised schedule for ${depotName} tomorrow` : `What needs attention at ${where}?`,
+    depotName ? 'Compare baseline and optimised depot operations' : `What needs attention at ${where}?`,
     depotName ? `Why is ${depotName} facing a shortage?` : 'Which depot should receive additional buses?',
     depotName ? `Which buses can cover the next departures at ${depotName}?` : 'Which routes are likely to be underserved at 8 AM?',
     `What happens if ${depotName ? 5 : 15} buses become unavailable${depotName ? ` at ${depotName}` : ''}?`,
-    'Which fuel journeys were flagged and why?',
+    depotName ? 'Show which buses are underutilised this afternoon' : 'Which fuel journeys were flagged and why?',
   ];
   if (ctx.focus?.kind === 'vehicle') list.unshift(`Tell me about bus ${ctx.focus.id}`);
   if (ctx.focus?.kind === 'decision') list.unshift('Explain this decision');
