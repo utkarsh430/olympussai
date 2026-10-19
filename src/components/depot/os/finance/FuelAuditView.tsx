@@ -148,7 +148,7 @@ export function FuelAuditView() {
             <Metric label="Open cases" value={formatCount(openCases)} tone="teal" sub="Assigned or under review" />
           </MetricStrip>
 
-          <div className={`grid grid-cols-1 gap-4 ${depotId ? '' : 'xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]'}`}>
+          <div className={`grid grid-cols-1 items-start gap-4 ${depotId ? '' : 'xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]'}`}>
             <Panel kicker="Consumption" title="Fuel issued per day, and the excess on flagged journeys" bodyClassName="p-0" actions={<StatusTag status="scenario" />}>
               <DailyChart audit={audit} />
             </Panel>

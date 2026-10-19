@@ -145,8 +145,8 @@ export function Metric({ label, value, sub, tone = null, status, href, onClick, 
       <div className="os-kicker truncate" title={label}>
         {label}
       </div>
-      <div className="mt-1 flex items-center justify-between gap-2">
-        <span className={`os-value ${tone ? TONE_TEXT[tone] : ''}`}>{value}</span>
+      <div className="mt-1 flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+        <span className={`os-value whitespace-nowrap ${tone ? TONE_TEXT[tone] : ''}`}>{value}</span>
         {status ? <StatusTag status={status} /> : null}
       </div>
       {sub ? <div className="os-sub mt-0.5 truncate">{sub}</div> : null}
