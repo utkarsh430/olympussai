@@ -11,6 +11,7 @@ import { regionById } from '@/lib/depot/os/regions';
 import { modelDepotMaster } from '@/lib/depot/sim/depotMaster';
 import { useIntel } from '../IntelProvider';
 import { OsHeader } from '../OsHeader';
+import { MaintenanceImpact, ServiceDueProjection } from './MaintenanceImpact';
 import { useOsStore } from '../osStore';
 import { EmptyNote, MeterBar, Metric, MetricStrip, Panel, PanelLoading, StatusTag } from '../ui';
 
@@ -104,6 +105,11 @@ export function FleetHealthView() {
             <Metric label="Recurring faults" value={formatCount(summary.recurring)} sub="Same system twice in 180 d" />
             <Metric label="Fit standby" value={formatCount(summary.standbyCandidates)} tone="teal" sub="Replacement availability" />
           </MetricStrip>
+
+          <div className={`grid grid-cols-1 gap-4 ${depotId ? 'xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]' : ''}`}>
+            <ServiceDueProjection health={health} />
+            {depotId ? <MaintenanceImpact depotId={depotId} /> : null}
+          </div>
 
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
             <Panel kicker="Breakdown risk" title="Buses by risk index" actions={<StatusTag status="estimate" />} bodyClassName="space-y-4 p-4">
