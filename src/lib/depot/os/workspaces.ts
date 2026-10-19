@@ -150,7 +150,7 @@ export const WORKSPACES: readonly Workspace[] = [
       { key: 'crew-scheduler', label: 'AI Crew Scheduler', network: null, depot: 'crew-scheduler', ai: 'optimize', flagship: true, keywords: 'crew roster driver conductor shifts generate rest overtime' },
       { key: 'joint-optimizer', label: 'Joint Fleet & Crew Optimizer', network: null, depot: 'optimizer', ai: 'optimize', flagship: true, keywords: 'joint fleet crew optimizer combined depot operations coverage' },
       { key: 'duties', label: 'Duty Management', network: null, depot: 'duties', keywords: 'duty allocation vehicle assignment' },
-      { key: 'live-schedule', label: 'Live Route Schedule', network: SCHEDULER_PATH, depot: 'schedule', ai: 'optimize', keywords: 'live routes schedule blocks duties approval trail rollup' },
+      { key: 'duty-planner', label: 'Route Duty Planner', network: SCHEDULER_PATH, depot: 'schedule', ai: 'optimize', keywords: 'gps feed routes schedule blocks duties approval trail rollup scheduler' },
       { key: 'departures', label: 'Departure Timeline', network: null, depot: 'readiness', query: section(SECTION_ANCHOR.departureTimeline), keywords: 'departure timeline turn-out hour' },
       { key: 'crew', label: 'Crew Availability', network: null, depot: 'crew', keywords: 'drivers conductors shift coverage leave' },
     ],
