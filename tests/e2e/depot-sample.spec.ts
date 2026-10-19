@@ -267,6 +267,8 @@ const PAGE_HEADING: Readonly<Record<string, string>> = {
   '/project/depots/simulation': 'Scenario Studio',
   '/project/depots/twin': 'Digital twin',
   '/project/depots/data-health': 'Integration health',
+  '/project/depots/activity': 'Network activity',
+  '/project/depots/settings': 'Settings',
   '/project/depots/ask': 'AI Engine',
   '/project/depots/economics': 'Economics',
   '/project/depots/exceptions': 'Exceptions',
@@ -297,6 +299,10 @@ const PAGE_HEADING: Readonly<Record<string, string>> = {
   '/project/depots/d/[depotId]/incidents': 'Incident Response',
   '/project/depots/d/[depotId]/trends': 'Trends',
   '/project/depots/d/[depotId]/yard': 'Yard',
+  '/project/depots/d/[depotId]/activity': 'Network activity',
+  '/project/depots/d/[depotId]/bus-scheduler': 'AI Bus Scheduler',
+  '/project/depots/d/[depotId]/crew-scheduler': 'AI Crew Scheduler',
+  '/project/depots/d/[depotId]/optimizer': 'Joint Fleet & Crew Optimizer',
 };
 
 /**
@@ -332,6 +338,12 @@ const NO_PROVENANCE_LINE: ReadonlySet<string> = new Set([
   '/project/depots/d/[depotId]/schedule',
   '/project/depots/incidents',
   '/project/depots/d/[depotId]/incidents',
+  '/project/depots/activity',
+  '/project/depots/settings',
+  '/project/depots/d/[depotId]/activity',
+  '/project/depots/d/[depotId]/bus-scheduler',
+  '/project/depots/d/[depotId]/crew-scheduler',
+  '/project/depots/d/[depotId]/optimizer',
 ]);
 
 /** A page template with its segments filled from the sample: its depot and its busy route. */
