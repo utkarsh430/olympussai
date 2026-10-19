@@ -1638,3 +1638,25 @@
 .sim-light .gm-style img[alt='Google'] {
   opacity: 0.75;
 }
+
+/* Printing a schedule, roster or plan: the page alone, as it looks on screen. */
+@media print {
+  .depot-shell [data-testid='depot-top-bar'],
+  .depot-shell [data-testid='depot-nav'],
+  .depot-shell [data-testid='depot-nav-strip'],
+  .depot-shell [data-testid='os-ai-ribbon'],
+  .depot-shell [data-testid='os-copilot'],
+  .depot-shell [data-testid='footer-disclaimer'],
+  .depot-shell .os-cta {
+    display: none !important;
+  }
+  .depot-shell,
+  .depot-shell * {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  .depot-shell .os-scroll {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+}
