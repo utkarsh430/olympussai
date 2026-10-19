@@ -12,7 +12,12 @@ import { auditVehicle } from '@/lib/depot/os/intel/fuelAudit';
 import { FAULT_LABEL, summariseHealth } from '@/lib/depot/os/intel/vehicleHealth';
 import { regionById, regionOf } from '@/lib/depot/os/regions';
 import { useIntel, type Intel } from './IntelProvider';
+import { clockOf } from '@/lib/depot/os/intel/readiness';
+import { DEFAULT_BUS_PARAMS } from '@/lib/depot/os/sched/config';
+import { tripsFor } from '@/lib/depot/os/sched/trips';
+import { optimiseBuses, restrictBuses, RESTRICTION_LABEL } from '@/lib/depot/os/sched/vehicles';
 import { OsOverlay, OverlayClose } from './OsOverlay';
+import { useSchedInput } from './sched/useSchedInput';
 import { useOsStore, type EntityRef } from './osStore';
 import { EmptyNote, Fact, MeterBar, SeverityChip, Sparkline, StatusTag } from './ui';
 
@@ -48,6 +53,52 @@ function DecisionList({ intel, match }: { readonly intel: Intel; readonly match:
   );
 }
 
+/**
+ * The bus's day in the AI Bus Scheduler's balanced plan for its depot: held (and why), or
+ * the departures it runs. The same engine and inputs as the scheduler page, so the bus
+ * reads the same here and there.
+ */
+function PlannedDay({ registration, depotId }: { readonly registration: string; readonly depotId: string }) {
+  const closeEntity = useOsStore((s) => s.closeEntity);
+  const input = useSchedInput(depotId, null);
+  const day = useMemo(() => {
+    if (!input.timetable) return null;
+    const buses = restrictBuses(input.buses, DEFAULT_BUS_PARAMS);
+    const me = buses.find((b) => b.registration === registration) ?? null;
+    const plan = optimiseBuses(input.timetable, tripsFor(input.timetable, DEFAULT_BUS_PARAMS), buses, DEFAULT_BUS_PARAMS);
+    return { me, block: plan.blocks.find((b) => b.registration === registration) ?? null };
+  }, [input.timetable, input.buses, registration]);
+  if (!day) return <p className="depot-note">Planning the depot&apos;s day.</p>;
+  return (
+    <>
+      {day.me?.restriction ? (
+        <p className="font-sans text-[12.5px] text-alert-amber">Held out of today&apos;s plan: {RESTRICTION_LABEL[day.me.restriction].toLowerCase()}.</p>
+      ) : day.block ? (
+        <>
+          <p className="font-sans text-[12.5px] text-depot-ink">
+            Runs {formatCount(day.block.trips.length)} departures, {clockOf(day.block.start % 1440)}–{clockOf(day.block.end % 1440)}, carrying about {formatCount(day.block.passengers)} passengers.
+          </p>
+          <ul className="mt-1 space-y-0.5">
+            {day.block.trips.slice(0, 6).map((t) => (
+              <li key={t.id} className="flex justify-between font-mono text-[11.5px] text-depot-prose">
+                <span>{t.routeId}</span>
+                <span>
+                  {clockOf(t.dep % 1440)}–{clockOf(t.arr % 1440)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : (
+        <p className="depot-note">Not needed in today&apos;s plan: a spare the depot can call on.</p>
+      )}
+      <Link href={`${depotHref(depotId)}/bus-scheduler`} onClick={closeEntity} className="depot-link mt-1.5 inline-block font-sans text-[12px]">
+        Open the AI Bus Scheduler
+      </Link>
+    </>
+  );
+}
+
 function VehicleProfile({ id, depotId, intel }: { readonly id: string; readonly depotId: string | null; readonly intel: Intel }) {
   const closeEntity = useOsStore((s) => s.closeEntity);
   const askCopilot = useOsStore((s) => s.askCopilot);
@@ -79,6 +130,11 @@ function VehicleProfile({ id, depotId, intel }: { readonly id: string; readonly 
           />
         </dl>
       </Section>
+      {home ? (
+        <Section title="Today's plan" status="proposed">
+          <PlannedDay registration={id} depotId={home} />
+        </Section>
+      ) : null}
       {health ? (
         <Section title="Maintenance and breakdown risk" status="estimate">
           <div className="mb-2 flex items-center gap-3">
