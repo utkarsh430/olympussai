@@ -168,6 +168,7 @@ export function BusScheduler() {
       label: OBJECTIVE_LABEL[ctx.params.objective],
       figures: { buses: m.busesUsed, covered: m.covered, departures: m.departures, uncovered: m.uncovered, baselineCovered: b.covered, baselineBuses: b.busesUsed, idleHours: Math.round(m.idleHours), baselineIdle: Math.round(b.idleHours) },
       summary: `${OBJECTIVE_LABEL[ctx.params.objective]} for ${name}: ${m.busesUsed} buses cover ${m.covered} of ${m.departures} departures against ${b.covered} in the original plan.`,
+      busParams: ctx.params,
     });
   }, [input.timetable, input.buses, params, runner, depotId, name, setLatest]);
 

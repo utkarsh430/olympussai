@@ -34,6 +34,8 @@ export interface LatestResult {
   readonly figures: Readonly<Record<string, number>>;
   /** One sentence on what the plan does against the original. */
   readonly summary: string;
+  /** The bus parameters the plan was made under, so the crew scheduler rosters the same duties. */
+  readonly busParams?: BusParams;
   readonly at: number;
 }
 
