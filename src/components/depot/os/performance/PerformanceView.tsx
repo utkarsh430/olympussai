@@ -11,26 +11,28 @@ import { useIntel } from '../IntelProvider';
 import { OsHeader } from '../OsHeader';
 import { useOsStore } from '../osStore';
 import { EmptyNote, Fact, MeterBar, Panel, PanelLoading, StatusTag } from '../ui';
+import { OpportunityPanel, opportunities, percentiles, ProfileRadar } from './PerformanceInsight';
 
 type MetricKey = 'index' | 'utilisation' | 'availability' | 'offRoad' | 'telemetry' | 'coverage' | 'fuel' | 'exposure';
 
 interface MetricDef {
   readonly key: MetricKey;
   readonly label: string;
+  readonly short: string;
   readonly better: 'higher' | 'lower';
   readonly format: (n: number) => string;
   readonly status: 'live' | 'derived' | 'estimate' | 'scenario';
 }
 
 const METRICS: readonly MetricDef[] = [
-  { key: 'index', label: 'Efficiency index', better: 'higher', format: (n) => n.toFixed(1), status: 'derived' },
-  { key: 'utilisation', label: 'Fleet utilisation (on road)', better: 'higher', format: (n) => `${(n * 100).toFixed(0)}%`, status: 'live' },
-  { key: 'availability', label: 'Vehicle availability', better: 'higher', format: (n) => `${(n * 100).toFixed(0)}%`, status: 'live' },
-  { key: 'offRoad', label: 'Off-road rate', better: 'lower', format: (n) => `${(n * 100).toFixed(1)}%`, status: 'live' },
-  { key: 'telemetry', label: 'Telemetry availability', better: 'higher', format: (n) => `${(n * 100).toFixed(0)}%`, status: 'live' },
-  { key: 'coverage', label: 'Peak service coverage', better: 'higher', format: (n) => `${(n * 100).toFixed(0)}%`, status: 'estimate' },
-  { key: 'fuel', label: 'Fuel economy, km/L', better: 'higher', format: (n) => n.toFixed(2), status: 'scenario' },
-  { key: 'exposure', label: 'Fuel exposure per bus, ₹', better: 'lower', format: (n) => formatCount(Math.round(n)), status: 'scenario' },
+  { key: 'index', short: 'Efficiency', label: 'Efficiency index', better: 'higher', format: (n) => n.toFixed(1), status: 'derived' },
+  { key: 'utilisation', short: 'Utilisation', label: 'Fleet utilisation (on road)', better: 'higher', format: (n) => `${(n * 100).toFixed(0)}%`, status: 'live' },
+  { key: 'availability', short: 'Availability', label: 'Vehicle availability', better: 'higher', format: (n) => `${(n * 100).toFixed(0)}%`, status: 'live' },
+  { key: 'offRoad', short: 'Off-road', label: 'Off-road rate', better: 'lower', format: (n) => `${(n * 100).toFixed(1)}%`, status: 'live' },
+  { key: 'telemetry', short: 'Telemetry', label: 'Telemetry availability', better: 'higher', format: (n) => `${(n * 100).toFixed(0)}%`, status: 'live' },
+  { key: 'coverage', short: 'Peak cover', label: 'Peak service coverage', better: 'higher', format: (n) => `${(n * 100).toFixed(0)}%`, status: 'estimate' },
+  { key: 'fuel', short: 'Economy', label: 'Fuel economy, km/L', better: 'higher', format: (n) => n.toFixed(2), status: 'scenario' },
+  { key: 'exposure', short: 'Exposure', label: 'Fuel exposure per bus, ₹', better: 'lower', format: (n) => formatCount(Math.round(n)), status: 'scenario' },
 ];
 
 interface Row {
@@ -41,8 +43,9 @@ interface Row {
 }
 
 /**
- * Depot performance intelligence: every operating depot on one measure at a time as
- * ranked bars, two measures against each other as a scatter, and the selected depot's
+ * Depot performance intelligence: the selected depot's profile against every peer, the
+ * improvement opportunities the measures point to, every operating depot on one measure
+ * as ranked bars, two measures against each other as a scatter, and the selected depot's
  * efficiency index broken into its weighted components.
  */
 export function PerformanceView() {
@@ -110,6 +113,8 @@ export function PerformanceView() {
   const sx = (v: number): number => P + ((v - x0) / (x1 - x0 || 1)) * (W - 2 * P);
   const sy = (v: number): number => H - P - ((v - y0) / (y1 - y0 || 1)) * (H - 2 * P);
   const maxFleet = Math.max(1, ...pts.map((r) => r.fleet));
+  const ranks = useMemo(() => percentiles(rows, METRICS), [rows]);
+  const chances = useMemo(() => opportunities(rows), [rows]);
 
   return (
     <div className="space-y-4" data-testid="os-performance">
@@ -131,6 +136,11 @@ export function PerformanceView() {
       {!intel.network ? (
         <PanelLoading rows={6} label="Loading the depots" />
       ) : (
+        <>
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
+          <ProfileRadar name={pick?.name ?? '—'} metrics={METRICS} ranks={pick ? ranks.get(pick.id) : undefined} />
+          <OpportunityPanel items={chances} onSelect={setSelected} />
+        </div>
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           <Panel kicker="Ranked" title={`${def.label} · ${formatCount(ranked.length)} depots`} actions={<StatusTag status={def.status} />} bodyClassName="p-0">
             {ranked.length === 0 ? (
@@ -229,6 +239,7 @@ export function PerformanceView() {
             </Panel>
           </div>
         </div>
+        </>
       )}
     </div>
   );
