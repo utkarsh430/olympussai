@@ -25,6 +25,7 @@ import { haversineKm } from '@/lib/simulation/seededRandom';
 import { useIntel } from '../IntelProvider';
 import { OsHeader } from '../OsHeader';
 import { useOsStore, useReviewFor } from '../osStore';
+import { Gantt, GanttLegend, type GanttRow, type GanttTone } from '../gantt/Gantt';
 import { EmptyNote, LocalTabs, Metric, MetricStrip, Panel, PanelLoading, StatusTag } from '../ui';
 import { CheckDot, ReadinessChip, READINESS_BAR } from './ReadinessChip';
 
@@ -60,6 +61,48 @@ function HourStrip({ departures, nowMin }: { readonly departures: readonly Depar
       </div>
     </div>
   );
+}
+
+const READINESS_TONE: Readonly<Record<Readiness, GanttTone>> = {
+  ready: 'green',
+  at_risk: 'amber',
+  blocked: 'crimson',
+  unverified: 'slate',
+  departed: 'cyan',
+  completed: 'ghost',
+};
+
+/** Departures as lanes per route: a duty starts a new lane only when it overlaps the last one. */
+function timelineRows(departures: readonly Departure[]): GanttRow[] {
+  const byRoute = new Map<string, Departure[]>();
+  for (const d of departures) byRoute.set(d.routeName, [...(byRoute.get(d.routeName) ?? []), d]);
+  const rows: GanttRow[] = [];
+  for (const [route, list] of [...byRoute].sort((a, b) => a[0].localeCompare(b[0]))) {
+    const lanes: Departure[][] = [];
+    for (const d of [...list].sort((a, b) => a.startMin - b.startMin)) {
+      const lane = lanes.find((l) => l[l.length - 1]!.endMin <= d.startMin);
+      if (lane) lane.push(d);
+      else lanes.push([d]);
+    }
+    lanes.forEach((lane, i) =>
+      rows.push({
+        id: `${route}|${i}`,
+        label: i === 0 ? route : '',
+        sub: i === 0 && lanes.length > 1 ? `${lanes.length} lanes` : undefined,
+        flag: lane.some((d) => d.readiness === 'blocked') ? 'crimson' : lane.some((d) => d.readiness === 'at_risk') ? 'amber' : undefined,
+        bars: lane.map((d) => ({
+          id: d.dutyId,
+          start: d.startMin,
+          end: d.endMin,
+          tone: READINESS_TONE[d.readiness],
+          hatched: d.registration === null,
+          label: d.registration ?? 'No bus',
+          title: `${dutyLabel(d.dutyId)} · ${route} · ${clockOf(d.startMin)}–${clockOf(d.endMin % 1440)} · ${d.registration ?? 'no bus'} · ${READINESS_LABEL[d.readiness]}`,
+        })),
+      }),
+    );
+  }
+  return rows;
 }
 
 function ComparisonBar({ label, counts, total }: { readonly label: string; readonly counts: Readonly<Record<Readiness, number>>; readonly total: number }) {
@@ -135,6 +178,7 @@ export function ReadinessBoard() {
 
   const root = depotHref(depotId);
   const total = board?.departures.length ?? 0;
+  const lanes = useMemo(() => (board ? timelineRows(board.departures) : []), [board]);
 
   return (
     <div className="space-y-4" data-testid="os-readiness">
@@ -172,6 +216,37 @@ export function ReadinessBoard() {
 
           <Panel kicker="Departure schedule" title="Departures per hour, by readiness" bodyClassName="p-0" actions={<StatusTag status="derived" />}>
             <HourStrip departures={board.departures} nowMin={nowMin} />
+          </Panel>
+
+          <Panel
+            id="departure-timeline"
+            kicker="Departure timeline"
+            title={`${formatCount(total)} duties across ${formatCount(new Set(board.departures.map((d) => d.routeName)).size)} routes`}
+            bodyClassName="space-y-2 p-0 pb-3"
+            actions={<StatusTag status="derived" />}
+          >
+            <Gantt
+              rows={lanes}
+              nowMin={nowMin}
+              selectedId={selected?.dutyId ?? null}
+              onSelect={(dutyId) => setSelectedId(dutyId)}
+              ariaLabel="Each duty of the day as a bar on its route, coloured by readiness"
+              maxHeight={360}
+              rowHeight={24}
+            />
+            <div className="px-4">
+              <GanttLegend
+                items={[
+                  { tone: 'green', label: READINESS_LABEL.ready },
+                  { tone: 'amber', label: READINESS_LABEL.at_risk },
+                  { tone: 'crimson', label: READINESS_LABEL.blocked },
+                  { tone: 'slate', label: READINESS_LABEL.unverified },
+                  { tone: 'cyan', label: READINESS_LABEL.departed },
+                  { tone: 'ghost', label: READINESS_LABEL.completed },
+                  { tone: 'crimson', label: 'No bus allocated', hatched: true },
+                ]}
+              />
+            </div>
           </Panel>
 
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">

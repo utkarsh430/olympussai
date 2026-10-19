@@ -9,8 +9,8 @@ import { DepotSignOut } from '@/components/depot/shell/DepotSignOut';
 import { FeedStatus } from '@/components/depot/shell/FeedStatus';
 import { MODULE_DATA_LABEL, MODULE_DATA_TITLE } from '@/lib/depot/os/dataStatus';
 import { DATA_HEALTH_PATH } from '@/lib/depot/os/workspaces';
+import { AiStatus } from './ai/AiStatus';
 import { ContextSelector } from './ContextSelector';
-import { useIntel } from './IntelProvider';
 import { useOsStore } from './osStore';
 
 /**
@@ -22,8 +22,6 @@ export function OsTopBar() {
   const setPaletteOpen = useOsStore((s) => s.setPaletteOpen);
   const copilotOpen = useOsStore((s) => s.copilotOpen);
   const setCopilotOpen = useOsStore((s) => s.setCopilotOpen);
-  const intel = useIntel();
-  const critical = intel.decisions.filter((d) => d.severity === 'critical').length;
 
   return (
     <header
@@ -72,19 +70,7 @@ export function OsTopBar() {
           <Search className="h-3.5 w-3.5" aria-hidden />
         </button>
 
-        <span
-          className="hidden items-center gap-1.5 rounded-[3px] border border-holo-glow/30 bg-holo-glow/[0.06] px-2 py-1 font-mono text-[10.5px] uppercase tracking-[0.12em] text-holo-glow min-[1700px]:inline-flex"
-          title={
-            intel.ready
-              ? `The AI engine ranked ${intel.decisions.length} decisions on the latest snapshot; ${critical} critical.`
-              : 'The AI engine is reading the latest snapshot.'
-          }
-          data-testid="os-ai-status"
-        >
-          <span className={`inline-block h-1.5 w-1.5 rounded-full bg-holo-glow ${intel.ready ? 'os-pulse' : ''}`} aria-hidden />
-          {intel.ready ? `AI · ${intel.decisions.length} decisions` : 'AI · reading'}
-          {critical > 0 ? <span className="text-alert-crimson">· {critical} critical</span> : null}
-        </span>
+        <AiStatus />
 
         <Link
           href={DATA_HEALTH_PATH}

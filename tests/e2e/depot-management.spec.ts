@@ -100,10 +100,8 @@ test.describe('Depot Management shell', () => {
     await expect(page.getByTestId('depot-top-bar')).toBeVisible();
     const nav = page.getByTestId('depot-nav');
     await expect(nav).toBeVisible();
-    await expect(nav.getByRole('link', { name: /Mission Control/ })).toHaveAttribute(
-      'aria-current',
-      'true',
-    );
+    await expect(nav.getByRole('button', { name: /Mission Control/ })).toHaveAttribute('aria-expanded', 'true');
+    await expect(nav.getByRole('link', { name: /Network Command Center/ })).toHaveAttribute('aria-current', 'page');
     await expect(page.getByTestId('footer-disclaimer')).toBeVisible();
   });
 

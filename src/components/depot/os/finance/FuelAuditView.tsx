@@ -152,7 +152,7 @@ export function FuelAuditView() {
           </Panel>
 
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_440px]">
-            <Panel kicker="AI anomaly detection" title="Flagged journeys and efficiency" bodyClassName="flex min-h-0 flex-col p-0" className="h-[820px]">
+            <Panel id="anomaly-queue" kicker="AI anomaly detection" title="Flagged journeys and efficiency" bodyClassName="flex min-h-0 flex-col p-0" className="h-[820px]">
               <LocalTabs<Tab>
                 label="Fuel audit tables"
                 value={tab}

@@ -143,7 +143,7 @@ export function FleetHealthView() {
             </Panel>
 
             {bayPlan && depot ? (
-              <Panel kicker="Repair bay scheduling" title={`${bayPlan.bays} workshop bay${bayPlan.bays === 1 ? '' : 's'} · next ${PLAN_DAYS} days`} actions={<StatusTag status="proposed" />} bodyClassName="space-y-3 p-4">
+              <Panel id="bay-plan" kicker="Repair bay scheduling" title={`${bayPlan.bays} workshop bay${bayPlan.bays === 1 ? '' : 's'} · next ${PLAN_DAYS} days`} actions={<StatusTag status="proposed" />} bodyClassName="space-y-3 p-4">
                 <div className="os-scroll overflow-x-auto">
                   <table className="w-full border-separate border-spacing-1 font-mono text-[10.5px]">
                     <thead>

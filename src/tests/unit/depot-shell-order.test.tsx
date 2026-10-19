@@ -35,7 +35,7 @@ function focusables(root: Element): readonly HTMLElement[] {
 }
 
 describe('DepotShell structure', () => {
-  it('puts the skip link first, then the bar, then the workspace rail, then the page', () => {
+  it('puts the skip link first, then the bar, then the sidebar tree, then the page', () => {
     const { container } = render(
       <DepotShell>
         <button type="button">First page control</button>
@@ -45,15 +45,20 @@ describe('DepotShell structure', () => {
     expect(all[0]?.textContent).toBe('Skip to depot content');
     expect(all[0]?.getAttribute('href')).toBe('#depot-main');
 
-    // The rail lists the six workspaces, each entering the depot's own form of its first view.
+    // The sidebar tree lists the six workspaces and System; the current one is open,
+    // its features are links in the depot's own form, and the current feature is marked.
     const rail = screen.getByTestId('depot-nav');
     const workspaces = [...rail.querySelectorAll('[data-testid="os-workspace-link"]')];
-    expect(workspaces).toHaveLength(6);
+    expect(workspaces).toHaveLength(7);
     expect(workspaces[0]?.textContent).toContain('Mission Control');
-    expect(workspaces[0]?.getAttribute('href')).toBe('/project/depots/d/49');
+    expect(workspaces[2]?.getAttribute('aria-expanded')).toBe('true');
+    expect(workspaces[0]?.getAttribute('aria-expanded')).toBe('false');
+    const yard = [...rail.querySelectorAll('[data-testid="os-feature-link"]')].find((a) => a.getAttribute('aria-current') === 'page');
+    expect(yard?.textContent).toContain('Yard Intelligence');
+    expect(yard?.getAttribute('href')).toBe('/project/depots/d/49/yard');
     // The bar comes before the navigation, the navigation before the page.
     const order = all.map((el) => el.textContent ?? '');
-    const firstWorkspace = order.findIndex((text) => text.includes('Mission Control') && text.startsWith('01'));
+    const firstWorkspace = order.findIndex((text) => text.includes('Mission Control'));
     expect(order.indexOf('Operations')).toBeLessThan(firstWorkspace);
 
     const main = container.querySelector('#depot-main');

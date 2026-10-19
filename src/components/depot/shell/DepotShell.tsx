@@ -1,6 +1,7 @@
 import { Suspense } from 'react';
 import { FooterDisclaimer } from '@/components/shared/FooterDisclaimer';
 import { DepotNetworkProvider } from '@/components/depot/data/DepotNetworkProvider';
+import { AiEngine } from '@/components/depot/os/ai/AiEngine';
 import { CapabilityExplorer } from '@/components/depot/os/CapabilityExplorer';
 import { CommandPalette } from '@/components/depot/os/CommandPalette';
 import { CopilotDock } from '@/components/depot/os/CopilotDock';
@@ -8,6 +9,7 @@ import { EntityDrawer } from '@/components/depot/os/EntityDrawer';
 import { IntelProvider } from '@/components/depot/os/IntelProvider';
 import { OsHydrator } from '@/components/depot/os/OsHydrator';
 import { OsTopBar } from '@/components/depot/os/OsTopBar';
+import { SectionScroller } from '@/components/depot/os/SectionScroller';
 import { WorkspaceRail, WorkspaceStrip, WorkspaceTabs } from '@/components/depot/os/WorkspaceNav';
 import { DEPOT_PORTAL_ROOT_ID } from '@/lib/depot/portalRoot';
 import { PageRefreshNotice } from './PageRefreshNotice';
@@ -27,6 +29,8 @@ export function DepotShell({ children }: { readonly children: React.ReactNode })
       <Suspense fallback={null}>
         <IntelProvider>
           <OsHydrator />
+          <SectionScroller />
+          <AiEngine />
           <div className="depot-shell flex min-h-dvh flex-col">
             <a
               href="#depot-main"

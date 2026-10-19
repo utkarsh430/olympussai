@@ -4,9 +4,10 @@ import { create } from 'zustand';
 
 /**
  * Browser-side state of Depot Intelligence OS: the region chosen in the context
- * selector, the copilot dock, the command palette, the entity drawer, and the review
- * trail of AI decisions and fuel-audit cases. Nothing here is sent anywhere: decisions
- * are recorded in this browser for the prototype, and every action stays with a person.
+ * selector, the sidebar's shape and quick access, the copilot dock, the command palette,
+ * the entity drawer, and the review trail of AI decisions and fuel-audit cases. Nothing
+ * here is sent anywhere: decisions are recorded in this browser for the prototype, and
+ * every action stays with a person.
  */
 
 export type EntityRef =
@@ -55,6 +56,25 @@ interface OsState {
   readonly pendingQuestion: string | null;
   readonly reviews: readonly ReviewRecord[];
   readonly fuelCases: Readonly<Record<string, FuelCase>>;
+  /** The sidebar drawn as an icon rail. */
+  readonly navCollapsed: boolean;
+  /** Workspaces the person has opened in the sidebar tree, beside the current one. */
+  readonly navExpanded: readonly string[];
+  /** View keys pinned to the sidebar's quick access. */
+  readonly pinnedViews: readonly string[];
+  /** The last views opened, newest first. */
+  readonly recentViews: readonly string[];
+  /** The sidebar tree as a drawer below 1280px. */
+  readonly navDrawerOpen: boolean;
+  readonly setNavCollapsed: (collapsed: boolean) => void;
+  readonly toggleNavGroup: (workspaceId: string, open: boolean) => void;
+  readonly togglePinned: (viewKey: string) => void;
+  readonly noteRecent: (viewKey: string) => void;
+  readonly setNavDrawerOpen: (open: boolean) => void;
+  readonly resetPinned: () => void;
+  readonly clearRecent: () => void;
+  readonly clearReviews: () => void;
+  readonly clearFuelCases: () => void;
   readonly setRegion: (regionId: string | null) => void;
   readonly setCopilotOpen: (open: boolean) => void;
   readonly askCopilot: (question: string) => void;
@@ -75,9 +95,27 @@ const KEYS = {
   copilot: 'depot-os-copilot-v1',
   reviews: 'depot-os-reviews-v1',
   fuelCases: 'depot-os-fuel-cases-v1',
+  nav: 'depot-os-nav-v1',
 } as const;
 
 const MAX_REVIEWS = 300;
+const MAX_RECENT = 5;
+/** The flagship capabilities, pinned until the person changes the list. */
+export const DEFAULT_PINNED: readonly string[] = ['bus-scheduler', 'joint-optimizer', 'decisions'];
+
+interface NavPrefs {
+  readonly collapsed: boolean;
+  readonly expanded: readonly string[];
+  readonly pinned: readonly string[];
+  readonly recent: readonly string[];
+}
+
+const strings = (value: unknown, fallback: readonly string[]): readonly string[] =>
+  Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string').slice(0, 40) : fallback;
+
+function navPrefsOf(state: Pick<OsState, 'navCollapsed' | 'navExpanded' | 'pinnedViews' | 'recentViews'>): NavPrefs {
+  return { collapsed: state.navCollapsed, expanded: state.navExpanded, pinned: state.pinnedViews, recent: state.recentViews };
+}
 
 function read<T>(storage: 'local' | 'session', key: string, fallback: T): T {
   try {
@@ -114,6 +152,48 @@ export const useOsStore = create<OsState>((set, get) => ({
   pendingQuestion: null,
   reviews: [],
   fuelCases: {},
+  navCollapsed: false,
+  navExpanded: [],
+  pinnedViews: DEFAULT_PINNED,
+  recentViews: [],
+  navDrawerOpen: false,
+  setNavCollapsed: (navCollapsed) => {
+    set({ navCollapsed });
+    write('local', KEYS.nav, navPrefsOf(get()));
+  },
+  toggleNavGroup: (workspaceId, open) => {
+    const rest = get().navExpanded.filter((id) => id !== workspaceId);
+    set({ navExpanded: open ? [...rest, workspaceId] : rest });
+    write('local', KEYS.nav, navPrefsOf(get()));
+  },
+  togglePinned: (viewKey) => {
+    const pinned = get().pinnedViews;
+    set({ pinnedViews: pinned.includes(viewKey) ? pinned.filter((k) => k !== viewKey) : [...pinned, viewKey] });
+    write('local', KEYS.nav, navPrefsOf(get()));
+  },
+  noteRecent: (viewKey) => {
+    const recent = get().recentViews;
+    if (recent[0] === viewKey) return;
+    set({ recentViews: [viewKey, ...recent.filter((k) => k !== viewKey)].slice(0, MAX_RECENT) });
+    write('local', KEYS.nav, navPrefsOf(get()));
+  },
+  setNavDrawerOpen: (navDrawerOpen) => set({ navDrawerOpen }),
+  resetPinned: () => {
+    set({ pinnedViews: DEFAULT_PINNED });
+    write('local', KEYS.nav, navPrefsOf(get()));
+  },
+  clearRecent: () => {
+    set({ recentViews: [] });
+    write('local', KEYS.nav, navPrefsOf(get()));
+  },
+  clearReviews: () => {
+    write('local', KEYS.reviews, []);
+    set({ reviews: [] });
+  },
+  clearFuelCases: () => {
+    write('local', KEYS.fuelCases, {});
+    set({ fuelCases: {} });
+  },
   setRegion: (regionId) => {
     write('session', KEYS.region, regionId);
     set({ regionId });
@@ -161,7 +241,12 @@ export const useOsStore = create<OsState>((set, get) => ({
   hydrate: () => {
     const reviews = read<unknown>('local', KEYS.reviews, []);
     const fuelCases = read<unknown>('local', KEYS.fuelCases, {});
+    const nav = read<Partial<Record<keyof NavPrefs, unknown>> | null>('local', KEYS.nav, null) ?? {};
     set({
+      navCollapsed: nav.collapsed === true,
+      navExpanded: strings(nav.expanded, []),
+      pinnedViews: strings(nav.pinned, DEFAULT_PINNED),
+      recentViews: strings(nav.recent, []).slice(0, MAX_RECENT),
       regionId: read<string | null>('session', KEYS.region, null),
       copilotOpen: read<boolean>('local', KEYS.copilot, false) === true,
       reviews: Array.isArray(reviews) ? reviews.filter(isReview) : [],

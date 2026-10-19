@@ -12,8 +12,8 @@ interface OsOverlayProps {
   readonly open: boolean;
   readonly onClose: () => void;
   readonly label: string;
-  /** 'drawer' slides from the right edge; 'dialog' sits near the top centre. */
-  readonly variant: 'drawer' | 'dialog';
+  /** 'drawer' slides from the right edge, 'nav' from the left; 'dialog' sits near the top centre. */
+  readonly variant: 'drawer' | 'nav' | 'dialog';
   readonly children: ReactNode;
   readonly widthClass?: string;
   readonly testId?: string;
@@ -72,8 +72,10 @@ export function OsOverlay({ open, onClose, label, variant, children, widthClass,
         aria-label={label}
         className={
           variant === 'drawer'
-            ? `os-panel os-panel-strong absolute inset-y-0 right-0 flex w-full flex-col rounded-none border-y-0 border-r-0 ${widthClass ?? 'sm:w-[34rem]'}`
-            : `os-panel os-panel-strong absolute left-1/2 top-[8vh] flex max-h-[80vh] w-[calc(100vw-2rem)] -translate-x-1/2 flex-col ${widthClass ?? 'sm:w-[40rem]'}`
+            ? `os-panel os-panel-strong os-drawer-in absolute inset-y-0 right-0 flex w-full flex-col rounded-none border-y-0 border-r-0 ${widthClass ?? 'sm:w-[34rem]'}`
+            : variant === 'nav'
+              ? `os-panel os-panel-strong os-nav-in absolute inset-y-0 left-0 flex w-[min(20rem,88vw)] flex-col rounded-none border-y-0 border-l-0`
+              : `os-panel os-dialog-in os-panel-strong absolute left-1/2 top-[8vh] flex max-h-[80vh] w-[calc(100vw-2rem)] -translate-x-1/2 flex-col ${widthClass ?? 'sm:w-[40rem]'}`
         }
       >
         {children}
