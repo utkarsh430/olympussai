@@ -9,6 +9,7 @@ import { auditFleet, type FuelAudit, type JourneyAudit } from '@/lib/depot/os/in
 import type { Severity } from '@/lib/depot/os/intel/types';
 import { regionById } from '@/lib/depot/os/regions';
 import { useIntel } from '../IntelProvider';
+import { FuelDepotComparison } from './FuelDepotComparison';
 import { OsHeader } from '../OsHeader';
 import { useOsStore } from '../osStore';
 import { EmptyNote, LocalTabs, Metric, MetricStrip, Panel, PanelLoading, SeverityChip, StatusTag } from '../ui';
@@ -147,9 +148,12 @@ export function FuelAuditView() {
             <Metric label="Open cases" value={formatCount(openCases)} tone="teal" sub="Assigned or under review" />
           </MetricStrip>
 
-          <Panel kicker="Consumption" title="Fuel issued per day, and the excess on flagged journeys" bodyClassName="p-0" actions={<StatusTag status="scenario" />}>
-            <DailyChart audit={audit} />
-          </Panel>
+          <div className={`grid grid-cols-1 gap-4 ${depotId ? '' : 'xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]'}`}>
+            <Panel kicker="Consumption" title="Fuel issued per day, and the excess on flagged journeys" bodyClassName="p-0" actions={<StatusTag status="scenario" />}>
+              <DailyChart audit={audit} />
+            </Panel>
+            {depotId ? null : <FuelDepotComparison audit={audit} depotsById={intel.depotsById} />}
+          </div>
 
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_440px]">
             <Panel id="anomaly-queue" kicker="AI anomaly detection" title="Flagged journeys and efficiency" bodyClassName="flex min-h-0 flex-col p-0" className="h-[820px]">
