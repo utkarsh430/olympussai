@@ -6,6 +6,7 @@ import { Sparkles } from 'lucide-react';
 import { depotIdFromPath } from '@/lib/depot/depotNav';
 import { CAPABILITIES } from '@/lib/depot/os/capabilities';
 import { OPERATIONAL_WORKSPACES, viewByKey, viewLink, WORKSPACES } from '@/lib/depot/os/workspaces';
+import { AiKindChip } from './aiKinds';
 import { OsOverlay, OverlayClose } from './OsOverlay';
 import { useOsStore } from './osStore';
 import { StatusTag } from './ui';
@@ -59,7 +60,10 @@ export function CapabilityExplorer() {
                         <span className="block font-sans text-[12px] leading-4 text-depot-prose">{capability.does}</span>
                         <span className="mt-1 block font-sans text-[11px] text-depot-muted">Runs in {found?.view.label ?? capability.view}</span>
                       </span>
-                      <StatusTag status={capability.basis} />
+                      <span className="flex shrink-0 flex-col items-end gap-1">
+                        {found?.view.ai ? <AiKindChip kind={found.view.ai} /> : null}
+                        <StatusTag status={capability.basis} />
+                      </span>
                     </Link>
                   </li>
                 );
