@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 import { FooterDisclaimer } from '@/components/shared/FooterDisclaimer';
 import { DepotNetworkProvider } from '@/components/depot/data/DepotNetworkProvider';
 import { AiEngine } from '@/components/depot/os/ai/AiEngine';
+import { AiRibbon } from '@/components/depot/os/ai/AiRibbon';
 import { CapabilityExplorer } from '@/components/depot/os/CapabilityExplorer';
 import { CommandPalette } from '@/components/depot/os/CommandPalette';
 import { CopilotDock } from '@/components/depot/os/CopilotDock';
@@ -48,6 +49,7 @@ export function DepotShell({ children }: { readonly children: React.ReactNode })
                 className="min-w-0 flex-1 scroll-mt-[var(--depot-sticky-top)] px-4 pb-8 pt-4 focus-visible:outline-offset-[-2px] sm:px-6"
               >
                 <WorkspaceTabs />
+                <AiRibbon />
                 <PageRefreshNotice />
                 {children}
               </main>

@@ -1525,6 +1525,31 @@
     background-image: linear-gradient(90deg, rgba(255, 176, 32, 0.1), rgba(255, 176, 32, 0.02));
   }
 
+  /* ── AI ribbon ──────────────────────────────────────────────────────── */
+  .os-ribbon {
+    @apply relative rounded-[5px] border px-3 py-2;
+    border-color: rgba(63, 240, 255, 0.18);
+    background-image:
+      linear-gradient(90deg, rgba(63, 240, 255, 0.08), rgba(46, 242, 196, 0.03) 45%, transparent),
+      repeating-linear-gradient(90deg, rgba(63, 240, 255, 0.025) 0 1px, transparent 1px 22px);
+  }
+
+  .os-ribbon::before {
+    content: '';
+    @apply absolute inset-y-1.5 left-0 w-[2px] rounded-full bg-holo-glow;
+    box-shadow: 0 0 10px rgba(63, 240, 255, 0.8);
+  }
+
+  .os-ribbon-badge {
+    @apply mr-2 inline-flex items-center gap-1.5 rounded-[3px] border border-holo-glow/40 bg-holo-glow/10 px-1.5 py-0.5 font-mono text-[10px]
+      font-semibold uppercase tracking-[0.14em] text-holo-glow;
+  }
+
+  .os-ribbon-item {
+    @apply inline-flex min-w-0 items-baseline gap-1.5 rounded-[3px] px-1 py-0.5 font-mono text-[11px] uppercase tracking-[0.06em] text-depot-prose
+      transition-colors hover:bg-depot-raised hover:text-depot-ink;
+  }
+
   @keyframes os-fade-in {
     from {
       opacity: 0;
