@@ -1,11 +1,13 @@
 'use client';
 
+import { useEffect } from 'react';
 import { PanelLeftClose, PanelLeftOpen, Pin, RotateCcw, Trash2, X } from 'lucide-react';
 import { formatCount } from '@/lib/depot/format';
 import { viewByKey } from '@/lib/depot/os/workspaces';
 import { CYCLE_CHOICES, useAiStore } from '../ai/aiStore';
 import { OsHeader } from '../OsHeader';
 import { useOsStore } from '../osStore';
+import { useSchedStore } from '../sched/schedStore';
 import { Panel } from '../ui';
 
 function Row({ title, detail, children }: { readonly title: string; readonly detail: string; readonly children: React.ReactNode }) {
@@ -22,7 +24,8 @@ function Row({ title, detail, children }: { readonly title: string; readonly det
 
 /**
  * Settings of Depot Intelligence OS, all kept in this browser: the sidebar's shape and
- * quick access, the AI engine's analysis cycle, and the review records this browser holds.
+ * quick access, the AI engine's analysis cycle, and the reviews, saved scenarios and cases
+ * this browser holds.
  */
 export function SettingsView() {
   const navCollapsed = useOsStore((s) => s.navCollapsed);
@@ -36,6 +39,10 @@ export function SettingsView() {
   const clearReviews = useOsStore((s) => s.clearReviews);
   const fuelCases = useOsStore((s) => s.fuelCases);
   const clearFuelCases = useOsStore((s) => s.clearFuelCases);
+  const savedScenarios = useSchedStore((s) => s.saved.length);
+  const clearScenarios = useSchedStore((s) => s.clear);
+  const hydrateSched = useSchedStore((s) => s.hydrate);
+  useEffect(() => hydrateSched(), [hydrateSched]);
   const intervalSec = useAiStore((s) => s.intervalSec);
   const setIntervalSec = useAiStore((s) => s.setIntervalSec);
   const caseCount = Object.keys(fuelCases).length;
@@ -102,13 +109,26 @@ export function SettingsView() {
           </Row>
         </Panel>
 
-        <Panel kicker="Records in this browser" title="Reviews and cases" bodyClassName="p-0" className="xl:col-span-2">
+        <Panel kicker="Records in this browser" title="Reviews, scenarios and cases" bodyClassName="p-0" className="xl:col-span-2">
           <Row title="Decision reviews" detail={`${formatCount(reviews.length)} approvals, deferrals and rejections recorded against AI decisions and proposals.`}>
             <button
               type="button"
               disabled={reviews.length === 0}
               onClick={() => {
                 if (window.confirm('Clear every decision review recorded in this browser?')) clearReviews();
+              }}
+              className="os-button os-button-quiet"
+            >
+              <Trash2 className="h-3.5 w-3.5" aria-hidden />
+              Clear
+            </button>
+          </Row>
+          <Row title="Saved scheduling scenarios" detail={`${formatCount(savedScenarios)} bus, crew and joint plans saved from the schedulers.`}>
+            <button
+              type="button"
+              disabled={savedScenarios === 0}
+              onClick={() => {
+                if (window.confirm('Delete every saved scheduling scenario in this browser?')) clearScenarios();
               }}
               className="os-button os-button-quiet"
             >
