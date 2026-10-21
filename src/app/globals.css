@@ -1234,19 +1234,6 @@
     @apply shrink-0 rounded-[2px] border border-depot-line px-1 font-mono text-[9px] uppercase leading-[14px] tracking-[0.08em] text-depot-faint;
   }
 
-  .os-tree-pin {
-    @apply absolute right-1 top-1/2 inline-flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-[3px] text-depot-muted
-      opacity-0 transition-opacity hover:bg-depot-selected hover:text-holo-glow focus-visible:opacity-100;
-  }
-
-  .group\/row:hover .os-tree-pin {
-    @apply opacity-100;
-  }
-
-  .group\/row:hover .os-tree-link > svg:last-child {
-    @apply opacity-0;
-  }
-
   .os-rail-icon {
     @apply relative inline-flex h-10 w-10 items-center justify-center rounded-[6px] text-depot-prose transition-colors
       hover:bg-depot-raised hover:text-depot-ink;

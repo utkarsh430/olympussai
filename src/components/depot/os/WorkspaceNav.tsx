@@ -9,15 +9,12 @@ import {
   ChevronRight,
   Command,
   Database,
-  History,
   IndianRupee,
   LayoutList,
   ListFilter,
   Network,
   PanelLeftClose,
   PanelLeftOpen,
-  Pin,
-  PinOff,
   Radar,
   ShieldCheck,
   Sparkles,
@@ -30,7 +27,6 @@ import type { DecisionCategory } from '@/lib/depot/os/intel/types';
 import {
   activeView,
   OPERATIONAL_WORKSPACES,
-  viewByKey,
   viewLink,
   WORKSPACES,
   type Workspace,
@@ -110,17 +106,13 @@ interface ViewLinkProps {
   readonly depotId: string | null;
   readonly current: boolean;
   readonly onNavigate?: () => void;
-  /** Shown before the label in quick access (the workspace's icon). */
-  readonly leading?: React.ReactNode;
 }
 
-/** One feature row: the link, its AI glyph and scope marker, and a pin toggle on hover. */
-function FeatureRow({ view, depotId, current, onNavigate, leading }: ViewLinkProps) {
-  const pinned = useOsStore((s) => s.pinnedViews.includes(view.key));
-  const togglePinned = useOsStore((s) => s.togglePinned);
+/** One feature row: the link, its AI glyph and scope marker. */
+function FeatureRow({ view, depotId, current, onNavigate }: ViewLinkProps) {
   const marker = scopeMarker(view, depotId);
   return (
-    <li className="group/row relative flex items-center">
+    <li className="flex items-center">
       <Link
         href={viewLink(view, depotId)}
         aria-current={current ? 'page' : undefined}
@@ -129,19 +121,10 @@ function FeatureRow({ view, depotId, current, onNavigate, leading }: ViewLinkPro
         title={marker === 'Depot' ? `${view.label}: runs per depot; choose one` : marker === 'HQ' ? `${view.label}: runs at Headquarters` : view.label}
         className={`os-tree-link ${current ? 'os-tree-link-active' : ''} ${view.flagship ? 'os-tree-link-flagship' : ''}`}
       >
-        {leading}
         <span className="min-w-0 flex-1 truncate">{view.label}</span>
         {marker ? <span className="os-tree-marker">{marker}</span> : null}
         {view.ai ? <AiGlyph kind={view.ai} className="h-3 w-3 opacity-80" /> : null}
       </Link>
-      <button
-        type="button"
-        onClick={() => togglePinned(view.key)}
-        aria-label={pinned ? `Unpin ${view.label} from quick access` : `Pin ${view.label} to quick access`}
-        className="os-tree-pin"
-      >
-        {pinned ? <PinOff className="h-3 w-3" aria-hidden /> : <Pin className="h-3 w-3" aria-hidden />}
-      </button>
     </li>
   );
 }
@@ -152,16 +135,14 @@ interface TreeProps {
 }
 
 /**
- * The navigation tree: a filter, quick access (pinned and recent), the six workspaces
- * with every feature as its own entry, then System. The current workspace opens by
+ * The navigation tree: a filter, the six workspaces with every feature as its own
+ * entry, then System. The current workspace opens by
  * itself; others open on demand and stay open across visits.
  */
 function NavTree({ onNavigate }: TreeProps) {
   const { depotId, active } = useActive();
   const navExpanded = useOsStore((s) => s.navExpanded);
   const toggleNavGroup = useOsStore((s) => s.toggleNavGroup);
-  const pinnedViews = useOsStore((s) => s.pinnedViews);
-  const recentViews = useOsStore((s) => s.recentViews);
   const setPaletteOpen = useOsStore((s) => s.setPaletteOpen);
   const setCapabilitiesOpen = useOsStore((s) => s.setCapabilitiesOpen);
   const urgent = useUrgentByWorkspace();
@@ -184,17 +165,6 @@ function NavTree({ onNavigate }: TreeProps) {
     }
   };
   const currentKey = active?.view?.key ?? null;
-  const quick = pinnedViews.flatMap((key) => {
-    const found = viewByKey(key);
-    return found ? [found] : [];
-  });
-  const recent = recentViews
-    .filter((key) => key !== currentKey && !pinnedViews.includes(key))
-    .slice(0, 3)
-    .flatMap((key) => {
-      const found = viewByKey(key);
-      return found ? [found] : [];
-    });
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -231,53 +201,6 @@ function NavTree({ onNavigate }: TreeProps) {
       </div>
 
       <div className="os-scroll min-h-0 flex-1 overflow-y-auto px-2 pb-3">
-        {!filtering && quick.length > 0 ? (
-          <section aria-label="Quick access" className="mb-2">
-            <div className="os-tree-heading">
-              <Pin className="h-3 w-3" aria-hidden />
-              Quick access
-            </div>
-            <ul className="space-y-px">
-              {quick.map(({ view, workspace }) => {
-                const Icon = WORKSPACE_ICON[workspace.id];
-                return (
-                  <FeatureRow
-                    key={view.key}
-                    view={view}
-                    depotId={depotId}
-                    current={view.key === currentKey}
-                    onNavigate={onNavigate}
-                    leading={<Icon className="h-3.5 w-3.5 shrink-0 text-depot-faint" aria-hidden />}
-                  />
-                );
-              })}
-            </ul>
-            {recent.length > 0 ? (
-              <>
-                <div className="os-tree-heading mt-2">
-                  <History className="h-3 w-3" aria-hidden />
-                  Recent
-                </div>
-                <ul className="space-y-px">
-                  {recent.map(({ view, workspace }) => {
-                    const Icon = WORKSPACE_ICON[workspace.id];
-                    return (
-                      <FeatureRow
-                        key={view.key}
-                        view={view}
-                        depotId={depotId}
-                        current={false}
-                        onNavigate={onNavigate}
-                        leading={<Icon className="h-3.5 w-3.5 shrink-0 text-depot-faint" aria-hidden />}
-                      />
-                    );
-                  })}
-                </ul>
-              </>
-            ) : null}
-          </section>
-        ) : null}
-
         <div className="os-tree-heading">
           <LayoutList className="h-3 w-3" aria-hidden />
           Workspaces
@@ -439,16 +362,6 @@ function IconRail() {
   );
 }
 
-/** Notes each view opened, for the sidebar's Recent list. */
-function useNoteRecent(): void {
-  const { active } = useActive();
-  const noteRecent = useOsStore((s) => s.noteRecent);
-  const key = active?.view?.key ?? null;
-  useEffect(() => {
-    if (key) noteRecent(key);
-  }, [key, noteRecent]);
-}
-
 /**
  * The sidebar from 1280px: the navigation tree, or an icon rail when collapsed (the
  * choice is kept in this browser). It scrolls on its own, under the bar.
@@ -456,7 +369,6 @@ function useNoteRecent(): void {
 export function WorkspaceRail() {
   const collapsed = useOsStore((s) => s.navCollapsed);
   const setNavCollapsed = useOsStore((s) => s.setNavCollapsed);
-  useNoteRecent();
 
   return (
     <nav
