@@ -21,7 +21,7 @@ interface Source {
 }
 
 const SOURCES: readonly Source[] = [
-  { name: 'UPSRTC GPS feed', feeds: 'Positions, states, routes carried, Mission Control, maps, incidents', connection: 'connected', status: 'live', replaces: '—' },
+  { name: 'UPSRTC GPS feed', feeds: 'Positions, states, routes carried, Control Room, maps, incidents', connection: 'connected', status: 'live', replaces: '—' },
   { name: 'Corporation schedule server', feeds: 'A bus’s timetable for the day, looked up when a person asks', connection: 'on_request', status: 'live', replaces: '—' },
   { name: 'Timetable master', feeds: 'Duties, departures, the AI Scheduler’s need', connection: 'scenario', status: 'scenario', replaces: 'Duty plan, readiness, disruption' },
   { name: 'Crew roster', feeds: 'Driver and conductor availability', connection: 'scenario', status: 'scenario', replaces: 'Crew, readiness' },

@@ -15,9 +15,9 @@ const MAX_LISTED = 60;
 
 /**
  * The context selector: UPSRTC network › Headquarters or a region › a depot. Choosing a
- * depot keeps the person on the same view in the depot's scope (or its Mission Control
+ * depot keeps the person on the same view in the depot's scope (or its Control Room
  * when the view has no depot form); choosing Headquarters or a region does the reverse.
- * A region narrows the Headquarters views that read it (Mission Control, the decision
+ * A region narrows the Headquarters views that read it (Control Room, the decision
  * queue, fleet health, the fuel audit) without leaving Headquarters scope.
  */
 export function ContextSelector() {

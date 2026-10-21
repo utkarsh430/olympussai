@@ -111,11 +111,11 @@ export const WORKSPACES: readonly Workspace[] = [
   {
     id: 'mission',
     ordinal: '01',
-    title: 'Mission Control',
+    title: 'Control Room',
     summary: 'Fleet status, the AI decision queue and what needs attention now.',
     views: [
-      { key: 'mission', label: 'Network Command Center', network: MISSION_PATH, depot: null, exact: true, ai: 'monitor', keywords: 'home mission control command headquarters network priority' },
-      { key: 'depot-mission', label: 'Depot Command Center', network: null, depot: '', ai: 'monitor', keywords: 'depot mission control command cockpit priority' },
+      { key: 'mission', label: 'Network Command Center', network: MISSION_PATH, depot: null, exact: true, ai: 'monitor', keywords: 'home control room command headquarters network priority' },
+      { key: 'depot-mission', label: 'Depot Command Center', network: null, depot: '', ai: 'monitor', keywords: 'depot control room command cockpit priority' },
       { key: 'decisions', label: 'AI Decision Center', network: DECISIONS_PATH, depot: 'decisions', ai: 'recommend', keywords: 'decision queue recommendation review approval trail' },
       { key: 'exceptions', label: 'Operational Alerts', network: EXCEPTIONS_PATH, depot: null, ai: 'anomaly', keywords: 'exceptions alerts anomalies critical' },
       { key: 'activity', label: 'Network Activity', network: ACTIVITY_PATH, depot: 'activity', ai: 'monitor', keywords: 'ai activity stream analysis log events engine' },
@@ -303,7 +303,7 @@ export function activeView(pathname: string, search = ''): ActiveView | null {
 
 /**
  * The same view in another scope, so switching context keeps the person where they are:
- * the view's address there, or that scope's Mission Control when it has none.
+ * the view's address there, or that scope's Control Room when it has none.
  */
 export function equivalentHref(pathname: string, search: string, toDepotId: string | null): string {
   const active = activeView(pathname, search);

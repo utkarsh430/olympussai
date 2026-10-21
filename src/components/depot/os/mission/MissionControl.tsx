@@ -22,7 +22,7 @@ import { ActivityTimeline, type TimelineEvent } from './ActivityTimeline';
 import { StateMixBar } from '../StateMixBar';
 
 /**
- * Headquarters Mission Control: the network (or the chosen region) at a glance — fleet
+ * Headquarters Control Room: the network (or the chosen region) at a glance — fleet
  * telemetry, the situation map, the AI's ranked decisions with the selected one opened in
  * its seven parts, today's activity line and the automated briefing.
  */
@@ -135,7 +135,7 @@ export function MissionControl() {
   return (
     <div className="space-y-4" data-testid="os-mission-control">
       <OsHeader
-        title="Mission Control"
+        title="Control Room"
         description={`${scopeLabel}: what is happening, what is likely to happen, and what the AI recommends.`}
         statuses={['live', 'estimate', 'proposed']}
         actions={
@@ -217,7 +217,7 @@ export function MissionControl() {
                     Profile
                   </button>
                   <Link href={depotHref(selected.id)} className="os-button py-1 text-[11.5px]">
-                    Depot Mission Control
+                    Depot Control Room
                   </Link>
                 </div>
               </div>

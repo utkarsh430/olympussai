@@ -82,7 +82,7 @@ interface SituationMapProps {
 }
 
 /**
- * The geospatial instrument of Mission Control and the digital twin. Depots sit at their
+ * The geospatial instrument of Control Room and the digital twin. Depots sit at their
  * fleet's median position (the feed's own coordinates; nothing is placed by hand), sized
  * by fleet and coloured by peak balance. Proposed transfers are dashed teal lines between
  * depots; suspected breakdowns are crimson rings at the bus's last fix. When the basemap

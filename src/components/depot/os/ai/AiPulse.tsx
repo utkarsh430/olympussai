@@ -72,7 +72,7 @@ export function AiPulse({ depotId }: { readonly depotId: string | null }) {
   );
 }
 
-/** The live activity stream, compact, for Mission Control. */
+/** The live activity stream, compact, for Control Room. */
 export function ActivityPanel({ depotId }: { readonly depotId: string | null }) {
   const events = useAiStore((s) => s.events);
   return (

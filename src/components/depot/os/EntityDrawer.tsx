@@ -270,7 +270,7 @@ function DepotProfile({ id, intel }: { readonly id: string; readonly intel: Inte
         <DecisionList intel={intel} match={(_, decisionDepot) => decisionDepot === id} />
       </Section>
       <div className="flex flex-wrap gap-2 px-4 py-3">
-        <Link href={depotHref(id)} onClick={closeEntity} className="os-button">Open depot Mission Control</Link>
+        <Link href={depotHref(id)} onClick={closeEntity} className="os-button">Open depot Control Room</Link>
         <Link href={`${depotHref(id)}/readiness`} onClick={closeEntity} className="os-button os-button-quiet">Dispatch readiness</Link>
         <button type="button" onClick={() => askCopilot(`What needs attention at ${depot.name}?`)} className="os-button os-button-quiet">
           <Bot className="h-3.5 w-3.5" aria-hidden />

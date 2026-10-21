@@ -124,7 +124,7 @@ function shortageDecisions(input: DecisionInput, byId: ReadonlyMap<string, Depot
         approval: APPROVAL_TRANSFER,
         links: [
           { label: 'Between Depots', href: REBALANCE_PATH },
-          { label: 'Depot Mission Control', href: depotHref(b.depotId) },
+          { label: 'Depot Control Room', href: depotHref(b.depotId) },
           { label: 'Scenario Studio', href: SIMULATION_PATH },
         ],
         basis: 'estimate',
@@ -483,7 +483,7 @@ function telemetryDecisions(input: DecisionInput): Decision[] {
       alternatives: [],
       impact: `Readiness of ${formatCount(d.states.dark)} buses becomes verifiable.`,
       approval: 'The depot controller decides which units to check first.',
-      links: [{ label: 'Depot Mission Control', href: depotHref(d.id) }],
+      links: [{ label: 'Depot Control Room', href: depotHref(d.id) }],
       basis: 'live',
     }));
 }

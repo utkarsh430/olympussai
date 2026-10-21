@@ -50,7 +50,7 @@ describe('DepotShell structure', () => {
     const rail = screen.getByTestId('depot-nav');
     const workspaces = [...rail.querySelectorAll('[data-testid="os-workspace-link"]')];
     expect(workspaces).toHaveLength(7);
-    expect(workspaces[0]?.textContent).toContain('Mission Control');
+    expect(workspaces[0]?.textContent).toContain('Control Room');
     expect(workspaces[2]?.getAttribute('aria-expanded')).toBe('true');
     expect(workspaces[0]?.getAttribute('aria-expanded')).toBe('false');
     const yard = [...rail.querySelectorAll('[data-testid="os-feature-link"]')].find((a) => a.getAttribute('aria-current') === 'page');
@@ -58,7 +58,7 @@ describe('DepotShell structure', () => {
     expect(yard?.getAttribute('href')).toBe('/project/depots/d/49/yard');
     // The bar comes before the navigation, the navigation before the page.
     const order = all.map((el) => el.textContent ?? '');
-    const firstWorkspace = order.findIndex((text) => text.includes('Mission Control'));
+    const firstWorkspace = order.findIndex((text) => text.includes('Control Room'));
     expect(order.indexOf('Operations')).toBeLessThan(firstWorkspace);
 
     const main = container.querySelector('#depot-main');

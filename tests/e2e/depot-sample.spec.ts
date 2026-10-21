@@ -251,7 +251,7 @@ const PAGE_TEMPLATES: readonly string[] = discover(PAGES_DIR, 'page.tsx').map((f
 
 /** Each page's heading, as the page writes it (the screen shows it in capitals). */
 const PAGE_HEADING: Readonly<Record<string, string>> = {
-  '/project/depots': 'Mission Control',
+  '/project/depots': 'Control Room',
   '/project/depots/overview': 'Headquarters overview',
   '/project/depots/decisions': 'AI Decision Center',
   '/project/depots/choose': 'Choose a depot',
@@ -281,7 +281,7 @@ const PAGE_HEADING: Readonly<Record<string, string>> = {
   '/project/depots/service': 'Service by the hour',
   '/project/depots/sources': 'Data sources',
   '/project/depots/trends': 'Trends',
-  '/project/depots/d/[depotId]': 'Mission Control',
+  '/project/depots/d/[depotId]': 'Control Room',
   '/project/depots/d/[depotId]/cockpit': 'Operations overview',
   '/project/depots/d/[depotId]/decisions': 'AI Decision Center',
   '/project/depots/d/[depotId]/readiness': 'Dispatch readiness',

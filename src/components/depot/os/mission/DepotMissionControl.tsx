@@ -34,7 +34,7 @@ function vehicleState(state: string): MapVehicle['state'] {
 }
 
 /**
- * One depot's Mission Control: its fleet readiness, the next departures and what stands
+ * One depot's Control Room: its fleet readiness, the next departures and what stands
  * in their way, buses and crew against the day's need, maintenance constraints, the
  * depot's own AI queue and the selected decision.
  */
@@ -98,7 +98,7 @@ export function DepotMissionControl() {
   if (error && !detail) {
     return (
       <>
-        <OsHeader title="Mission Control" description="This depot's command view." />
+        <OsHeader title="Control Room" description="This depot's command view." />
         <div className="os-panel">
           <EmptyNote>{error}</EmptyNote>
         </div>
@@ -110,7 +110,7 @@ export function DepotMissionControl() {
     <div className="space-y-4" data-testid="os-depot-mission-control">
       <OsHeader
         eyebrow={region ? `${region.name} region · ${name}` : name}
-        title="Mission Control"
+        title="Control Room"
         description="Fleet readiness, the next departures, resources against need and the depot's AI decisions."
         statuses={['live', 'estimate', 'scenario']}
         actions={

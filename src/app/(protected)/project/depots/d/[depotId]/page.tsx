@@ -1,7 +1,7 @@
 import { DepotMissionControl } from '@/components/depot/os/mission/DepotMissionControl';
 import { requireDepotPage } from '@/lib/depot/depotGate';
 
-/** One depot's Mission Control: readiness, departures, resources and its AI decisions. */
+/** One depot's Control Room: readiness, departures, resources and its AI decisions. */
 export default async function DepotMissionControlPage({
   params,
 }: {

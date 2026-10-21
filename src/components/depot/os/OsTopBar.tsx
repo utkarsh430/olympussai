@@ -33,7 +33,7 @@ export function OsTopBar() {
           href="/project/depots"
           data-testid="depot-brand"
           className="flex shrink-0 items-center gap-2 whitespace-nowrap"
-          aria-label="Olympuss AI Depot Intelligence OS, Mission Control"
+          aria-label="Olympuss AI Depot Intelligence OS, Control Room"
         >
           <OlympussMark className="h-7 w-7" rays={false} />
           <span className="hidden flex-col leading-none lg:flex">

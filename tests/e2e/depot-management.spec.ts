@@ -52,8 +52,8 @@ const E2E_ORIGIN =
   `http://${process.env.E2E_HOST ?? 'localhost'}:${process.env.E2E_PORT ?? '3000'}`;
 const E2E_PROJECT_NAME = process.env.E2E_PROJECT_NAME ?? 'upsrtc';
 
-// The module opens on Headquarters Mission Control.
-const NETWORK_OVERVIEW = /^Mission Control$/;
+// The module opens on Headquarters Control Room.
+const NETWORK_OVERVIEW = /^Control Room$/;
 
 test.use({ viewport: { width: 1440, height: 900 } });
 
@@ -100,7 +100,7 @@ test.describe('Depot Management shell', () => {
     await expect(page.getByTestId('depot-top-bar')).toBeVisible();
     const nav = page.getByTestId('depot-nav');
     await expect(nav).toBeVisible();
-    await expect(nav.getByRole('button', { name: /Mission Control/ })).toHaveAttribute('aria-expanded', 'true');
+    await expect(nav.getByRole('button', { name: /Control Room/ })).toHaveAttribute('aria-expanded', 'true');
     await expect(nav.getByRole('link', { name: /Network Command Center/ })).toHaveAttribute('aria-current', 'page');
     await expect(page.getByTestId('footer-disclaimer')).toBeVisible();
   });

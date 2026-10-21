@@ -231,7 +231,7 @@ export function PerformanceView() {
                     <p className="depot-note">This depot is not ranked in a peer group.</p>
                   )}
                   <div className="flex gap-2">
-                    <Link href={depotHref(pick.id)} className="os-button">Mission Control</Link>
+                    <Link href={depotHref(pick.id)} className="os-button">Control Room</Link>
                     <button type="button" onClick={() => openEntity({ kind: 'depot', id: pick.id })} className="os-button os-button-quiet">Profile</button>
                   </div>
                 </>
