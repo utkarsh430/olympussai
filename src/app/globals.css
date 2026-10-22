@@ -397,16 +397,14 @@
     @apply font-mono text-[11px] uppercase tracking-[0.12em] text-depot-muted;
   }
 
-  /* The page title: the dashboard's cyan running into its teal, with the cyan glow (a
-     drop shadow, as a text shadow would paint over gradient-clipped text). The colour
-     stays cyan where clipping is not supported. */
+  /* The page title: the sans face at 22px, light ink easing into a soft cyan. Restrained:
+     the workspace kicker above it carries the accent. */
   .depot-title {
-    @apply font-display text-xl font-semibold uppercase tracking-[0.12em] text-holo-glow;
-    background-image: linear-gradient(90deg, #3ff0ff 0%, #22d9f5 45%, #2ef2c4 100%);
+    @apply font-sans text-[22px] font-semibold leading-7 tracking-[-0.01em] text-depot-ink;
+    background-image: linear-gradient(90deg, #e6f6fb 0%, #c4f3f8 55%, #8beff0 100%);
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
-    filter: drop-shadow(0 0 10px rgba(63, 240, 255, 0.35));
   }
 
   /* Forced colours (Windows High Contrast) drop the gradient: print the title in the
@@ -1001,6 +999,592 @@
   .divider-h {
     @apply h-px w-full bg-gradient-to-r from-transparent via-holo-glow/25 to-transparent;
   }
+
+  /* ── Depot Intelligence OS ─────────────────────────────────────────────
+     The six-workspace frame and its instruments. Same tokens as the depot surface;
+     quieter panels (no corner ticks), a sans face for sentences and headings, mono
+     kept for identifiers, times and figures. */
+  .os-rail-link {
+    @apply flex w-full items-center gap-3 rounded-[4px] px-3 py-2 text-left font-sans text-[13px]
+      font-medium text-depot-prose transition-colors hover:bg-depot-raised hover:text-depot-ink;
+  }
+
+  .os-rail-link-active {
+    @apply bg-depot-selected text-holo-glow;
+    box-shadow: inset 2px 0 0 0 #3ff0ff, inset 0 0 24px -12px rgba(63, 240, 255, 0.5);
+  }
+
+  .os-rail-ordinal {
+    @apply w-5 shrink-0 font-mono text-[10px] tracking-[0.08em] text-depot-faint;
+  }
+
+  .os-rail-link-active .os-rail-ordinal {
+    @apply text-holo-glow;
+  }
+
+  .os-panel {
+    @apply relative min-w-0 rounded-md border bg-depot-surface;
+    border-color: rgba(63, 240, 255, 0.14);
+    box-shadow:
+      inset 0 1px 0 0 rgba(63, 240, 255, 0.06),
+      0 22px 44px -32px rgba(0, 0, 0, 0.95);
+  }
+
+  .os-panel-strong {
+    border-color: rgba(63, 240, 255, 0.3);
+    box-shadow:
+      inset 0 1px 0 0 rgba(63, 240, 255, 0.1),
+      0 0 34px -18px rgba(63, 240, 255, 0.35),
+      0 22px 44px -32px rgba(0, 0, 0, 0.95);
+  }
+
+  .os-panel-head {
+    @apply flex min-w-0 items-center justify-between gap-3 border-b px-4 py-2.5;
+    border-color: rgba(63, 240, 255, 0.1);
+  }
+
+  .os-kicker {
+    @apply font-mono text-[10.5px] font-medium uppercase tracking-[0.14em] text-depot-muted;
+  }
+
+  .os-heading {
+    @apply font-sans text-[14px] font-semibold leading-5 text-depot-ink;
+  }
+
+  .os-page-title {
+    @apply font-sans text-[22px] font-semibold leading-7 tracking-[-0.01em] text-depot-ink;
+  }
+
+  .os-value {
+    @apply font-mono text-[22px] font-medium leading-7 tabular-nums text-depot-ink;
+  }
+
+  .os-sub {
+    @apply font-sans text-[12px] leading-4 text-depot-prose;
+  }
+
+  .os-chip {
+    @apply inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-[3px] border px-1.5 py-px
+      font-mono text-[10px] font-semibold uppercase leading-4 tracking-[0.1em];
+  }
+
+  .os-tab {
+    @apply relative inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap px-3 font-sans text-[13px]
+      font-medium text-depot-prose transition-colors hover:text-depot-ink;
+  }
+
+  .os-tab-active {
+    @apply text-holo-glow;
+  }
+
+  .os-tab-active::after {
+    content: '';
+    @apply absolute inset-x-2 -bottom-px h-[2px] rounded-full bg-holo-glow;
+    box-shadow: 0 0 10px rgba(63, 240, 255, 0.7);
+  }
+
+  .os-button {
+    @apply inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-[4px] border
+      border-holo-glow/35 bg-holo-glow/[0.07] px-2.5 py-1.5 font-sans text-[12px] font-semibold text-holo-glow
+      transition-colors hover:border-holo-glow/70 hover:bg-holo-glow/15 disabled:cursor-not-allowed
+      disabled:opacity-40;
+  }
+
+  .os-button-quiet {
+    @apply border-depot-line bg-transparent text-depot-prose hover:border-holo-glow/40 hover:bg-depot-raised
+      hover:text-depot-ink;
+  }
+
+  .os-button-solid {
+    @apply border-holo-glow bg-holo-glow text-void hover:bg-holo-bright hover:text-void;
+  }
+
+  .os-row {
+    @apply cursor-pointer border-b transition-colors hover:bg-depot-raised;
+    border-color: rgba(63, 240, 255, 0.07);
+  }
+
+  .os-row-selected {
+    @apply bg-depot-selected;
+    box-shadow: inset 2px 0 0 0 #3ff0ff;
+  }
+
+  .os-table {
+    @apply w-full border-collapse font-sans text-[12.5px] text-depot-ink;
+  }
+
+  .os-table th {
+    @apply sticky top-0 z-[1] border-b bg-depot-surface px-3 py-2 text-left font-mono text-[10px] font-medium
+      uppercase tracking-[0.12em] text-depot-muted;
+    border-color: rgba(63, 240, 255, 0.14);
+  }
+
+  .os-table td {
+    @apply px-3 py-2 align-middle;
+  }
+
+  .os-num {
+    @apply text-right font-mono tabular-nums;
+  }
+
+  .os-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(63, 240, 255, 0.25) transparent;
+  }
+
+  .os-ai-glow {
+    background-image: linear-gradient(135deg, rgba(63, 240, 255, 0.08), rgba(46, 242, 196, 0.03) 60%, transparent);
+  }
+
+  .os-bar-track {
+    @apply relative h-1.5 overflow-hidden rounded-full bg-depot-raised;
+  }
+
+  .os-pulse {
+    animation: depot-lamp 2.4s ease-in-out infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .os-pulse {
+      animation: none;
+    }
+  }
+
+  /* ── Sidebar tree ─────────────────────────────────────────────────────
+     Six workspaces, every feature an entry. Branches open on a grid-row transition
+     (fast, and none under reduced motion); the current entry carries a lit edge. */
+  /* Above the page column, so the collapsed rail's flyouts are not painted under it. */
+  .os-sidebar {
+    @apply relative z-30 border-r border-depot-line transition-[width] duration-200 ease-out;
+    background-image: linear-gradient(180deg, rgba(7, 20, 42, 0.92), rgba(3, 6, 14, 0.96));
+    box-shadow: inset -1px 0 0 0 rgba(63, 240, 255, 0.04);
+  }
+
+  .os-tree-filter {
+    @apply flex h-8 items-center gap-2 rounded-[5px] border border-depot-line bg-depot-page/70 px-2.5 transition-colors;
+  }
+
+  .os-tree-filter:focus-within {
+    border-color: rgba(63, 240, 255, 0.55);
+    box-shadow: 0 0 0 3px rgba(63, 240, 255, 0.08);
+  }
+
+  .os-tree-heading {
+    @apply flex items-center gap-1.5 px-2.5 pb-1 pt-2 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-depot-faint;
+  }
+
+  .os-tree-group {
+    @apply flex w-full items-center gap-2 rounded-[5px] px-2 py-[7px] font-sans text-[13px] font-semibold text-depot-prose
+      transition-colors hover:bg-depot-raised hover:text-depot-ink;
+  }
+
+  .os-tree-group-current {
+    @apply text-depot-ink;
+  }
+
+  .os-tree-group-current svg:nth-of-type(2) {
+    @apply text-holo-glow;
+    filter: drop-shadow(0 0 6px rgba(63, 240, 255, 0.55));
+  }
+
+  .os-tree-count {
+    @apply min-w-[18px] rounded-full border border-alert-amber/50 bg-alert-amber/10 px-1 text-center font-mono text-[10px] font-semibold leading-4 text-alert-amber;
+  }
+
+  .os-tree-count-critical {
+    @apply border-alert-crimson/60 bg-alert-crimson/10 text-alert-crimson;
+  }
+
+  .os-tree-collapse {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 180ms ease-out;
+  }
+
+  .os-tree-collapse-open {
+    grid-template-rows: 1fr;
+  }
+
+  .os-tree-branch {
+    @apply relative mb-1 ml-[15px] space-y-px border-l border-depot-line pl-1.5 pt-0.5;
+  }
+
+  .os-tree-link {
+    @apply relative flex min-w-0 flex-1 items-center gap-2 rounded-[4px] py-[5px] pl-2.5 pr-7 font-sans text-[12.5px] font-medium
+      text-depot-prose transition-colors hover:bg-depot-raised hover:text-depot-ink;
+  }
+
+  .os-tree-link-flagship {
+    @apply text-depot-ink;
+  }
+
+  .os-tree-link-active {
+    @apply text-holo-glow;
+    background-image: linear-gradient(90deg, rgba(63, 240, 255, 0.16), rgba(63, 240, 255, 0.03) 85%);
+    box-shadow: inset 0 0 0 1px rgba(63, 240, 255, 0.18);
+  }
+
+  .os-tree-link-active::before {
+    content: '';
+    @apply absolute -left-[7.5px] top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-full bg-holo-glow;
+    box-shadow: 0 0 10px rgba(63, 240, 255, 0.9);
+  }
+
+  .os-tree-marker {
+    @apply shrink-0 rounded-[2px] border border-depot-line px-1 font-mono text-[9px] uppercase leading-[14px] tracking-[0.08em] text-depot-faint;
+  }
+
+  .os-rail-icon {
+    @apply relative inline-flex h-10 w-10 items-center justify-center rounded-[6px] text-depot-prose transition-colors
+      hover:bg-depot-raised hover:text-depot-ink;
+  }
+
+  .os-rail-icon-active {
+    @apply bg-depot-selected text-holo-glow;
+    box-shadow: inset 0 0 0 1px rgba(63, 240, 255, 0.3), 0 0 18px -6px rgba(63, 240, 255, 0.6);
+  }
+
+  .os-rail-dot {
+    @apply absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full;
+  }
+
+  .os-flyout {
+    @apply absolute left-full top-0 z-50 ml-2 w-64 rounded-md border bg-depot-surface;
+    border-color: rgba(63, 240, 255, 0.3);
+    box-shadow:
+      0 0 34px -18px rgba(63, 240, 255, 0.35),
+      0 22px 44px -24px rgba(0, 0, 0, 0.95);
+    animation: os-fade-in 120ms ease-out;
+  }
+
+  .os-drawer-in {
+    animation: os-slide-from-right 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  .os-nav-in {
+    animation: os-slide-from-left 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  .os-dialog-in {
+    animation: os-fade-in 140ms ease-out;
+  }
+
+  /* ── Operational Gantt ──────────────────────────────────────────────── */
+  .os-gantt {
+    @apply min-w-0 font-sans text-[12px];
+  }
+
+  .os-gantt-head,
+  .os-gantt-row {
+    display: grid;
+    grid-template-columns: var(--gantt-label) minmax(0, 1fr);
+  }
+
+  .os-gantt-head {
+    @apply border-b border-depot-line;
+  }
+
+  .os-gantt-corner {
+    @apply border-r border-depot-line;
+  }
+
+  .os-gantt-tick {
+    @apply absolute top-1 -translate-x-1/2 font-mono text-[10px] text-depot-muted;
+  }
+
+  .os-gantt-row {
+    @apply border-b transition-colors;
+    border-color: rgba(63, 240, 255, 0.05);
+  }
+
+  .os-gantt-row:hover {
+    background-color: rgba(63, 240, 255, 0.025);
+  }
+
+  .os-gantt-row-lit {
+    background-color: rgba(63, 240, 255, 0.06);
+    box-shadow: inset 2px 0 0 0 #3ff0ff;
+  }
+
+  .os-gantt-label {
+    @apply flex min-w-0 items-center gap-1.5 border-r border-depot-line px-2;
+  }
+
+  .os-gantt-track {
+    @apply relative min-w-0;
+  }
+
+  .os-gantt-grid {
+    @apply absolute inset-y-0 w-px;
+    background-color: rgba(63, 240, 255, 0.06);
+  }
+
+  .os-gantt-bar {
+    @apply absolute inset-y-[4px] flex items-center overflow-hidden rounded-[3px] border text-left font-mono text-[10px]
+      leading-none text-void transition-[opacity,box-shadow,filter] duration-150;
+  }
+
+  .os-gantt-bar:hover,
+  .os-gantt-bar:focus-visible {
+    filter: brightness(1.15);
+    z-index: 2;
+  }
+
+  .os-gantt-bar-lit {
+    z-index: 3;
+    box-shadow: 0 0 0 1px #d6ecf7, 0 0 14px rgba(63, 240, 255, 0.65);
+  }
+
+  .os-gantt-now {
+    @apply pointer-events-none absolute inset-y-0 w-px bg-alert-amber;
+    box-shadow: 0 0 6px rgba(255, 176, 32, 0.8);
+  }
+
+  .os-bar-cyan {
+    @apply border-holo-glow/70 bg-holo-glow/75;
+  }
+  .os-bar-teal {
+    @apply border-holo-teal/70 bg-holo-teal/70;
+  }
+  .os-bar-green {
+    @apply border-alert-green/60 bg-alert-green/60;
+  }
+  .os-bar-amber {
+    @apply border-alert-amber/70 bg-alert-amber/75;
+  }
+  .os-bar-crimson {
+    @apply border-alert-crimson/70 bg-alert-crimson/75 text-depot-ink;
+  }
+  .os-bar-slate {
+    @apply border-slate-400/50 bg-slate-500/45 text-depot-ink;
+  }
+  .os-bar-violet {
+    @apply border-violet-300/60 bg-violet-400/55;
+  }
+  .os-bar-ghost {
+    @apply border-dashed border-holo-glow/40 bg-holo-glow/[0.06] text-depot-prose;
+  }
+
+  .os-bar-hatched {
+    background-image: repeating-linear-gradient(135deg, rgba(2, 4, 10, 0.55) 0 3px, transparent 3px 7px);
+  }
+
+  /* ── AI engine status and stream ───────────────────────────────────── */
+  .os-ai-status {
+    @apply inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-[4px] border border-holo-glow/30 px-2.5 font-mono text-[10.5px]
+      uppercase tracking-[0.1em] transition-colors hover:border-holo-glow/60;
+    background-image: linear-gradient(90deg, rgba(63, 240, 255, 0.1), rgba(46, 242, 196, 0.04));
+  }
+
+  .os-ai-core {
+    @apply relative inline-block h-2 w-2 shrink-0 rounded-full bg-holo-glow;
+    box-shadow: 0 0 8px rgba(63, 240, 255, 0.9);
+  }
+
+  .os-ai-core-busy::after {
+    content: '';
+    @apply absolute -inset-1 rounded-full border border-holo-glow/70;
+    animation: os-ring 1.1s ease-out infinite;
+  }
+
+  .os-popover {
+    @apply absolute top-full z-[60] mt-2 overflow-hidden rounded-md border bg-depot-surface;
+    border-color: rgba(63, 240, 255, 0.3);
+    box-shadow:
+      0 0 40px -16px rgba(63, 240, 255, 0.4),
+      0 26px 50px -20px rgba(0, 0, 0, 0.95);
+    animation: os-fade-in 130ms ease-out;
+  }
+
+  .os-stream-in {
+    animation: os-stream-in 260ms ease-out;
+  }
+
+  @keyframes os-stream-in {
+    from {
+      opacity: 0;
+      translate: 0 -4px;
+    }
+    to {
+      opacity: 1;
+      translate: 0 0;
+    }
+  }
+
+  @keyframes os-ring {
+    from {
+      opacity: 0.9;
+      scale: 0.6;
+    }
+    to {
+      opacity: 0;
+      scale: 1.8;
+    }
+  }
+
+  /* ── Scheduler instruments ─────────────────────────────────────────── */
+  .os-cta {
+    @apply inline-flex items-center gap-2 whitespace-nowrap rounded-[5px] border border-holo-glow px-4 py-2.5 font-mono text-[12px]
+      font-semibold uppercase tracking-[0.12em] text-void transition-[filter,box-shadow] disabled:cursor-wait disabled:opacity-70;
+    background-image: linear-gradient(135deg, #3ff0ff, #2ef2c4);
+    box-shadow: 0 0 0 1px rgba(63, 240, 255, 0.35), 0 0 26px -6px rgba(63, 240, 255, 0.75);
+  }
+
+  .os-cta:hover:not(:disabled) {
+    filter: brightness(1.08);
+    box-shadow: 0 0 0 1px rgba(63, 240, 255, 0.6), 0 0 36px -4px rgba(63, 240, 255, 0.9);
+  }
+
+  .os-range {
+    @apply h-1.5 w-full cursor-pointer appearance-none rounded-full;
+    background: linear-gradient(90deg, #3ff0ff var(--fill, 50%), rgba(63, 240, 255, 0.14) var(--fill, 50%));
+  }
+
+  .os-range::-webkit-slider-thumb {
+    @apply h-3.5 w-3.5 appearance-none rounded-full border-2 border-void bg-holo-glow;
+    box-shadow: 0 0 10px rgba(63, 240, 255, 0.8);
+  }
+
+  .os-range::-moz-range-thumb {
+    @apply h-3 w-3 rounded-full border-2 border-void bg-holo-glow;
+  }
+
+  .os-range:focus-visible {
+    outline: 2px solid #3ff0ff;
+    outline-offset: 3px;
+  }
+
+  .os-switch {
+    @apply relative inline-block h-4 w-7 rounded-full border border-depot-line bg-depot-raised transition-colors;
+  }
+
+  .os-switch::after {
+    content: '';
+    @apply absolute left-0.5 top-0.5 h-2.5 w-2.5 rounded-full bg-depot-muted transition-transform;
+  }
+
+  .peer:checked + .os-switch {
+    @apply border-holo-glow/60 bg-holo-glow/25;
+  }
+
+  .peer:checked + .os-switch::after {
+    @apply translate-x-3 bg-holo-glow;
+  }
+
+  .peer:focus-visible + .os-switch {
+    outline: 2px solid #3ff0ff;
+    outline-offset: 2px;
+  }
+
+  .os-working {
+    @apply rounded-[5px] border border-holo-glow/20 p-3;
+    background-image: linear-gradient(160deg, rgba(63, 240, 255, 0.07), rgba(46, 242, 196, 0.02) 70%);
+  }
+
+  .os-attention {
+    box-shadow: 0 0 0 2px rgba(63, 240, 255, 0.6), 0 0 32px -6px rgba(63, 240, 255, 0.7);
+  }
+
+  .os-view-swap {
+    animation: os-fade-in 220ms ease-out;
+  }
+
+  .os-cell {
+    @apply flex h-6 w-full min-w-[22px] items-center justify-center rounded-[2px] font-mono text-[10px] transition-[box-shadow,opacity];
+  }
+  .os-cell-covered {
+    @apply bg-holo-teal/25 text-holo-teal;
+  }
+  .os-cell-risk {
+    @apply bg-alert-amber/30 text-alert-amber;
+  }
+  .os-cell-uncovered {
+    @apply bg-alert-crimson/30 text-depot-ink;
+  }
+  .os-cell-lit {
+    box-shadow: 0 0 0 1px #d6ecf7, 0 0 10px rgba(63, 240, 255, 0.6);
+  }
+  .os-cell-selected {
+    box-shadow: 0 0 0 2px #3ff0ff, 0 0 14px rgba(63, 240, 255, 0.8);
+  }
+
+  .os-proposed-banner {
+    @apply flex items-center gap-2 rounded-[5px] border border-alert-amber/40 px-4 py-2 font-sans text-[12.5px] text-alert-amber;
+    background-image: linear-gradient(90deg, rgba(255, 176, 32, 0.1), rgba(255, 176, 32, 0.02));
+  }
+
+  /* ── AI ribbon ──────────────────────────────────────────────────────── */
+  .os-ribbon {
+    @apply relative rounded-[5px] border px-3 py-2;
+    border-color: rgba(63, 240, 255, 0.18);
+    background-image:
+      linear-gradient(90deg, rgba(63, 240, 255, 0.08), rgba(46, 242, 196, 0.03) 45%, transparent),
+      repeating-linear-gradient(90deg, rgba(63, 240, 255, 0.025) 0 1px, transparent 1px 22px);
+  }
+
+  .os-ribbon::before {
+    content: '';
+    @apply absolute inset-y-1.5 left-0 w-[2px] rounded-full bg-holo-glow;
+    box-shadow: 0 0 10px rgba(63, 240, 255, 0.8);
+  }
+
+  .os-ribbon-badge {
+    @apply mr-2 inline-flex items-center gap-1.5 rounded-[3px] border border-holo-glow/40 bg-holo-glow/10 px-1.5 py-0.5 font-mono text-[10px]
+      font-semibold uppercase tracking-[0.14em] text-holo-glow;
+  }
+
+  .os-ribbon-item {
+    @apply inline-flex min-w-0 items-baseline gap-1.5 rounded-[3px] px-1 py-0.5 font-mono text-[11px] uppercase tracking-[0.06em] text-depot-prose
+      transition-colors hover:bg-depot-raised hover:text-depot-ink;
+  }
+
+  .os-pulse-icon {
+    @apply inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-holo-glow/30;
+    background: radial-gradient(circle, rgba(63, 240, 255, 0.16), rgba(63, 240, 255, 0.02) 70%);
+  }
+
+  .os-pulse-icon-teal {
+    @apply border-holo-teal/35;
+    background: radial-gradient(circle, rgba(46, 242, 196, 0.16), rgba(46, 242, 196, 0.02) 70%);
+  }
+
+  .os-flagship {
+    @apply flex flex-col rounded-[5px] border border-holo-teal/25 p-3 transition-colors hover:border-holo-teal/50;
+    background-image: linear-gradient(160deg, rgba(46, 242, 196, 0.08), rgba(63, 240, 255, 0.02) 60%, transparent);
+  }
+
+  @keyframes os-fade-in {
+    from {
+      opacity: 0;
+      scale: 0.985;
+    }
+    to {
+      opacity: 1;
+      scale: 1;
+    }
+  }
+
+  @keyframes os-slide-from-right {
+    from {
+      opacity: 0.3;
+      translate: 28px 0;
+    }
+    to {
+      opacity: 1;
+      translate: 0 0;
+    }
+  }
+
+  @keyframes os-slide-from-left {
+    from {
+      opacity: 0.3;
+      translate: -28px 0;
+    }
+    to {
+      opacity: 1;
+      translate: 0 0;
+    }
+  }
 }
 
 @layer utilities {
@@ -1041,4 +1625,26 @@
    back on the dark basemap but should sit at normal strength on the light one. */
 .sim-light .gm-style img[alt='Google'] {
   opacity: 0.75;
+}
+
+/* Printing a schedule, roster or plan: the page alone, as it looks on screen. */
+@media print {
+  .depot-shell [data-testid='depot-top-bar'],
+  .depot-shell [data-testid='depot-nav'],
+  .depot-shell [data-testid='depot-nav-strip'],
+  .depot-shell [data-testid='os-ai-ribbon'],
+  .depot-shell [data-testid='os-copilot'],
+  .depot-shell [data-testid='footer-disclaimer'],
+  .depot-shell .os-cta {
+    display: none !important;
+  }
+  .depot-shell,
+  .depot-shell * {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  .depot-shell .os-scroll {
+    max-height: none !important;
+    overflow: visible !important;
+  }
 }

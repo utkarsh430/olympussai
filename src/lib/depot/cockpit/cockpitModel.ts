@@ -14,7 +14,7 @@ import {
 import type { DepotScore } from '@/lib/depot/score/types';
 import type { DepotSummary } from '@/lib/depot/types';
 import type { CockpitHeader, CockpitModel, ExceptionLine, VisitorRow } from './cockpitTypes';
-import { buildAttention } from './attention';
+import { buildAttention, type AttentionExtras } from './attention';
 import { availabilitySegments, availabilityText, yardLine } from './availability';
 import { depotExceptionLines, groupBusExceptions } from './exceptionGroups';
 import { indexMeta, type IndexMeta } from './indexMeta';
@@ -105,7 +105,7 @@ export function cockpitIndexMeta(detail: DepotDetailResponse): IndexMeta {
   return indexMeta(header, detail.scoreWindow, detail.feedNow, detail.score?.samples);
 }
 
-export function buildCockpit(detail: DepotDetailResponse): CockpitModel {
+export function buildCockpit(detail: DepotDetailResponse, extras?: AttentionExtras): CockpitModel {
   const yard = describeYard(detail.yard);
   const feedDate = feedDateOf(detail.feedNow);
   const header = buildHeader(detail.depot, detail.score);
@@ -113,7 +113,7 @@ export function buildCockpit(detail: DepotDetailResponse): CockpitModel {
   return {
     header,
     indexMeta: indexMeta(header, detail.scoreWindow, detail.feedNow, detail.score?.samples),
-    attention: buildAttention(detail, detail.depot.id),
+    attention: buildAttention(detail, detail.depot.id, extras),
     availability: availabilitySegments(board),
     availabilityText: availabilityText(board),
     yardLine: yardLine(board, {

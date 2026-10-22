@@ -11,7 +11,7 @@ import { bandLabel } from './serviceWording';
  * assumptions and what real feeds would replace).
  */
 
-export const NETWORK_SERVICE_TITLE = 'Service by the hour';
+export const NETWORK_SERVICE_TITLE = 'AI Redistribution Engine';
 export const NETWORK_SERVICE_DESCRIPTION =
   'Every route’s buses against its need in each hour, the proposals for a band of the day and the buses that could move.';
 

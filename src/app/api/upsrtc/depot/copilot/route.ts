@@ -2,6 +2,9 @@ import type { NextRequest } from 'next/server';
 import { requireUpsrtcAccess, unauthorizedResponse } from '@/lib/auth/authorize';
 import { getRepositories, getServiceRepositories } from '@/lib/depot/repositories';
 import { copilotNetworkHours } from '@/lib/depot/live/copilotNetworkHours';
+import { heldSchedulePlan } from '@/lib/depot/live/scheduleView';
+import { buildSchedulerRollup } from '@/lib/depot/live/schedulerView';
+import { buildIncidentsResponse, declaredIncidentResponse } from '@/lib/depot/live/incidentView';
 import { handleCopilotPost } from '@/lib/depot/copilot/service/handle';
 import { copilotRuntimeOrNull } from '@/lib/depot/copilot/service/failureLog';
 import { fail } from '@/lib/depot/copilot/service/respond';
@@ -34,6 +37,14 @@ export async function POST(request: NextRequest): Promise<Response> {
       services: getServiceRepositories(),
       // The network's day the Service page answers, held per snapshot; no upstream call.
       networkHours: (view) => copilotNetworkHours(view, getServiceRepositories()),
+      // The depot's held schedule plan and the roll-up as built so far; no upstream call.
+      schedulePlan: (view, depotId) => heldSchedulePlan(view, depotId, getRepositories().crew, getServiceRepositories()),
+      schedulerRollup: (view) => buildSchedulerRollup(view, getRepositories().crew, getServiceRepositories(), () => Date.now()),
+      incidents: (view, depotId) => buildIncidentsResponse(view, depotId, getRepositories().crew, getServiceRepositories()),
+      declaredIncident: async (view, depotId, registration) => {
+        const answered = await declaredIncidentResponse(view, depotId, registration, getRepositories().crew, getServiceRepositories());
+        return typeof answered === 'string' ? null : answered.incident;
+      },
     },
   );
 }

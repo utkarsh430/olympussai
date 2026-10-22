@@ -100,7 +100,7 @@ failing failure failures
   .split(/\s+/);
 
 /** Allowed only inside the fixed phrase the scripted writer needs (vocabulary/judgement.ts). */
-const BOUND_WORDS: readonly string[] = ['due', 'critical', 'people'];
+const BOUND_WORDS: readonly string[] = ['due', 'critical', 'people', 'driver', 'conductor', 'crew'];
 
 describe('the vocabulary holds no cause, blame, person or alarm word', () => {
   it.each(FORBIDDEN_FORMS)('%s is neither listed nor buildable', (word) => {
@@ -108,7 +108,7 @@ describe('the vocabulary holds no cause, blame, person or alarm word', () => {
     expect(isVocabularyWord(word)).toBe(false);
   });
 
-  it('binds only the three words the scripted writer needs', () => {
+  it('binds only the words the scripted writer needs, each a forbidden form', () => {
     expect(BOUND_WORDS.every((w) => FORBIDDEN_FORMS.includes(w))).toBe(true);
   });
 });
@@ -118,6 +118,7 @@ describe('a bound word renders only inside its phrase', () => {
     'Flagged at depot level: {{fact:dark}}. Rated critical: {{fact:crit}}.',
     'Of the buses with a known schedule, {{fact:dark}} are due to leave now.',
     'Questions about people are outside that scope.',
+    'Driver slots needed: {{fact:dark}}; conductor slots short: {{fact:crit}}.',
   ])('renders: %s', (paragraph) => {
     expect(render('Exceptions', paragraph)).toMatchObject({ ok: true });
   });
@@ -130,6 +131,8 @@ describe('a bound word renders only inside its phrase', () => {
     'Due to {{fact:name}}, {{fact:dark}} are dark.',
     'Questions, about people, are outside that scope.',
     'People are outside that scope.',
+    'The driver is away.',
+    'Driver, slots are short.',
   ])('refuses: %s', (paragraph) => {
     expect(render('Exceptions', paragraph)).toEqual({ ok: false, reason: VOCABULARY_REASON });
   });

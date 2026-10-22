@@ -31,7 +31,7 @@ interface PendingQuestion {
 const CAPABILITIES: readonly { readonly label: string; readonly text: string }[] = [
   { label: 'Headquarters', text: 'Rankings, a summary, depots short of buses or with spare ones.' },
   { label: 'One depot', text: 'Its summary, exceptions, transfers, outshedding; choose it under About.' },
-  { label: 'Service by the hour', text: "Today's plan, routes over-served by band, why a route is short at an hour." },
+  { label: 'AI Redistribution Engine', text: "Today's plan, routes over-served by band, why a route is short at an hour." },
 ];
 
 /** Ask a plain-language question about the network or one depot. Nothing is stored. */

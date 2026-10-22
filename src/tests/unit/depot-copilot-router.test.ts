@@ -106,6 +106,15 @@ describe('scriptedRoute', () => {
     ['Gorakhpur vs Kanpur', { kind: 'compareDepots', depotA: '105', depotB: '101' }],
     ['Are departures from Etawah on time?', { kind: 'outshedStatus', depotId: '102' }],
     ['How is outshedding at Kanpur?', { kind: 'outshedStatus', depotId: '101' }],
+    ['Show me the crew roster for Etawah', { kind: 'scheduleShiftCover', depotId: '102' }],
+    ['duties at Kanpur', { kind: 'scheduleSummary', depotId: '101' }],
+    ['shift timings at Kanpur', { kind: 'scheduleShiftCover', depotId: '101' }],
+    ['the roster for Kanpur', { kind: 'scheduleShiftCover', depotId: '101' }],
+    ['How many drivers does Kanpur need today?', { kind: 'scheduleShiftCover', depotId: '101' }],
+    ['What need is uncovered in the plan at Kanpur?', { kind: 'scheduleUncovered', depotId: '101' }],
+    ['Buses freed by the scheduler across every depot', { kind: 'schedulerSummary' }],
+    ['Any breakdowns at Kanpur?', { kind: 'breakdownSummary', depotId: '101' }],
+    ['What is the replacement for UP32AB1234 at Kanpur?', { kind: 'replacementFor', depotId: '101', registrationNumber: 'UP32AB1234' }],
   ];
 
   it.each(cases)('routes %j', (question, expected) => {
@@ -117,7 +126,6 @@ describe('scriptedRoute', () => {
     'What is the weather in Delhi?',
     'Which driver is the best?',
     'How are the conductors doing at Kanpur?',
-    'Show me the crew roster for Etawah',
     'Summary for Atlantis',
     'Tell me about Agra',
     'Compare Kanpur with Atlantis',
@@ -291,9 +299,6 @@ describe('people guard', () => {
     'which workers are at Kanpur',
     'list manpower at Kanpur',
     'who is on duty at Kanpur',
-    'duties at Kanpur',
-    'shift timings at Kanpur',
-    'the roster for Kanpur',
     'which manager runs Kanpur',
     'which supervisor is at Kanpur',
     'any technician at Kanpur',

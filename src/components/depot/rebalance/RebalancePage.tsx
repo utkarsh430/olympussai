@@ -130,7 +130,7 @@ export function Distribution({
       {view.delta ? (
         <ScenarioCompare delta={view.delta} baseline={view.baselineSummary} scenario={view.summary} />
       ) : null}
-      <section aria-labelledby="rebalance-map-heading" className="mb-8 min-w-0">
+      <section id="inter-depot-transfers" aria-labelledby="rebalance-map-heading" className="mb-8 min-w-0">
         <SectionLabel
           id="rebalance-map-heading"
           label="Recommended transfers"

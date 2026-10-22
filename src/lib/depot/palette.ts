@@ -188,3 +188,17 @@ export function toneChannels(hex: string): string {
   const n = parseInt(hex.slice(1), 16);
   return `${(n >> 16) & 255} ${(n >> 8) & 255} ${n & 255}`;
 }
+
+/**
+ * Six hues for categories drawn side by side (a route's legs on the scheduler's block
+ * timeline): the dashboard's cyan, green, amber, teal, crimson and gold, each beside its
+ * route code, so colour never carries the meaning alone. Past six, the same hues hatched.
+ */
+export const DEPOT_CATEGORY_HUES = [
+  DEPOT_PALETTE.core,
+  DEPOT_PALETTE.green,
+  DEPOT_PALETTE.amber,
+  DEPOT_PALETTE.teal,
+  DEPOT_PALETTE.crimson,
+  DEPOT_PALETTE.gold,
+] as const;

@@ -18,8 +18,23 @@ import { sanitizeQuestion } from '@/lib/depot/copilot/router/sanitize';
  * (`unsupported`) rather than guess when a depot is needed but not clearly named.
  */
 
+/** A person, or a role outside the scheduler's slots: always refused. */
 const PEOPLE =
-  /\b(crew|crews|drivers?|driving|driven|drives|conductors?|operators?|workers?|staff|employees?|personnel|manpower|people|persons?|individuals?|duty|duties|shifts?|rosters?|managers?|supervisors?|technicians?|mechanics?|attendance|salary|salaries)\b/;
+  /\b(driving|driven|drives|operators?|workers?|staff|employees?|personnel|manpower|people|persons?|individuals?|managers?|supervisors?|technicians?|mechanics?|attendance|salary|salaries)\b/;
+/** The scheduler's role and plan words: a question about slots, duties and shifts, never a person. */
+const ROLE =
+  /\b(crew|crews|drivers?|conductors?|duty|duties|shifts?|rosters?|blocks?|scheduler|schedule plan|uncovered|freed)\b/;
+/** A role word asked about as a person: which one, who, or a judgement of them. */
+const INDIVIDUAL = /\b(which|what|who|whose)\s+(?:the\s+)?(driver|drivers|conductor|conductors|crew)\b/;
+const ROLE_JUDGEMENT =
+  /\b(late|lazy|slow|rude|best|worst|senior|junior|doing|perform\w*|rank\w*|named?|names|phone|contact|pay|paid|overtime|disciplin\w*|fired?|complain\w*|blame\w*|fault\w*|absent|attend\w*)\b/;
+const SHIFT_WORDS = /\b(drivers?|conductors?|crews?|shifts?|rosters?)\b/;
+const UNCOVERED_WORDS = /\b(uncovered|not covered|gaps?)\b/;
+const EVERY_DEPOT = /\b(scheduler|every depot|all depots|across depots|across the depots|across every depot)\b/;
+/** A breakdown question: the feed's tow status, a breakdown, a replacement. */
+const INCIDENT = /\b(incidents?|breakdowns?|broke(?:n)?[\s-]?down|breaks?[\s-]?down|replacements?|under tow|towing|towed)\b/;
+/** A registration as the feed spells it, found whole in the question. */
+const REGISTRATION = /\b([a-z]{2}\s?\d{1,2}\s?[a-z]{0,3}\s?\d{1,4})\b/;
 /**
  * No catalogue query answers "who" about people, so a question that opens with it is
  * declined, unless it carries a ranking cue and a depot, bus or fleet noun ("who has the most
@@ -49,7 +64,7 @@ const BAD_WORDS = /\b(worst|weakest|poorest|poor|struggling|lagging|underperform
 
 const METRIC_PATTERNS: readonly (readonly [RankMetric, RegExp])[] = [
   ['dark', /\b(dark|no[\s-]?signal|silent|offline|unreachable)\b/],
-  ['offRoad', /\b(off[\s-]?road|maintenance|workshop|breakdowns?)\b/],
+  ['offRoad', /\b(off[\s-]?road|maintenance|workshop)\b/],
   ['onRoad', /\b(on[\s-]?road|running|moving|active)\b/],
   ['scheduled', /\b(schedul\w*|timetable|assigned|coverage)\b/],
 ];
@@ -287,6 +302,7 @@ export function scriptedRoute(
   if (LEADING_WHO.test(text) && !(RANKING.test(text) && FLEET_NOUN.test(text))) {
     return PEOPLE_QUERY;
   }
+  if (ROLE.test(text) && (INDIVIDUAL.test(text) || ROLE_JUDGEMENT.test(text))) return PEOPLE_QUERY;
   const route = findRoute(text, routes);
   if (route.found === 'unknown') return UNKNOWN_ROUTE_QUERY;
   if (route.found === 'known') return routeQuery(route.routeName, route.rest);
@@ -302,6 +318,23 @@ export function scriptedRoute(
     const id = first ?? scope;
     return id === undefined ? declined(text, depots) : build(id);
   };
+
+  if (INCIDENT.test(text)) {
+    const registration = REGISTRATION.exec(text)?.[1]?.replace(/\s+/g, '').toUpperCase() ?? null;
+    return needsDepot((depotId) =>
+      registration !== null ? { kind: 'replacementFor', depotId, registrationNumber: registration } : { kind: 'breakdownSummary', depotId },
+    );
+  }
+  if (ROLE.test(text)) {
+    if (first === undefined && scope === undefined && EVERY_DEPOT.test(text)) return { kind: 'schedulerSummary' };
+    return needsDepot((depotId) =>
+      UNCOVERED_WORDS.test(text)
+        ? { kind: 'scheduleUncovered', depotId }
+        : SHIFT_WORDS.test(text)
+          ? { kind: 'scheduleShiftCover', depotId }
+          : { kind: 'scheduleSummary', depotId },
+    );
+  }
 
   const hour = hourOf(text);
   if (hour !== null && second === undefined && ROUTE_SERVICE.test(text)) {

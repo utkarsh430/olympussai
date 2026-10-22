@@ -119,7 +119,7 @@ describe('the ask page', () => {
     );
     const visible = container.textContent ?? '';
     expect(visible).toContain('answers are advisory');
-    expect(visible).toContain('questions about staff are not answered');
+    expect(visible).toContain('questions about an individual are not answered');
   });
 
   it('requests nothing on mount and shows the question limit', async () => {

@@ -45,7 +45,7 @@ describe('the overview’s service figure', () => {
   it('says so when the hours are unavailable', () => {
     state.polled = polled({ error: 'Depot data unavailable' });
     act(() => root.render(<ServicePeakFigure />));
-    expect(container.textContent).toContain('Service by the hour is unavailable now.');
+    expect(container.textContent).toContain('AI Redistribution Engine is unavailable now.');
   });
 });
 

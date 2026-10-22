@@ -30,7 +30,7 @@ export default async function DepotAskPage() {
     <>
       <PageHeader
         title="AI Engine"
-        description="Ask the AI Engine about the whole fleet or one depot; answers are advisory, and questions about staff are not answered."
+        description="Ask the AI Engine about the whole fleet or one depot; answers are advisory, and questions about an individual are not answered."
         provenanceLine={ASK_PROVENANCE}
       />
       <AskPanel />

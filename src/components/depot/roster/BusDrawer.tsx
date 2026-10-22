@@ -1,5 +1,8 @@
 'use client';
 
+import Link from 'next/link';
+import { incidentBusHref } from '@/lib/depot/depotNav';
+
 import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { depotPortalRoot } from '@/lib/depot/portalRoot';
@@ -13,6 +16,8 @@ export interface BusDrawerProps {
   readonly row: RosterRow | null;
   readonly feedNow: string | null;
   readonly onClose: () => void;
+  /** The depot the drawer belongs to; with it the drawer offers to plan a replacement for the bus. */
+  readonly depotId?: string;
   /** Where focus goes when the sheet closes: the opener, else a page fallback. */
   readonly restoreFocusTo: () => HTMLElement | null;
 }
@@ -31,6 +36,7 @@ export function BusDrawer({
   feedNow,
   onClose,
   restoreFocusTo,
+  depotId,
 }: BusDrawerProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
@@ -109,9 +115,16 @@ export function BusDrawer({
           >
             Bus {registration}
           </h2>
-          <button type="button" className="hud-button shrink-0" onClick={onClose}>
-            Close
-          </button>
+          <span className="flex shrink-0 items-center gap-2">
+            {depotId === undefined ? null : (
+              <Link href={incidentBusHref(depotId, registration)} className="hud-button" data-testid="plan-replacement">
+                Plan a replacement
+              </Link>
+            )}
+            <button type="button" className="hud-button shrink-0" onClick={onClose}>
+              Close
+            </button>
+          </span>
         </div>
         {bus === null || row === null ? (
           <p className="depot-prose" role="status">

@@ -450,3 +450,12 @@ dispatch rulings of P0 and P1) are left out. The module as built is described in
 **Differences from the text above with no ruling found in the ledger**
 
 - Depot Efficiency Index components: the code uses on-road share, off-road rate, dark rate, schedule coverage and device integrity (`src/lib/depot/score/config.ts`), not "reporting rate, utilisation, assigned share, off-road rate, device health".
+
+**AI Scheduler and Incident Response (2026-10-12)**
+
+- S78: the AI Scheduler and Incident Response pages carry no provenance line and no "modelled" wording (owner); the sample suite's `NO_PROVENANCE_LINE` set asserts the line is absent there.
+- S79: the schedule is a recommendation beside the shared duty plan, measured against it; the Duty board and its readers are unchanged. Making the schedule the day needs a further ruling because it would re-base the requirement.
+- S80: the fewest-block cover is the interval cover with a best-fit join; the Hungarian refinement of the approved design is deferred, so the block count is exact only without the block cap and the lower bound is reported.
+- S81: the AI Engine renders role words only inside the bound slot phrases; "breakdown" leaves the off-road measure; schedule and breakdown texts refuse origin words on the model path.
+- S82: a declared incident lives in the page until reload (no declaration event in the trail); the cockpit counts suspected incidents from the incidents view.
+

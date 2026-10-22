@@ -22,7 +22,8 @@ export const PROVENANCE_TONE_CLASS: Readonly<Record<ProvenanceTone, string>> = {
 /**
  * The page's provenance line: one tag (a pill) and one fixed-formula sentence (with a
  * link to Data sources for a modelled page), directly under the header sentence, sans
- * 12/20. Use it once per page, through `PageHeader`'s `provenanceLine` prop; it is the
+ * 12/20, kept to one discreet line: the sentence truncates and its full text is the
+ * hover title. Use it once per page, through `PageHeader`'s `provenanceLine` prop; it is the
  * page default, so nothing else on the page repeats that tag. On stale data the words
  * "last good data" are drawn in the stale tone (the words carry it; the colour only
  * reinforces it). A page on the modelled operating day passes `modelledDay`, placed
@@ -33,16 +34,18 @@ export function ProvenanceLine({ description }: { readonly description: Provenan
   const { data, error } = useDepotNetworkContext();
   const page = usePageRefresh();
   const line = provenanceLine(description, { data, error, page });
+  const full = [line.sentence, line.context].filter(Boolean).join(' ');
   return (
     <div
-      className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-1 font-sans text-xs leading-5"
+      className="mt-2 flex min-w-0 max-w-4xl items-center gap-x-2 font-sans text-xs leading-5"
       data-testid="depot-provenance-line"
       data-tone={line.tone}
     >
       <span className={`depot-tag depot-tag-pill ${PROVENANCE_TONE_CLASS[line.tone]}`}>
         {line.tag}
       </span>
-      <span className="text-depot-muted">
+      {/* One discreet line: each part truncates, and the full text is the hover title. */}
+      <span className="min-w-0 truncate text-depot-muted" title={full}>
         {sentenceSegments(line.sentence, line.staleWords).map((part, index) =>
           part.stale ? (
             <span
@@ -58,12 +61,12 @@ export function ProvenanceLine({ description }: { readonly description: Provenan
         )}
       </span>
       {line.context ? (
-        <span data-testid="depot-provenance-context" className="text-depot-muted">
+        <span data-testid="depot-provenance-context" className="min-w-0 shrink-[2] truncate text-depot-muted" title={full}>
           {line.context}
         </span>
       ) : null}
       {line.link ? (
-        <Link href={line.link.href} className="depot-link">
+        <Link href={line.link.href} className="depot-link shrink-0">
           {line.link.label}
         </Link>
       ) : null}

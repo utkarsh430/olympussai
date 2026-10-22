@@ -55,6 +55,7 @@ import {
   resetServiceHoldStore,
   type ServiceHoldStore,
 } from './serviceHold';
+import { defaultStoppedSinceStore, offerStoppedSnapshot, stoppedSinceOf, type StoppedSince, type StoppedSinceStore } from '../incident/stoppedSince';
 
 export interface DepotExceptions {
   readonly depot: readonly DepotException[];
@@ -125,6 +126,8 @@ export interface SnapshotAnalysis {
   /** Depot and bus exceptions together, counted before the bus cap. */
   readonly exceptionSeverityCounts: Readonly<Record<ExceptionSeverity, number>>;
   readonly exceptionsByDepot: ReadonlyMap<string, DepotExceptions>;
+  /** Since when each standing bus away from a yard has stood still, as remembered after this snapshot. */
+  readonly stoppedSince: ReadonlyMap<string, StoppedSince>;
 }
 
 function groupBy<T>(items: readonly T[], keyOf: (item: T) => string | null): Map<string, T[]> {
@@ -167,6 +170,8 @@ export interface AnalysisStores {
   readonly peakRequirements?: PeakRequirementStore;
   /** Absent: the snapshot is not recorded in the date's hour-by-hour observation. */
   readonly serviceHold?: ServiceHoldStore;
+  /** Absent: no bus's still time is remembered, so no stop duration can be said. */
+  readonly stoppedSince?: StoppedSinceStore;
 }
 
 function defaultStores(): AnalysisStores {
@@ -176,6 +181,7 @@ function defaultStores(): AnalysisStores {
     peakShares: defaultPeakShareStore(),
     peakRequirements: defaultPeakRequirementStore(),
     serviceHold: defaultServiceHoldStore(),
+    stoppedSince: defaultStoppedSinceStore(),
   };
 }
 
@@ -252,6 +258,9 @@ export function analyseWith(view: FleetSnapshotView, stores: AnalysisStores): Sn
     // The recorded fixture never reads or writes a store, as with the others.
     store: fixture ? undefined : stores.peakRequirements,
   });
+  if (stores.stoppedSince !== undefined) {
+    offerStoppedSnapshot(stores.stoppedSince, { feedNow, operatingDate: feedDateOf(view), fixture, rows, stateOf, locate });
+  }
   const analysis: SnapshotAnalysis = {
     feedNow,
     states,
@@ -273,6 +282,7 @@ export function analyseWith(view: FleetSnapshotView, stores: AnalysisStores): Sn
     busExceptions,
     exceptionSeverityCounts: countBySeverity(depotExceptions, busExceptions),
     exceptionsByDepot: exceptionsByDepot(depotExceptions, busExceptions),
+    stoppedSince: stores.stoppedSince === undefined ? new Map() : stoppedSinceOf(stores.stoppedSince),
   };
   // Written only, never read here: the hourly view reads the hold through its repository.
   if (stores.serviceHold !== undefined) offerServiceSnapshot(stores.serviceHold, view, analysis);

@@ -620,7 +620,9 @@ describe('scripted drafts', () => {
 
   it('never mentions a person and never instructs', () => {
     for (const [, request] of allRequests()) {
-      expect(proseOf(request)).not.toMatch(/\b(crew|drivers?|conductors?|you must|do this now)\b/i);
+      // A role word may appear only inside the scheduler's bound slot phrases ("driver slots").
+      const outsideSlots = proseOf(request).replace(/\b(driver|conductor|crew) slots?\b/gi, ' ');
+      expect(outsideSlots).not.toMatch(/\b(crew|drivers?|conductors?|you must|do this now)\b/i);
     }
   });
 });

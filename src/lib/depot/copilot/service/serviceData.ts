@@ -4,6 +4,9 @@ import type { ValidCopilotRequest } from '@/lib/depot/copilot/service/schema';
 import { buildRouteHourlyResponse } from '@/lib/depot/live/routeHourlyView';
 import type { FleetSnapshotView, ServiceRepositories } from '@/lib/depot/repositories/types';
 import type { CopilotNetworkHours, RouteHourlyBody } from '@/lib/depot/service/types';
+import type { SchedulePlanBody } from '@/lib/depot/copilot/facts/schedule';
+import type { SchedulerRollupResponse } from '@/lib/depot/schedule/api';
+import type { IncidentView, IncidentsResponse } from '@/lib/depot/incident/api';
 
 /** The network's day by band for a snapshot; null when it cannot be built. */
 export type NetworkHoursLoader = (view: FleetSnapshotView) => Promise<CopilotNetworkHours | null>;
@@ -12,6 +15,14 @@ export interface ServiceSources {
   readonly services: ServiceRepositories;
   /** The network's day (`live/copilotNetworkHours.ts`); absent, the hour and brief kinds say the data is not available. */
   readonly networkHours?: NetworkHoursLoader;
+  /** A depot's held schedule plan (`live/scheduleView.ts`); absent, the schedule kinds say the plan is not available. */
+  readonly schedulePlan?: (view: FleetSnapshotView, depotId: string) => Promise<SchedulePlanBody | null>;
+  /** Every depot's plan rolled up (`live/schedulerView.ts`). */
+  readonly schedulerRollup?: (view: FleetSnapshotView) => Promise<SchedulerRollupResponse | null>;
+  /** A depot's suspected breakdowns with their plans (`live/incidentView.ts`). */
+  readonly incidents?: (view: FleetSnapshotView, depotId: string) => Promise<IncidentsResponse | null>;
+  /** The plan for one bus a question names, declared for the answer only. */
+  readonly declaredIncident?: (view: FleetSnapshotView, depotId: string, registration: string) => Promise<IncidentView | null>;
 }
 
 /** The route a request needs the day of: a route question's, or a proposal rationale's. */
@@ -23,6 +34,21 @@ function routeOf(body: ValidCopilotRequest, query: CopilotQuery | null): string 
 
 const needsNetwork = (query: CopilotQuery | null): boolean =>
   query?.kind === 'hourProposals' || query?.kind === 'serviceBrief';
+
+/** The depot and bus whose incidents a request needs. */
+function incidentOf(body: ValidCopilotRequest, query: CopilotQuery | null): { readonly depotId: string; readonly registration: string | null } | null {
+  if (body.task === 'rationale') return 'incidentDepotId' in body ? { depotId: body.incidentDepotId, registration: body.registrationNumber } : null;
+  if (query?.kind === 'breakdownSummary') return { depotId: query.depotId, registration: null };
+  if (query?.kind === 'replacementFor') return { depotId: query.depotId, registration: query.registrationNumber };
+  return null;
+}
+
+/** The depot whose schedule plan a request needs: a schedule question's, or a schedule rationale's. */
+function scheduleDepotOf(body: ValidCopilotRequest, query: CopilotQuery | null): string | null {
+  if (body.task === 'rationale') return 'scheduleDepotId' in body ? body.scheduleDepotId : null;
+  if (query?.kind === 'scheduleSummary' || query?.kind === 'scheduleShiftCover' || query?.kind === 'scheduleUncovered') return query.depotId;
+  return null;
+}
 
 async function routeDayOf(
   view: FleetSnapshotView,
@@ -45,12 +71,24 @@ export async function loadServiceData(
 ): Promise<ServiceAnswerData> {
   const query = body.task === 'ask' ? askQuery(body.question, body.scope, view) : null;
   const routeName = routeOf(body, query);
-  const [routeDay, networkHours] = await Promise.all([
+  const scheduleDepot = scheduleDepotOf(body, query);
+  const incident = incidentOf(body, query);
+  const incidents = incident !== null && sources.incidents ? await sources.incidents(view, incident.depotId) : null;
+  const listed = incident?.registration !== null && incident !== null && incidents?.incidents.some((v) => v.incident.registrationNumber.toLowerCase() === incident.registration?.toLowerCase());
+  const declaredIncident =
+    incident !== null && incident.registration !== null && !listed && sources.declaredIncident ? await sources.declaredIncident(view, incident.depotId, incident.registration) : null;
+  const [routeDay, networkHours, schedulePlan, scheduler] = await Promise.all([
     routeName === null ? undefined : routeDayOf(view, routeName, sources.services),
     needsNetwork(query) && sources.networkHours ? sources.networkHours(view) : null,
+    scheduleDepot !== null && sources.schedulePlan ? sources.schedulePlan(view, scheduleDepot) : null,
+    query?.kind === 'schedulerSummary' && sources.schedulerRollup ? sources.schedulerRollup(view) : undefined,
   ]);
   return {
     ...(routeDay === undefined ? {} : { routeDay }),
     ...(networkHours === null ? {} : { networkHours }),
+    ...(schedulePlan === null || scheduleDepot === null ? {} : { schedule: { [scheduleDepot]: schedulePlan } }),
+    ...(scheduler === undefined ? {} : { scheduler }),
+    ...(incidents === null || incident === null ? {} : { incidents: { [incident.depotId]: incidents } }),
+    ...(declaredIncident === null ? {} : { declaredIncident }),
   };
 }

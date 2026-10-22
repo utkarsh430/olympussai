@@ -320,3 +320,15 @@ its own terminal, never by closing the window.
     `kill -KILL -<pgid>` (its process group) and delete leftover folders. Then set
     `DEPOT_COPILOT_PROVIDER=scripted` and unset `CLAUDE_CODE_OAUTH_TOKEN` and `CLAUDE_BIN`, so
     no later server start can reach the owner's account.
+
+
+## The AI Scheduler and Incident Response questions
+
+The scripted router answers four schedule kinds (`scheduleSummary`, `scheduleShiftCover`,
+`scheduleUncovered`, `schedulerSummary`) and two breakdown kinds (`breakdownSummary`,
+`replacementFor`), and writes a rationale for a depot's schedule plan and for a replacement.
+Role words render only inside the bound phrases "driver slot(s)", "conductor slot(s)" and
+"crew slots": a count of anonymous slots, never a person. A question that asks which driver or
+judges one ("late", "best", "doing") is still declined. "Breakdown" no longer maps to the
+off-road measure. These texts carry `refuseWords`: a Claude draft that says "model" or
+"modelled" is replaced by the scripted draft, since the pages say nothing about origin.

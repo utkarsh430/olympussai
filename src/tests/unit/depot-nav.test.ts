@@ -46,7 +46,9 @@ describe('NETWORK_NAV', () => {
       ['Exceptions', '/project/depots/exceptions'],
       ['Economics', '/project/depots/economics'],
       ['Headquarters trends', '/project/depots/trends'],
-      ['Service by the hour', '/project/depots/service'],
+      ['AI Redistribution Engine', '/project/depots/service'],
+      ['AI Scheduler', '/project/depots/scheduler'],
+      ['Incident Response', '/project/depots/incidents'],
       ['AI Engine', '/project/depots/ask'],
       ['Data sources', '/project/depots/sources'],
     ]);

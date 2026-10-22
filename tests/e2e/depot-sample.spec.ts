@@ -251,7 +251,24 @@ const PAGE_TEMPLATES: readonly string[] = discover(PAGES_DIR, 'page.tsx').map((f
 
 /** Each page's heading, as the page writes it (the screen shows it in capitals). */
 const PAGE_HEADING: Readonly<Record<string, string>> = {
-  '/project/depots': 'Headquarters overview',
+  '/project/depots': 'Control Room',
+  '/project/depots/overview': 'Headquarters overview',
+  '/project/depots/decisions': 'AI Decision Center',
+  '/project/depots/choose': 'Choose a depot',
+  '/project/depots/optimisation': 'Network optimisation',
+  '/project/depots/headways': 'Headways & bunching',
+  '/project/depots/operations': 'Depot operations',
+  '/project/depots/reliability': 'Fleet health',
+  '/project/depots/fuel-audit': 'Fuel audit',
+  '/project/depots/revenue-intelligence': 'Revenue intelligence',
+  '/project/depots/cost': 'Cost optimisation',
+  '/project/depots/performance': 'Depot performance',
+  '/project/depots/forecasts': 'Predictive forecasts',
+  '/project/depots/simulation': 'Scenario Studio',
+  '/project/depots/twin': 'Digital twin',
+  '/project/depots/data-health': 'Integration health',
+  '/project/depots/activity': 'Network activity',
+  '/project/depots/settings': 'Settings',
   '/project/depots/ask': 'AI Engine',
   '/project/depots/economics': 'Economics',
   '/project/depots/exceptions': 'Exceptions',
@@ -259,19 +276,75 @@ const PAGE_HEADING: Readonly<Record<string, string>> = {
   '/project/depots/rebalance': 'Fleet distribution',
   '/project/depots/routes': 'Routes',
   '/project/depots/routes/r/[routeName]': 'Hour by hour',
+  '/project/depots/scheduler': 'AI Scheduler',
+  '/project/depots/incidents': 'Incident Response',
   '/project/depots/service': 'Service by the hour',
   '/project/depots/sources': 'Data sources',
   '/project/depots/trends': 'Trends',
-  '/project/depots/d/[depotId]': 'Depot cockpit',
+  '/project/depots/d/[depotId]': 'Control Room',
+  '/project/depots/d/[depotId]/cockpit': 'Operations overview',
+  '/project/depots/d/[depotId]/decisions': 'AI Decision Center',
+  '/project/depots/d/[depotId]/readiness': 'Dispatch readiness',
+  '/project/depots/d/[depotId]/health': 'Fleet health',
+  '/project/depots/d/[depotId]/disruption': 'Disruption propagation',
+  '/project/depots/d/[depotId]/fuel-audit': 'Fuel audit',
+  '/project/depots/d/[depotId]/twin': 'Depot digital twin',
   '/project/depots/d/[depotId]/crew': 'Crew',
   '/project/depots/d/[depotId]/duties': 'Duties',
   '/project/depots/d/[depotId]/fuel': 'Fuel and cost',
   '/project/depots/d/[depotId]/maintenance': 'Maintenance',
   '/project/depots/d/[depotId]/revenue': 'Revenue and ridership',
   '/project/depots/d/[depotId]/roster': 'Roster',
+  '/project/depots/d/[depotId]/schedule': 'AI Scheduler',
+  '/project/depots/d/[depotId]/incidents': 'Incident Response',
   '/project/depots/d/[depotId]/trends': 'Trends',
   '/project/depots/d/[depotId]/yard': 'Yard',
+  '/project/depots/d/[depotId]/activity': 'Network activity',
+  '/project/depots/d/[depotId]/bus-scheduler': 'AI Bus Scheduler',
+  '/project/depots/d/[depotId]/crew-scheduler': 'AI Crew Scheduler',
+  '/project/depots/d/[depotId]/optimizer': 'Joint Fleet & Crew Optimizer',
 };
+
+/**
+ * Pages that show no provenance line, by the owner's decision: a plan is a recommendation, not
+ * a claim about where its figures come from. The line must be absent there, not merely unchecked.
+ */
+const NO_PROVENANCE_LINE: ReadonlySet<string> = new Set([
+  // Depot Intelligence OS views tag each figure's kind (LIVE, ESTIMATE, SCENARIO...) beside
+  // the title instead of a provenance sentence, by the owner's request for one discreet indicator.
+  '/project/depots',
+  '/project/depots/decisions',
+  '/project/depots/choose',
+  '/project/depots/optimisation',
+  '/project/depots/headways',
+  '/project/depots/operations',
+  '/project/depots/reliability',
+  '/project/depots/fuel-audit',
+  '/project/depots/revenue-intelligence',
+  '/project/depots/cost',
+  '/project/depots/performance',
+  '/project/depots/forecasts',
+  '/project/depots/simulation',
+  '/project/depots/twin',
+  '/project/depots/data-health',
+  '/project/depots/d/[depotId]',
+  '/project/depots/d/[depotId]/decisions',
+  '/project/depots/d/[depotId]/readiness',
+  '/project/depots/d/[depotId]/health',
+  '/project/depots/d/[depotId]/disruption',
+  '/project/depots/d/[depotId]/fuel-audit',
+  '/project/depots/d/[depotId]/twin',
+  '/project/depots/scheduler',
+  '/project/depots/d/[depotId]/schedule',
+  '/project/depots/incidents',
+  '/project/depots/d/[depotId]/incidents',
+  '/project/depots/activity',
+  '/project/depots/settings',
+  '/project/depots/d/[depotId]/activity',
+  '/project/depots/d/[depotId]/bus-scheduler',
+  '/project/depots/d/[depotId]/crew-scheduler',
+  '/project/depots/d/[depotId]/optimizer',
+]);
 
 /** A page template with its segments filled from the sample: its depot and its busy route. */
 function pageUrl(template: string, sample: SampleFacts): string {
@@ -330,6 +403,10 @@ test.describe('2. every depot page renders honestly on the sample', () => {
       await openPage(page, pageUrl(template, sample), headingOf(template));
 
       const provenance = page.getByTestId('depot-provenance-line');
+      if (NO_PROVENANCE_LINE.has(template)) {
+        await expect(provenance).toHaveCount(0);
+        return;
+      }
       await expect(provenance).toBeVisible();
       await expect(provenance).toContainText(/DERIVED|MODELLED|MIXED|LIVE|REFERENCE/);
     });
@@ -471,8 +548,8 @@ test.describe('5. the cockpit opens the roster already filtered', () => {
     page,
     sample,
   }) => {
-    const cockpit = `/project/depots/d/${sample.depotId}`;
-    await openPage(page, cockpit, 'Depot cockpit');
+    const cockpit = `/project/depots/d/${sample.depotId}/cockpit`;
+    await openPage(page, cockpit, 'Operations overview');
     const links = page.locator('a[data-testid^="depot-attention-"][href*="/roster?"]');
     await expect(links.first()).toBeVisible();
     const targets = await links.evaluateAll((els) =>
@@ -484,7 +561,7 @@ test.describe('5. the cockpit opens the roster already filtered', () => {
     expect(targets.length).toBeGreaterThanOrEqual(2);
 
     for (const { href, text } of targets) {
-      await openPage(page, cockpit, 'Depot cockpit');
+      await openPage(page, cockpit, 'Operations overview');
       await page.locator(`a[data-testid^="depot-attention-"][href="${href}"]`).click();
 
       await expect(page).toHaveURL((url) => `${url.pathname}${url.search}` === href);
@@ -533,7 +610,7 @@ test.describe('6. the exceptions page scoped to one depot', () => {
     expect(body.depotScope.depot.every((line) => line.depotId === sample.depotId)).toBe(true);
     const buses = new Set(body.busPage.items.map((item) => item.registrationNumber)).size;
 
-    await openPage(page, `/project/depots/d/${sample.depotId}`, 'Depot cockpit');
+    await openPage(page, `/project/depots/d/${sample.depotId}/cockpit`, 'Operations overview');
     // The cockpit lists each bus once and the depot's own exceptions.
     await expect(page.getByTestId('depot-exceptions').first()).toBeVisible();
     const cockpitTotal = firstCount(
@@ -780,6 +857,10 @@ test.describe('10. the sample is never presented as live', () => {
       await expect(chip).toHaveAttribute('data-tone', /^(fixture|stale)$/);
       await expect(chip).toHaveAttribute('title', 'Sample data, not the live feed');
       await expect(chip).toContainText(/fixture/i);
+      if (NO_PROVENANCE_LINE.has(template)) {
+        await expect(page.getByTestId('depot-provenance-line')).toHaveCount(0);
+        return;
+      }
       await expect(page.getByTestId('depot-provenance-line')).toContainText(
         template === '/project/depots/sources' ? 'not from the feed' : 'sample data',
       );
@@ -794,7 +875,7 @@ test.describe('10. the sample is never presented as live', () => {
 
   test('the footer disclaimer does not call the sample live', async ({ page, sample }) => {
     expect(sample.depotId).toBeTruthy();
-    await openPage(page, '/project/depots', 'Headquarters overview');
+    await openPage(page, '/project/depots/overview', 'Headquarters overview');
     await expect(page.getByTestId('footer-disclaimer')).not.toContainText(/\blive\b/i);
   });
 });

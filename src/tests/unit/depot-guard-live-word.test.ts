@@ -65,6 +65,10 @@ const PERMITTED: Readonly<Record<string, Readonly<Record<string, string>>>> = {
     'Modelled: generated figures, anchored on the live feed at': FRESH,
   },
   'lib/depot/forecast/chartModel.ts': { 'Feed value, LIVE': CLASS },
+  'lib/depot/os/dataStatus.ts': {
+    LIVE: CLASS,
+    'LIVE GPS + SCENARIO': CLASS,
+  },
   'lib/depot/labels.ts': { LIVE: CLASS },
   'lib/depot/maintenance/text.ts': { Live: STATUS },
   'lib/depot/provenanceLine.ts': {

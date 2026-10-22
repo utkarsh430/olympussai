@@ -1,49 +1,69 @@
+import { Suspense } from 'react';
 import { FooterDisclaimer } from '@/components/shared/FooterDisclaimer';
 import { DepotNetworkProvider } from '@/components/depot/data/DepotNetworkProvider';
+import { AiEngine } from '@/components/depot/os/ai/AiEngine';
+import { AiRibbon } from '@/components/depot/os/ai/AiRibbon';
+import { CapabilityExplorer } from '@/components/depot/os/CapabilityExplorer';
+import { CommandPalette } from '@/components/depot/os/CommandPalette';
+import { CopilotDock } from '@/components/depot/os/CopilotDock';
+import { EntityDrawer } from '@/components/depot/os/EntityDrawer';
+import { IntelProvider } from '@/components/depot/os/IntelProvider';
+import { OsHydrator } from '@/components/depot/os/OsHydrator';
+import { OsTopBar } from '@/components/depot/os/OsTopBar';
+import { SectionScroller } from '@/components/depot/os/SectionScroller';
+import { WorkspaceRail, WorkspaceStrip, WorkspaceTabs } from '@/components/depot/os/WorkspaceNav';
 import { DEPOT_PORTAL_ROOT_ID } from '@/lib/depot/portalRoot';
-import { DepotNav } from './DepotNav';
-import { DepotTopBar } from './DepotTopBar';
 import { PageRefreshNotice } from './PageRefreshNotice';
 
 /**
- * Frame for every depot page: top bar, the navigation (a left rail from 1280px, one
- * strip under the bar below it), a scrolling main region, and the prototype
- * disclaimer. The disclaimer is in the page flow after the content (the last child of
- * a min-height column), never fixed or sticky, so the shell reserves no space for it.
+ * Frame of Depot Intelligence OS: the bar (brand, context, search, AI and data status,
+ * copilot), the six workspaces (a rail from 1280px, a strip below it), the workspace's
+ * view tabs above each page, the copilot dock on the right while open, and the overlays
+ * every workspace shares (command palette, entity profiles, the AI capability index).
  * What sticks where is defined once, as the `--depot-*` custom properties on
- * `.depot-shell` in globals.css.
- * `<main>` is focusable (tabIndex -1) so the skip link can move focus into it;
- * its focus ring is drawn inside the box so nothing clips it. The shell stays a
- * server component; the client provider polls the network feed once for the
- * top bar's feed chip and every page below it. `PageRefreshNotice` sits above every
- * page and speaks when a page's own data request fails after a success.
+ * `.depot-shell` in globals.css. `<main>` is focusable so the skip link can move focus
+ * into it. The network poll and the OS's shared intelligence run once here for every page.
  */
 export function DepotShell({ children }: { readonly children: React.ReactNode }) {
   return (
     <DepotNetworkProvider>
-      <div className="depot-shell flex min-h-dvh flex-col">
-        <a
-          href="#depot-main"
-          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[200] focus:rounded focus:bg-holo-glow focus:px-4 focus:py-2 focus:font-mono focus:text-xs focus:text-void"
-        >
-          Skip to depot content
-        </a>
-        <DepotTopBar />
-        <div className="flex min-w-0 flex-1 flex-col xl:flex-row">
-          <DepotNav />
-          <main
-            id="depot-main"
-            tabIndex={-1}
-            className="min-w-0 flex-1 scroll-mt-[var(--depot-sticky-top)] px-4 pb-8 pt-6 focus-visible:outline-offset-[-2px] sm:px-6"
-          >
-            <PageRefreshNotice />
-            {children}
-          </main>
-        </div>
-        <FooterDisclaimer variant="depot" />
-        {/* Dialogs and drawers are portalled here, inside the shell's type and typeface. */}
-        <div id={DEPOT_PORTAL_ROOT_ID} />
-      </div>
+      <Suspense fallback={null}>
+        <IntelProvider>
+          <OsHydrator />
+          <SectionScroller />
+          <AiEngine />
+          <div className="depot-shell flex min-h-dvh flex-col">
+            <a
+              href="#depot-main"
+              className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[200] focus:rounded focus:bg-holo-glow focus:px-4 focus:py-2 focus:font-mono focus:text-xs focus:text-void"
+            >
+              Skip to depot content
+            </a>
+            <OsTopBar />
+            <WorkspaceStrip />
+            <div className="flex min-w-0 flex-1 flex-col xl:flex-row">
+              <WorkspaceRail />
+              <main
+                id="depot-main"
+                tabIndex={-1}
+                className="min-w-0 flex-1 scroll-mt-[var(--depot-sticky-top)] px-4 pb-8 pt-4 focus-visible:outline-offset-[-2px] sm:px-6"
+              >
+                <WorkspaceTabs />
+                <AiRibbon />
+                <PageRefreshNotice />
+                {children}
+              </main>
+              <CopilotDock />
+            </div>
+            <FooterDisclaimer variant="depot" />
+            <CommandPalette />
+            <EntityDrawer />
+            <CapabilityExplorer />
+            {/* Dialogs and drawers are portalled here, inside the shell's type and typeface. */}
+            <div id={DEPOT_PORTAL_ROOT_ID} />
+          </div>
+        </IntelProvider>
+      </Suspense>
     </DepotNetworkProvider>
   );
 }

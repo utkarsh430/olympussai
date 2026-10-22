@@ -692,3 +692,12 @@ Pages do nothing here; for reference.
   `depotDisclaimerText` in `src/lib/depot/shellModel.ts`; the command centre's sentence is
   unchanged), wraps in sans 11/16 at most 90 characters wide, never cut off.
 
+
+
+## Pages without a provenance line
+
+By the owner's decision (2026-10-12) the AI Scheduler and Incident Response pages carry no
+provenance line, tag or "modelled" wording: a plan is a recommendation, not a claim about where
+its figures come from. They keep the sentence "Recommendation only. Nothing is dispatched or
+assigned." and, beside crew, "Availability and rostering only. No individual is assessed."
+The sample browser suite lists them in `NO_PROVENANCE_LINE` and asserts the line is absent.

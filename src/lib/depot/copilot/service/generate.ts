@@ -71,6 +71,14 @@ function planClaude(runtime: CopilotRuntime, key: string, call: AnswerCall): Cla
   return { skip: null, spent: true };
 }
 
+/** A model text that carries a word the request refuses, whatever the vocabulary allows. */
+function carriesRefusedWord(text: CopilotText, request: CopilotRequest): boolean {
+  const words = request.refuseWords;
+  if (!words || words.length === 0 || text.provider !== 'claude-cli') return false;
+  const pattern = new RegExp(`\\b(${words.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})\\b`, 'i');
+  return [text.headline, ...text.paragraphs].some((line) => pattern.test(line));
+}
+
 /** The engine fell back for a reason that means Claude was never called. */
 const madeNoCall = (text: CopilotText): boolean =>
   text.provider !== 'claude-cli' &&
@@ -130,8 +138,11 @@ export async function answerCopilot(
     dataSource: call.dataSource,
   };
   const missed = runtime.usesClaude || runtime.claudeExpected;
-  const respond = (text: CopilotText, cached: boolean, claudeMissed: boolean) =>
-    toPublicResponse(text, request, { ...extras, cached, claudeMissed });
+  const respond = async (text: CopilotText, cached: boolean, claudeMissed: boolean) => {
+    const refused = carriesRefusedWord(text, request);
+    const final = refused ? await scriptedText(runtime, request) : text;
+    return toPublicResponse(final, request, { ...extras, cached: cached && !refused, claudeMissed: claudeMissed || refused });
+  };
 
   const key = cacheKey(request);
   const hit = runtime.cache.get(key);

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { isValidDepotId, isValidRouteName } from '@/lib/depot/ids';
+import { isValidDepotId, isValidRegistration, isValidRouteName } from '@/lib/depot/ids';
 import { isProposalId } from '@/lib/depot/service/bands';
 import { MAX_QUESTION_CHARS } from '@/lib/depot/copilot/limits';
 import { sanitizeQuestion } from '@/lib/depot/copilot/router/sanitize';
@@ -43,6 +43,12 @@ const requestSchema = z.union([
       proposalId: z.string().max(MAX_PROPOSAL_ID_CHARS).refine(isProposalId),
       routeName: z.string().refine(isValidRouteName),
     })
+    .strict(),
+  z
+    .object({ task: z.literal('rationale'), scheduleDepotId: z.string().refine(isValidDepotId) })
+    .strict(),
+  z
+    .object({ task: z.literal('rationale'), incidentDepotId: z.string().refine(isValidDepotId), registrationNumber: z.string().max(24).refine(isValidRegistration) })
     .strict(),
   z
     .object({

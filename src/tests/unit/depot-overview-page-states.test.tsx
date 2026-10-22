@@ -1,7 +1,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import DepotsOverviewPage from '@/app/(protected)/project/depots/page';
+import DepotsOverviewPage from '@/app/(protected)/project/depots/overview/page';
 import type { DepotScore } from '@/lib/depot/score/types';
 import type { DepotSummary, Figure, NetworkKpis } from '@/lib/depot/types';
 
